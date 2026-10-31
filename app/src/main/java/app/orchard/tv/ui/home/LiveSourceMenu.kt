@@ -119,7 +119,17 @@ fun LiveSourceMenu(
     val context = androidx.compose.ui.platform.LocalContext.current
     val gridMargin = 56.dp
     val gridGap = 28.dp
-    val columns = 5
+    // 复用上游设置：每排 4/5/6 个，默认 5
+    val columns = AerialSettings.homeColumns
+    // 玻璃底板开启时，首排会向上抬（和一级菜单同一套 Plate 常量：底部边距30dp + 内边距20dp）；
+    // 关闭时给 App 名称留 70dp。让二级菜单和一级菜单底部基线一致。
+    val plate = AerialSettings.homePlate
+    val bottomPad = if (plate) {
+        30.dp + 20.dp + 10.dp
+    } else {
+        70.dp
+    }
+    val rowGap = 24.dp
     val showAllNames = AerialSettings.showAllNames
 
     val alpha = androidx.compose.animation.core.animateFloatAsState(
@@ -133,7 +143,6 @@ fun LiveSourceMenu(
         val screenH = maxHeight
         val tileW = (screenW - gridMargin * 2 - gridGap * (columns - 1)) / columns
         val tileH = tileW * 9f / 16f
-        val bottomPad = 63.dp
 
         Box(
             modifier = Modifier
@@ -196,8 +205,10 @@ fun LiveSourceMenu(
                     }
                 }
                 val app = remember(fallback, artState.value) { fallback.copy(art = artState.value ?: fallback.art) }
-                val xPx = with(density) { (gridMargin + (tileW + gridGap) * index).roundToPx() }
-                val yPx = with(density) { (screenH - bottomPad - tileH).roundToPx() }
+                val colIndex = index % columns
+                val rowIndex = index / columns
+                val xPx = with(density) { (gridMargin + (tileW + gridGap) * colIndex).roundToPx() }
+                val yPx = with(density) { (screenH - bottomPad - tileH - rowIndex * (tileH + rowGap)).roundToPx() }
                 val targetOffset = IntOffset(xPx, yPx)
                 val animatedOffset by animateIntOffsetAsState(
                     targetOffset,
@@ -236,12 +247,17 @@ fun LiveSourceMenu(
             if (menuForId != null) {
                 val source = sources.find { it.id == menuForId } ?: return@BoxWithConstraints
                 val sourceIndex = sources.indexOf(source)
+                val colIndex = sourceIndex % columns
+                val rowIndex = sourceIndex / columns
                 val first = remember { FocusRequester() }
                 LaunchedEffect(menuForId) { first.requestFocus() }
                 Column(
                     Modifier
                         .align(Alignment.BottomStart)
-                        .padding(start = gridMargin + (tileW + gridGap) * sourceIndex + tileW / 2 - 125.dp, bottom = bottomPad + tileH + 20.dp)
+                        .padding(
+                            start = gridMargin + (tileW + gridGap) * colIndex + tileW / 2 - 125.dp,
+                            bottom = bottomPad + tileH + rowIndex * (tileH + rowGap) + 20.dp,
+                        )
                         .width(250.dp)
                         .liquidGlass(20.dp)
                         .padding(8.dp),
