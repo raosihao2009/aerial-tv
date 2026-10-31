@@ -163,6 +163,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         LiveSource("preset_2", "央视网快看", "https://b23.tv/zxbwWNq", isBilibili = true, isPreset = true, colorIndex = 2),
         LiveSource("preset_3", "快看", "https://b23.tv/efy30LE", isBilibili = true, isPreset = true, colorIndex = 3),
         LiveSource("preset_4", "东方明珠", "https://b23.tv/djN4x6N", isBilibili = true, isPreset = true, colorIndex = 4),
+        LiveSource("preset_5", "我就是邓子", "https://b23.tv/7HCyKBv", isBilibili = true, isPreset = true, colorIndex = 5),
     )
     var currentLiveSourceId by mutableStateOf("preset_0"); private set
     var liveSources by mutableStateOf<List<LiveSource>>(emptyList()); private set

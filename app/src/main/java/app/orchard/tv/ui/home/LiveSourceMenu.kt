@@ -57,6 +57,8 @@ private fun liveSourceIconResId(source: LiveSource): Int? = when (source.id) {
     "preset_1" -> app.orchard.tv.R.drawable.live_yangshipin
     "preset_2" -> app.orchard.tv.R.drawable.live_cctvkuikan
     "preset_3" -> app.orchard.tv.R.drawable.live_kuikan
+    "preset_4" -> app.orchard.tv.R.drawable.live_dongfangmingzhu
+    "preset_5" -> app.orchard.tv.R.drawable.live_dengzi
     else -> null
 }
 

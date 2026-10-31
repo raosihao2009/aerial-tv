@@ -76,11 +76,13 @@ fun ChannelFocusPreview(
             val factory = DefaultHttpDataSource.Factory()
                 .setUserAgent("Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
                 .setConnectTimeoutMs(10_000).setReadTimeoutMs(10_000)
-            if (source.isBilibili || streamUrl.contains("bilibili.com"))
+            if (source.isBilibili || streamUrl.contains("bilibili.com")) {
+                val buvid3 = fetchBuvid3()
                 factory.setDefaultRequestProperties(mapOf(
                     "Referer" to "https://live.bilibili.com/",
-                    "Cookie" to "buvid3=placeholder"
+                    "Cookie" to "buvid3=$buvid3"
                 ))
+            }
             val hls = HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(Uri.parse(streamUrl)))
             lastMediaSource = hls
             exo.setMediaSource(hls)
@@ -171,6 +173,21 @@ private suspend fun resolveStreamUrl(source: LiveSource): String? = withContext(
     } catch (e: Exception) { null }
 }
 
+private val buvidCache = mutableMapOf<String, String>()
+
+private fun fetchBuvid3(): String {
+    buvidCache["buvid3"]?.let { return it }
+    return runCatching {
+        val c = java.net.URL("https://api.bilibili.com/x/frontend/finger/spi").openConnection() as java.net.HttpURLConnection
+        c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36")
+        c.connectTimeout = 8000; c.readTimeout = 8000
+        val body = c.inputStream.bufferedReader().readText(); c.disconnect()
+        val b3 = JSONObject(body).getJSONObject("data").getString("b_3")
+        buvidCache["buvid3"] = b3
+        b3
+    }.getOrDefault("buvid3_placeholder")
+}
+
 private fun extractBilibiliRoomId(url: String): Long? = runCatching {
     if (url.contains("b23.tv")) {
         val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
@@ -184,10 +201,12 @@ private fun extractRoomIdFromUrl(url: String): Long? =
     Regex("live\\.bilibili\\.com/(\\d+)").find(url)?.groupValues?.getOrNull(1)?.toLongOrNull()
 
 private fun fetchBilibiliHlsUrl(roomId: Long): String? = runCatching {
+    val buvid3 = fetchBuvid3()
     val api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1,2&codec=0,1&qn=10000&platform=web"
     val c = java.net.URL(api).openConnection() as java.net.HttpURLConnection
     c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36")
     c.setRequestProperty("Referer", "https://live.bilibili.com/")
+    c.setRequestProperty("Cookie", "buvid3=$buvid3")
     c.connectTimeout = 10000; c.readTimeout = 10000
     val body = c.inputStream.bufferedReader().readText(); c.disconnect()
     val streams = JSONObject(body).getJSONObject("data").getJSONObject("playurl_info").getJSONObject("playurl").getJSONArray("stream")
