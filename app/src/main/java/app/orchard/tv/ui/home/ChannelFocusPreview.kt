@@ -25,6 +25,8 @@ import androidx.media3.exoplayer.hls.HlsMediaSource
 import app.orchard.tv.LiveSource
 import app.orchard.tv.system.DiagLog
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
