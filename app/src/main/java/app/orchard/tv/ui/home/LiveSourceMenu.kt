@@ -194,11 +194,20 @@ fun LiveSourceMenu(
             // 行Y坐标逻辑（对齐 HomeScreen.topRowY）:
             //   双排: 底行贴 baseline, 上行 = 底行 - pitchY
             //   单排+露出: 主行 = screenH - pitchY - 12dp (上抬12dp), 次行 = screenH - 12dp (露出12dp)
+            //             当焦点在次行时, 整个菜单上抬到双排布局(两行全可见)
             //   单排+不露出: 主行 = screenH - basePad - tileH, 不显示次行
             val maxVisible = if (oneRow && !peek) columns else columns * 2
             val visibleCount = minOf(sources.size, maxVisible)
             val numRows = (visibleCount + columns - 1) / columns
+            // 焦点在第几排？在单排+peek模式下，焦点到次排时整个菜单上抬
+            val focusedIndex = sources.indexOfFirst { it.id == focusedId }.coerceAtLeast(0)
+            val focusedRow = focusedIndex / columns
+            val lifted = oneRow && peek && focusedRow >= 1 && numRows >= 2
             fun rowY(rowFromTop: Int): Dp = when {
+                lifted -> {
+                    // 焦点在次排: 两行全可见, 底行贴 baseline
+                    screenH - basePad - tileH - pitchY * (numRows - 1 - rowFromTop)
+                }
                 !oneRow -> {
                     // 双排: 最后一行贴 baseline，上面行逐行减 pitchY
                     screenH - basePad - tileH - pitchY * (numRows - 1 - rowFromTop)
