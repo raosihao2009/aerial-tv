@@ -217,12 +217,12 @@ fun ChannelFocusPreview(
                 p.playWhenReady = true
             }
         }
-        // 加载遮罩：16:9 图片居中
+        // 加载遮罩：整图铺满(图片本身已含右上角黑底文字布局)
         if (loadingAlpha > 0.01f) {
             Image(
                 painter = painterResource(R.drawable.live_loading),
                 contentDescription = "直播加载中",
-                contentScale = ContentScale.Fit,
+                contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
                     .align(Alignment.Center),
