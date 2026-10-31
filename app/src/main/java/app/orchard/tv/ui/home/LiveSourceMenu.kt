@@ -98,21 +98,25 @@ fun LiveSourceMenu(
     LaunchedEffect(movingId) { onMovingChange(movingId != null) }
     val requesters = remember { HashMap<String, FocusRequester>() }
     fun requester(id: String) = requesters.getOrPut(id) { FocusRequester() }
-    // 上下文菜单关闭后焦点回到原卡片
+    // 上下文菜单关闭后焦点直接回到原卡片(不延迟, 不闪烁)
     var lastMenuId by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(menuForId) {
-        if (menuForId != null) lastMenuId = menuForId
-        else if (lastMenuId != null) {
-            kotlinx.coroutines.delay(100)
-            lastMenuId?.let { runCatching { requester(it).requestFocus() } }
+        if (menuForId != null) {
+            lastMenuId = menuForId
+        } else if (lastMenuId != null) {
+            focusedId = lastMenuId!!
+            runCatching { requester(lastMenuId!!).requestFocus() }
             lastMenuId = null
         }
     }
     val density = LocalDensity.current
 
+    // 菜单显示时立即聚焦初始卡片(不等动画)
     LaunchedEffect(visible) {
-        kotlinx.coroutines.delay(200)
-        runCatching { requester(currentId).requestFocus() }
+        if (visible) {
+            focusedId = currentId
+            runCatching { requester(currentId).requestFocus() }
+        }
     }
     // 移动时焦点跟随
     LaunchedEffect(movingId, sources) {
@@ -187,8 +191,9 @@ fun LiveSourceMenu(
                             e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_UP && e.type == KeyEventType.KeyDown && from >= columns -> {
                                 onMove(from, from - columns); true
                             }
-                            e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_DOWN && e.type == KeyEventType.KeyDown && from + columns < sources.size -> {
-                                onMove(from, from + columns); true
+                            e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_DOWN && e.type == KeyEventType.KeyDown && from < sources.size - 1 -> {
+                                val target = minOf(from + columns, sources.size - 1)
+                                if (target != from) onMove(from, target); true
                             }
                             e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_CENTER && e.type == KeyEventType.KeyUp -> {
                                 movingId = null; true
@@ -285,9 +290,8 @@ fun LiveSourceMenu(
                 val sourceIndex = sources.indexOf(source)
                 val menuCol = sourceIndex % columns
                 val menuRowFromTop = sourceIndex / columns
-                // 上下文菜单位置：在该卡片上方弹出
-                val tileBottom = rowY(menuRowFromTop) + tileH
-                val menuBottomPad = screenH - tileBottom + 20.dp
+                // 上下文菜单位置：在该卡片正上方弹出(菜底距卡顶20dp)
+                val menuBottomPad = screenH - rowY(menuRowFromTop) + 20.dp
                 val first = remember { FocusRequester() }
                 LaunchedEffect(menuForId) { first.requestFocus() }
                 Column(
