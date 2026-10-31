@@ -35,6 +35,9 @@ class DeviceProfileTest {
         assertEquals(mapOf(4 to 23, 5 to 24, 6 to 25), mfzp0.xiaomiSourceIds)
 
         assertTrue(DeviceProfile.match(json, "MiTV_MFTP0", 0)!!.ignoresPictureBacklight)
+        // Whaley WTV43K1J lets its launcher show at boot (#902); nothing else does.
+        assertEquals(1000, DeviceProfile.match(json, "WTV43K1J", 0)!!.bootStockMs)
+        assertEquals(0, DeviceProfile.match(json, "MiTV-NSOP0", 22)!!.bootStockMs)
         assertNull(DeviceProfile.match(json, "MiTV-MFTP1", 0))
     }
 
@@ -42,18 +45,24 @@ class DeviceProfileTest {
     @Test fun firmwareConditionHolds() {
         assertEquals(mapOf(7 to 23), DeviceProfile.match(json, "MiTV4-ANSM0", 8)!!.xiaomiFallbackSourceIds)
         assertEquals(mapOf(7 to 23), DeviceProfile.match(json, "MiTV4A", 21)!!.xiaomiFallbackSourceIds)
-        assertNull(DeviceProfile.match(json, "MiTV4-ANSM0", 22))
+        assertNull(DeviceProfile.match(json, "MiTV4-ANSM0", 22, 4))
+        // From 22.8 the registered HDMI3 service is the HDMI 1 port, source 23 (#592, #584).
+        assertEquals(mapOf(7 to 23, 6 to 24, 5 to 25), DeviceProfile.match(json, "MiTV4-ANSM0", 22, 8)!!.xiaomiSourceIds)
+        assertEquals(mapOf(7 to 23, 6 to 24, 5 to 25), DeviceProfile.match(json, "MiTV4-ANSM0", 22, 11)!!.xiaomiSourceIds)
+        assertEquals("HDMI 1", DeviceProfile.match(json, "MiTV4-ANSM0", 23, 0)!!.labels[7])
     }
 
     @Test fun jsonRoundTrips() {
-        val p = DeviceProfile(setOf(8, 3), mapOf(6 to "HDMI 1"), mapOf(6 to 23), mapOf(7 to 25), true)
+        val p = DeviceProfile(setOf(8, 3), mapOf(6 to "HDMI 1"), mapOf(6 to 23), mapOf(7 to 25), true, bootStockMs = 1500)
         val back = DeviceProfile.parse(JSONObject(p.toJson().toString()))
         assertEquals(p.hiddenHardware, back.hiddenHardware)
         assertEquals(p.labels, back.labels)
         assertEquals(p.xiaomiSourceIds, back.xiaomiSourceIds)
         assertEquals(p.xiaomiFallbackSourceIds, back.xiaomiFallbackSourceIds)
         assertTrue(back.ignoresPictureBacklight)
+        assertEquals(1500, back.bootStockMs)
         assertTrue(DeviceProfile().isEmpty)
+        assertFalse(DeviceProfile(bootStockMs = 1000).isEmpty)
         assertEquals("{}", DeviceProfile().toJson().toString())
     }
 

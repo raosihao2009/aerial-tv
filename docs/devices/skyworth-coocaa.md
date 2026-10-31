@@ -6,6 +6,8 @@
 |---|---|---|---|
 | 65G60 / 酷开 9S60 | Android 8.0，MStar MSD6A848 | 主页键能回 Aerial；开机一定进酷开桌面：`sky_launcher`（在 system_server 里）读 `/system/pcfg/9S60_G60/config/general_config.xml` 的 `DEFAULT_HOMEPAGE` 按组件启动，不走 HOME 解析；守护在开机时的 `startActivity` 被 `CooCaaCheckDialogPermission` 丢掉（调用方没有可见 Activity）；`skyRMService` 切前台时会 force-stop 上一个第三方 App；开机把第三方 App 置成 stopped。报告人用 root 改 `DEFAULT_HOMEPAGE` 为 `app.orchard.tv/app.orchard.tv.MainActivity` 才开机直达。开机广告是 `com.tianci.ad`，`pm uninstall --user 0` 就没了 | #316 |
 | 7T641（mt9633） | Android 13 | 冷启动约 60 秒黑屏：Aerial 早已画完，但 SurfaceFlinger 里它的窗口 `crop=[0,0,0,0]`；遥控器「播放」键在这台上发的是 Home，看视频时按到会被守护拉回 Aerial，然后又是 60 秒黑屏 | #321、#326 |
+| 7T634_P3H（mt9633 / mt9952，K3） | Android 13 | 1.57 黑屏：首页已画完，`focus false`，两次「没有焦点窗口」ANR；改包名也一样。同一台上 FreeTV 能显示，原因还没找到。报告人发现这台的按应用自启动 / 后台保留在 `skyresource` 服务里（`service call skyresource 5 s16 <包名> i32 0 i32 1` 允许自启动，`i32 1 i32 2` 后台保留，只在这台固件上核对过），还没对 Aerial 试 | [#864](https://github.com/pengchujin/aerial-tv/issues/864) |
+| 8R721_A6FP（titanite，RTD2885P） | Android 13 | 1.67-guard 首页先显示出来，约 30 秒后两次「没有焦点窗口」ANR，回到 `com.skyworth.officehomepage`，和 8R710 / 8R734 一样 | [#839](https://github.com/pengchujin/aerial-tv/issues/839) |
 | 75A6E（8R710_A6E，Realtek RTD2885P） | Android 13 | standard 版是唯一的 HOME 候选，按主页键整机卡死；创维电视应用 `com.skyworth.tv` 一直占着输入焦点，Aerial 的窗口 `NOT_VISIBLE`、`focus false`，guard 版也一样。目前没有办法 | #365 |
 | 75A7D（8R134_A7D，Realtek RTD2885N） | Android 11，酷开 CCOS 9.0 | `TvInputManager` 一个信号源都没有；改为从 `com.skyworth.tv.sdk.provider` 读列表、用 `com.skyworth.tv` 的 `SkyTVMainActivity` 切换，报告人在真机上验证通过，接口见下（1.45 起用上） | #444 |
 | 酷开 8R710_P8F（同一机芯 titanite） | Android 13 | 只有诊断报告，现象待补，估计同 #365 | #358 |
@@ -22,6 +24,13 @@ root 后把 `/system/pcfg/<型号目录>/config/general_config.xml` 里的 `DEFA
 
 - 遥控器信号源键：固件弹自己的 Quick Panel（`com.coocaa.os.ccosservice/com.coocaa.os.controlcenter.quicksettings.service.FeatureService`），同时把按键交给前台 App。有这个服务时 Aerial 不再响应信号源键，和 TCL 的 `tclInputPanel` 一样。
 - 亮度：`screen_brightness` 一直是 2/255，写它不改背光（画质中间件管）；`ACTION_DISPLAY_SETTINGS` 也解析不到。图像侧栏是启动 `com.skyworth.setting/.service.HalfScreenService`、带 `Key = "android.settings.PICTURE_SETTINGS"`（导出、无权限）。有这个服务时控制中心不画亮度滑条，改成打开它。两个包都要写进 `<queries>`。
+
+## 75A7D 开机先出酷开桌面：bootintent.xml 的 modelhome（#894，报告人实测，未合入）
+
+8R134_A7D（固件 `RP1A.200720.011` / `eng.www-da.20231205.132148`，Android 11，SELinux **permissive**）开机先出酷开桌面 3–6 秒。报告人查到原因：`services.jar` 在解析 HOME 之前按 `/system/ccos/etc/bootintent.xml` 选开机首页，其中 `modelhome` 一项在 `persist.service.model.pkg` / `persist.service.model.cls` 都非空时直接启动它们指向的组件；`com.tianci.system` 每次开机约 24 秒时把这两个属性清空。
+
+- 手动 `setprop` 这两个属性只管下一次开机。报告人的改法是 Aerial 每次开机后 30 秒用 `/system/bin/setprop` 写回（只在 bootintent.xml 有这一项时；enforcing 的固件写不进去），实测断电、重启都直接进 Aerial。
+- 没有合进 Aerial：要由 App 写固件的开机属性，卸载 Aerial 后下一次开机会指向不存在的组件，固件怎么处理没验证；`restore.sh` 也还不会清这两个属性。要不要做由户主决定。
 
 ## 75A7D 的信号源接口
 
@@ -48,3 +57,6 @@ root 后把 `/system/pcfg/<型号目录>/config/general_config.xml` 里的 `DEFA
 - 酷开 aigc 系（C10 投影仪 3H352_C10 Android 9 #487、P60 Android 11、7T863_N6E Android 10 #106）：主页键在 WindowManager 里变成创维热键广播，`com.tianci.system` 的 SLauncher 按组件拉起 `com.coocaa.aigc.home/.home.rootpage.HomeActivity`，不走 HOME 解析；这个桌面不声明任何 Home 类别。1.48 起守护把它算原桌面（未在真机验证）。7T863_N6E 上改 `persist.service.model.pkg/.cls`（加上 `homepage.*`）后主页键进 Aerial，但每次开机被固件写回。
 - 8R145_P3DM（Android 11）：`SkyProcManager` 会强停「不可见的非系统应用」，从 Aerial 打开别的 App 后 Aerial 就被杀，这时按主页键先到酷开桌面，等复活约 20–30 秒才回 Aerial（#106 的日志）。目前没有办法。
 - 创维/酷开 Whaley 55D2UK（helios，MStar，Android 5.0.2，arm64）：standard 版能装能接管，原桌面 `com.helios.guide` priority 1，设不成默认桌面，靠守护（主页键约 4 秒、先闪原桌面）；信号源走微鲸的 `com.whaley.tv.tvplayer.ui/.RootActivity`；亮度 `screen_brightness` 可调（#457）。
+
+- 5S09_A3（Tianci，MStar maserati，Android 6，#895，报告人在电视前核对）：`screen_brightness` 能写、`mActualBacklight` 跟着变，但面板亮度不变；背光在 `com.tianci.setting/.activity.PictureSoundSetting`（图像与声音）里，酷开自己调背光时 Settings 不变。没有 `com.skyworth.setting`。1.71 起 devices.json 标 `ignoresScreenBrightness`，亮度按钮打开这个页面。信号源：TvInputManager 为空，控制中心「信号源」打开 `coocaa.intent.action.SOURCE_DIALOG` 能切；切换由 `com.tianci.tv/.SkyLauncher` 带 extras 完成，报告人试的 `source`/`sourceIndex`/`inputSource`/`index` 都不行；HDMI 1 = 23，HDMI 2 = 24。
+- C10 投影（3H352_C10，Android 9，#915）：遥控器「对焦」（扫描码 742，KeyCode 1116 `QUICK_START6`）和「设置」（176）的按下被 `com.cvte.tv.hotkey` 消费，只把抬起给 App。1.71 起屏保收到没有按下的抬起也退出。

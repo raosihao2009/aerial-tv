@@ -71,9 +71,14 @@ set +e
   echo
   echo "**Home**"
   echo '```'
-  echo "resolves to: $(sh_ cmd package resolve-activity --brief "${HOME_INTENT[@]}" | tail -n1)"
-  sh_ cmd package query-activities --brief "${HOME_INTENT[@]}" | sed 's/^/  /'
-  sh_ cmd role get-role-holders android.app.role.HOME | sed 's/^/role holder: /'
+  # Android 6 and older have no `cmd`; the shell's "cmd: not found" is not an answer (issue #818).
+  if [ -n "$(sh_ 'command -v cmd')" ]; then
+    echo "resolves to: $(sh_ cmd package resolve-activity --brief "${HOME_INTENT[@]}" -c android.intent.category.DEFAULT | tail -n1)"
+    sh_ cmd package query-activities --brief "${HOME_INTENT[@]}" | sed 's/^/  /'
+    sh_ cmd role get-role-holders android.app.role.HOME | sed 's/^/role holder: /'
+  else
+    echo "resolves to: (no cmd on this Android; see Aerial's own Home section below)"
+  fi
   echo "foreground: $(sh_ dumpsys activity activities | grep -m1 -E "mResumedActivity|topResumedActivity|mFocusedActivity" | sed 's/^ *//')"
   echo '```'
 

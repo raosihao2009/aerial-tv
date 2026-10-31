@@ -166,17 +166,22 @@ class StatusPill(context: Context) : View(context) {
         set(v) { if (field != v) { field = v; invalidate() } }
     var level = 1f
         set(v) { if (field != v) { field = v; invalidate() } }
+    /** A VPN is up: the full app's VpnBadge after the network glyph (issue #809). */
+    var vpn = false
+        set(v) { if (field != v) { field = v; requestLayout(); invalidate() } }
 
     private val text = Ui.text(15f, 600)
     private val bg = Paint(Paint.ANTI_ALIAS_FLAG)
     private val rect = RectF()
     private val bitmapPaint = Paint(Paint.FILTER_BITMAP_FLAG)
     private val g = Ui.pxi(17f)
+    private val badge = VpnBadge(context, 10f)
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val pad = Ui.px(14f)
         val gap = Ui.px(10f)
         var w = pad * 2 + g * 2 + gap
+        if (vpn) w += badge.width + gap
         if (showTime) w += text.measureText(timeText(context)) + gap
         setMeasuredDimension(w.toInt() + 1, Ui.pxi(34f))
     }
@@ -197,6 +202,7 @@ class StatusPill(context: Context) : View(context) {
         val top = (height - g) / 2f
         canvas.drawBitmap(Glyphs.image(network, g, fg, level), x, top, bitmapPaint)
         x += g + Ui.px(10f)
+        if (vpn) x += badge.draw(canvas, x, height / 2f, fg) + Ui.px(10f)
         if (showTime) {
             text.color = fg
             val t = timeText(context)
@@ -205,4 +211,32 @@ class StatusPill(context: Context) : View(context) {
         }
         canvas.drawBitmap(Glyphs.image(Glyph.Switches, g, fg), x, top, bitmapPaint)
     }
+}
+
+/** The full app's VpnBadge: "VPN" in a thin rounded frame, [size] its text size. */
+class VpnBadge(context: Context, size: Float) {
+    private val label = context.getString(R.string.net_vpn)
+    private val text = Ui.text(size, 700)
+    private val frame = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = Ui.px(1.2f) }
+    private val rect = RectF()
+    val width: Float = Ui.width(label, text, 0.04f) + Ui.px(8f)
+    val height: Float = size * 1.2f * Ui.px(1f) + Ui.px(2f)
+
+    /** Drawn from [x], centred on [centerY]; returns its width. */
+    fun draw(canvas: Canvas, x: Float, centerY: Float, color: Int): Float {
+        val half = frame.strokeWidth / 2
+        rect.set(x + half, centerY - height / 2 + half, x + width - half, centerY + height / 2 - half)
+        frame.color = color
+        canvas.drawRoundRect(rect, Ui.px(4f), Ui.px(4f), frame)
+        text.color = color
+        Ui.draw(canvas, label, x + Ui.px(4f), centerY - (text.descent() + text.ascent()) / 2, text, 0.04f)
+        return width
+    }
+}
+
+/** A [VpnBadge] as a plain view. */
+class VpnBadgeView(context: Context, size: Float, private val color: Int) : View(context) {
+    private val badge = VpnBadge(context, size)
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) = setMeasuredDimension(badge.width.toInt() + 1, badge.height.toInt() + 1)
+    override fun onDraw(canvas: Canvas) { badge.draw(canvas, 0f, height / 2f, color) }
 }

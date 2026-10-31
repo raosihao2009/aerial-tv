@@ -10,6 +10,7 @@ import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
+import android.net.ConnectivityManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -78,6 +79,8 @@ class HomeActivity : Activity(), HomeView.Host {
             addAction(Intent.ACTION_PACKAGE_CHANGED)
             addDataScheme("package")
         })
+        @Suppress("DEPRECATION")
+        registerReceiver(connectivity, IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION))
         if (savedInstanceState == null && SystemClock.elapsedRealtime() < 3 * 60 * 1000L) openBootApp()
     }
 
@@ -90,6 +93,7 @@ class HomeActivity : Activity(), HomeView.Host {
 
     override fun onDestroy() {
         unregisterReceiver(packages)
+        unregisterReceiver(connectivity)
         hideSaver()
         proxy.stop()
         PhoneServer.stop()
@@ -101,6 +105,9 @@ class HomeActivity : Activity(), HomeView.Host {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) hideBars()
+        // A window of the TV's over the screensaver: one of its own keys was pressed, whose lift
+        // then went to that window (Coocaa C10's hotkey popup, issue #915; as in the full app).
+        if (!hasFocus && resumed && saver != null) hideSaver()
     }
 
     /**
@@ -119,10 +126,14 @@ class HomeActivity : Activity(), HomeView.Host {
         super.onResume()
         resumed = true
         home.refreshClock()
+        showNetwork()
         showWeather()
         refreshDaily()
         Weather.refreshIfStale({ work.execute(it) }) { handler.post { showWeather() } }
         resetIdle()
+        if (SystemIntents.settingsBounced(this)) handler.postDelayed({
+            if (resumed && hasWindowFocus()) SystemIntents.showXiaomiSettingsPopup(this)
+        }, 400)
     }
 
     override fun onPause() {
@@ -148,11 +159,20 @@ class HomeActivity : Activity(), HomeView.Host {
         }
     }
 
+    /** Keys whose press came here and which have not been lifted yet. */
+    private val keysDown = HashSet<Int>()
+
     override fun dispatchKeyEvent(e: KeyEvent): Boolean {
         resetIdle()
+        // A lift whose press never reached us still wakes the screensaver: some remotes' keys are
+        // pressed for a vendor hotkey service and only lifted for the app (Coocaa C10, issue #915).
+        val loneLift = e.action == KeyEvent.ACTION_UP && !e.isCanceled && !keysDown.contains(e.keyCode)
+        if (e.action == KeyEvent.ACTION_DOWN) keysDown.add(e.keyCode) else keysDown.remove(e.keyCode)
         if (saver != null) {
             if (e.action == KeyEvent.ACTION_DOWN) {
                 swallow = e.keyCode
+                hideSaver()
+            } else if (loneLift) {
                 hideSaver()
             }
             return true
@@ -202,7 +222,18 @@ class HomeActivity : Activity(), HomeView.Host {
         }
     }
 
+    /** The face size the tiles were last loaded at (AppCatalog.faceW). */
+    private var loadedFaceW = 0
+
+    /** Another number of apps a row: the faces again at the new size, as the full app's artwork. */
+    private fun refaceIfResized() {
+        if (loadedFaceW == 0 || loadedFaceW == AppCatalog.faceW) return
+        folderTiles.clear()
+        loadApps()
+    }
+
     private fun loadApps() {
+        loadedFaceW = AppCatalog.faceW
         work.execute {
             val started = System.currentTimeMillis()
             // Home first, with stand-ins for tiles not made yet; then the real ones as they come.
@@ -228,6 +259,25 @@ class HomeActivity : Activity(), HomeView.Host {
     }
 
     private val reload = Runnable { loadApps() }
+
+    /**
+     * A network or VPN coming or going (a VPN's tunnel sends CONNECTIVITY_ACTION too). The pill
+     * showed Wi-Fi whatever the network until it took the VPN badge (issue #809).
+     */
+    private val connectivity = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) = showNetwork()
+    }
+
+    private fun showNetwork() {
+        work.execute {
+            val net = ControlCenter.network(this)
+            handler.post {
+                home.pill.network = net.glyph
+                home.pill.level = net.level
+                home.pill.vpn = net.vpn
+            }
+        }
+    }
 
     private val packages = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -413,7 +463,7 @@ class HomeActivity : Activity(), HomeView.Host {
                 handler.removeCallbacks(bake)
                 handler.postDelayed(bake, 500)
             },
-            onLayout = { home.applySettings(); showWeather() },
+            onLayout = { home.applySettings(); showWeather(); refaceIfResized() },
             onHidden = { whenUnlocked(::openHidden) },
             onSaverNow = { closeAll(); showSaver() },
             onPin = { on ->
@@ -474,6 +524,9 @@ class HomeActivity : Activity(), HomeView.Host {
         if (!keepBelow) closeAll()
         panels += p
         root.addView(p)
+        home.coveredBelow = 0
+        // Once Personalize has slid in (320 ms), Home draws only above it.
+        if (p is Personalize) handler.postDelayed({ if (panels.lastOrNull() === p) home.coveredBelow = p.covers }, 400)
         // Panels at the top right take the status pill's place, as in the full app.
         home.topRight.alpha = if (panels.any { it is ControlCenter || it is HiddenApps }) 0f else 1f
         redrawAllInSoftware()
@@ -481,6 +534,7 @@ class HomeActivity : Activity(), HomeView.Host {
 
     private fun closePanel() {
         panels.removeLastOrNull()?.let { root.removeView(it) }
+        home.coveredBelow = 0
         home.topRight.alpha = if (panels.any { it is ControlCenter || it is HiddenApps }) 0f else 1f
         redrawAllInSoftware()
     }
@@ -557,6 +611,15 @@ class HomeActivity : Activity(), HomeView.Host {
      */
     private fun openBootApp() {
         val pkg = LiteSettings.bootApp ?: return
+        // Once per power-on, kept on disk: a firmware that stops Lite in the background made each
+        // cold start back in it open the app again (the full app's issue #766, Coocaa).
+        val prefs = getSharedPreferences("boot_open", MODE_PRIVATE)
+        val bootStamp = System.currentTimeMillis() - SystemClock.elapsedRealtime()
+        val openedAt = prefs.getLong("elapsed", -1L)
+        if (openedAt in 0..SystemClock.elapsedRealtime() && Math.abs(prefs.getLong("boot", 0L) - bootStamp) < 2 * 60 * 1000L) {
+            Log.i(TAG, "already opened $pkg since power-on")
+            return
+        }
         val launch = runCatching {
             (if (android.os.Build.VERSION.SDK_INT >= 21) packageManager.getLeanbackLaunchIntentForPackage(pkg) else null)
                 ?: packageManager.getLaunchIntentForPackage(pkg)
@@ -565,9 +628,10 @@ class HomeActivity : Activity(), HomeView.Host {
         val tryOpen = object : Runnable {
             override fun run() {
                 if (isFinishing) return
-                val online = ControlCenter.network(this@HomeActivity).first != Glyph.Offline
+                val online = ControlCenter.network(this@HomeActivity).glyph != Glyph.Offline
                 if (!online && SystemClock.elapsedRealtime() - since < 20_000) { handler.postDelayed(this, 500); return }
                 Log.i(TAG, "opening $pkg, what the TV starts on")
+                prefs.edit().putLong("elapsed", SystemClock.elapsedRealtime()).putLong("boot", bootStamp).apply()
                 open(launch.addFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED))
             }
         }
@@ -608,6 +672,7 @@ class HomeActivity : Activity(), HomeView.Host {
         override fun settingsChanged() {
             home.applySettings()
             showWeather()
+            refaceIfResized()
             (panels.lastOrNull() as? Personalize)?.refreshChips()
         }
         override fun weatherChanged() {

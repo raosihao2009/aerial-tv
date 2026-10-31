@@ -105,6 +105,17 @@ adb install aerial-standard.apk                    # Success
 
 ## 开机直达：`persist.sys.launcher.component`
 
+> ⚠ **设了这个属性，从 Aerial 打开别的 App 会崩**（#590，75V2 和 65C6 都复现）：固件在启动 Activity 时把被启动应用的包名换成属性里的包名，第三方 App 在 `Activity.attach` 里抛 `SecurityException: Package app.orchard.tv does not belong to <uid>`，表现为点开云视听极光、凤凰秀、TCL 浏览器闪一下就回桌面。要从 Aerial 正常打开 App，就不要设它（`setprop persist.sys.launcher.component ""` 清空）。65C6（`V8-S48CT02-LF1V172`）清空后改用固件的「开机起第三方 App」通道，完整重启后开机进 Aerial、主页键也回 Aerial，打开 App 正常：
+>
+> ```bash
+> adb shell setprop persist.tcl.bootappmode 1
+> adb shell setprop persist.SDK.boot.userapp app.orchard.tv
+> adb shell setprop persist.SDK.boot.useractivity app.orchard.tv.MainActivity
+> adb shell cmd package set-home-activity --user 0 app.orchard.tv/.MainActivity
+> ```
+>
+> 75V2 上这条通道没走通（PR #476），所以下面的方法只在不需要从 Aerial 打开第三方 App 时用。
+
 TCL 在 AMS 里改了 `setDefaultLauncher()`，开机时读这个属性直接拉起指定组件：
 
 ```bash

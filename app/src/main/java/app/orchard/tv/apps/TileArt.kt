@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
+import app.orchard.tv.settings.AerialSettings
 import app.orchard.tv.ui.theme.Glyph
 import app.orchard.tv.ui.theme.drawGlyph
 import androidx.compose.ui.graphics.ImageBitmap
@@ -83,11 +84,26 @@ object TileArtFactory {
     @Volatile var W = 352; private set
     @Volatile var H = 198; private set
 
+    private var density = 2f
+
     /** Called with [app.orchard.tv.ui.theme.canvasDensity] before any tile is built. */
     fun useCanvasDensity(density: Float) {
-        // 176dp: the 147dp tile at its 1.15× focus scale, with a little to spare.
-        W = (176 * density).roundToInt().coerceIn(352, 704)
+        this.density = density
+        fitColumns()
+    }
+
+    /**
+     * Sizes the artwork for AerialSettings.homeColumns; true when that changed it, and the tiles
+     * want drawing again. 176dp: the 147dp tile of five a row at its 1.15× focus scale, with a
+     * little to spare; 222dp the 187dp one of four. Six a row stays at five's: it is smaller still.
+     */
+    fun fitColumns(): Boolean {
+        val dp = if (AerialSettings.homeColumns == 4) 222 else 176
+        val w = (dp * density).roundToInt().coerceIn(352, 888)
+        if (w == W) return false
+        W = w
         H = W * 9 / 16
+        return true
     }
 
     /**

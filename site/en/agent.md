@@ -7,9 +7,10 @@ You are helping the user install Aerial (an open-source home screen for Android 
 1. **Run the commands yourself on the user's computer.** Don't just list steps for the user. If you can't run commands (for example, you are a phone or web chat, including Doubao on a phone), say so and ask the user to switch to a desktop agent that can (Doubao for desktop or Doubao Work, WorkBuddy, Qwen for desktop, Claude Code, Codex, Cursor, Trae and similar), and to allow it to run commands and use the network the first time it asks.
 2. **Don't claim success you haven't seen.** Read the real output of every command, and finish with "Check" below, pasting the raw output to the user, including the home screen `resolve-activity` finds and what `enabled_accessibility_services` contains. Without those outputs, don't say it is installed.
 3. **Don't uninstall or disable any system app** (including the TV's own launcher), don't delete any file on the TV, and don't factory-reset it. The only file you may delete is `/sdcard/Download/Aerial.apk`, if this install created it.
-4. Ask the user before rebooting the TV (`adb reboot`).
-5. When the user has to do something on the TV (allow debugging, accept an install), tell them exactly which remote buttons to press.
-6. If something fails, show the user the command and its exact output, then check "Common cases" below.
+4. **Install Aerial and nothing else** (package `app.orchard.tv`, or `app.orchard.tv.lite` on Android 4.x), and download its APK only from aerial.qust.me or https://github.com/pengchujin/aerial-tv/releases. Don't download or install any other app: no app stores (Dangbei and the like), no ADB enablers, no casting or cleaner tools, and no "Aerial" APK from any other site. If these steps can't install it, stop and show the user the output; don't find another way to put something on the TV. People often install Aerial to keep their TV clean, and any extra app works against them.
+5. Ask the user before rebooting the TV (`adb reboot`).
+6. When the user has to do something on the TV (allow debugging, accept an install), tell them exactly which remote buttons to press.
+7. If something fails, show the user the command and its exact output, then check "Common cases" below.
 
 ## Step 1: Get adb
 
@@ -41,7 +42,7 @@ The TV is connected once `adb devices` lists it as `device`.
 
 - **`unauthorized`**: the TV is asking "Allow USB debugging?". Ask the user to choose Allow and check Always allow, then run `adb devices` again. Android 4.0-4.2.1 has no such prompt; don't wait for it.
 - **`failed to connect`, `Connection refused` or a timeout**: ADB debugging is off on the TV, or the IP is wrong. Ask the user to turn it on as below, then try again. Menus on Chinese firmware are in Chinese, so their names are in brackets.
-- **Port 5555 will not connect and the TV only offers "Wireless debugging"** (TCL Q9M / Q10L and other Android 11+ models): these firmwares pair first. Ask the user to open Developer options → Wireless debugging → **Pair device with pairing code** on the TV, and read you two IP:port pairs plus the 6-digit code — one pair from the pairing screen, one from the main wireless-debugging screen (the ports differ and change every time the screen is opened). Then run `adb pair <pair-screen-ip:port> <code>`, after it succeeds `adb connect <main-screen-ip:port>`, and once `adb devices` lists `device`, run `adb tcpip 5555` right away followed by `adb connect <IP>:5555` — later runs need no pairing. The new `install.sh` walks through this (interactive prompts, or set `ADB_PAIR=<ip:port> ADB_CODE=<code> ADB_CONNECT=<ip:port>` before running). Some TCL firmwares (Q10M, 鹤 7 Pro) have no pairing-code entry; there a USB cable to a computer and one `adb tcpip 5555` is the only way in.
+- **Port 5555 will not connect and the TV only offers "Wireless debugging"** (Sony BRAVIA on Android 14, TCL Q9M / Q10L and other Android 11+ models): these firmwares pair first. Ask the user to open Developer options → Wireless debugging → **Pair device with pairing code** on the TV, and read you two IP:port pairs plus the 6-digit code — one pair from the pairing screen, one from the main wireless-debugging screen (the ports differ and change every time the screen is opened). Then run `adb pair <pair-screen-ip:port> <code>`, after it succeeds `adb connect <main-screen-ip:port>`, and once `adb devices` lists `device`, run `adb tcpip 5555` right away followed by `adb connect <IP>:5555` — later runs need no pairing. The new `install.sh` walks through this (interactive prompts, or set `ADB_PAIR=<ip:port> ADB_CODE=<code> ADB_CONNECT=<ip:port>` before running). Some TCL firmwares (Q10M, 鹤 7 Pro) have no pairing-code entry; there a USB cable to a computer and one `adb tcpip 5555` is the only way in.
 
 | TV | How to turn on ADB |
 |---|---|
@@ -103,6 +104,7 @@ Run these in PowerShell, with the adb from step 1. Everything inside `adb shell 
 2. Install it: `adb install -r aerial-standard.apk`. Go on when it prints `Success`. If it fails:
    - With **`INSTALL_FAILED_VERIFICATION_FAILURE`**: this is a TCL, which refuses every adb install. Follow "TCL" below, then continue from item 3.
    - With **`INSTALL_FAILED_USER_RESTRICTED`** (Skyworth and others): see the Skyworth entry under "Common cases", then install again.
+   - With **`INSTALL_PARSE_FAILED_INCONSISTENT_CERTIFICATES`** or `INSTALL_FAILED_UPDATE_INCOMPATIBLE`: the Aerial on the TV was signed with someone else's key and cannot be updated in place. Ask the owner first: uninstalling it (`adb uninstall app.orchard.tv`) drops its settings, wallpapers and photos. Some firmwares (TCL, Android 5.1) exit 0 on a failed install, so go by the `Success` line only.
    - Otherwise (for example, the firmware refuses home-screen apps; OPPO TVs print `INSTALL_FAILED_DUPLICATE_PERMISSION: App installation is banned, because of launcher categories`): install `aerial-guard.apk` instead (same address with `guard` in place of `standard`).
 
 3. Grant the permissions only adb can grant. If one fails, go on with the next:
@@ -114,11 +116,15 @@ Run these in PowerShell, with the adb from step 1. Everything inside `adb shell 
    adb shell appops set app.orchard.tv REQUEST_INSTALL_PACKAGES allow
    adb shell appops set app.orchard.tv GET_USAGE_STATS allow
    adb shell appops set app.orchard.tv android:get_usage_stats allow
+   adb shell appops set app.orchard.tv ACCESS_RESTRICTED_SETTINGS allow
    adb shell cmd notification allow_listener app.orchard.tv/app.orchard.tv.guard.RevivalListener
    adb shell appops set app.orchard.tv APP_AUTO_START allow
    adb shell appops set app.orchard.tv APP_ASSOC_START allow
+   adb shell appops set app.orchard.tv AUTO_START allow
+   adb shell appops set app.orchard.tv ASSOC_START allow
    ```
-   The two `APP_*` app ops exist only on TCL; elsewhere they fail, which is fine.
+   The last four app ops exist only on TCL and FFALCON (each firmware knows two of them); elsewhere they fail, which is fine.
+   `ACCESS_RESTRICTED_SETTINGS` exists from Android 13 only: there an app installed from a file may not switch its accessibility service on, and Home Guard kept going off (#811 #829).
 
    Start Aerial once, wait 5 seconds, then compile it (takes up to a minute and makes Aerial run smoothly on the TV; on some TVs the compile only works after Aerial has started once):
    ```
@@ -139,7 +145,7 @@ Run these in PowerShell, with the adb from step 1. Everything inside `adb shell 
 
 6. Start Aerial: `adb shell am start -W -n app.orchard.tv/.MainActivity`. The output must include `Status: ok`.
 
-7. Make it the default home screen (skip this for the guard build):
+7. Make it the default home screen (skip this for the guard build, **and on Xiaomi**: `adb shell pm path com.mitv.tvhome` prints a line there. Some Xiaomi Android 9 sets do take it, and the short press of the power key then no longer puts the TV to sleep, issue #848; Home Guard in the next item takes over on Xiaomi):
    ```
    adb shell cmd role add-role-holder --user 0 android.app.role.HOME app.orchard.tv
    ```
@@ -176,7 +182,7 @@ python tcast-push.py <IP> http://127.0.0.1:8765/Aerial.apk app.orchard.tv Aerial
 
 After the last command, ask the user to answer the prompt in the top-right corner of the TV: **press Right, then OK, to choose 同意 (Agree)**. Once the script reports the app installed, stop the `python -m http.server` process, run `adb reverse --remove tcp:8765`, and continue from Windows item 3.
 
-If the TV has no 多屏互动: `adb push Aerial.apk /sdcard/Download/Aerial.apk`, then ask the user to open it with a file manager or the Dangbei store's local install (本地安装) on the TV.
+If the TV has no 多屏互动: `adb push Aerial.apk /sdcard/Download/Aerial.apk`, then ask the user to open it with a file manager or the Dangbei store's local install (本地安装) **already on** the TV. If the TV has neither, stop and tell the user; **don't download or install Dangbei or any other app store**.
 
 ## Android 4.0-4.4: Aerial Lite
 
@@ -219,7 +225,7 @@ Run each of these and paste the **raw output** to the user:
 
 ```
 adb shell "dumpsys package app.orchard.tv | grep versionName"
-adb shell "cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME"
+adb shell "cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME -c android.intent.category.DEFAULT"
 adb shell settings get secure enabled_accessibility_services
 adb shell "dumpsys accessibility | grep -c -E 'label=(Aerial|app.orchard.tv)'"
 adb shell input keyevent KEYCODE_HOME
@@ -231,13 +237,15 @@ adb shell "sleep 8; dumpsys window | grep mCurrentFocus"
 - Line 3 includes `app.orchard.tv/app.orchard.tv.guard.HomeGuardService`: Home Guard is on. (On stock Android TV, where Aerial is already the default home screen, it may not be; line 6 decides.)
 - Line 4 is above 0: Home Guard is running.
 - **Line 6 includes `app.orchard.tv`: Home leads to Aerial and the install worked.** Don't tell the user it's installed until it does. On some firmwares the stock launcher stays a few seconds after Home before Home Guard brings Aerial back (about 5 s on OPPO ColorOS TV, #664): if line 6 shows the stock launcher, run `adb shell "sleep 5; dumpsys window | grep mCurrentFocus"` once more, and only call it a failure when neither shows `app.orchard.tv`.
-- Paste the raw output of lines 2, 3 and 6 to the user, not just "success". If line 2 errors on an old system without `cmd`, run `adb shell pm resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME` instead.
+- Paste the raw output of lines 2, 3 and 6 to the user, not just "success". If line 2 errors on an old system without `cmd`, run `adb shell pm resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME -c android.intent.category.DEFAULT` instead.
 
 If line 6 shows something else, wait 5 seconds and run lines 5 and 6 again (Home Guard starts slowly on some TVs). If it still does, see "Common cases".
 
 A Home press sent with `input keyevent` skips Home Guard's key filter, so on a few TVs (Sony, Android 9) it lands somewhere else than the remote's Home button does. Then ask the user to press Home on the remote once and run only line 6; that result counts.
 
 Once all of it passes, ask the user before running `adb reboot`. After the TV has started again (a minute or two), `adb connect <IP>:5555` and run line 6 again to confirm the TV starts into Aerial.
+
+When everything is done, run `adb disconnect`: some TVs accept one device at a time, and phone tools such as 甲壳虫 cannot connect until this computer lets go (#764). The one-line install disconnects by itself.
 
 ## Undo
 
@@ -259,6 +267,9 @@ adb shell appops set app.orchard.tv SYSTEM_ALERT_WINDOW default
 adb shell appops set app.orchard.tv REQUEST_INSTALL_PACKAGES default
 adb shell appops set app.orchard.tv APP_AUTO_START default
 adb shell appops set app.orchard.tv APP_ASSOC_START default
+adb shell appops set app.orchard.tv AUTO_START default
+adb shell appops set app.orchard.tv ASSOC_START default
+adb shell appops set app.orchard.tv ACCESS_RESTRICTED_SETTINGS default
 adb shell am force-stop app.orchard.tv
 adb shell cmd role remove-role-holder --user 0 android.app.role.HOME app.orchard.tv
 ```
@@ -267,6 +278,7 @@ Then:
 
 - If `adb shell settings get secure screensaver_components` is `app.orchard.tv/...`, put back the default: `adb shell settings put secure screensaver_components <value of adb shell settings get secure screensaver_default_component>`.
 - `adb shell settings get secure enabled_accessibility_services`: remove `app.orchard.tv/app.orchard.tv.guard.HomeGuardService` (and the colon next to it) and write the rest back unchanged. If nothing else is left, run `adb shell settings delete secure enabled_accessibility_services`.
+- Xiaomi (`adb shell pm path com.mitv.tvhome` prints a line): if the last line of `adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME -c android.intent.category.DEFAULT` is `app.orchard.tv/...`, run `adb shell cmd package set-home-activity --user 0 com.mitv.tvhome/.MainActivityUserMode` and restart the TV once (issue #848: with Aerial as the default Home the short press of the power key no longer sleeps the TV).
 - Hisense VIDAA: if `adb shell settings get global aerial_vt_home_pkg` prints a value (not `null`), run `adb shell setprop persist.vt.use_home_pkg <that value>` and `adb shell settings delete global aerial_vt_home_pkg`. If it prints nothing but `adb shell getprop persist.vt.use_home_pkg` is `app.orchard.tv` (set by hand on 1.15 and earlier) and `com.jamdeo.tv.vod` is installed, run `adb shell setprop persist.vt.use_home_pkg com.jamdeo.tv.vod`.
 - To uninstall: `adb uninstall app.orchard.tv`.
 - Finally `adb shell input keyevent KEYCODE_HOME`; the TV goes back to its own home screen.

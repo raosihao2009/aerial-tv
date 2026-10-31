@@ -108,6 +108,14 @@ object Images {
     }
 
     /**
+     * [shadeForHome] on its own, small, for a moving film: stretched over the screen in one draw.
+     * Drawn as its two gradients every frame instead, it cost the GPU about 22 ms a frame on Xiaomi
+     * MiTV-MFTR0, where the film keeps Home drawing: moving along the top row took 81 ms a frame
+     * (median; GPU 30 ms), 31 ms (GPU 13 ms) with this picture.
+     */
+    val homeShade: Bitmap by lazy { shadeForHome(Bitmap.createBitmap(128, 72, Bitmap.Config.ARGB_8888)) }
+
+    /**
      * A home backdrop frosted: shrunk and blurred three times over. Small
      * on purpose; it is only ever seen blurred, and it is drawn stretched in a single pass.
      */

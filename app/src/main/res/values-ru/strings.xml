@@ -28,6 +28,7 @@
     <string name="net_ethernet">Ethernet</string>
     <string name="net_wifi">Wi-Fi</string>
     <string name="net_offline">Нет подключения</string>
+    <string name="net_vpn">VPN</string>
     <string name="input_connected">Подключено</string>
     <string name="input_live_tv">Эфирное ТВ</string>
     <string name="input_antenna">Антенна</string>
@@ -78,7 +79,7 @@
     <string name="wx_snow">Снег</string>
     <string name="wx_thunder">Гроза</string>
     <string name="wp_daily_latest">Всегда сегодняшнее</string>
-    <string name="wp_live">Аэросъёмка · играет на верхнем ряду главного экрана</string>
+    <string name="wp_live">Аэросъёмка · играет на верхнем ряду главного экрана (в двухрядном виде — на обоих рядах)</string>
     <string name="wp_photos_rotate">Одно в день</string>
     <string name="wp_daily_note">Фото дня от Bing, каждый день новое.</string>
     <string name="wp_photos_rotate_note">Каждый день другое из ваших фото.</string>
@@ -110,6 +111,7 @@
     <string name="ss_quality_hd">1080p</string>
     <string name="ss_quality_uhd">4K</string>
     <string name="ss_quality_dv">4K Dolby Vision</string>
+    <string name="ss_aerial_keeps">Aerial хранит на телевизоре %2$d последних фильма (до %1$s); обои и заставка показывают их по очереди, каждый день добавляется новый. В заставке вправо — новый фильм, влево — предыдущий.</string>
     <string name="st_focus_style">Стиль фокуса</string>
     <string name="st_home_layout">Главный экран</string>
     <string name="st_layout">Раскладка</string>
@@ -187,6 +189,7 @@
     <string name="cc_update_failed_blocked">Этот телевизор не позволяет приложениям устанавливать другие приложения. Обновитесь командой ниже.</string>
     <string name="cc_update_failed_signature">Aerial на этом телевизоре подписан иначе, чем официальный, поэтому обновить его поверх нельзя.</string>
     <string name="cc_update_failed_older">Более новой версии на сайте пока нет. Повторите попытку позже.</string>
+    <string name="cc_self_compile">Сделать Aerial плавнее</string>
     <string name="st_pin">Родительский PIN-код</string>
     <string name="st_pin_off">Выкл.</string>
     <string name="st_pin_on">Вкл.</string>
@@ -211,6 +214,8 @@
     <string name="weather_snow">Снег</string>
     <string name="weather_thunder">Грозы</string>
     <string name="weather_high_low">Макс.: %1$d°  Мин.: %2$d°</string>
+    <string name="st_columns">Приложений в ряду</string>
+    <string name="st_columns_hint">Сколько приложений помещается в ряд на главном экране и в папках. Шесть — больше видно сразу; четыре — крупнее, их лучше видно издалека.</string>
     <string name="st_peek">Второй ряд</string>
     <string name="st_peek_show">Выглядывает</string>
     <string name="st_peek_hide">Скрыт</string>
@@ -228,11 +233,13 @@
     <string name="ss_system">Системная</string>
     <string name="ss_system_hint">Заставка самого телевизора, как задумал производитель (например, картины Xiaomi). Aerial свою не показывает.</string>
     <string name="wp_videos_note">Ваши видео, отправленные с телефона: без звука, одно за другим. Движутся как аэросъёмка и останавливаются на текущем кадре.</string>
+    <string name="wp_videos_rotate">Мои видео по очереди</string>
+    <string name="wp_video_note">Ваше видео, отправленное с телефона: без звука, по кругу. Движется как аэросъёмка и останавливается на текущем кадре.</string>
     <string name="wp_source_note">Живая картинка этого входа за главным экраном, без звука; звук есть, если открыть сам вход. У приложений ниже фон становится матовым. Пока картинки нет, виден тёмный фон.</string>
     <string name="st_play">Воспроизведение</string>
     <string name="st_play_still">В покое</string>
     <string name="st_play_always">Всегда</string>
-    <string name="st_play_hint">В покое: через 10 секунд на верхнем ряду; любая кнопка останавливает. Всегда: кнопки не останавливают, фон чуть затемнён; останавливается, когда вы переходите к приложениям ниже.</string>
+    <string name="st_play_hint">В покое: через 10 секунд на верхнем ряду (в двухрядном виде — на любом из двух); любая кнопка останавливает. Всегда: кнопки не останавливают, фон чуть затемнён; останавливается, когда вы переходите к приложениям ниже.</string>
     <string name="ss_show_time">Время</string>
     <string name="ss_show_time_hint">Время на заставках с аэросъёмкой и фото. Время и название места время от времени слегка сдвигаются, чтобы не выгорал экран.</string>
 </resources>

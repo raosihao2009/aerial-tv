@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Log
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
@@ -32,6 +33,7 @@ import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 enum class WallpaperKind { Daily, Builtin, Photo, Auto, Live, Video, Source }
@@ -67,6 +69,7 @@ enum class ScreensaverMode(val key: String) {
  *   Its picture is the frame the film last stopped on, so the glass and the grid match it.
  * - Video: the owner's own films, sent from the phone (ScreensaverVideos), moving the same way
  *   (ui/home/VideoWallpaper.kt), with the frame they stopped on as the picture (issues #410, #583).
+ *   "videos:mine" plays all of them in turn; "video:<id>" just that one, on a loop (issue #762).
  * - Source: a TV input's picture behind Home, a set-top box on HDMI (ui/home/SourceWallpaper.kt,
  *   issue #267). Only inputs Android lists can be shown; its picture is a dark built-in one.
  *
@@ -80,11 +83,15 @@ object Wallpapers {
     const val ROTATE_PHOTOS = "photos:rotate"
     const val LIVE = "aerial:live"
     const val VIDEOS = "videos:mine"
+    const val VIDEO_PREFIX = "video:"
     const val SOURCE_PREFIX = "source:"
     /** The picture under a TV input's, for the glass and while the input has nothing to show. */
     private const val SOURCE_PICTURE = "hills_night"
     private const val FOLLOW = "follow"
     private const val DEFAULT_FALLBACK = "grad:aurora"
+
+    /** Let go this close to where the picture was taken: the film did not move on from it. */
+    private const val SAME_SPOT_MS = 2_000L
 
     /** The built-ins Personalize offers, one or two of each family; the rest stay for whoever chose them. */
     val FEATURED_BUILTINS = setOf("grad:hills_dawn", "grad:hills_night", "grad:dunes_gold", "grad:sea_sunset", "grad:waves_blue", "grad:aurora")
@@ -115,13 +122,29 @@ object Wallpapers {
      */
     val screensaver: ScreensaverMode
         get() = chosenScreensaver ?: when {
-            selectedId == VIDEOS -> ScreensaverMode.Videos
+            isVideo(selectedId) -> ScreensaverMode.Videos
             selectedId == LIVE || selectedId == AUTO || isSource(selectedId) -> ScreensaverMode.Aerial
             else -> ScreensaverMode.Photos
         }
 
     /** A wallpaper that moves behind Home (aerial films, the owner's videos), with a frame as its picture. */
-    fun moves(id: String = selectedId) = id == LIVE || id == VIDEOS
+    fun moves(id: String = selectedId) = id == LIVE || isVideo(id)
+
+    /** The owner's videos, all in turn or one of them. */
+    fun isVideo(id: String = selectedId) = id == VIDEOS || id.startsWith(VIDEO_PREFIX)
+
+    /** The films [id] plays behind Home: all the owner's videos, or the one chosen. Call off the main thread. */
+    fun videoFilms(id: String = selectedId): List<ScreensaverVideo> {
+        val all = ScreensaverVideos.all(app)
+        return if (id.startsWith(VIDEO_PREFIX)) all.filter { it.id == id.removePrefix(VIDEO_PREFIX) } else all
+    }
+
+    /** Whether the frame the videos last stopped on is one of [id]'s films. */
+    private fun videoFrameIsOf(id: String): Boolean {
+        if (!videoFrame.exists()) return false
+        if (!id.startsWith(VIDEO_PREFIX)) return true
+        return prefs.getString("video_film", null) == id.removePrefix(VIDEO_PREFIX)
+    }
 
     /**
      * Plays as soon as Home shows it and keys do not stop it: the aerial wallpaper always; the
@@ -145,6 +168,17 @@ object Wallpapers {
      * panels sample it.
      */
     var frosted by mutableStateOf<ImageBitmap?>(null); private set
+
+    /**
+     * Whether the moving wallpaper's frames cannot be had for its glass on this TV: PixelCopy reads
+     * the film too slowly to use and its file is not read (TCL MT5879), or the file's frames stuck
+     * since the TV started (LiveWallpaper). Then the top row's plate is the smoke alone over the
+     * film and panels are one solid colour, rather than the frosted frame of minutes before.
+     */
+    var filmGlassless by mutableStateOf(false)
+
+    /** Goes up when a moving wallpaper's picture changes, so its card in Personalize is made again. */
+    var pictureVersion by mutableIntStateOf(0); private set
 
     private var backdropJob: Job? = null
     private var started = false
@@ -262,14 +296,14 @@ object Wallpapers {
         // Until a film has stopped on a frame, the first built-in stands in.
         WallpaperKind.Live -> liveFrame.takeIf { it.exists() }?.let { Images.decodeCover(it, w, h) }
             ?: Gradients.render(Gradients.presets.first(), w, h)
-        // Until a film has stopped on a frame, the first film's opening frame.
-        WallpaperKind.Video -> videoFrame.takeIf { it.exists() }?.let { Images.decodeCover(it, w, h) }
-            ?: firstVideoFrame(w, h) ?: Gradients.render(Gradients.presets.first(), w, h)
+        // Until one of its films has stopped on a frame, the first film's opening frame.
+        WallpaperKind.Video -> videoFrame.takeIf { videoFrameIsOf(wp.id) }?.let { Images.decodeCover(it, w, h) }
+            ?: firstVideoFrame(wp.id, w, h) ?: Gradients.render(Gradients.presets.first(), w, h)
         WallpaperKind.Source -> Gradients.byKey(SOURCE_PICTURE)?.let { Gradients.render(it, w, h) }
     }
 
-    private fun firstVideoFrame(w: Int, h: Int): Bitmap? {
-        val film = ScreensaverVideos.all(app).firstOrNull() ?: return null
+    private fun firstVideoFrame(id: String, w: Int, h: Int): Bitmap? {
+        val film = videoFilms(id).firstOrNull() ?: return null
         val mmr = android.media.MediaMetadataRetriever()
         return try {
             mmr.setDataSource(film.file.path)
@@ -283,9 +317,11 @@ object Wallpapers {
     /** A 16:9 thumbnail for pickers and the phone page. Call off the main thread. */
     fun thumbnail(id: String): Bitmap? {
         synchronized(thumbs) { thumbs[id] }?.let { return it }
+        // A frame kept meanwhile (useLiveFrame) makes this one old: shown, not kept.
+        val version = pictureVersion
         val wp = (if (id == LATEST_DAILY || id == ROTATE_PHOTOS) resolve(id) else items.firstOrNull { it.id == id }) ?: return null
         val b = if (wp.kind == WallpaperKind.Auto) Gradients.render(Gradients.autoThumb, 384, 216) else picture(wp, 384, 216)
-        if (b != null) synchronized(thumbs) { thumbs[id] = b }
+        if (b != null) synchronized(thumbs) { if (version == pictureVersion) thumbs[id] = b }
         return b
     }
 
@@ -307,7 +343,9 @@ object Wallpapers {
                 // Frosted from the picture before the home shading: the glass sits low on the
                 // screen, where the shading is darkest, and would read as a grey slab.
                 val frost = picture?.let(Images::frost)
-                picture?.let(Images::shadeForHome) to frost
+                // A film's picture is its frame as it was, as the film is not shaded (HomeBackground).
+                if (wp?.kind == WallpaperKind.Live || wp?.kind == WallpaperKind.Video) picture to frost
+                else picture?.let(Images::shadeForHome) to frost
             }
             backdrop = bmp?.asImageBitmap()
             frosted = frost?.asImageBitmap()
@@ -330,10 +368,12 @@ object Wallpapers {
         val stamp = when (wp.kind) {
             WallpaperKind.Daily, WallpaperKind.Photo -> fileFor(wp)?.lastModified() ?: 0L
             WallpaperKind.Live -> liveFrame.lastModified()
-            WallpaperKind.Video -> videoFrame.lastModified()
+            WallpaperKind.Video -> if (videoFrameIsOf(wp.id)) videoFrame.lastModified() else 0L
             else -> 0L
         }
-        return "${wp.id}|$stamp|${screenW}x$screenH|${BuildConfig.VERSION_CODE}"
+        // "clear": a film's picture baked unshaded, not one kept from when it was shaded.
+        val film = if (wp.kind == WallpaperKind.Live || wp.kind == WallpaperKind.Video) "|clear" else ""
+        return "${wp.id}|$stamp|${screenW}x$screenH|${BuildConfig.VERSION_CODE}$film"
     }
 
     /**
@@ -390,36 +430,90 @@ object Wallpapers {
     }
 
     /**
-     * The frame a moving wallpaper film stopped on becomes the wallpaper's picture: shaded, frosted
+     * The frame a moving wallpaper film stopped on becomes the wallpaper's picture: frosted
      * and kept for the next start. Returns once Home has it. [frame] is screen-sized and is used up.
      * It was [atMs] into [film], where the film picks up when it next moves ([liveSpot]).
      */
+    /**
+     * [frame] shows as the picture at once, before [useLiveFrame] has kept and frosted it: the
+     * aerial film let go into an app shows its last frame rather than black (LiveWallpaper).
+     */
+    fun showLiveFrame(frame: Bitmap) {
+        if (!moves()) return
+        backdropJob?.cancel()
+        backdrop = frame.asImageBitmap()
+    }
+
     suspend fun useLiveFrame(frame: Bitmap, film: String, atMs: Long) {
         if (!moves()) return
         val id = selectedId
         backdropJob?.cancel()
-        val key = if (id == VIDEOS) "video" else "live"
-        prefs.edit { putString("${key}_film", film).putLong("${key}_at", atMs) }
+        val key = if (isVideo(id)) "video" else "live"
+        if (!isVideo(id)) leftHere = null
+        prefs.edit { putString("${key}_film", film).putLong("${key}_at", atMs).remove("${key}_left_film").remove("${key}_left_at") }
         val (bmp, frost) = withContext(Dispatchers.Default) {
-            runCatching { (if (id == VIDEOS) videoFrame else liveFrame).outputStream().use { frame.compress(Bitmap.CompressFormat.JPEG, 90, it) } }
+            runCatching { (if (isVideo(id)) videoFrame else liveFrame).outputStream().use { frame.compress(Bitmap.CompressFormat.JPEG, 90, it) } }
                 .onFailure { Log.w(TAG, "could not keep the film's frame", it) }
-            // Frosted before shading, which draws on the frame itself.
-            val frost = Images.frost(frame)
-            Images.shadeForHome(frame) to frost
+            // Not shaded, as the film is not (HomeBackground).
+            Images.frost(frame).let { frost -> frame to frost }
         }
-        synchronized(thumbs) { thumbs.remove(id) }
+        // The frame is both the film's own card and the card that plays them all in turn.
+        synchronized(thumbs) { thumbs.remove(id); if (isVideo(id)) { thumbs.remove(VIDEOS); thumbs.remove(VIDEO_PREFIX + film) } }
         backdrop = bmp.asImageBitmap()
         frosted = frost.asImageBitmap()
+        pictureVersion++
         resolve(id)?.let { saveBaked(bakedKey(it), bmp, frost) }
     }
 
     /**
-     * The film and moment the wallpaper's picture was taken from, so the film starts again on the
+     * Where the aerial film goes on from: where it was let go without a frame taken ([leftLiveSpot]),
+     * else the moment the wallpaper's picture was taken from, so the film starts again on the
      * picture on screen rather than cutting to another place. Null until one has stopped on a frame.
      */
-    fun liveSpot(): Pair<String, Long>? {
+    fun liveSpot(): Pair<String, Long>? = leftLiveSpot() ?: livePictureSpot()
+
+    /** The film and moment the wallpaper's picture was taken from. */
+    fun livePictureSpot(): Pair<String, Long>? {
         val film = prefs.getString("live_film", null)?.takeIf { it.isNotEmpty() } ?: return null
         return film to prefs.getLong("live_at", 0L)
+    }
+
+    /**
+     * Where the aerial film was let go with no frame taken, past the picture: Home went behind an
+     * app, or a screensaver of aerials played on from the wallpaper's film. Without it the film
+     * started again from the same picture every time, and the wallpaper never changed (Weibo
+     * report, 2026-10-28). Null once the picture has caught up ([useLiveFrame]).
+     */
+    fun leftLiveSpot(): Pair<String, Long>? {
+        leftHere?.let { return it }
+        val film = prefs.getString("live_left_film", null)?.takeIf { it.isNotEmpty() } ?: return null
+        return film to prefs.getLong("live_left_at", 0L)
+    }
+
+    /**
+     * The newest left spot, ahead of prefs: the screensaver moves it on every second, so Home comes
+     * back on its film and moment, and writes it to prefs only now and then ([leaveLiveFilm]).
+     */
+    @Volatile
+    private var leftHere: Pair<String, Long>? = null
+
+    /**
+     * The aerial film was let go at [atMs] into [film] with no frame taken: it goes on from there.
+     * Not [persist]ed: kept in memory only, for a screensaver that reports where it is every second.
+     */
+    fun leaveLiveFilm(film: String, atMs: Long, persist: Boolean = true) {
+        // Kept whatever the wallpaper: a screensaver of aerials over another one leaves its film
+        // here too, so the aerial wallpaper chosen later begins on it (AerialSet).
+        if (!persist) { leftHere = film to atMs; return }
+        val picture = livePictureSpot()
+        // Let go where the picture is (stopped there, or never moved): nothing to catch up.
+        if (picture != null && picture.first == film && abs(picture.second - atMs) < SAME_SPOT_MS) {
+            leftHere = null
+            prefs.edit { remove("live_left_film").remove("live_left_at") }
+        } else {
+            leftHere = film to atMs
+            prefs.edit { putString("live_left_film", film).putLong("live_left_at", atMs) }
+        }
     }
 
     /** The same for the owner's videos: which one and where it last stopped. */
@@ -428,16 +522,19 @@ object Wallpapers {
         return film to prefs.getLong("video_at", 0L)
     }
 
-    /** The owner's videos changed (sent or deleted from the phone): the card comes or goes. */
+    /** The owner's videos changed (sent or deleted from the phone): their cards come or go. */
     fun videosChanged() {
-        synchronized(thumbs) { thumbs.remove(VIDEOS) }
+        synchronized(thumbs) { thumbs.keys.removeAll { isVideo(it) } }
         rebuildList()
-        if (items.none { it.id == VIDEOS }) {
-            // The last one gone: so is the frame it stopped on.
+        // The film the frame was taken from gone: so is the frame.
+        val spot = prefs.getString("video_film", null)
+        if (spot != null && items.none { it.id == VIDEO_PREFIX + spot }) {
             videoFrame.delete()
             prefs.edit { remove("video_film").remove("video_at") }
-            if (selectedId == VIDEOS) select(LATEST_DAILY)
         }
+        // The chosen one deleted: the others in turn, if any are left.
+        if (isVideo() && items.none { it.id == selectedId }) select(if (items.any { it.id == VIDEOS }) VIDEOS else LATEST_DAILY)
+        else if (isVideo()) rebuildBackdrop()
     }
 
     /** The TV inputs Home lists that can play behind it, as (TvInputInfo id, name). */
@@ -545,7 +642,11 @@ object Wallpapers {
             .map { Wallpaper("photo:${it.nameWithoutExtension}", WallpaperKind.Photo, if (zh) "我的照片" else "My Photo") }
         val auto = Wallpaper(AUTO, WallpaperKind.Auto, if (zh) "跟随 App" else "Follow App")
         val live = Wallpaper(LIVE, WallpaperKind.Live, if (zh) "航拍" else "Aerial")
-        val videos = if (ScreensaverVideos.all(app).isNotEmpty()) listOf(Wallpaper(VIDEOS, WallpaperKind.Video, if (zh) "我的视频" else "My Videos")) else emptyList()
+        // All of them in turn, then each on its own (#762); the pickers show the first only for two or more.
+        val films = ScreensaverVideos.all(app)
+        val videos = if (films.isEmpty()) emptyList() else
+            listOf(Wallpaper(VIDEOS, WallpaperKind.Video, if (zh) "我的视频 · 轮播" else "My Videos, In Turn")) +
+                films.map { Wallpaper(VIDEO_PREFIX + it.id, WallpaperKind.Video, it.name.substringBeforeLast('.').ifBlank { it.name }) }
         val inputs = sources.map { (id, name) -> Wallpaper(SOURCE_PREFIX + id, WallpaperKind.Source, name) }
         items = listOf(live) + videos + daily + builtins + photos + auto + inputs
     }

@@ -140,6 +140,17 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     /** Home is the resumed activity: the aerial wallpaper only moves while it is. */
     var resumed by mutableStateOf(false)
 
+    /**
+     * Paused only by Home's bounce on Xiaomi (HomeGuardService.backOnPause), and being brought
+     * straight back: the wallpaper's film plays on as if still resumed. Let go, it left the window
+     * black where the film showed through until Aerial was back 150 ms later, and then started over
+     * (MiTV-MFTR0, Android 14).
+     */
+    var homeBounce by mutableStateOf(false)
+
+    /** In front for the wallpaper's film: resumed, or only bouncing off Home (homeBounce). */
+    val filmFront: Boolean get() = resumed || homeBounce
+
     /** Aerial's screensaver is up (see MainActivity's idle timer). */
     var screensaverVisible by mutableStateOf(false)
     val screensaverSkips = ScreensaverSkips()
@@ -270,6 +281,12 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     private var loadJob: Job? = null
 
+    /** A tile picture set or removed from the phone page; see CustomIcons.onChange; before init, which registers it. */
+    private val customIconsChanged: () -> Unit = {
+        DiagLog.i("custom icons changed; reloading Home")
+        reload()
+    }
+
     init {
         AppCatalog.renameFolder = ::renameFolder
         AppCatalog.pinSource = ::pinSourceById
@@ -281,7 +298,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             for (level in brightnessSteps) SystemProbe.setXgimiBrightnessLevel(level)
         }
         // A tile picture set or removed from the phone page.
-        viewModelScope.launch { snapshotFlow { CustomIcons.version }.drop(1).collect { reload() } }
+        CustomIcons.onChange(customIconsChanged)
         // Library pictures that arrived, or the library turned on or off.
         viewModelScope.launch { snapshotFlow { IconLibrary.version }.drop(1).collect { reload() } }
         offerSetupOnce()
@@ -289,6 +306,14 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { snapshotFlow { SourceLooks.all }.drop(1).collect { if (loaded) arrange() } }
         // An app renamed on the phone page.
         viewModelScope.launch { snapshotFlow { AppNames.all }.drop(1).collect { if (loaded) arrange() } }
+        viewModelScope.launch { snapshotFlow { AerialSettings.previewApps }.drop(1).collect { if (loaded) arrange() } }
+        // Another number of apps a row: the artwork again if four a row wants it larger, else
+        // every face at the new size, before the tiles draw them.
+        viewModelScope.launch {
+            snapshotFlow { AerialSettings.homeColumns }.drop(1).collect {
+                if (TileArtFactory.fitColumns()) reload() else if (loaded) prepareFaces()
+            }
+        }
     }
 
     /**
@@ -393,7 +418,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
      */
     private fun prepareFaces() {
         val shown = apps + folderApps.values.flatten()
-        val row = apps.take(5)
+        val row = apps.take(AerialSettings.homeColumns)
         facesJob?.cancel()
         facesJob = viewModelScope.launch {
             val started = SystemClock.uptimeMillis()
@@ -445,7 +470,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                 ?: TileArtFactory.forFolder(shown).also { folderArt[folder.id] = shown to it }
             folderEntry(folder, art)
         }
-        apps = arrangement.home
+        apps = AerialSettings.previewApps.takeIf { it > 0 }?.let { arrangement.home.take(it) } ?: arrangement.home
         AppCatalog.home = arrangement.home
         AppCatalog.folderApps = arrangement.folders
         AppCatalog.hiddenApps = arrangement.hidden
@@ -562,13 +587,15 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             val (n, v, s) = withContext(Dispatchers.Default) {
                 Triple(SystemProbe.network(ctx), SystemProbe.volume(ctx), SystemProbe.sources(ctx))
             }
+            // Home status before the brightness, apart from it: a brightness read that waits on a
+            // vendor binder must not keep the panel saying "not the default home" (issue #892).
+            homeStatus = withContext(Dispatchers.Default) { SystemProbe.homeStatus(ctx) }
             val level = withContext(Dispatchers.Default) { Brightness.level(ctx) }
             network = n; volume = v
             // TvSource holds an Intent, which has no value equality; compare what a tile shows.
             // The route too: a corrected Xiaomi source id changes nothing a tile shows.
             fun shown(list: List<TvSource>) = list.map { listOf(it.id, it.label, it.deviceName, it.intent.toUri(0)) }
             if (shown(s) != shown(sources)) { sources = s; arrange() } else sources = s
-            homeStatus = SystemProbe.homeStatus(ctx)
             brightness = level
         }
     }
@@ -596,9 +623,8 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshPanel() {
         viewModelScope.launch {
             val ctx = context
-            val (home, level) = withContext(Dispatchers.Default) { SystemProbe.homeStatus(ctx) to Brightness.level(ctx) }
-            homeStatus = home
-            brightness = level
+            homeStatus = withContext(Dispatchers.Default) { SystemProbe.homeStatus(ctx) }
+            brightness = withContext(Dispatchers.Default) { Brightness.level(ctx) }
         }
     }
 
@@ -701,6 +727,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        CustomIcons.removeOnChange(customIconsChanged)
         if (AppCatalog.renameFolder == ::renameFolder) AppCatalog.renameFolder = null
         if (AppCatalog.pinSource == ::pinSourceById) AppCatalog.pinSource = null
         if (AppCatalog.layout === layoutOps) AppCatalog.layout = null

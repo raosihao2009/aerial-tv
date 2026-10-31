@@ -44,6 +44,8 @@ object LiteSettings {
     var focusStyle = FocusStyle.HighContrast; private set
     var oneRowHome = true; private set
     var peekNextRow = true; private set
+    /** Apps a row on Home and in folders, as the full app's: four, five or six. */
+    var homeColumns = 5; private set
     var homePlate = true; private set
     var showAllNames = false; private set
     var clockRight = false; private set
@@ -57,6 +59,7 @@ object LiteSettings {
     var bootApp: String? = null; private set
 
     const val NEVER = 0
+    val HOME_COLUMNS = 4..6
     /** The full app's choices. */
     val screensaverChoices = listOf(2, 5, 10, 20, NEVER)
 
@@ -72,6 +75,7 @@ object LiteSettings {
         focusStyle = FocusStyle.of(prefs.getString("focus_style", null))
         oneRowHome = prefs.getBoolean("one_row_home", true)
         peekNextRow = prefs.getBoolean("peek_next_row", true)
+        homeColumns = prefs.getInt("home_columns", 5).takeIf { it in HOME_COLUMNS } ?: 5
         homePlate = prefs.getBoolean("home_plate", true)
         showAllNames = prefs.getBoolean("show_all_names", false)
         clockRight = prefs.getBoolean("clock_right", false)
@@ -95,6 +99,7 @@ object LiteSettings {
 
     fun chooseFocusStyle(v: FocusStyle) { focusStyle = v; put { putString("focus_style", v.key) } }
     fun chooseOneRowHome(v: Boolean) { oneRowHome = v; put { putBoolean("one_row_home", v) } }
+    fun chooseHomeColumns(v: Int) { if (v in HOME_COLUMNS) { homeColumns = v; put { putInt("home_columns", v) } } }
     fun choosePeekNextRow(v: Boolean) { peekNextRow = v; put { putBoolean("peek_next_row", v) } }
     fun chooseHomePlate(v: Boolean) { homePlate = v; put { putBoolean("home_plate", v) } }
     fun chooseShowAllNames(v: Boolean) { showAllNames = v; put { putBoolean("show_all_names", v) } }

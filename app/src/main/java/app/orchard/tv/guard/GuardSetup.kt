@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import android.util.Log
 import app.orchard.tv.dream.AerialDream
+import app.orchard.tv.system.DiagLog
 import app.orchard.tv.system.SystemScreensaver
 
 /**
@@ -55,6 +56,8 @@ object GuardSetup {
 
     private const val KEY_OWN_SCREENSAVER = "own_screensaver"
     private const val KEY_HOME_IN_FRONT = "home_in_front"
+    private const val KEY_HOME_IN_FRONT_AT = "home_in_front_at"
+    private const val KEY_HOME_IN_FRONT_BOOT = "home_in_front_boot"
     private const val KEY_INSTALLER_OPENED = "installer_opened_at"
     private const val KEY_SCREENSAVER_SWITCHED_OFF = "screensaver_switched_off"
     private const val KEY_SCREENSAVER_ENABLED = "screensaver_enabled"
@@ -129,7 +132,23 @@ object GuardSetup {
      * and whatever the viewer sees now was uncovered rather than chosen.
      */
     fun setHomeInFront(context: Context, inFront: Boolean) =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_HOME_IN_FRONT, inFront).apply()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_HOME_IN_FRONT, inFront)
+            .putLong(KEY_HOME_IN_FRONT_AT, SystemClock.elapsedRealtime())
+            .putLong(KEY_HOME_IN_FRONT_BOOT, System.currentTimeMillis() - SystemClock.elapsedRealtime()).apply()
+
+    /**
+     * [wasHomeInFront], when it was written in this boot; null when it was not (a power-on, or a
+     * clock set since then). Tells a guard bound at boot from one bound after the firmware killed
+     * Aerial while the viewer was in an app.
+     */
+    fun homeInFrontThisBoot(context: Context): Boolean? {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val at = prefs.getLong(KEY_HOME_IN_FRONT_AT, -1L)
+        val boot = prefs.getLong(KEY_HOME_IN_FRONT_BOOT, 0L)
+        val bootNow = System.currentTimeMillis() - SystemClock.elapsedRealtime()
+        if (at !in 0..SystemClock.elapsedRealtime() || kotlin.math.abs(boot - bootNow) > 2 * 60 * 1000L) return null
+        return prefs.getBoolean(KEY_HOME_IN_FRONT, false)
+    }
 
     fun wasHomeInFront(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_HOME_IN_FRONT, false)
@@ -276,12 +295,43 @@ object GuardSetup {
     }
 
     /**
+     * Android 5.x: the guard is enabled in settings, yet the accessibility manager lists no such
+     * service, shows "no services installed" and writes accessibility_enabled back to 0. Hisense
+     * VIDAA MSD6A828 (5.1.1) did so after every boot until Aerial was installed again, which makes
+     * it read the installed services again (issue #578); Skyworth 8S70 (5.0.1) went without the
+     * guard until Aerial was revived minutes later (#579). A package change makes it read them as
+     * an install does, so Aerial changes one of its own components' state there and back.
+     */
+    fun rescanIfMissing(context: Context) {
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.LOLLIPOP_MR1) return
+        val me = ComponentName(context, HomeGuardService::class.java)
+        val enabled = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES).orEmpty()
+            .split(':').any { ComponentName.unflattenFromString(it) == me }
+        if (!enabled) return
+        val installed = runCatching {
+            context.getSystemService<android.view.accessibility.AccessibilityManager>()?.installedAccessibilityServiceList
+                ?.any { it.resolveInfo?.serviceInfo?.let { s -> s.packageName == me.packageName && s.name == me.className } == true }
+        }.getOrNull() ?: return
+        if (installed) return
+        Log.i(TAG, "the guard is enabled but Android lists no such service; asking it to read the services again")
+        val pm = context.packageManager
+        val marker = ComponentName(context, BootReceiver::class.java)
+        runCatching {
+            pm.setComponentEnabledSetting(marker, PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
+            Handler(Looper.getMainLooper()).postDelayed({
+                runCatching { pm.setComponentEnabledSetting(marker, PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, PackageManager.DONT_KILL_APP) }
+            }, 1500)
+        }.onFailure { Log.w(TAG, "could not change a component's state", it) }
+    }
+
+    /**
      * Enabled but not running: seen on TCL after Aerial is updated, where Android keeps the
      * setting but never binds the new version. Writing the list without Aerial and then with it
      * makes Android bind it again.
      */
     fun rebindIfStalled(context: Context) {
         if (HomeGuardService.isRunning) return
+        rescanIfMissing(context)
         if (standingOut(context)) { watchScreenOn(context); return }
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_SECURE_SETTINGS) != PackageManager.PERMISSION_GRANTED) return
         val me = ComponentName(context, HomeGuardService::class.java).flattenToString()
@@ -309,10 +359,28 @@ object GuardSetup {
         }
     }
 
-    /** Switches accessibility off and, a moment later, on again, so Android binds every service anew. */
+    /**
+     * Switches accessibility off and, a moment later, on again, so Android binds every service anew.
+     * Past Android 6 accessibility_enabled no longer unbinds anything: on Xiaomi Box 5 Max
+     * (MiTV-AZFU0, Android 14) the guard stayed deaf after it (issue #651). There Aerial is taken
+     * out of the list and put back, as rebindIfStalled does.
+     */
     fun restartAccessibility(context: Context) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_SECURE_SETTINGS) != PackageManager.PERMISSION_GRANTED) return
         val resolver = context.contentResolver
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.M) {
+            val me = ComponentName(context, HomeGuardService::class.java).flattenToString()
+            fun others() = Settings.Secure.getString(resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES).orEmpty()
+                .split(':').filter { it.isNotBlank() && ComponentName.unflattenFromString(it)?.flattenToString() != me }
+            runCatching {
+                Settings.Secure.putString(resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, others().joinToString(":"))
+                Handler(Looper.getMainLooper()).postDelayed({
+                    runCatching { Settings.Secure.putString(resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, (others() + me).joinToString(":")) }
+                        .onFailure { Log.w(TAG, "could not put Home Guard back", it) }
+                }, 1500)
+            }.onFailure { Log.w(TAG, "could not take Home Guard out", it) }
+            return
+        }
         runCatching {
             Settings.Secure.putInt(resolver, Settings.Secure.ACCESSIBILITY_ENABLED, 0)
             // See rebindIfStalled: two writes in a row are coalesced.
@@ -406,10 +474,33 @@ object GuardSetup {
      */
     fun screensaverSettingChanged(context: Context) = keepScreensaver(context)
 
+    /**
+     * A persisted component override survives an APK update. On Skyworth 8N312_H5D the boot
+     * receiver was disabled even though the manifest enables it. Android 8's shell cannot
+     * change another app's component, but the owning app can clear its own override. Only do
+     * so after the owner has granted the ADB takeover permission, as for the guard itself.
+     */
+    private fun restoreBootReceiver(context: Context) {
+        val pm = context.packageManager
+        val component = ComponentName(context, BootReceiver::class.java)
+        runCatching {
+            val state = pm.getComponentEnabledSetting(component)
+            if (state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT ||
+                state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED) return
+            pm.setComponentEnabledSetting(
+                component, PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, PackageManager.DONT_KILL_APP,
+            )
+            DiagLog.i("revival: cleared disabled BootReceiver override (was $state)")
+        }.onFailure {
+            DiagLog.e("revival: could not restore BootReceiver", it)
+        }
+    }
+
     /** Returns whether Home Guard had been switched off and was put back. */
     fun ensureEnabled(context: Context): Boolean {
         ensureAdb(context)
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_SECURE_SETTINGS) != PackageManager.PERMISSION_GRANTED) return false
+        restoreBootReceiver(context)
         keepScreensaver(context)
         RevivalSync.ensure(context)
         if (standingOut(context)) { watchScreenOn(context); return false }

@@ -55,6 +55,25 @@ class HomeView(context: Context, private val host: Host) : FrameLayout(context) 
     private val press = Press()
     private val handler = Handler(Looper.getMainLooper())
 
+    /**
+     * How much of the bottom an opaque panel hides whole (Personalize's settled sheet): Home is not
+     * drawn there, under it, with every frame of the panel (the full app's SheetCovers).
+     */
+    var coveredBelow = 0
+        set(value) {
+            if (field == value) return
+            field = value
+            invalidate()
+        }
+
+    override fun dispatchDraw(canvas: Canvas) {
+        if (coveredBelow <= 0) return super.dispatchDraw(canvas)
+        val saved = canvas.save()
+        canvas.clipRect(0, 0, width, height - coveredBelow)
+        super.dispatchDraw(canvas)
+        canvas.restoreToCount(saved)
+    }
+
     /** The focused tile; [PILL] for the status pill. */
     private var focus = 0
     private var row = 0
@@ -72,7 +91,14 @@ class HomeView(context: Context, private val host: Host) : FrameLayout(context) 
     private var firstGap = 0f
     private var topRowY = canvasH - PITCH - 12f
     private var shelfLift = 0f
-    private val restY = canvasH * 0.37f
+    /** The rows on the shelf, over the plate: the top row, and in two-row mode the second too. */
+    private var shelfRows = 1
+    /** How far the second row sits under the top row on the shelf in two-row mode. */
+    private var shelfSecond = PITCH
+    /** The large clock's top: up beside the pill when two rows would not fit under it. */
+    private var clockY = CLOCK_Y
+    /** As the full app's: the row above clears the status pill, which four a row would reach at 37%. */
+    private val restY get() = maxOf(canvasH * 0.37f, 72f + PITCH)
 
     var apps: List<AppEntry> = emptyList()
         private set
@@ -121,7 +147,7 @@ class HomeView(context: Context, private val host: Host) : FrameLayout(context) 
             })
         } else {
             addView(clock, 1, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP or if (LiteSettings.clockRight) Gravity.END else Gravity.START).apply {
-                topMargin = Ui.pxi(if (LiteSettings.largeClock) CLOCK_Y else 28f)
+                topMargin = Ui.pxi(if (LiteSettings.largeClock) clockY else 28f)
                 leftMargin = Ui.pxi(MARGIN)
                 rightMargin = Ui.pxi(MARGIN)
             })
@@ -130,22 +156,46 @@ class HomeView(context: Context, private val host: Host) : FrameLayout(context) 
     }
 
     private fun relayout() {
+        // Another number of apps a row: the tiles take its size (their faces follow with the reload).
+        val tileW = Ui.pxi(TILE_W + 2 * TILE_EXT)
+        if (tiles.firstOrNull()?.layoutParams?.width.let { it != null && it != tileW }) {
+            for (t in tiles) t.layoutParams = t.layoutParams.apply { width = tileW; height = Ui.pxi(TILE_H + 2 * TILE_EXT) }
+            for (n in names) n.layoutParams = n.layoutParams.apply { width = Ui.pxi(TILE_W + 36f) }
+        }
         val rows = (apps.size + COLS - 1) / COLS
         oneRow = LiteSettings.oneRowHome || rows <= 1
         peek = LiteSettings.peekNextRow
         hasPlate = LiteSettings.homePlate && apps.isNotEmpty()
         plateNames = LiteSettings.showAllNames && LiteSettings.homePlate
         firstGap = if (plateNames) PLATE_NAME_ROOM else 0f
+        shelfRows = if (oneRow) 1 else 2
+        // The full app's GridMetrics: two rows laid from the bottom up, on one plate closer
+        // together when no names go between them, under the large clock, which goes up beside
+        // the pill (at the left) when they would not fit, and lifts what still does not on the second row.
+        shelfSecond = if (hasPlate && !plateNames) TILE_H + SHELF_ROW_GAP else PITCH
+        val twoRowFit = canvasH - (if (hasPlate) PLATE_MARGIN_BOTTOM + PLATE_PAD_V + firstGap else ROW_NAME_ROOM) - shelfSecond - TILE_H
+        val platePad = if (hasPlate) PLATE_PAD_V else 0f
+        val newClockY = if (oneRow || !LiteSettings.largeClock) CLOCK_Y else
+            (twoRowFit - platePad - LARGE_CLOCK_H).coerceIn(if (LiteSettings.clockRight) CLOCK_Y else 28f, CLOCK_Y)
         topRowY = when {
-            !oneRow -> canvasH * 0.555f
+            !oneRow -> maxOf(twoRowFit, if (LiteSettings.largeClock) newClockY + LARGE_CLOCK_H + platePad else 0f)
             peek -> canvasH - PITCH - 12f - firstGap
             hasPlate -> canvasH - TILE_H - (PLATE_MARGIN_BOTTOM + PLATE_PAD_V) - firstGap
             else -> canvasH - TILE_H - 70f
         }
-        shelfLift = (topRowY + firstGap + PITCH * 2 + 12f - canvasH).coerceAtLeast(0f)
+        shelfLift = if (oneRow) 0f else topRowY - twoRowFit
+        if (newClockY != clockY) {
+            clockY = newClockY
+            (clock.layoutParams as? LayoutParams)?.let { if (LiteSettings.largeClock) clock.layoutParams = it.apply { topMargin = Ui.pxi(clockY) } }
+        }
+        // The plate holds both rows in two-row mode, as in the full app.
+        val plateH = TILE_H + 2 * PLATE_PAD_V + firstGap + if (shelfRows > 1) shelfSecond else 0f
+        plate.layoutParams.height.let { h ->
+            if (h != Ui.pxi(plateH)) plate.layoutParams = plate.layoutParams.apply { height = Ui.pxi(plateH) }
+        }
         plate.visibility = if (hasPlate) VISIBLE else INVISIBLE
         plate.translationY = Ui.px(topRowY - PLATE_PAD_V)
-        plate.place(topRowY - PLATE_PAD_V, TILE_H + 2 * PLATE_PAD_V + firstGap)
+        plate.place(topRowY - PLATE_PAD_V, plateH)
         place(animate = false)
         showFocus(animate = false, force = true)
     }
@@ -195,7 +245,10 @@ class HomeView(context: Context, private val host: Host) : FrameLayout(context) 
     private fun x(i: Int) = MARGIN + (i % COLS) * (TILE_W + GAP)
 
     /** A row's top; below the top row, past the room for names on the plate while on the shelf. */
-    private fun y(i: Int) = topRowY + (i / COLS) * PITCH + if (i >= COLS && !grid) firstGap else 0f
+    private fun y(i: Int) = when {
+        i / COLS == 1 && shelfRows > 1 && !grid -> topRowY + shelfSecond
+        else -> topRowY + (i / COLS) * PITCH + if (i >= COLS && !grid) firstGap else 0f
+    }
 
     /** The full app's GridMetrics.scrollFor: rows rest at 37% of the screen, the row above in view. */
     private fun scrollFor(row: Int): Float {
@@ -223,8 +276,11 @@ class HomeView(context: Context, private val host: Host) : FrameLayout(context) 
         }
     }
 
-    /** One row only, the rows below out of sight until Home scrolls to them. */
-    private fun hiddenBelow(i: Int) = oneRow && !peek && !grid && i >= COLS
+    /** The rows below the shelf out of sight until Home scrolls to them: one row unless it peeks, two rows always. */
+    private fun hiddenBelow(i: Int) = !grid && when {
+        !oneRow -> i >= COLS * 2
+        else -> !peek && i >= COLS
+    }
 
     private fun showFocus(animate: Boolean, force: Boolean = false) {
         pill.focusedLook = focus == PILL
@@ -252,7 +308,9 @@ class HomeView(context: Context, private val host: Host) : FrameLayout(context) 
             val wasGrid = row > 0 && !force
             row = newRow
             val lift = if (row > 0 && !grid) shelfLift else 0f
-            val to = -Ui.px(scrollFor(if (grid) row else 0) + lift)
+            // Two rows go into the grid a row further down; they scroll a row less, so the grid
+            // opens as from one row, the first row whole at the top.
+            val to = -Ui.px(scrollFor(if (grid) row - (shelfRows - 1) else 0) + lift)
             val top = if (grid) 0f else 1f
             if (animate && smooth) {
                 layer.animate().translationY(to).setDuration(260).setInterpolator(EASE).start()
@@ -275,7 +333,7 @@ class HomeView(context: Context, private val host: Host) : FrameLayout(context) 
      */
     private fun placeName(i: Int, on: Boolean, ring: Boolean) {
         val n = names[i]
-        val onPlate = hasPlate && i < COLS
+        val onPlate = hasPlate && i < COLS * shelfRows
         val show = (!onPlate || plateNames) && !hiddenBelow(i) && (on || LiteSettings.showAllNames) && !(on && moving)
         n.visibility = if (show) VISIBLE else INVISIBLE
         if (!show) return
@@ -474,12 +532,13 @@ class HomeView(context: Context, private val host: Host) : FrameLayout(context) 
 
     companion object {
         const val PILL = -1
-        const val COLS = 5
+        /** Apps a row, from Personalize; the sizes below follow it, as the full app's GridMetrics. */
+        val COLS get() = LiteSettings.homeColumns
         const val MARGIN = 56f
-        const val GAP = 28f
-        const val TILE_W = (960f - 2 * MARGIN - (COLS - 1) * GAP) / COLS
-        const val TILE_H = TILE_W * 9 / 16
-        const val PITCH = TILE_H + 50f
+        val GAP get() = when (COLS) { 4 -> 34f; 6 -> 24f; else -> 28f }
+        val TILE_W get() = (960f - 2 * MARGIN - (COLS - 1) * GAP) / COLS
+        val TILE_H get() = TILE_W * 9 / 16
+        val PITCH get() = TILE_H + 50f
         const val FOCUS_SCALE = 1.15f
         const val CORNER = 12f
         const val RING_GAP = 5f
@@ -493,6 +552,10 @@ class HomeView(context: Context, private val host: Host) : FrameLayout(context) 
         const val PLATE_NAME_ROOM = 28f
         /** Top of the large clock: the date's capitals, just under the status pill. */
         const val CLOCK_Y = 80f
+        /** The full app's ShelfRowGap, RowNameRoom and LargeClockHeight. */
+        const val SHELF_ROW_GAP = 30f
+        const val ROW_NAME_ROOM = 50f
+        const val LARGE_CLOCK_H = 152f
         private val EASE = DecelerateInterpolator(1.6f)
 
         /** An app's name under its tile: Type.Headline, centred, with the full app's soft shadow. */

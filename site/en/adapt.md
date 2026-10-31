@@ -8,10 +8,11 @@ If Aerial is not installed yet, install it first with https://aerial.qust.me/en/
 
 1. **Run the commands yourself** on the user's computer and read their real output; never claim success you did not see. A chat-only agent should ask the user to switch to a desktop agent that can run commands.
 2. **Do not uninstall or disable any system app** (the old launcher included), delete files on the TV, factory-reset it, or change system settings not listed below.
-3. Ask the user before a standby test or a restart (`STANDBY=1`, `REBOOT=1`, `adb reboot`).
-4. Note the result before and after every switch you try; set back the ones that did not help.
-5. When the user has to look at the TV or press a key, say exactly what and which.
-6. Show the user the full text before posting anything to GitHub, and post only once they agree.
+3. **Don't install any app other than Aerial** (no app stores, ADB enablers or other tools). To reinstall or update Aerial, use only `install.sh` below or the official APK on aerial.qust.me.
+4. Ask the user before a standby test or a restart (`STANDBY=1`, `REBOOT=1`, `adb reboot`).
+5. Note the result before and after every switch you try; set back the ones that did not help.
+6. When the user has to look at the TV or press a key, say exactly what and which.
+7. Show the user the full text before posting anything to GitHub, and post only once they agree.
 
 ## Step 1: connect
 

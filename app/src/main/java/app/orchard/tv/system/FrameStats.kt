@@ -19,6 +19,8 @@ object FrameStats {
     private const val SKIP_START_MS = 5_000L
     private const val BUDGET_NS = 16_700_000L
     private val total = LongArray(KEEP)
+    /** The GPU's part of the same frames (Android 12+): says whether a slow TV waits on its GPU. */
+    private val gpu = LongArray(KEEP)
     private var count = 0L
     private var over = 0L
     private var thread: HandlerThread? = null
@@ -39,8 +41,10 @@ object FrameStats {
                 return@addOnFrameMetricsAvailableListener
             }
             val ns = metrics.getMetric(FrameMetrics.TOTAL_DURATION)
+            val gpuNs = if (Build.VERSION.SDK_INT >= 31) metrics.getMetric(FrameMetrics.GPU_DURATION) else 0L
             synchronized(this) {
                 total[(count % KEEP).toInt()] = ns
+                gpu[(count % KEEP).toInt()] = gpuNs
                 count++
                 if (ns > BUDGET_NS) over++
             }
@@ -50,15 +54,16 @@ object FrameStats {
     /** One line: how many frames, the median, 90th and 99th percentiles and the slowest of the last [KEEP]. */
     fun summary(): String {
         if (Build.VERSION.SDK_INT < 24) return "not measured before Android 7"
-        val (n, all, slow, sorted) = synchronized(this) {
+        val (n, all, slow, sorted, gpuSorted) = synchronized(this) {
             val n = minOf(count, KEEP.toLong()).toInt()
-            Quad(n, count, over, total.copyOf(n).also { it.sort() })
+            Snapshot(n, count, over, total.copyOf(n).also { it.sort() }, gpu.copyOf(n).also { it.sort() })
         }
         if (n == 0) return "no frames yet"
-        fun ms(p: Double) = "%.1f".format(sorted[((n - 1) * p).toInt()] / 1e6)
-        return "last $n frames: median ${ms(0.5)} ms, p90 ${ms(0.9)} ms, p99 ${ms(0.99)} ms, slowest ${ms(1.0)} ms; " +
+        fun ms(a: LongArray, p: Double) = "%.1f".format(a[((n - 1) * p).toInt()] / 1e6)
+        val gpuPart = if (Build.VERSION.SDK_INT >= 31) "; GPU median ${ms(gpuSorted, 0.5)} ms, p90 ${ms(gpuSorted, 0.9)} ms" else ""
+        return "last $n frames: median ${ms(sorted, 0.5)} ms, p90 ${ms(sorted, 0.9)} ms, p99 ${ms(sorted, 0.99)} ms, slowest ${ms(sorted, 1.0)} ms$gpuPart; " +
             "over 16.7 ms: $slow of $all since 5 s after start"
     }
 
-    private data class Quad(val n: Int, val all: Long, val slow: Long, val sorted: LongArray)
+    private data class Snapshot(val n: Int, val all: Long, val slow: Long, val sorted: LongArray, val gpuSorted: LongArray)
 }

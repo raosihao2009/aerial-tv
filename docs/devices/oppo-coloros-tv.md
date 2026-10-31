@@ -46,6 +46,15 @@ INSTALL_FAILED_DUPLICATE_PERMISSION: App installation is banned, because of laun
 
 这两处都是打包时按 `applicationId` 生成的，所以源码改包名不用管。
 
+## 不要停用原桌面（#862）
+
+另一台 K9（`OPPOCNM632`，ColorOS TV 2.4 / Android 9，m7642，2026-10-29 报告人实测）**原桌面 `com.heytap.tv.launcher` 保持启用**也能开机直进 Aerial：改包名、在 HOME 里加下面的 `MODERN_HOME` 标记，然后
+`cmd package set-home-activity com.oneplus.tv.launcher2/app.orchard.tv.MainActivity`，`resolve-activity` 显示 `isDefault=true`。
+
+- 停用原桌面后，如果第三方桌面没被系统认可，系统只剩 FallbackHome，会一直停在开机动画（系统其实已经起来了，`adb` 还能连）。所以先 `cmd package query-activities -a android.intent.action.MAIN -c android.intent.category.HOME -c com.heytap.tv.launcher.category.MODERN_HOME` 确认 Aerial 在里面，再设默认桌面；原桌面一直留着当兜底。
+- 想退回原桌面：`adb shell cmd package set-home-activity com.heytap.tv.launcher/com.oneplus.tv.launcher2.HomeLauncher`（`...modern.ModernLauncher` 不能当桌面）。
+- 用 apktool 改包名时漏了下面说的广播权限，守护每 30 秒崩一次，默认桌面过 40–50 秒被系统清掉、弹出「选择桌面」，表现是电视卡、遥控器没反应。
+
 ## 开机要认的桌面标记
 
 OPPO 开机时只认带 `com.heytap.tv.launcher.category.MODERN_HOME` 的桌面。没这个标记的

@@ -48,13 +48,18 @@ internal object KonkaSources {
                     id = "konka:${source.name}",
                     label = label,
                     kind = kind,
-                    connected = source in connected,
+                    // Before Android 6 the list is not what is plugged in: Konka 553 (Hi3751V553,
+                    // Android 5.1.1) named only HDMI 1, with nothing in any port (issue #918).
+                    connected = android.os.Build.VERSION.SDK_INT >= 23 && source in connected,
                     deviceName = null,
                     // RootActivity expects the public Konka enum ordinal, not its chipset source id.
+                    // A new task each time: with its task still there, Android only brought it
+                    // forward and the input it was on stayed (Konka 828, Android 5.0.1, issue #710:
+                    // HDMI2 then HDMI3 stayed on HDMI2; the task's intent was the first one).
                     intent = Intent("com.konka.tvsettings.intent.action.RootActivity")
                         .setComponent(player)
                         .putExtra("source", source.ordinal)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
                 )
             }.distinctBy { it.id }.sortedWith(compareBy({ it.kind.ordinal }, { it.label }))
         }.onFailure { Log.w(TAG, "Could not read the native Konka input list", it) }.getOrDefault(emptyList())

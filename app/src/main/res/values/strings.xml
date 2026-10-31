@@ -32,6 +32,7 @@
     <string name="net_ethernet">Ethernet</string>
     <string name="net_wifi">Wi-Fi</string>
     <string name="net_offline">Not Connected</string>
+    <string name="net_vpn">VPN</string>
 
     <string name="input_connected">Connected</string>
     <string name="input_live_tv">Live TV</string>
@@ -86,7 +87,7 @@
     <string name="wx_snow">Snow</string>
     <string name="wx_thunder">Thunderstorm</string>
     <string name="wp_daily_latest">Daily Photo</string>
-    <string name="wp_live">Moving aerial films. They play while Home is on the top row and stop on the frame showing when you go down to the apps, which stays as the picture; the next film picks up from there.</string>
+    <string name="wp_live">Moving aerial films. They play while Home is on the top row (either row in two rows) and stop on the frame showing when you go further down to the apps, which stays as the picture; the next film picks up from there.</string>
     <string name="wp_photos_rotate">My Photos, Daily</string>
     <string name="wp_daily_note">Bing\'s photo of the day, changing to the new one every day.</string>
     <string name="wp_photos_rotate_note">A different one of your photos each day.</string>
@@ -118,6 +119,7 @@
     <string name="ss_quality_hd">1080p</string>
     <string name="ss_quality_uhd">4K</string>
     <string name="ss_quality_dv">4K Dolby Vision</string>
+    <string name="ss_aerial_keeps">Aerial keeps the last %2$d films on the TV (up to %1$s); wallpaper and screensaver play them in turn, with a new one each day. In the screensaver, right brings a new film, left goes back.</string>
     <string name="st_focus_style">Focus Style</string>
     <string name="st_home_layout">Home Screen</string>
     <string name="st_layout">Layout</string>
@@ -195,6 +197,7 @@
     <string name="cc_update_failed_blocked">This TV does not let apps install other apps. Update with the command below.</string>
     <string name="cc_update_failed_signature">The Aerial on this TV is signed differently from the official one, so it cannot be updated over.</string>
     <string name="cc_update_failed_older">The website does not have a newer version yet. Try again in a while.</string>
+    <string name="cc_self_compile">Make Aerial Smoother</string>
     <string name="st_pin">Parental PIN</string>
     <string name="st_pin_off">Off</string>
     <string name="st_pin_on">On</string>
@@ -219,6 +222,8 @@
     <string name="weather_snow">Snow</string>
     <string name="weather_thunder">Thunderstorms</string>
     <string name="weather_high_low">H:%1$d°  L:%2$d°</string>
+    <string name="st_columns">Apps per Row</string>
+    <string name="st_columns_hint">How many apps fit across Home, and in folders. Six shows more at a glance; four makes them larger, easier to see from across the room.</string>
     <string name="st_peek">Second Row</string>
     <string name="st_peek_show">Peek</string>
     <string name="st_peek_hide">Hidden</string>
@@ -236,11 +241,13 @@
     <string name="ss_system">System</string>
     <string name="ss_system_hint">The TV\'s own screensaver, as it came with the TV (Xiaomi\'s pictures, for one). Aerial shows none of its own.</string>
     <string name="wp_videos_note">Your own videos, sent from the phone, silent and one after another. They move like the aerial films and stop on the frame showing.</string>
+    <string name="wp_videos_rotate">My Videos, In Turn</string>
+    <string name="wp_video_note">Your own video, sent from the phone, silent and on a loop. It moves like the aerial films and stops on the frame showing.</string>
     <string name="wp_source_note">This input\'s live picture behind Home, without sound; open the input for sound. Going down to the apps, it gives way to a frosted background. A dark picture shows while the input has nothing to show.</string>
     <string name="st_play">Playing</string>
     <string name="st_play_still">When still</string>
     <string name="st_play_always">Always</string>
-    <string name="st_play_hint">When still: after 10 seconds on the top row; a key stops it. Always: keys do not stop it, and it is shaded a little; it stops when you go down to the apps.</string>
+    <string name="st_play_hint">When still: after 10 seconds on the top row (either row in two rows); a key stops it. Always: keys do not stop it, and it is shaded a little; it stops when you go further down to the apps.</string>
     <string name="ss_show_time">Time</string>
     <string name="ss_show_time_hint">The time over the aerial and photo screensavers. The time and place name move a little now and then, so nothing stays on the same pixels.</string>
     <string name="st_live_preview">Live Preview</string>

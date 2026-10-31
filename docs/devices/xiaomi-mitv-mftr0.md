@@ -9,8 +9,12 @@
 ## HOME 锁定
 
 - `cmd role add-role-holder android.app.role.HOME app.orchard.tv` 和 `cmd package set-home-activity` 都返回成功，但 `resolve-activity` 仍然返回 `com.mitv.tvhome`。
-- 原因：`com.android.server.pm.MitvSettings.isThirdpartyHomeAllowed(pkg)` → `isAppInWhitelistWithFlag(pkg, 4)`。白名单来自 `/data/system/mitv_features.xml` 和 `persist.appcontrol_*` 属性，只有系统进程能写。
-- **不要停用 `com.mitv.tvhome`**：停用后 HOME 解析到 FallbackHome，而 FallbackHome 也不认第三方 HOME，会一直黑屏并刷日志「User unlocked but no home」。实测过，之后已立即 `pm enable` 还原。
+- 原因：`com.android.server.pm.MitvSettings.isThirdpartyHomeAllowed(pkg)` → `isAppInWhitelistWithFlag(pkg, 4)`。白名单来自 `/data/system/mitv_security_center.xml`（system 0600，shell 读不了，由云控下发）和 `persist.appcontrol_*` 属性，只有系统进程能写。
+- 白名单的内容开机时会打到日志里：重启后马上执行 `logcat -d -s MitvConfigParser`，看 `[White] 包名=标志` 这几行（日志缓冲很快会被覆盖）。2026-10-29 在 OS3.0.101 上读到 127 条白名单、54 条黑名单，其中带 HOME 位（4）的有 42 个，不含 `app.orchard.tv`。像第三方桌面的有：`com.ts.launcher`、`com.thunderstone.idun(.dev)`、`com.tongshi.home`、`com.bytv.launcher(.special)`、`com.meituan.retail.launcher`，都是 511。当贝桌面 `com.dangbei.tvlauncher` 在黑名单里。带待机免杀位（`0x8000`）的只有 `com.tencent.qqmusictv` 和 `com.xiaomi.mitv.light`。
+- cleanyourtv 的记录（AETP0、MTEQ0、Redmi MTTP0 等，Android 9/10）：用白名单里的包名重新编译后，不停用 PatchWall 也能设为 HOME。在 HyperOS 3 上（ASTR0、MFFU0，以及其他几台 MFTR0）也能接管，但必须先停用 `com.mitv.tvhome`，否则会弹出桌面选择框。这些包名属于别的公司，而且换包名等于装一个新 App，户主数据和授权都要重来，所以 Aerial 没有采用。
+- 2026-10-29 在这台上试过（OS3.0.101，不停用 PatchWall）：把 Aerial 编成 `com.ts.launcher` 装上后，`query-activities` 能列出它，普通的 `app.orchard.tv` 也在列表里。但 `set-home-activity` 和 HOME 角色照样被拒，日志 `addPreferredActivity: Don't set 3-app default home`。HOME 的解析结果从 PatchWall 变成了 `ResolverActivity`（桌面选择框）：白名单包名被留作候选，可是设不成默认。选择框里点「始终」能不能记住，没有试（要按实体遥控器）。试完已卸掉测试包，HOME 角色改回 `app.orchard.tv`，解析回到 PatchWall。
+- 2026-10-29/30 按 #901 的做法实测（户主同意，测完已还原）：装着 `com.ts.launcher` 测试包时停用 `com.mitv.tvhome`，HOME 直接解析到测试包，不弹选择框；`app.orchard.tv` 虽然持有 HOME 角色，也不会被选中。从设置按主页键 130–355 ms 回到测试包，不闪原桌面；8 个信号源和 HDMI 切换正常；重启时先进 FallbackHome，再进测试包，不黑屏；遥控器关机后再唤醒，系统直接拉起测试包，没有出现报告人说的小米应用界面。PatchWall 常驻约 170–180 MB（PSS）。Aerial 的帧时间（`perf.py` 的 row、grid、cc 各两轮）在停用和 PatchWall 后台常驻两种情况下没有差别。坑：① tvhome 启用而测试包还在时，HOME 解析成选择框；② 守护的原桌面名单（`stockHomes`）只在启动和解锁时读，PatchWall 停用期间启动的守护，在 PatchWall 重新启用后不认它，按主页键会停在 PatchWall，重启后恢复（1.69 之后已修：包被启用、停用、安装、卸载时重读，诊断报告的 `guard keeps away` 能看到名单）；③ ADB 发 `POWER` 让电视待机会断网，远程（WoL、6095、米家）都唤不醒；④ PatchWall 重新启用后第一次启动、以及开机时，会按 `boot_auto_play` 自动播放上次的信号源。
+- **不要停用 `com.mitv.tvhome`**（除非白名单包名的桌面已经装好）：停用后 HOME 解析到 FallbackHome，而 FallbackHome 也不认第三方 HOME，会一直黑屏并刷日志「User unlocked but no home」。实测过，之后已立即 `pm enable` 还原。白名单由云控下发，小米删掉某个包名后，靠它接管的电视会落到同样的黑屏。
 - 解决办法：桌面守护（无障碍）。原桌面一到前台就切回 Aerial；按 HOME 时实测从按下到 Aerial 显示约 0.5 秒，中间会闪一下原桌面。
 - 1.11 之前守护服务一直开着按键过滤（`flagRequestFilterKeyEvents`），在系统之前拦 HOME，不闪原桌面。但这样所有按键都要先绕道 Aerial，用户反馈云视听小电视里按一次遥控器移动两格，卸载 Aerial 就好。现在只在用户从「桌面」磁贴主动进入原桌面时才开过滤（`HomeGuardService.filterKeys`），回到 Aerial 或打开别的 App 就关掉。用 `dumpsys accessibility` 看：平时没有 `A11yInputFilter`，在原桌面里是 `[KeyboardInterceptor]`。
 - `adb shell input keyevent KEYCODE_HOME` 注入的按键不经过无障碍的按键过滤，测「原桌面里按 HOME 回到 Aerial」必须用实体遥控器。
@@ -55,6 +59,7 @@
 - 解决办法：Aerial 在桌面空闲 5 分钟时启动自己的屏保，同时加 `FLAG_KEEP_SCREEN_ON`，小米的屏保就不会再触发。停在别的 App 里空闲时，小米屏保仍可能出现。
 - Aerial 屏保保持常亮 4 小时后会放开（`SCREENSAVER_HOLD_MS`，好让电视自己关屏）。这台 `screen_off_timeout` 是无限，放开后屏幕不会关，小米的计时器 60 秒后照样把它的屏保盖上来（户主 2026-10-27 03:35 遇到，用量统计里 Aerial 23:31 回到前台，03:35 小米屏保出现）。现在屏幕本来就不会自动关时不再放开。用 90 秒的测试包对比过：旧逻辑放开 60 秒后小米屏保出现，新逻辑 3 分半仍是 Aerial。按 `MitvPowerManagerService` 反编译：计时器在「有视频在播」「有视频暂停（`media.player` 报的前台播放器）」之后才看常亮；后台 App 里暂停的 MediaPlayer 实测不算（报 `pausing:false uid:-1`），所以 Aerial 在前台时只有常亮放开会让小米屏保出来。
 - 只有一个 4K 解码器：航拍壁纸的 HEVC 在播时再开杜比视界，两个都 `DECODING_FAILED`（2026-10-24）。先停壁纸、再从同一时刻开杜比视界能接上，但中间黑 0.9–3.5 秒，户主不接受；现在壁纸和屏保都是航拍、画质为「自动」时，屏保沿用壁纸的播放器和格式（4K SDR），不切换。手动选了「4K 杜比视界」才切过去：先停壁纸、从同一时刻开杜比视界，实测第一帧 2.8 秒（2026-10-27）。
+- 杜比视界解码器（`OMX.MS.DOLBY_VISION.DVHE.STN.Decoder`）要在建的时候就拿到要显示的 SurfaceView：建在 ExoPlayer 的占位 surface 上，它走 DIP（logcat `MS_GenerateOutputData … dip:1`，帧拷到 GPU 缓冲），之后换到 SurfaceView 也不回硬件路径，画面不是杜比视界（#754）。走对了时 logcat 有 `GRM: AcquireVdecHw planar 0, dv 1, … bAlwaysPreemptDispBuf 1`，没有 `dip:1`。屏保的播放器因此不用占位 surface（`AerialStream.player(decodeOnScreen = true)`，2026-10-27）。
 - 自带屏保的入口：`com.xiaomi.mitv.hyper.screensaver/.MainActivity` 就是屏保本身。系统由受保护广播交给 `MainReceiver`，它再带 `show_saver_list=false`、`show_widget_view=false`、`Source` 启动 `MainActivity`；不带这两个 extra 直接打开，屏保上会盖着样式选择列表（还有广告）。1.42 个性化的「系统内置」：按返回就这样打开它，计时交给小米自己（`screen_saver_timeout`），这时 Aerial 不保持常亮。实测返回键打开的是没有列表的屏保，返回回到 Aerial；停在 Aerial 60 秒后小米屏保自己出来（这台当时 `screen_saver_timeout=60000`）。屏保 3.04.115（2026-10-24）。
 - 1.38 加了「从不」以后，选「从不」时 Aerial 不启动屏保，8 分钟后小米的屏保照样出现在 Aerial 上，户主以为屏保「跳回了小米自带的」（2026-10-23，户主的这台就设成了「从不」）。1.42 起选「从不」且 `screen_off_timeout` 是无限（这台是 2147483647）时，Aerial 在前台就保持 `FLAG_KEEP_SCREEN_ON`，日志里有 `setKeepScreenOnFlag KeepScreenOn:true`，户主确认小米屏保不再出来。
 
@@ -88,6 +93,12 @@
 在 MFTR0 上测（standard release）：
 - `uinput`：单按 7 次、连按 5 次（含间隔 120ms 的快速连按），frametimeline 里 PatchWall 的任务层都没被提上来，连按都打开了最近任务；按住主页键是小米的任务中心，守护不干预；按住音量 1.5 秒，音量加 16 次、音量减 12 次连发；从 Aerial 打开云视听极光不会被拉回，在云视听极光里按主页键照旧回到 Aerial。
 - 户主在电视前看：正常速度按主页键不闪，按住音量能连发。疯狂连按主页键会闪一下 PatchWall，换回正式的 1.52 也一样，不是这个改动带来的。
+
+### 按主页键壁纸黑一下（2026-10-29 修，未发版）
+
+- 1.68 起（上一节的 backOnPause），Aerial 里按主页键时 Aerial 会 `onPause` 约 150ms 再被拉回。暂停时 `vm.resumed` 变成 false，航拍壁纸立刻释放播放器，可视频层还开着、下面没画东西，屏幕就黑了；回来后影片从头加载（日志里主页键之后又出现 `wallpaper film starts`）。
+- 修复：`HomeGuardService.onAerialPaused()` 返回「这次暂停只是主页键的回弹、正在拉回」，MainActivity 就设 `vm.homeBounce`，航拍和视频壁纸按 `vm.filmFront`（resumed 或回弹中）继续播放；500ms 内没回来或进了 `onStop` 就照常释放。信号源壁纸不跟这个开关。
+- 实测（standard release，uinput）：单按 4 次之后都没有 `wallpaper film starts`，没有 `onStop`；间隔 120ms 连按两下照旧打开最近任务（`RecentsPanel`）；Aerial 在前台时仍不过滤按键（音量连发不受影响）。回弹期间 PatchWall 没有开解码器。户主还没有在电视前看。
 
 ## 其他
 
@@ -127,3 +138,6 @@
 - 「安装未知应用」是 Android TV 设置里的总列表（`com.android.tv.settings/.device.apps.specialaccess.ExternalSourcesActivity`），不会直接定位到 Aerial；`install.sh` 用 appops 预先放行。
 - 按「完成」后露出的是 PatchWall 的 `com.mitv.tvhome/.DetailsActivity`，不是 HOME Activity，所以加了「安装器关闭后拉回 Aerial」那条规则（见 ARCHITECTURE.md「升级」）。
 
+## 打开 ADB 后有一个 USB 口不认设备（#907，#875 同一规则）
+
+`/vendor/etc/init/hw/init.mt9653.usb.rc`（户主这台 OS3.0，2026-10-30 读出）：`sys.usb.config=adb` 时执行 `usb_otg_agent device`，把 OTG 控制器 `1c7a3e00.usb` 切到设备模式；`none`、`mtp` 时切回 `host`；`persist.sys.usb.config=mtp,adb` 会被改写成 `mtp`。户主这台 `adb_enabled=1`、`sys.usb.config=adb`、`persist.sys.usb.config` 为空，所以这个控制器下的口（报告人说是 USB 2.0 那个）不认 U 盘和手柄。Aerial 不写 USB 配置，但 `keep_adb` 会在小米关掉 ADB 时重新打开它。没有插设备验证是哪个物理口；`mode` 文件要 root 才能读。海信 VIDAA（MT9952，#875）是同样的规则，报告人 `setprop persist.sys.usb.config mtp` 后重启恢复。

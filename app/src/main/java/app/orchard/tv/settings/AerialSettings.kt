@@ -2,6 +2,7 @@ package app.orchard.tv.settings
 
 import android.content.Context
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.edit
@@ -86,6 +87,19 @@ object AerialSettings {
      */
     var oneRowHome by mutableStateOf(true); private set
 
+    /**
+     * Apps a row on Home: [HOME_COLUMNS], five by default as Aerial always had, six as tvOS 26 lays
+     * them out, four for bigger tiles from the sofa. Folders follow it.
+     */
+    var homeColumns by mutableIntStateOf(DEFAULT_HOME_COLUMNS); private set
+
+    /**
+     * Home shows only its first this many tiles, for trying a nearly empty Home on a TV that has
+     * many apps (ConfigReceiver preview_apps). Kept in memory only: nothing is hidden or moved,
+     * and the next start, or 0, shows them all again.
+     */
+    var previewApps by mutableIntStateOf(0)
+
     /** In one-row mode, the top of the second row peeking under the first; off hides it until you go down. */
     var peekNextRow by mutableStateOf(true); private set
 
@@ -162,6 +176,9 @@ object AerialSettings {
     val lite: Boolean get() = effects == Effects.Lite || (effects == Effects.Auto && lowEnd)
     private const val DEFAULT_SCREENSAVER_MINUTES = 5
 
+    val HOME_COLUMNS = 4..6
+    private const val DEFAULT_HOME_COLUMNS = 5
+
     fun init(context: Context) {
         if (started) return
         started = true
@@ -176,6 +193,7 @@ object AerialSettings {
         pinArrows = prefs.getBoolean("pin_arrows", false)
         oneRowHome = prefs.getBoolean("one_row_home", true)
         peekNextRow = prefs.getBoolean("peek_next_row", true)
+        homeColumns = prefs.getInt("home_columns", DEFAULT_HOME_COLUMNS).takeIf { it in HOME_COLUMNS } ?: DEFAULT_HOME_COLUMNS
         clockRight = prefs.getBoolean("clock_right", false)
         largeClock = prefs.getBoolean("large_clock", false)
         homePlate = prefs.getBoolean("home_plate", true)
@@ -239,6 +257,12 @@ object AerialSettings {
     fun chooseOneRowHome(on: Boolean) {
         oneRowHome = on
         app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean("one_row_home", on) }
+    }
+
+    fun chooseHomeColumns(columns: Int) {
+        if (columns !in HOME_COLUMNS) return
+        homeColumns = columns
+        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putInt("home_columns", columns) }
     }
 
     fun choosePeekNextRow(on: Boolean) {

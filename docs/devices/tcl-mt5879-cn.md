@@ -14,7 +14,7 @@
 | 策略 | 作用 |
 |---|---|
 | `PmStrategy` | 通过安装标志识别 ADB / pm 安装，**一律拒绝** |
-| `LauncherStrategy` | APK 声明了 MAIN + HOME，签名就必须和 `com.tcl.cyberui` 或平台签名一致，否则拒绝 |
+| `LauncherStrategy` | APK 声明了 MAIN + HOME 时：包名在云端白名单里就放行；否则签名要和**当前默认桌面**一致（没有默认桌面时比 `com.tcl.cyberui`），并且带 `meta-data com.tcl.app.type = com.tcl.ui`，两条都满足才放行（见下） |
 | `ThridStrategy` | 只放行由系统应用或 `com.android.packageinstaller` 发起的「显式安装」 |
 | `BlackStrategy` / `OverDueStrategy` / `SafeStrategy` | 黑名单 / 过期 / 放行 |
 
@@ -24,6 +24,8 @@
 - TCL 应用商店 `com.tcl.appmarket2` 的 `android.intent.action.APPSTORE_INSTALL_APK` 广播（`ThirdAppManagerReceiver`）：只按包名从商店升级，`Fileurl` 以 `apk` 结尾的直接忽略，装不了本地文件。
 - 媒体中心 `com.tcl.ui_mediaCenter`（系统 App，自己的文件浏览里能装 APK，见 `PackageInstallUtils`）：可以从 adb 直接打开某个目录（`-n com.tcl.ui_mediaCenter/.main.FileListActivity --es extra_title Download --es extra_device_path /storage/emulated/0 --es extra_path /storage/emulated/0/Download --ei extra_device_type 3 --ei extra_media_file_type 64`），但内置存储的目录一直卡在加载，只对 U 盘有效。
 - 安全卫士 `com.tcl.guard` 能装 U 盘里的 APK（户主确认过），没有找到能传本地路径的入口。
+
+`LauncherStrategy.isTclLauncher()` 的顺序（2026-10-30 从本机 `PackageInstaller.apk` 反编译，#983）：取 `getHomeActivities()` 的包名，为空时用 `com.tcl.cyberui`（再没有就用 `com.android.providers.settings`）；新 APK 的签名和它比，不一致就拒绝；再看 application 的 `com.tcl.app.type` 是不是 `com.tcl.ui`。所以 standard 版已经是默认桌面时，更新比对的是 Aerial 自己的签名，能过；1.72 之后的 standard 版带了这个 meta-data，应用内更新应该就能装（待 #983 报告人确认）。Aerial 不是默认桌面时（首次安装、guard 用户）比的是 TCL 桌面的签名，仍然过不了。
 
 能过校验的关键是「由 App 把 APK 交给系统安装界面」：当贝不是系统 App 也能装成功，说明 `ThridStrategy` 只拦 adb / pm 直接安装。
 
@@ -43,7 +45,7 @@ TCL 手机 App 有一个「把手机里的 APK 推到电视」的功能。电视
 - 同一个 versionCode 也可以覆盖安装。
 - 其他指令（发 Intent、截图、模拟按键、应用列表）和加密握手见 [../tcast-protocol.md](../tcast-protocol.md)。
 
-**方法二：当贝**（多屏互动不在或 6553 端口不通时，`install.sh` 会自动回退到这条）
+**方法二：当贝**（多屏互动不在或 6553 端口不通时，`install.sh` 会自动回退到这条；只用电视上已经装着的当贝，不要为此去装当贝或别的应用商店）
 1. `adb push app-guard-release.apk /sdcard/Download/Aerial.apk`，然后触发媒体扫描（`content call --uri content://media --method scan_volume --arg external_primary`）。
 2. 打开当贝市场的安装包管理：`am start -n com.dangbeimarket/.ui.apkmanager.ApkManagerActivity`。
 3. 选中 Aerial →「安装应用」→（首次安装会提示「应用未被认证」，选「继续」）→ 系统安装器的「安装」。升级时只有最后一步。
@@ -106,8 +108,16 @@ TCL 手机 App 有一个「把手机里的 APK 推到电视」的功能。电视
 - 1.42：「从屏保按一下下键焦点连跳好几行」。关 Dream 时杜比视界解码器释放会卡住主线程，这一下的重复键 2.7 秒后才到主页，过了 400ms 的唤醒窗口。现在唤醒 Dream 的那个键整次按键（重复和松开）都由主页吞掉。注意 Dream 失焦时 Android 会给它补一个**被取消的** UP，不能把它当成松开。`input keyevent --longpress DPAD_DOWN` 复现、修复后焦点留在第一排（2026-10-24）。
 - 1.42：守护监听 `screensaver_components`，固件改回「艺术画报」时立即改回 Aerial 的。个性化选「系统内置」时把系统屏保还给 `screensaver_default_component`（艺术画报），返回键起的就是它；选回别的再改回 Aerial 的。都在 MT5879 上验证过（2026-10-24）。
 - 1.42：遥控器信号源键在有 TCL 信号源面板的固件上交给固件（PR #334），实测只弹 TCL 自己的面板。
+- 屏保里按主页键没反应（2026-10-29 修，未发版）：Android 11 守护一直过滤按键，主页键在系统之前被接住，守护「拉回 Aerial」，可 Aerial 本来就在屏保下面，系统又没收到这次按键，屏保就一直开着。现在守护接住主页键时，Aerial 的屏保（`AerialDream`）开着就直接 `finish()`，回到主页；这次按键不算进「连按两下」，免得红外遥控器一次按键到两次时打开最近任务。uinput 实测：单按关屏保回到主页；屏保里间隔 120ms 按两下只关屏保；没有屏保时按两下照旧打开最近任务。「系统内置」屏保（艺术画报）不是 Aerial 的，关不了，仍然没反应。
 - 主屏幕的航拍壁纸（4K SDR，SurfaceView）PixelCopy 能读到，`screencap` 也截得到（2026-10-23）。
+- 但 PixelCopy 复制一帧 4K 要 0.6–1.7 秒（渲染线程被占住，按键积压）；用 MediaMetadataRetriever 从 Apple 的 1080p 文件解帧，会卡死在 TCL 的 `TclMPEG4Extractor` 里，占住 mediaserver 的取帧锁，后面的请求全部排队。请求一多，`MediaCodecList` 也会卡，任何 App 查解码器都会挂住，只能重启（2026-10-30，bugreport 里 mediaserver 有 17 个 binder 线程卡在 `MetadataRetrieverClient::getFrameAtTime`）。所以这台电视不从文件取影片的帧，玻璃也不用帧（见 ARCHITECTURE「航拍壁纸取不到帧的电视」）。
 - **截图截不到视频画面**（视频走独立的硬件图层，截出来是黑的），但字幕和时钟能截到。地名字幕出现，说明视频已经在渲染。
+
+## 视频解码器
+
+- 4K 硬解通道不够两个播放器同时用。2026-10-30 实测：航拍壁纸在后台没放掉 HEVC 解码器，夸克网盘播 4K AVC 时自己的硬解被系统收回，退回软解（CPU 247%），播放卡顿；航拍的出错重试还会再抢一个解码器。
+- 原因：这台进 App 时 onPause 到 onStop 只隔约 260 ms，中间没有一帧，`LaunchedEffect(play)` 要等重组才放解码器，Activity 停了就不再重组（小米 MFTR0 隔 450–860 ms，有一帧，所以没事）。现在 `rememberStops` 在 ON_STOP 当场释放，后台出错不再重试；修复后夸克保持硬解，CPU 约 23%。
+- 航拍片源没有音轨，Aerial 在后台不占音频（只有按键音的 SoundPool）。
 
 ## 其他
 

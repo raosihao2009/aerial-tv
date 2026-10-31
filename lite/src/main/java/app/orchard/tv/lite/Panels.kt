@@ -9,6 +9,7 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.media.AudioManager
 import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.provider.Settings
@@ -19,6 +20,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import app.orchard.tv.lite.Ui.textPx
+import java.net.NetworkInterface
 
 /**
  * The full app's Liquid Glass for panels: the frosted wallpaper behind the panel, at half its light
@@ -146,10 +148,12 @@ class ControlCenter(
         times.addView(context.label(timeText(context), 27.3f, 600, spacingEm = 0.05f))
         times.add(context.label(dateText(), 13f, 500, Ui.SECONDARY), top = 4f)
         head.addView(times, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        val (netGlyph, netName, netLevel) = network(context)
+        val (netGlyph, netName, netLevel, netVpn) = network(context)
         val net = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         net.addView(GlyphView(context, netGlyph, 14f, Ui.SECONDARY, netLevel))
         net.addView(context.label(netName, 11f, 500, Ui.SECONDARY).apply { maxWidth = Ui.pxi(110f) },
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { leftMargin = Ui.pxi(6f) })
+        if (netVpn) net.addView(VpnBadgeView(context, 9f, Ui.SECONDARY),
             LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { leftMargin = Ui.pxi(6f) })
         head.addView(net, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = Ui.pxi(2f) })
         col.add(head)
@@ -164,7 +168,15 @@ class ControlCenter(
             action = { locked { open(SystemIntents.network(context, netGlyph == Glyph.Ethernet)) } }
         }
         val settings = RoundButton(context, Glyph.Gear, context.getString(R.string.cc_settings)).apply {
-            action = { locked { open(SystemIntents.settings(context)) } }
+            action = {
+                locked {
+                    if (!SystemIntents.openSettingsPanel(context)) {
+                        val intent = SystemIntents.settings(context)
+                        SystemIntents.noteSettingsOpened(intent)
+                        open(intent)
+                    }
+                }
+            }
         }
         for ((i, b) in listOf(inputs, netButton, settings).withIndex()) {
             if (i > 0) buttons.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
@@ -240,23 +252,36 @@ class ControlCenter(
     }
 
     companion object {
-        /** The network's glyph, name and Wi-Fi level, as the full app's status pill shows them. */
-        fun network(context: Context): Triple<Glyph, String, Float> {
+        /** The network's glyph, name and Wi-Fi level, and whether a VPN is up, as the full app's status pill shows them. */
+        fun network(context: Context): NetStatus {
             val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
             @Suppress("DEPRECATION")
             val info = runCatching { cm.activeNetworkInfo }.getOrNull()
             @Suppress("DEPRECATION")
             return when {
-                info == null || !info.isConnected -> Triple(Glyph.Offline, context.getString(R.string.net_offline), 0f)
-                info.type == ConnectivityManager.TYPE_ETHERNET -> Triple(Glyph.Ethernet, context.getString(R.string.net_ethernet), 1f)
+                info == null || !info.isConnected -> NetStatus(Glyph.Offline, context.getString(R.string.net_offline), 0f)
+                info.type == ConnectivityManager.TYPE_ETHERNET -> NetStatus(Glyph.Ethernet, context.getString(R.string.net_ethernet), 1f, vpnUp(cm))
                 else -> {
                     val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
                     val conn = runCatching { wifi?.connectionInfo }.getOrNull()
                     val level = conn?.let { WifiManager.calculateSignalLevel(it.rssi, 3) / 2f } ?: 1f
                     val ssid = conn?.ssid?.trim('"')?.takeIf { it.isNotEmpty() && !it.contains("unknown ssid") }
-                    Triple(Glyph.Wifi, ssid ?: context.getString(R.string.net_wifi), level)
+                    NetStatus(Glyph.Wifi, ssid ?: context.getString(R.string.net_wifi), level, vpnUp(cm))
                 }
             }
+        }
+
+        /**
+         * Before Android 5.0 a VPN is no network of its own to ConnectivityManager, only an interface:
+         * tun for VpnService apps, ppp for the built-in PPTP/L2TP. From 5.0 also by its transport.
+         */
+        private fun vpnUp(cm: ConnectivityManager): Boolean {
+            if (Build.VERSION.SDK_INT >= 21 && runCatching {
+                    cm.allNetworks.any { cm.getNetworkCapabilities(it)?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true }
+                }.getOrDefault(false)) return true
+            return runCatching {
+                NetworkInterface.getNetworkInterfaces()?.toList().orEmpty().any { it.isUp && (it.name.startsWith("tun") || it.name.startsWith("ppp")) }
+            }.getOrDefault(false)
         }
 
         fun isHome(context: Context): Boolean = runCatching {
@@ -266,6 +291,8 @@ class ControlCenter(
         fun version(context: Context): String = runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: ""
     }
 }
+
+data class NetStatus(val glyph: Glyph, val name: String, val level: Float, val vpn: Boolean = false)
 
 /** A caption under a group or a list: tertiary, up to three lines. */
 fun note(context: Context, text: String): TextView = TextView(context).apply {
@@ -362,6 +389,9 @@ class Personalize(
     private val phoneBody = TextView(context)
     private val phoneUrl = TextView(context)
 
+    /** How much of the screen's bottom the sheet hides whole once in: its height less its round top corners. */
+    val covers = Ui.pxi(360f - 30f)
+
     init {
         val sheetH = Ui.px(360f)
         val panel = GlassBox(context, 30f, bottomCorners = false)
@@ -434,6 +464,8 @@ class Personalize(
             // Two rows show the second row whole; only one row has a peek to hide.
             if (LiteSettings.oneRowHome) choices(R.string.st_peek, string(R.string.st_peek_hint), listOf(true to R.string.st_peek_show, false to R.string.st_peek_hide),
                 LiteSettings.peekNextRow) { LiteSettings.choosePeekNextRow(it); onLayout() }
+            choices(R.string.st_columns, string(R.string.st_columns_hint), LiteSettings.HOME_COLUMNS.map { it to it.toString() },
+                LiteSettings.homeColumns) { LiteSettings.chooseHomeColumns(it); onLayout() }
             choices(R.string.st_plate, string(R.string.st_plate_hint), listOf(true to R.string.st_plate_glass, false to R.string.st_plate_none),
                 LiteSettings.homePlate) { LiteSettings.chooseHomePlate(it); onLayout() }
             choices(R.string.st_names, string(R.string.st_names_hint), listOf(false to R.string.st_names_focused, true to R.string.st_names_all),

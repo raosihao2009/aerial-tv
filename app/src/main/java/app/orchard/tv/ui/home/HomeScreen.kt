@@ -53,6 +53,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -77,6 +78,7 @@ import app.orchard.tv.R
 import app.orchard.tv.settings.AerialSettings
 import app.orchard.tv.apps.AppEntry
 import app.orchard.tv.ui.control.ControlCenter
+import app.orchard.tv.ui.wallpaper.SheetCovers
 import app.orchard.tv.ui.wallpaper.WallpaperSheet
 import app.orchard.tv.wallpaper.AerialFormats
 import app.orchard.tv.wallpaper.ScreensaverMode
@@ -85,6 +87,7 @@ import app.orchard.tv.ui.components.liquidGlass
 import app.orchard.tv.ui.theme.LocalReducedMotion
 import app.orchard.tv.ui.theme.Motion
 import app.orchard.tv.ui.theme.Type
+import app.orchard.tv.ui.components.diagLayer
 import androidx.compose.runtime.snapshotFlow
 import app.orchard.tv.system.DiagLog
 import app.orchard.tv.system.SystemProbe
@@ -100,10 +103,37 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-private const val COLUMNS = 5
-
 /** The plate's distance from the bottom edge with no second row peeking: as from the sides. */
 private val PlateMarginBottom = 30.dp
+
+/**
+ * The gap between the two rows on one plate in two-row mode, with no names under them there: the
+ * 50 dp the grid keeps for names left a wide empty band across the glass, and with four a row
+ * pushed the plate up into the weather line.
+ */
+private val ShelfRowGap = 30.dp
+
+/**
+ * Under the second row in two-row mode without a plate: its names and a margin. As much as the
+ * plate's margin and padding, so with and without the plate the rows take the same height: at
+ * 70 dp the rows without one stood 20 dp higher and, four a row, pushed the clock up.
+ */
+private val RowNameRoom = 50.dp
+
+/** Where the large clock's date sits: just under the status pill. */
+private val LargeClockTop = 80.dp
+
+/**
+ * From the large clock's top to where the shelf may start: its weather line ends some 136 dp down
+ * (216 dp from the top, MiTV-MFTR0, 1.65), and a gap.
+ */
+private val LargeClockHeight = 152.dp
+
+/**
+ * The highest the large clock may go to make room for two rows, level with the status pill. Only
+ * at the left: at the right it would run into the pill.
+ */
+private val LargeClockTopMin = 28.dp
 
 /** How much taller the glass plate grows to hold the top row's names, with the second row kept clear of it. */
 private val PlateNameRoom = 28.dp
@@ -114,16 +144,28 @@ private object ControlCenterWarmed { var done = false }
 private const val CC_WARM_AFTER_MS = 3_000L
 
 private val GridMargin = 56.dp
-private val GridGap = 28.dp
+
+/** The highest the row above may sit once Home has scrolled into the grid: clear of the status pill. */
+private val RowAboveTop = 72.dp
+
+/**
+ * The gap between tiles for [columns] a row (AerialSettings.homeColumns): about a fifth of a tile,
+ * as tvOS keeps it when it fits six, so four or six look like five scaled rather than packed.
+ */
+internal fun gridGap(columns: Int): Dp = when (columns) {
+    4 -> 34.dp
+    6 -> 24.dp
+    else -> 28.dp
+}
 
 /** A tile's width at rest on a screen [screenW] wide; TileFaces works out the same size. */
-internal fun restTileWidth(screenW: Dp): Dp = (screenW - GridMargin * 2 - GridGap * (COLUMNS - 1)) / COLUMNS
+internal fun restTileWidth(screenW: Dp, columns: Int): Dp = (screenW - GridMargin * 2 - gridGap(columns) * (columns - 1)) / columns
 
 /** Grid geometry for the screen at hand. On a 1080p TV this is a 960×540 dp canvas. */
-private class GridMetrics(screenW: Dp, screenH: Dp, oneRow: Boolean, plateNames: Boolean, peek: Boolean, plate: Boolean) {
+private class GridMetrics(screenW: Dp, screenH: Dp, val columns: Int, oneRow: Boolean, plateNames: Boolean, peek: Boolean, plate: Boolean, largeClock: Boolean, clockRight: Boolean) {
     val margin = GridMargin
-    val gap = GridGap
-    val tileW = restTileWidth(screenW)
+    val gap = gridGap(columns)
+    val tileW = restTileWidth(screenW, columns)
     val tileH = tileW * 9f / 16f
     val pitchX = tileW + gap
     val pitchY = tileH + 50.dp
@@ -135,14 +177,41 @@ private class GridMetrics(screenW: Dp, screenH: Dp, oneRow: Boolean, plateNames:
     val firstGap = if (plateNames) PlateNameRoom else 0.dp
 
     /**
-     * The top row sits a little past the middle, under the shelf, as on tvOS. In one-row mode, or
-     * when every app fits in it, it sits low, with only the top of any second row showing under
-     * the focused app's name. Every name shown changes nothing here: the names fit in the gap
+     * How far the second row sits under the top row in two-row mode while both are on the shelf:
+     * a grid row where names go between them (no plate, or every name shown), closer on a plate
+     * with none. Not the grid's row plus [firstGap]: that stacked two names' room between them.
+     */
+    val shelfSecond = if (plate && !plateNames) tileH + ShelfRowGap else pitchY
+
+    /**
+     * Two rows, laid from the bottom up: under the second row the plate's margin (and its names'
+     * room), or without a plate room for names; then both rows.
+     */
+    private val twoRowFit = screenH - (if (plate) PlateMarginBottom + PlatePadV + firstGap else RowNameRoom) - shelfSecond - tileH
+
+    /**
+     * Top of the large clock: just under the status pill, left or right, in both layouts, as on the
+     * lock screen. Hung from the row it floated mid-screen in one-row mode and pressed on the plate
+     * in two-row mode; up here the middle of the screen stays the wallpaper's. This is the date's
+     * cap top: the clock's lines are boxed to their capitals. Two rows that do not fit under it
+     * (four a row with every name) take it up beside the pill, at the left.
+     */
+    val clockY = if (oneRow || !largeClock) LargeClockTop else
+        (twoRowFit - (if (plate) PlatePadV else 0.dp) - LargeClockHeight)
+            .coerceIn(if (clockRight) LargeClockTop else LargeClockTopMin, LargeClockTop)
+
+    /** The highest two rows may start: under the large clock's weather line. What does not fit lifts in on the second row ([shelfLift]). */
+    private val twoRowFloor = if (largeClock) clockY + LargeClockHeight + if (plate) PlatePadV else 0.dp else 0.dp
+
+    /**
+     * In two-row mode both rows sit low, laid from the bottom up ([twoRowFit]). In one-row mode, or
+     * when every app fits in one row, the row sits low, with only the top of any second row showing
+     * under the focused app's name. Every name shown changes nothing there: the names fit in the gap
      * between the rows, or on the plate, which grows by [firstGap]. Lifting the row for them as
      * well showed the second row nearly three times as far (issue #540).
      */
     val topRowY = when {
-        !oneRow -> screenH * 0.555f
+        !oneRow -> maxOf(twoRowFit, twoRowFloor)
         peek -> screenH - pitchY - 12.dp - firstGap
         // Nothing peeks under the row, so it goes as low as it fits: the plate as far from the
         // bottom edge as from the sides, or without a plate, room for the focused app's name.
@@ -151,26 +220,39 @@ private class GridMetrics(screenW: Dp, screenH: Dp, oneRow: Boolean, plateNames:
     }
 
     /**
-     * Top of the large clock: just under the status pill, left or right, in both layouts, as on the
-     * lock screen. Hung from the row it floated mid-screen in one-row mode and pressed on the plate
-     * in two-row mode; up here the middle of the screen stays the wallpaper's. This is the date's
-     * cap top: the clock's lines are boxed to their capitals.
+     * Where a row rests once you go down into the grid: the row above stays in view, its top under
+     * the status pill (28 dp down, 34 tall). Four a row are tall enough that 37% of the screen put
+     * that row over the pill; six still rest at 37%, five some 5 dp lower.
      */
-    val clockY = 80.dp
-
-    /** Where a row rests once you go down into the grid: the row above stays in view. */
-    val restY = screenH * 0.37f
+    val restY = maxOf(screenH * 0.37f, RowAboveTop + pitchY)
     val screenH = screenH
 
     /**
-     * How far Home lifts, still on its shelf, for the second row in two-row mode: enough that the
-     * focused app's name, in the gap under its row, clears the bottom edge.
+     * How far the grid scrolls before the shelf has given way: the clock and the plate fade over
+     * it, the grid's glass comes in, the film stops past half of it. The top row's way up to
+     * [restY], but never less than half a row: two rows four a row sit as high as [restY] or
+     * higher, and at zero or less Home counted as scrolled past the shelf while still on it,
+     * and the aerial film never played.
      */
-    val shelfLift = (topRowY + firstGap + pitchY * 2 + 12.dp - screenH).coerceAtLeast(0.dp)
+    val collapse = (topRowY - restY).coerceAtLeast(pitchY / 2)
+
+    /**
+     * How far Home lifts, still on its shelf, for the second row in two-row mode: what did not fit
+     * under the large clock, so the second row and its names clear the bottom edge. Nothing in
+     * almost every layout; it used to lift whenever a name went under the second row.
+     */
+    val shelfLift = if (oneRow) 0.dp else topRowY - twoRowFit
+
+    /** The rows on the shelf, over the plate: the top row, and in two-row mode the second too. */
+    val shelfRows = if (oneRow) 1 else 2
 
     fun slot(index: Int, onTop: Boolean): Pair<Dp, Dp> {
-        val row = index / COLUMNS
-        return Pair(margin + pitchX * (index % COLUMNS), topRowY + pitchY * row + if (row > 0 && onTop) firstGap else 0.dp)
+        val row = index / columns
+        val y = when {
+            row == 1 && onTop && shelfRows > 1 -> topRowY + shelfSecond
+            else -> topRowY + pitchY * row + if (row > 0 && onTop) firstGap else 0.dp
+        }
+        return Pair(margin + pitchX * (index % columns), y)
     }
 
     fun scrollFor(row: Int, rows: Int): Dp {
@@ -226,7 +308,8 @@ fun HomeScreen(
     var pillFocused by remember { mutableStateOf(false) }
     var lastFocusedIndex by remember { mutableStateOf(0) }
     val focusedIndex = apps.indexOfFirst { it.key == focusedKey }
-    val focusedRow = if (pillFocused || focusedIndex < 0) 0 else focusedIndex / COLUMNS
+    val columns = AerialSettings.homeColumns
+    val focusedRow = if (pillFocused || focusedIndex < 0) 0 else focusedIndex / columns
     val gridEnabled = overlay == Overlay.None
 
 // ===== 直播预览和UI隐藏状态 =====
@@ -413,7 +496,7 @@ fun HomeScreen(
         val scrolled = dragged && scroll.value > 1f
         dragged = false
         // Handled even when that is turned off: unhandled, Back would close Home itself.
-        if (focusedRow > 0 || scrolled) focusApp(focusedIndex.coerceAtLeast(0) % COLUMNS)
+        if (focusedRow > 0 || scrolled) focusApp(focusedIndex.coerceAtLeast(0) % columns)
         else if (AerialSettings.backStartsScreensaver) onStartScreensaver()
     }
 
@@ -484,8 +567,8 @@ fun HomeScreen(
                     when (code) {
                         NativeKeyEvent.KEYCODE_DPAD_LEFT -> vm.moveBy(-1)
                         NativeKeyEvent.KEYCODE_DPAD_RIGHT -> vm.moveBy(1)
-                        NativeKeyEvent.KEYCODE_DPAD_UP -> vm.moveBy(-COLUMNS)
-                        NativeKeyEvent.KEYCODE_DPAD_DOWN -> vm.moveBy(COLUMNS)
+                        NativeKeyEvent.KEYCODE_DPAD_UP -> vm.moveBy(-columns)
+                        NativeKeyEvent.KEYCODE_DPAD_DOWN -> vm.moveBy(columns)
                         NativeKeyEvent.KEYCODE_BACK, NativeKeyEvent.KEYCODE_DPAD_CENTER,
                         NativeKeyEvent.KEYCODE_ENTER, NativeKeyEvent.KEYCODE_NUMPAD_ENTER -> vm.endMove()
                         else -> return@onPreviewKeyEvent false
@@ -515,7 +598,7 @@ fun HomeScreen(
                 }
             },
     ) {
-        val rows = (apps.size + COLUMNS - 1) / COLUMNS
+        val rows = (apps.size + columns - 1) / columns
         // With a single row of apps the two-row layout would leave the bottom of the screen empty.
         val oneRow = AerialSettings.oneRowHome || rows <= 1
         // In two rows the second is on screen already: down to it stays on the shelf, under the
@@ -527,12 +610,15 @@ fun HomeScreen(
         val plateNames = AerialSettings.showAllNames && AerialSettings.homePlate
         val peek = AerialSettings.peekNextRow
         val hasPlate = AerialSettings.homePlate
-        val metrics = remember(maxWidth, maxHeight, oneRow, plateNames, peek, hasPlate) {
-            GridMetrics(maxWidth, maxHeight, oneRow, plateNames, peek, hasPlate)
+        val largeClock = AerialSettings.largeClock
+        val clockRightNow = AerialSettings.clockRight
+        val metrics = remember(maxWidth, maxHeight, columns, oneRow, plateNames, peek, hasPlate, largeClock, clockRightNow) {
+            GridMetrics(maxWidth, maxHeight, columns, oneRow, plateNames, peek, hasPlate, largeClock, clockRightNow)
         }
-        val collapsePx = with(density) { (metrics.topRowY - metrics.restY).toPx() }
+        val collapsePx = with(density) { metrics.collapse.toPx() }
 
-val target = with(density) { metrics.scrollFor(if (inGrid) focusedRow else 0, rows).toPx() }
+        // 上游 v1.75 修复：两行书架时滚动距离少一行，避免第一行被 pill 切掉一半
+        val target = with(density) { metrics.scrollFor(if (inGrid) focusedRow - (metrics.shelfRows - 1) else 0, rows).toPx() }
         val lift by animateFloatAsState(
             with(density) { if (focusedRow > 0 && !inGrid) metrics.shelfLift.toPx() else 0f },
             if (reduced) snap() else spring(dampingRatio = 1f, stiffness = 280f), label = "shelf-lift",
@@ -552,6 +638,8 @@ val target = with(density) { metrics.scrollFor(if (inGrid) focusedRow else 0, ro
         val openFolder = (overlay as? Overlay.Folder)?.id ?: (overlay as? Overlay.AppMenu)?.inFolder
         val folderOpen = overlay is Overlay.HiddenApps || openFolder != null
         val ccOpen = overlay is Overlay.ControlCenter
+        var sheetIn by remember { mutableStateOf(false) }
+        var sheetWarm by remember { mutableStateOf(false) }
         // Folders open on Home frosted, as on tvOS; Control Center keeps Home sharp, dimmed.
         val backdropFrost by animateFloatAsState(
             if (folderOpen) 1f else 0f,
@@ -586,10 +674,37 @@ val target = with(density) { metrics.scrollFor(if (inGrid) focusedRow else 0, ro
             dragged = true
             scope.launch(start = CoroutineStart.UNDISPATCHED) { scroll.snapTo(scroll.value - delta) }
         }
+        // 上游 v1.75：移动壁纸的影片渲染（从 Box 内挪到 Box 外，在最底层绘制）
+        val filmMoves = vm.filmFront && overlay == Overlay.None && !vm.screensaverVisible && !pastShelf &&
+            !inGrid && moving == null
+        val sourceInput = Wallpapers.sourceInput
+        when {
+            Wallpapers.selectedId == Wallpapers.LIVE -> LiveWallpaper(
+                moving = filmMoves,
+                keep = vm.filmFront && (!vm.screensaverVisible || filmSaver),
+                cover = filmCover,
+                hold = filmSaver && vm.filmFront,
+                standIn = overlay == Overlay.None || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper ||
+                    (overlay is Overlay.AppMenu && overlay.inFolder == null),
+                panel = overlay != Overlay.None,
+                otherFormatSaver = vm.screensaverVisible && !filmSaver && Wallpapers.screensaver == ScreensaverMode.Aerial &&
+                    !AerialFormats.screensaverCarriesWallpaper(appContext),
+                lastInputAt = { vm.lastInputAt },
+                live = liveFilm,
+            )
+            Wallpapers.isVideo() -> key(Wallpapers.selectedId) {
+                VideoWallpaper(
+                    moving = filmMoves,
+                    keep = vm.filmFront && !vm.screensaverVisible,
+                    lastInputAt = vm.lastInputAt,
+                    cover = filmCover,
+                )
+            }
+            sourceInput != null -> SourceWallpaper(sourceInput, show = vm.resumed && !vm.screensaverVisible, cover = filmCover)
+        }
+        // 二创保留：Control Center 打开时用 home 快照 + 磨砂面板替代实时 Home
         homeShot?.let { shot -> Canvas(Modifier.fillMaxSize()) { drawImage(shot) } }
         PanelBackdrop(Wallpapers.frosted.takeIf { Wallpapers.backdrop != null }, { backdropFrost }, { backdropVeil })
-
-
         Box(
             Modifier
                 .fillMaxSize()
@@ -612,50 +727,30 @@ val target = with(density) { metrics.scrollFor(if (inGrid) focusedRow else 0, ro
                     if (ccOpen && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                         homeLayer.record { this@drawWithContent.drawContent() }
                         drawLayer(homeLayer)
+                    } else if (sheetIn) {
+                        // Under Personalize's settled sheet, only what shows above it.
+                        clipRect(bottom = size.height - SheetCovers.toPx()) { this@drawWithContent.drawContent() }
                     } else drawContent()
                 },
         ) {
             // The glass plate under the top row (tvOS 26), the row's full width however few apps
             // there are, which sit at its left: sized to three apps it read as a stray panel (#284).
+            // In two rows it holds both: under the top row alone, the second sat beside it on the
+            // bare wallpaper, as if left off the shelf.
             val plate = if (apps.isEmpty() || !AerialSettings.homePlate) null else with(density) {
+                val second = if (metrics.shelfRows > 1) metrics.shelfSecond else 0.dp
                 Rect(
                     (metrics.margin - PlatePadH).toPx(),
                     (metrics.topRowY - PlatePadV).toPx(),
-                    (metrics.margin + metrics.pitchX * (COLUMNS - 1) + metrics.tileW + PlatePadH).toPx(),
-                    (metrics.topRowY + metrics.tileH + PlatePadV + metrics.firstGap).toPx(),
+                    (metrics.margin + metrics.pitchX * (columns - 1) + metrics.tileW + PlatePadH).toPx(),
+                    (metrics.topRowY + metrics.tileH + PlatePadV + metrics.firstGap + second).toPx(),
                 )
-            }
-            // A moving wallpaper's film, under everything; it moves only on the top row with
-            // nothing over it; the owner's videos there only once Home is still unless set to keep moving.
-            val filmMoves = vm.resumed && overlay == Overlay.None && !vm.screensaverVisible && !pastShelf &&
-                focusedRow == 0 && moving == null
-            val sourceInput = Wallpapers.sourceInput
-            when {
-                Wallpapers.selectedId == Wallpapers.LIVE -> LiveWallpaper(
-                    moving = filmMoves,
-                    keep = vm.resumed && (!vm.screensaverVisible || filmSaver),
-                    cover = filmCover,
-                    hold = filmSaver && vm.resumed,
-                    // Control Center and Personalize leave Home sharp (dimmed, or above the sheet):
-                    // the paused film stays. Swapped for its picture there, the background jumped
-                    // (another plane and processing; a key frame a second off where the exact
-                    // frame did not decode, Xiaomi MiTV-MFTR0 and TCL MT5879).
-                    standIn = overlay == Overlay.None || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper,
-                    live = liveFilm,
-                )
-                Wallpapers.selectedId == Wallpapers.VIDEOS -> VideoWallpaper(
-                    moving = filmMoves,
-                    keep = vm.resumed && !vm.screensaverVisible,
-                    lastInputAt = vm.lastInputAt,
-                    cover = filmCover,
-                )
-                sourceInput != null -> SourceWallpaper(sourceInput, show = vm.resumed && !vm.screensaverVisible, cover = filmCover)
             }
             // Another wallpaper chosen: nothing shows through until the new one has a frame.
             LaunchedEffect(Wallpapers.selectedId) { filmCover.snapTo(0f) }
             // The aerial film's own glass for the grid: the one playing or stopped, else the one
             // the picture was taken from.
-            val pictureClip = remember(Wallpapers.backdrop) { Wallpapers.liveSpot()?.first }
+            val pictureClip = remember(Wallpapers.backdrop) { Wallpapers.livePictureSpot()?.first }
             val clip = if (Wallpapers.selectedId == Wallpapers.LIVE) liveFilm.film?.id ?: pictureClip else null
             LaunchedEffect(clip) { Wallpapers.showClipGlass(clip) }
             val clipGlass = Wallpapers.clipGlass?.takeIf { it.first == clip }?.second
@@ -684,10 +779,9 @@ val target = with(density) { metrics.scrollFor(if (inGrid) focusedRow else 0, ro
             )
 
             // Before Android 7 there is no picture of Home under Control Center (issue #466), so the
-            // GPU draws every tile again under the panel each frame. Lite there lets the clock and
-            // the tiles fade out under the panel's veil; the wallpaper and plate stay.
-            val shedUnderPanel = Build.VERSION.SDK_INT < Build.VERSION_CODES.N && AerialSettings.lite
-            // ===== 直播预览：只在焦点选中第一排目标应用时才组合 =====
+            // GPU draws every tile again under the panel each frame. 上游 v1.75 修复 #823：
+            // Lite 下不再让时钟/图标在面板后淡出（否则 Home 看起来消失了）。
+            // ===== 二创：直播预览，只在焦点选中第一排目标应用时组合 =====
             if (channelPreviewVisible) {
                 ChannelFocusPreview(
                     source = vm.getAllLiveSources().firstOrNull { it.id == vm.currentLiveSourceId },
@@ -698,15 +792,9 @@ val target = with(density) { metrics.scrollFor(if (inGrid) focusedRow else 0, ro
                     .fillMaxSize()
                     .offset { IntOffset(0, -scroll.value.roundToInt()) }
                     .graphicsLayer {
-                        // UI隐藏时隐藏所有应用图标和时钟（带过渡动画）
+                        // 二创：UI 隐藏时隐藏所有应用图标和时钟（带过渡动画）
                         if (channelPreviewVisible) alpha = uiAlpha
-                    }
-                    .then(
-                        if (shedUnderPanel) Modifier.graphicsLayer {
-                            alpha = 1f - backdropVeil
-                            compositingStrategy = CompositingStrategy.ModulateAlpha
-                        } else Modifier,
-                    ),
+                    },
             ) {
                 val clockRight = AerialSettings.clockRight
                 // The large clock stands over the top row; the small one is the time and weather in
@@ -716,6 +804,7 @@ val target = with(density) { metrics.scrollFor(if (inGrid) focusedRow else 0, ro
                         now = now,
                         alignEnd = clockRight,
                         modifier = Modifier
+                            .diagLayer("clock")
                             .align(if (clockRight) Alignment.TopEnd else Alignment.TopStart)
                             .padding(horizontal = metrics.margin)
                             .padding(top = metrics.clockY)
@@ -733,6 +822,7 @@ val target = with(density) { metrics.scrollFor(if (inGrid) focusedRow else 0, ro
                     CornerClock(
                         now = now,
                         modifier = Modifier
+                            .diagLayer("clock")
                             .padding(start = metrics.margin, top = 28.dp)
                             .graphicsLayer {
                                 alpha = 1f - (scroll.value / collapsePx * 1.6f).coerceIn(0f, 1f)
@@ -743,8 +833,13 @@ val target = with(density) { metrics.scrollFor(if (inGrid) focusedRow else 0, ro
                     )
                 }
 
-                // In one row with no peek, the rows below stay out of sight until Home scrolls to them.
-                val hideBelow = oneRow && !peek
+                // The rows below the shelf stay out of sight until Home scrolls to them: in one row
+                // unless set to peek; in two rows always, as the second row already shows there are more.
+                val hiddenFrom = when {
+                    !oneRow -> columns * 2
+                    !peek -> columns
+                    else -> Int.MAX_VALUE
+                }
                 apps.forEachIndexed { index, app ->
                     key(app.key) {
                         val (x, y) = metrics.slot(index, onTop = !inGrid)
@@ -795,10 +890,11 @@ val target = with(density) { metrics.scrollFor(if (inGrid) focusedRow else 0, ro
                                 }
                             },
                             modifier = Modifier
+                                .diagLayer("tiles")
                                 // Lifted on the shelf with the plate; the clock above stays put.
                                 .offset { slot.value - IntOffset(0, lift.roundToInt()) }
                                 .then(
-                                    if (hideBelow && index >= COLUMNS) Modifier.graphicsLayer {
+                                    if (index >= hiddenFrom) Modifier.graphicsLayer {
                                         alpha = (scroll.value / collapsePx * 2.5f).coerceIn(0f, 1f)
                                         // No offscreen buffer: it would clip the focus frame to the tile.
                                         compositingStrategy = CompositingStrategy.ModulateAlpha
@@ -806,18 +902,18 @@ val target = with(density) { metrics.scrollFor(if (inGrid) focusedRow else 0, ro
                                 )
                                 // Into the screensaver, the apps go left to right, sinking a little.
                                 .graphicsLayer {
-                                    val f = ((toSaver.value - 0.05f * (index % COLUMNS)) / 0.6f).coerceIn(0f, 1f)
+                                    val f = ((toSaver.value - 0.05f * (index % columns)) / 0.6f).coerceIn(0f, 1f)
                                     if (f > 0f) {
                                         alpha = 1f - f
                                         translationY = f * 18.dp.toPx()
                                         compositingStrategy = if (saverFadeOffscreen) CompositingStrategy.Offscreen else CompositingStrategy.ModulateAlpha
                                     }
                                 },
-                            rowEnd = index % COLUMNS == COLUMNS - 1 || index == apps.lastIndex,
+                            rowEnd = index % columns == columns - 1 || index == apps.lastIndex,
                             // On the glass plate only with every name shown (an earlier build showed
                             // the focused one alone there, but it sat oddly on the glass).
-                            showName = plate == null || index >= COLUMNS || plateNames,
-                            nameOnPlate = plate != null && index < COLUMNS,
+                            showName = plate == null || index >= columns * metrics.shelfRows || plateNames,
+                            nameOnPlate = plate != null && index < columns * metrics.shelfRows,
                         )
                     }
                 }
@@ -846,6 +942,7 @@ val target = with(density) { metrics.scrollFor(if (inGrid) focusedRow else 0, ro
                 CornerClock(
                     now = now,
                     modifier = Modifier
+                        .diagLayer("clock")
                         .padding(end = 14.dp)
                         .graphicsLayer {
                             alpha = 1f - (scroll.value / collapsePx * 1.6f).coerceIn(0f, 1f)
@@ -862,11 +959,12 @@ val target = with(density) { metrics.scrollFor(if (inGrid) focusedRow else 0, ro
                 enabled = gridEnabled && moving == null,
                 focusRequester = pillRequester,
                 modifier = Modifier
+                    .diagLayer("pill")
                     // Down goes back to the top-row tile Up came from, not to the nearest one,
                     // which under the pill is the last of the row (issue #703).
                     .focusProperties {
                         val key = focusedKey
-                        if (key != null && apps.indexOfFirst { it.key == key } in 0 until COLUMNS) down = requester(key)
+                        if (key != null && apps.indexOfFirst { it.key == key } in 0 until columns) down = requester(key)
                     }
                     .graphicsLayer {
                         alpha = 1f - (toSaver.value * 2f).coerceIn(0f, 1f)
@@ -910,8 +1008,9 @@ val target = with(density) { metrics.scrollFor(if (inGrid) focusedRow else 0, ro
             )
         }
 
-        // Once per process, while Home is idle: Control Center drawn for a few frames, nearly
-        // transparent, so that its first opening is not its first draw (see ControlCenter).
+        // Once per process, while Home is idle: Control Center, then Personalize, drawn for a few
+        // frames, nearly transparent, so that their first opening is not their first draw (see
+        // ControlCenter, WallpaperSheet).
         var ccWarm by remember { mutableStateOf(false) }
         LaunchedEffect(vm.loaded) {
             if (!vm.loaded || ControlCenterWarmed.done) return@LaunchedEffect
@@ -924,6 +1023,12 @@ val target = with(density) { metrics.scrollFor(if (inGrid) focusedRow else 0, ro
             ccWarm = true
             repeat(3) { withFrameNanos { } }
             ccWarm = false
+            // A frame apart, so that the two first draws do not land in the same frame.
+            withFrameNanos { }
+            if (vm.overlay != Overlay.None) return@LaunchedEffect
+            sheetWarm = true
+            repeat(3) { withFrameNanos { } }
+            sheetWarm = false
         }
         ControlCenter(
             visible = overlay is Overlay.ControlCenter,
@@ -942,7 +1047,8 @@ val target = with(density) { metrics.scrollFor(if (inGrid) focusedRow else 0, ro
             enabled = overlay is Overlay.Folder,
             tileW = metrics.tileW,
             tileH = metrics.tileH,
-            columns = COLUMNS,
+            gap = metrics.gap,
+            columns = columns,
             onLaunch = onLaunch,
             onLongPress = { app, bounds -> vm.overlay = Overlay.AppMenu(app.key, bounds ?: Rect.Zero, inFolder = openFolder) },
             onDismiss = { vm.overlay = Overlay.None },
@@ -1018,6 +1124,8 @@ val target = with(density) { metrics.scrollFor(if (inGrid) focusedRow else 0, ro
 
         WallpaperSheet(
             visible = overlay is Overlay.Wallpaper,
+            onSettled = { sheetIn = it },
+            warm = sheetWarm,
             onDismiss = { vm.overlay = Overlay.ControlCenter() },
             hiddenCount = vm.hiddenApps.size,
             onHiddenApps = { vm.whenUnlocked { vm.overlay = Overlay.HiddenApps } },

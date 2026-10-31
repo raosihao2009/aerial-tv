@@ -20,6 +20,7 @@ import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,6 +41,7 @@ import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.animation.core.Animatable
@@ -61,7 +63,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.SpanStyle
@@ -82,6 +83,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -101,8 +104,10 @@ import app.orchard.tv.ui.theme.Glyph
 import app.orchard.tv.ui.theme.GlyphIcon
 import app.orchard.tv.ui.theme.LocalReducedMotion
 import app.orchard.tv.ui.theme.Motion
+import app.orchard.tv.wallpaper.Wallpapers
 import app.orchard.tv.ui.theme.Palette
 import app.orchard.tv.ui.theme.Type
+import app.orchard.tv.ui.components.diagLayer
 import app.orchard.tv.weather.Weather
 import app.orchard.tv.weather.WeatherKind
 import app.orchard.tv.weather.WeatherNow
@@ -211,7 +216,12 @@ fun HomeBackground(
     collapse: Float,
     /** How far the aerial wallpaper's film shows through (LiveWallpaper): picture and plate give way to it. */
     cover: () -> Float = { 0f },
-    /** Shade the film while it moves, as its picture would be shaded. */
+    /**
+     * Shade what shows through as a picture is shaded: an input's picture, which cannot be shaded
+     * ahead. A film is not shaded, moving or stopped, nor is its picture (Wallpapers): shaded, the
+     * aerials looked grey, and the screensaver carrying the film on was shaded twice (the owner,
+     * Xiaomi MiTV-MFTR0).
+     */
     shadeMoving: Boolean = false,
     /**
      * How far the film is stopped (0 to 1) with its glass ready ([frosted]) but its frame not yet
@@ -244,22 +254,28 @@ fun HomeBackground(
     /** The grid's own glass, where it is not the picture's ([frosted]): the aerial film's (Wallpapers.clipGlass). */
     gridGlass: ImageBitmap? = null,
 ) {
+    val shade = remember { Images.homeShade.asImageBitmap() }
     Box(Modifier.fillMaxSize()) {
-        // Over a paused film, under the pictures: the shading its picture will have. The picture
-        // fades in over it as the film gives way, so the screen keeps the same light throughout.
-        Canvas(Modifier.fillMaxSize()) {
-            val stopped = maxOf(filmStopped(), if (shadeMoving) cover() else 0f)
+        // Over an input's picture, under the pictures: the shading a picture has.
+        if (shadeMoving) Canvas(Modifier.fillMaxSize().diagLayer("shade")) {
+            val stopped = maxOf(filmStopped(), cover())
             // Deep in the grid its glass covers everything.
             if (stopped < 0.01f || cover() < 0.01f || scroll() > collapse * 0.7f) return@Canvas
-            drawRect(Brush.verticalGradient(*Images.SHADE_AT.indices.map { Images.SHADE_AT[it] to Color.Black.copy(alpha = Images.SHADE[it]) }.toTypedArray()), alpha = stopped)
-            drawRect(Brush.horizontalGradient(0f to Color.Black.copy(alpha = Images.SHADE_LEFT), 1f to Color.Transparent, endX = size.width / 2), alpha = stopped)
+            drawImage(shade, dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()), filterQuality = FilterQuality.Low, alpha = stopped)
         }
-        Pictures(backdrop, gridGlass ?: frosted, filmGlass.takeIf { glassAwaitsStop }, wallpaper, scroll, collapse, cover, filmStopped)
+        Box(Modifier.fillMaxSize().diagLayer("picture")) {
+            Pictures(backdrop, gridGlass ?: frosted, filmGlass.takeIf { glassAwaitsStop }, wallpaper, scroll, collapse, cover, filmStopped, toSaver)
+        }
         if (saverImage != null) Canvas(Modifier.fillMaxSize()) {
             val a = saverReveal()
             if (a > 0.01f) drawDrawingIn(saverImage, saverPush(), a)
         }
-        Plate(frosted ?: backdrop, filmGlass, plate, scroll, collapse, cover, filmStopped, toSaver, lift)
+        Box(Modifier.fillMaxSize().diagLayer("plate")) {
+            // Where the film's frames cannot be had (Wallpapers.filmGlassless), the film's plate is
+            // the smoke and the edge alone, see-through, over the film moving or stopped.
+            val glassless = Wallpapers.filmGlassless
+            Plate(frosted ?: backdrop, filmGlass.takeUnless { glassless }, filmGlass != null, glassless, plate, scroll, collapse, cover, filmStopped, toSaver, lift)
+        }
     }
 }
 
@@ -284,8 +300,11 @@ private fun Pictures(
     collapse: Float,
     cover: () -> Float,
     filmStopped: () -> Float,
+    toSaver: () -> Float,
 ) {
-    fun gridGlass(): Float = (((scroll() / collapse).coerceIn(0f, 1f) - 0.3f) / 0.4f).coerceIn(0f, 1f)
+    // The grid's glass goes as the film carries on into the screensaver, as the apps do: the
+    // screensaver over it is see-through, and the film showed frosted under it.
+    fun gridGlass(): Float = (((scroll() / collapse).coerceIn(0f, 1f) - 0.3f) / 0.4f).coerceIn(0f, 1f) * (1f - toSaver())
     fun moving(): Boolean = filmGlass != null && cover() > 0.01f && filmStopped() < 0.99f
     var held by remember { mutableStateOf(frosted to wallpaper) }
     LaunchedEffect(frosted, wallpaper) {
@@ -354,7 +373,7 @@ private fun Pictures(
  * moves or a new frame fades in, every [GLASS_EVERY_MS]: the film plays with Compose all but still.
  */
 @Composable
-private fun Plate(glass: ImageBitmap?, film: ImageBitmap?, plate: Rect?, scroll: () -> Float, collapse: Float, cover: () -> Float, filmStopped: () -> Float, toSaver: () -> Float, lift: () -> Float) {
+private fun Plate(glass: ImageBitmap?, film: ImageBitmap?, filmPlate: Boolean, deepSmoke: Boolean, plate: Rect?, scroll: () -> Float, collapse: Float, cover: () -> Float, filmStopped: () -> Float, toSaver: () -> Float, lift: () -> Float) {
     var shown by remember { mutableStateOf(glass) }
     var under by remember { mutableStateOf<ImageBitmap?>(null) }
     val swap = remember { Animatable(1f) }
@@ -378,20 +397,29 @@ private fun Plate(glass: ImageBitmap?, film: ImageBitmap?, plate: Rect?, scroll:
         swap.animateTo(1f, tween(450, easing = Motion.EaseOut))
         under = null
     }
-    val top = remember(shown) { shown?.let { PlateLayer(plateTinted(it)) } }
-    val bottom = remember(under) { under?.let { PlateLayer(plateTinted(it)) } }
-
-    // Each new frame is baked off the main thread: baked while drawing, as the still plate's glass
-    // is, it held up a frame every few seconds (Xiaomi MiTV-MFTR0: frames of 50-70 ms).
+    // Each glass and each new frame is baked off the main thread. Baked while drawing, the film's
+    // frames held up a frame every few seconds (Xiaomi MiTV-MFTR0: frames of 50-70 ms), and the
+    // glass of a film that had just stopped took the main thread for about 37 ms of a menu's
+    // opening. A glass not baked yet is not drawn; until then the one before it stays.
     val density = LocalDensity.current
     var screen by remember { mutableStateOf(Size.Zero) }
+    suspend fun baked(glass: ImageBitmap?): ImageBitmap? {
+        // A film's plate is never the still glass (below): nothing to bake.
+        if (glass == null || plate == null || screen == Size.Zero || filmPlate) return null
+        val size = screen
+        return withContext(Dispatchers.Default) {
+            bakePlate(plateTinted(glass), size, plate, with(density) { PlateCorner.toPx() }, with(density) { 1.2.dp.toPx() })
+        }
+    }
+    val top by produceState<ImageBitmap?>(null, shown, plate, screen) { value = baked(shown) }
+    val bottom by produceState<ImageBitmap?>(null, under, plate, screen) { value = baked(under) }
     var filmTop by remember { mutableStateOf<ImageBitmap?>(null) }
     var filmBottom by remember { mutableStateOf<ImageBitmap?>(null) }
     var smoke by remember { mutableStateOf<ImageBitmap?>(null) }
     val filmSwap = remember { Animatable(1f) }
-    LaunchedEffect(plate, screen) {
+    LaunchedEffect(plate, screen, deepSmoke) {
         if (plate == null || screen == Size.Zero) return@LaunchedEffect
-        smoke = withContext(Dispatchers.Default) { bakePlate(smokeGlass(), screen, plate, with(density) { PlateCorner.toPx() }, with(density) { 1.2.dp.toPx() }) }
+        smoke = withContext(Dispatchers.Default) { bakePlate(smokeGlass(if (deepSmoke) FILM_SMOKE_ALONE else FILM_SMOKE), screen, plate, with(density) { PlateCorner.toPx() }, with(density) { 1.2.dp.toPx() }) }
     }
     LaunchedEffect(film, plate, screen) {
         if (film == null || plate == null || screen == Size.Zero) {
@@ -417,14 +445,17 @@ private fun Plate(glass: ImageBitmap?, film: ImageBitmap?, plate: Rect?, scroll:
 
     Canvas(Modifier.fillMaxSize().onSizeChanged { screen = Size(it.width.toFloat(), it.height.toFloat()) }) {
         if (plate == null) return@Canvas
-        val alpha = visibility()
+        // A film's plate stays the film's, moving or stopped: switched to the still glass as the
+        // film stopped (a menu, Control Center, the grid), it turned from see-through to frosted
+        // all over, another colour (the owner, Xiaomi MiTV-MFTR0).
+        val alpha = if (filmPlate) 0f else visibility()
         // The film's plate, while the film shows and the plate over a picture does not hide it.
         // With no frame to frost (an input's picture, which cannot be copied) it is the smoke and
         // the lit edge alone, so the top row keeps a plate over anything.
         val base = (1f - smooth(((scroll() / collapse).coerceIn(0f, 1f) / 0.55f).coerceIn(0f, 1f))) * (1f - toSaver())
         val frame = filmTop
         val edge = smoke
-        if (edge != null && cover() > 0.01f && alpha < 0.99f && base > 0.01f) {
+        if (edge != null && (filmPlate || cover() > 0.01f) && alpha < 0.99f && base > 0.01f) {
             val p = (scroll() / collapse).coerceIn(0f, 1f)
             val r = plate.translate(0f, -scroll() - lift()).inflate(PlateSwell.toPx() * smooth((p / 0.55f).coerceIn(0f, 1f)))
             val t = filmSwap.value
@@ -452,25 +483,9 @@ private fun Plate(glass: ImageBitmap?, film: ImageBitmap?, plate: Rect?, scroll:
         val grow = PlateSwell.toPx() * (1f - rest)
         val r = plate.translate(0f, -scroll() - lift()).inflate(grow)
         val t = swap.value
-        if (t < 1f) bottom?.draw(this, plate, r, alpha)
-        top?.draw(this, plate, r, if (bottom != null) alpha * t else alpha)
-    }
-}
-
-/**
- * Glass, continuous outline and lit edge baked into one picture at the plate's resting place and
- * size, stretched as it swells and riding up with its row as it fades. The GPU draws one image.
- * Composing them in shaders while drawing (1.27) came out solid white on older GPUs (Xiaomi
- * MiTV-ASTP0, Android 9, Mali-G31, issue #183; a HuiQu projector, #181) and drawn apart they cost
- * 3 ms more a frame than the plain rounded plate. Baked while drawing, for one screen and place.
- */
-private class PlateLayer(private val src: ImageBitmap) {
-    private var baked: Pair<Pair<Size, Rect>, ImageBitmap>? = null
-
-    fun draw(scope: androidx.compose.ui.graphics.drawscope.DrawScope, plate: Rect, at: Rect, alpha: Float) = with(scope) {
-        val image = baked?.takeIf { it.first == size to plate }?.second
-            ?: bakePlate(src, size, plate, PlateCorner.toPx(), 1.2.dp.toPx()).also { baked = (size to plate) to it }
-        drawBaked(image, at, alpha)
+        val below = bottom.takeIf { under != null }
+        if (t < 1f) below?.let { drawBaked(it, r, alpha) }
+        top?.let { drawBaked(it, r, if (below != null) alpha * t else alpha) }
     }
 }
 
@@ -486,15 +501,21 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBaked(image: Im
 private fun smooth(x: Float) = x * x * (3f - 2f * x)
 
 /** The film plate's tint over the film and its frosted frame, as one pixel the plate stretches. */
-private fun smokeGlass(): ImageBitmap =
+private fun smokeGlass(color: Int): ImageBitmap =
     android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)
-        .apply { eraseColor(FILM_SMOKE) }.asImageBitmap()
+        .apply { eraseColor(color) }.asImageBitmap()
 
 /** How much of the film plate is its frosted key frame; the rest is the film itself, moving. */
 private const val FILM_FROST = 0.55f
 
-/** The film plate's smoke: a little black, so the tiles keep their contrast over a bright film. */
-private val FILM_SMOKE = android.graphics.Color.argb(46, 0, 0, 0)
+/**
+ * The film plate's smoke: a little black, so the tiles keep their contrast over a bright film.
+ * Deeper since the film is not shaded (18% before): the shade had darkened the film under it too.
+ */
+private val FILM_SMOKE = android.graphics.Color.argb(72, 0, 0, 0)
+
+/** The same with no frosted frame under it (Wallpapers.filmGlassless): deeper, as nothing calms the film. */
+private val FILM_SMOKE_ALONE = android.graphics.Color.argb(102, 0, 0, 0)
 
 /** A new key frame fades in over the last: slow, as the glass is soft, and seldom (GLASS_EVERY_MS). */
 private const val FILM_SWAP_MS = 700
@@ -526,7 +547,14 @@ private fun plateTinted(src: ImageBitmap): ImageBitmap {
     return out.frozen().asImageBitmap()
 }
 
-/** The part of [glass] (stretched over [screen]) under [plate], cut to the plate's outline, with its lit edge. */
+/**
+ * The part of [glass] (stretched over [screen]) under [plate], cut to the plate's outline, with its
+ * lit edge: glass, continuous outline and lit edge baked into one picture at the plate's resting
+ * place and size, stretched as it swells and riding up with its row as it fades. The GPU draws one
+ * image. Composing them in shaders while drawing (1.27) came out solid white on older GPUs (Xiaomi
+ * MiTV-ASTP0, Android 9, Mali-G31, issue #183; a HuiQu projector, #181) and drawn apart they cost
+ * 3 ms more a frame than the plain rounded plate.
+ */
 private fun bakePlate(glass: ImageBitmap, screen: Size, plate: Rect, radius: Float, rim: Float, edge: Boolean = true): ImageBitmap {
     val w = plate.width.roundToInt().coerceAtLeast(1)
     val h = plate.height.roundToInt().coerceAtLeast(1)
@@ -595,7 +623,9 @@ fun ShelfClock(
 ) {
     val drift = heldDrift(saving, now)
     val shadow = Shadow(Color.Black.copy(alpha = 0.28f), Offset(0f, 2f), blurRadius = 18f)
-    val dim = Color.White.copy(alpha = 0.72f)
+    // 上游 v1.75 修复：副文案用更细字重（W500）而非半透明白，避免在无阴影影片上褪色
+    // (Xiaomi MiTV-MFTR0)。保留二创的 detail.isNotEmpty() 判空。
+    val second = SpanStyle(fontWeight = FontWeight.W500)
     val reduced = LocalReducedMotion.current
     val asideGone by animateFloatAsState(
         if (away) 1f else 0f,
@@ -611,7 +641,7 @@ fun ShelfClock(
         BasicText(
             buildAnnotatedString {
                 append(dateText(now))
-                if (lunar != null) withStyle(SpanStyle(color = dim, fontWeight = FontWeight.W500)) { append("  $lunar") }
+                if (lunar != null) withStyle(second) { append("  $lunar") }
             },
             style = Type.ClockDate.copy(shadow = shadow),
             modifier = aside.capBox(Type.ClockDate.fontSize),
@@ -632,7 +662,7 @@ fun ShelfClock(
                 BasicText(
                     buildAnnotatedString {
                         append("${w.celsius}°")
-                        if (detail.isNotEmpty()) withStyle(SpanStyle(color = dim, fontWeight = FontWeight.W500)) { append("  $detail") }
+                        if (detail.isNotEmpty()) withStyle(second) { append("  $detail") }
                     },
                     style = Type.ClockDetail.copy(shadow = shadow),
                 )
@@ -790,6 +820,18 @@ private fun glyphFor(w: WeatherNow): Glyph = when (w.kind) {
     WeatherKind.Thunder -> Glyph.CloudBolt
 }
 
+/** "VPN" in a thin frame beside the network glyph while a VPN is up, as iOS's status bar has it (issue #809). */
+@Composable
+fun VpnBadge(color: Color, modifier: Modifier = Modifier, fontSize: TextUnit = 10.sp) {
+    BasicText(
+        stringResource(R.string.net_vpn),
+        style = Type.Caption.copy(color = color, fontSize = fontSize, fontWeight = FontWeight.W700, letterSpacing = 0.04.em),
+        modifier = modifier
+            .border(1.2.dp, color, RoundedCornerShape(4.dp))
+            .padding(horizontal = 4.dp, vertical = 1.dp),
+    )
+}
+
 /**
  * Top right: network and, once the shelf clock has scrolled away, the time. Focusable: it is
  * where Up from the top row leads, and it opens Control Center.
@@ -833,6 +875,7 @@ fun StatusPill(
                 NetKind.Offline -> Glyph.Offline
             }
             GlyphIcon(glyph, fg, 17.dp, level = network.level)
+            if (network.vpn) VpnBadge(fg)
             if (showTime) {
                 BasicText(timeText(now), style = Type.Headline.copy(color = fg))
             }

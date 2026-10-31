@@ -1,5 +1,6 @@
 package app.orchard.tv.ui.components
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.HardwareRenderer
@@ -37,8 +38,8 @@ import kotlin.math.roundToInt
  * buffer's pixels, twice too big. [FilmSlot] keeps it in the window, under the UI's surface, where
  * the slot is laid out.
  *
- * On by itself only where the chip declares a 4K UI plane (`ro.feature.graphics_4kui`, MT9655
- * builds) and the panel is at least twice the UI. A 4K display mode under a 1080p UI is not enough:
+ * Off unless forced: the one chip that declares a 4K UI plane (`ro.feature.graphics_4kui`, MT9655)
+ * still sent the surface to the panel at 1080p (#607). A 4K display mode under a 1080p UI is not enough:
  * 1.51 went by that and Sony X90K (MT5895, #645) dropped frames in Control Center and showed the
  * 4K screensaver shrunk into the top-left corner, since its UI plane stays 1080p and 4× the pixels
  * bought nothing. Android 10+ (a public HardwareRenderer). If Home then keeps missing frames
@@ -77,6 +78,11 @@ object UhdCanvas {
         // 4K UI plane gets it.
         if (forced == null && !chipHas4kUi()) return no("auto: no 4K UI plane (mode $mode for a $ui UI)")
         val panel = maxOf(mode, tclPanel())
+        // TCL 75Q10L (MT9655) did turn it on by itself, but its HWC composes the 4K surface on the
+        // GPU and sends 1080p to the panel all the same, so it was no sharper and cost about half
+        // a core more (#607); another MT9655 TCL drew Home at 51 ms a frame with it on (#736).
+        // Until a TV is seen to show it 1:1, it stays off unless forced.
+        if (forced == null) return no("auto: off until a 4K UI plane is seen to show it ($panel for a $ui UI)")
         // Only whole steps up: a panel barely bigger than the UI gains nothing for 4× the pixels.
         if (ui <= 0 || panel < ui * 2) return no("mode $mode for a $ui UI")
         why = "${if (forced == true) "forced" else "auto"}: $panel for a $ui UI"
@@ -214,6 +220,7 @@ object UhdCanvas {
      * frames are late, the TV is marked too slow for it. Not measured while forced on, nor in the
      * first seconds, when tiles and pictures load.
      */
+    @RequiresApi(29)
     private class Pace(private val context: Context) {
         private val period = 1e9 / (context.getSystemService(DisplayManager::class.java)
             ?.getDisplay(Display.DEFAULT_DISPLAY)?.refreshRate?.takeIf { it > 0f } ?: 60f)
@@ -277,6 +284,8 @@ class FilmSlot(context: Context) : FrameLayout(context) {
         viewTreeObserver.addOnPreDrawListener(follow)
     }
 
+    // host is only ever a Host, which exists on Android 10+ only.
+    @SuppressLint("NewApi")
     override fun onDetachedFromWindow() {
         host?.let { h ->
             viewTreeObserver.removeOnPreDrawListener(follow)

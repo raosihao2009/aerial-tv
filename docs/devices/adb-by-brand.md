@@ -37,6 +37,21 @@ ColorOS TV 的更多限制（比如只认三个固定包名当桌面）见 [oppo
 设置 → 设备偏好设置 → 关于 → 连续按 **内部版本号**（Build，不是「Android 版本」）7 次，
 再到开发者选项打开 **USB 调试**（也可能叫「网络调试」）。
 
+**只有无线调试、没有 USB 调试 / 网络调试（ADB 调试）开关的 Android 11+ 电视**（例如索尼 BRAVIA
+的 Android 14，#747）：这类电视要先配对，不能像低版本那样直接 `adb connect <电视IP>:5555`。
+打开 无线调试 → **使用配对码配对设备**，在电脑上运行：
+
+```bash
+adb pair <电视IP>:<配对屏上的端口>   # 再按提示输入电视上的 6 位配对码
+adb connect <电视IP>:<无线调试主页上的端口>   # 和上面不是同一个端口
+```
+
+连上后照常 `adb install`、授权。想以后直接用 `<电视IP>:5555`，连上时运行一次 `adb tcpip 5555`；
+这台电脑已经配对过，不用再配对。`install.sh` 和 `site/agent.md` 会引导这一步。
+部分同平台的 TCL 固件没有配对码入口：Q10M（[#31](https://github.com/pengchujin/aerial-tv/issues/31)
+的实机反馈，只有动态端口，没有无线调试详情页）。鹤 6 Ultra（Android 14）上有用户用 USB A 对 A 线
+把电视连到电脑（电脑插 USB 3.0 口、电视插 USB 2.0 口），先走有线 adb 授权，再执行一次 `adb tcpip 5555`，见 [tcl-mt9655-cn.md](tcl-mt9655-cn.md)。
+
 海信 VIDAA 的额外设置见 [hisense-vidaa.md](hisense-vidaa.md)。
 
 ## 极米

@@ -16,7 +16,7 @@
 <meta name="description" content="参照 tvOS 设计的开源 Android TV 桌面。没有广告，没有推荐流，只有你的 App、你的壁纸和航拍屏保。支持小米、TCL、创维、索尼等国产电视和盒子，开机自动接管。">
 <meta property="og:title" content="Aerial · 给国产电视的一块干净桌面">
 <meta property="og:description" content="参照 tvOS 设计的开源电视桌面，没有广告，开机自动接管。">
-<meta property="og:image" content="img/home.jpg?v=147">
+<meta property="og:image" content="img/home.jpg?v=165">
 <meta name="theme-color" content="#000000">
 <link rel="alternate" hreflang="zh" href="https://aerial.qust.me/">
 <link rel="alternate" hreflang="en" href="https://aerial.qust.me/en/">
@@ -56,7 +56,7 @@
       <div class="glow"></div>
       <div class="screen compare" id="compare" role="slider" tabindex="0" aria-label="电视自带的桌面和 Aerial 的对比，左右移动查看" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
         <img class="before" src="img/stock-xiaomi.jpg?v=3" alt="电视自带的桌面：满屏剧集推荐、会员和限免角标" width="1600" height="900">
-        <div class="after"><img src="img/home.jpg?v=147" alt="Aerial 首页：风景壁纸和玻璃底板上的一排 App" width="1600" height="900"></div>
+        <div class="after"><img src="img/home.jpg?v=165" alt="Aerial 首页：夏威夷威马努山谷的航拍壁纸，玻璃底板上一排六个 App" width="1600" height="900"></div>
         <div class="divider" aria-hidden="true"><span class="knob"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l-6 6 6 6M15 6l6 6-6 6"/></svg></span></div>
       </div>
       <div class="stand"></div>
@@ -76,7 +76,7 @@
     </div>
 
     <div class="feature reveal">
-      <div class="shot"><img src="img/focus.jpg?v=146" alt="第一排的玻璃底板，选中了一个 App" loading="lazy" width="1600" height="900"></div>
+      <div class="shot"><img src="img/focus.jpg?v=165" alt="冰岛兰德曼纳劳卡的航拍壁纸前，第一排选中了 Netflix" loading="lazy" width="1600" height="900"></div>
       <div>
         <p class="kicker">首页</p>
         <h3>像 Apple TV<br>一样顺手。</h3>
@@ -86,16 +86,17 @@
     </div>
 
     <div class="feature flip reveal">
-      <div class="shot"><img src="img/menu.jpg?v=146" alt="长按菜单：移动、移到文件夹、隐藏、应用信息、卸载" loading="lazy" width="1600" height="900"></div>
+      <div class="shot"><img src="img/menu.jpg?v=165" alt="长按菜单：移动、移到文件夹、从主屏幕隐藏、应用信息、开机时打开、卸载" loading="lazy" width="1600" height="900"></div>
       <div>
         <p class="kicker">整理</p>
         <h3>长按一下，<br>想怎么排就怎么排。</h3>
         <p>长按 OK 键：<strong>移动</strong>、<strong>移到文件夹</strong>、<strong>隐藏</strong>、查看信息、卸载。隐藏的 App 可以在「个性化」里找回。</p>
+        <p>选「<strong>开机时打开</strong>」，电视开机或待机醒来就直接进这个 App 或信号源，一直开着时不会再跳。</p>
       </div>
     </div>
 
     <div class="feature reveal">
-      <div class="shot"><img src="img/folder.jpg?v=146" alt="打开的文件夹：系统应用" loading="lazy" width="1600" height="900"></div>
+      <div class="shot"><img src="img/folder.jpg?v=165" alt="打开的文件夹：系统应用" loading="lazy" width="1600" height="900"></div>
       <div>
         <p class="kicker">文件夹</p>
         <h3>系统自带的 App，<br>收进一个文件夹。</h3>
@@ -104,11 +105,20 @@
     </div>
 
     <div class="feature flip reveal">
-      <div class="shot"><img src="img/control-center.jpg?v=146" alt="控制中心：信号源、网络、设置、音量和亮度" loading="lazy" width="1600" height="900"></div>
+      <div class="shot"><img src="img/control-center.jpg?v=165" alt="控制中心：信号源、网络、设置、音量和亮度" loading="lazy" width="1600" height="900"></div>
       <div>
         <p class="kicker">控制中心</p>
         <h3>常用开关，<br>一键就到。</h3>
         <p>信号源、网络、设置、音量、亮度都在这里。HDMI 还能固定到首页，一键切换。</p>
+      </div>
+    </div>
+
+    <div class="feature reveal">
+      <div class="shot"><img src="img/columns.jpg?v=165" alt="个性化的主屏幕设置：每排 App 选了 6 个" loading="lazy" width="1600" height="900"></div>
+      <div>
+        <p class="kicker">布局</p>
+        <h3>一排放几个，<br>你说了算。</h3>
+        <p>每排 4、5 或 6 个 App，单排或双排，时钟大小、App 名称、第一排底板也都能改。文件夹和手机上的整理页跟着一起变。</p>
       </div>
     </div>
   </div>
@@ -122,12 +132,12 @@
     </div>
     <div class="gallery reveal">
       <figure>
-        <div class="shot"><img src="img/screensaver-aerial.jpg?v=146" alt="航拍屏保：俯瞰夏威夷岛 Pu‘u O ‘Umi 自然保护区" loading="lazy" width="1600" height="900"></div>
-        <figcaption>夏威夷岛 Pu‘u O ‘Umi 自然保护区</figcaption>
+        <div class="shot"><img src="img/screensaver-aerial.jpg?v=165" alt="航拍屏保：途经美国优胜美地谷的半穹顶" loading="lazy" width="1600" height="900"></div>
+        <figcaption>美国优胜美地谷的半穹顶</figcaption>
       </figure>
       <figure>
-        <div class="shot"><img src="img/screensaver-aerial-2.jpg?v=146" alt="航拍屏保：俯瞰冰岛高地通纳河" loading="lazy" width="1600" height="900"></div>
-        <figcaption>冰岛高地通纳河</figcaption>
+        <div class="shot"><img src="img/screensaver-aerial-2.jpg?v=165" alt="航拍屏保：中国北京怀柔区慕田峪长城" loading="lazy" width="1600" height="900"></div>
+        <figcaption>北京怀柔慕田峪长城</figcaption>
       </figure>
     </div>
   </div>
@@ -136,18 +146,18 @@
 <section>
   <div class="wrap">
     <div class="feature reveal">
-      <div class="shot"><img src="img/wallpaper.jpg?v=146" alt="个性化面板" loading="lazy" width="1600" height="900"></div>
+      <div class="shot"><img src="img/wallpaper.jpg?v=165" alt="个性化面板：壁纸选了航拍" loading="lazy" width="1600" height="900"></div>
       <div>
         <p class="kicker">壁纸</p>
-        <h3>每天一张新风景，<br>或者你的照片。</h3>
-        <p>必应每日精选、14 张 Mac 风格的内置壁纸，或者从手机传的照片。</p>
+        <h3>会动的风景，<br>或者你的照片。</h3>
+        <p>航拍壁纸停在主屏幕时在 App 后面慢慢播放，按任意键停在当前画面。也可以选必应每日一图、14 张 Mac 风格的内置壁纸，或者从手机传的照片和视频。</p>
       </div>
     </div>
     <div class="phone-row reveal" style="margin-top:110px">
       <div>
         <p class="kicker">用手机设置</p>
         <h3 class="sub">扫一下，<br>不用遥控器打字。</h3>
-        <p class="muted">扫电视上的二维码，在手机上整理主屏幕（拖动排序、改名、换图标、文件夹、隐藏、加 HDMI），还能传照片、选壁纸、换屏保。</p>
+        <p class="muted">扫电视上的二维码，在手机上整理主屏幕（拖动排序、改名、换图标、文件夹、隐藏、加 HDMI），还能传照片和视频、选壁纸、换屏保。</p>
       </div>
       <div class="phone"><img src="img/phone.jpg?v=147" alt="手机设置页的主屏幕标签：和电视一样的图标网格" loading="lazy" width="780" height="1384"></div>
     </div>
@@ -181,9 +191,10 @@
       <span class="chip"><b>小米 / Redmi</b> · Android 6–14</span>
       <span class="chip"><b>TCL</b> · Android 8–11</span>
       <span class="chip"><b>创维 / 酷开</b> · Android 11</span>
-      <span class="chip"><b>索尼 BRAVIA</b> · Android 10–12</span>
+      <span class="chip"><b>索尼 BRAVIA</b> · Android 10–14</span>
       <span class="chip"><b>康佳</b> · Android 9</span>
       <span class="chip"><b>盒子和投影仪</b> · 极米、大眼橙、极光盒子</span>
+      <span class="chip"><b>老电视</b> · Android 4.0–4.4 用 Aerial Lite</span>
       <a class="chip chip-link" href="https://github.com/pengchujin/aerial-tv#支持的机型">完整<b>机型列表</b> ›</a>
     </div>
     <p class="note devices-note reveal">海信 / Vidda 和部分酷开开机会先进原桌面，雷鸟 MT9655 机型暂时接管不了。</p>
@@ -212,6 +223,7 @@
       <div class="panel" data-panel="oppo"><p>设置 → 系统 → 关于本机 → <b>设备型号</b>，按 <b>上上右右</b> 再按确认；然后到 设置 → 系统 → <b>开发者选项</b>，打开 <b>USB 调试</b>（有的机型叫「ADB 调试」）。<br>IP 在 设置 → 网络 → 已连接的网络 <b>最下面</b>。</p></div>
       <div class="panel" data-panel="other"><p>设置 → 设备偏好设置 → 关于 → 连按 <b>内部版本号</b>（Build，不是「Android 版本」）7 次，再在开发者选项里打开 <b>USB 调试</b>。<br>IP 在 设置 → 网络 → 已连接的网络 里。</p></div>
       <p class="note">老乐视、荣耀智慧屏、老康佳（看不到版本号）等机型打不开 ADB。极米 H3 需先用第三方工具打开 ADB，见机型说明。</p>
+      <p class="note"><b>只有无线调试、没有 USB 调试 / 网络调试（ADB 调试）开关的 Android 11+ 电视</b>（例如索尼 BRAVIA 的 Android 14）：第一次要先配对，不能直接 <code>adb connect &lt;电视IP&gt;:5555</code>。打开 无线调试 → <b>使用配对码配对设备</b>，运行 <code>adb pair &lt;电视IP&gt;:&lt;配对屏端口&gt;</code> 并输入 6 位配对码，再 <code>adb connect &lt;电视IP&gt;:&lt;无线调试主页端口&gt;</code>（两组端口不一样），然后照常安装。详见 <a href="https://github.com/pengchujin/aerial-tv/blob/main/docs/devices/adb-by-brand.md">分品牌说明</a>；装好后想以后直接用 <code>&lt;电视IP&gt;:5555</code>，连上时再运行一次 <code>adb tcpip 5555</code>。部分 TCL 固件（Q10M、Q10L、鹤 6 Ultra 等）没有配对码入口，只能先用数据线连电脑授权，同一份分品牌说明里有写。</p>
 
       <h3 class="step"><span>2</span>填上电视 IP</h3>
       <p class="hint">在电视的 设置 → 网络 → 已连接的网络 里（OPPO S1 在这一页最下面）。电脑要和电视连同一个网络。</p>
@@ -227,7 +239,7 @@
         <button role="tab" aria-selected="false" data-tab="cli">一行命令</button>
         <button role="tab" aria-selected="false" data-tab="manual">手动</button>
         <button role="tab" aria-selected="false" data-tab="phone">只用手机</button>
-        <button role="tab" aria-selected="false" data-tab="lite">Android 4.x</button>
+        <button role="tab" aria-selected="false" data-tab="usb">U 盘</button>
       </div>
 
       <div class="panel on" data-panel="agent">
@@ -247,11 +259,13 @@
       <div class="panel" data-panel="cli">
         <p>在 macOS 或 Linux 终端里运行，没有 adb 会自动下载。Windows 请交给 Agent。</p>
         <div class="code"><button class="copy" data-copy="cmd">复制</button><pre id="cmd"></pre></div>
+        <p class="note">只有无线调试的电视要先配对：有配对码入口的，运行前设好 <code>ADB_PAIR</code>、<code>ADB_CODE</code>、<code>ADB_CONNECT</code> 三个变量（写法见 README），脚本会自动配对并切回 5555；没有配对码入口的（TCL Q10M、Q10L、鹤 6 Ultra 等）先按<a href="https://github.com/pengchujin/aerial-tv/blob/main/docs/devices/adb-by-brand.md">分品牌说明</a>用数据线连一次、运行 <code>adb tcpip 5555</code>。</p>
       </div>
 
       <div class="panel" data-panel="manual">
         <p>先下载 <a href="download/aerial-standard.apk"><b>aerial-standard.apk</b></a>，再运行：</p>
         <div class="code"><button class="copy" data-copy="manualcmd">复制</button><pre id="manualcmd"></pre></div>
+        <p class="note">只有无线调试的电视（见第 1 步）分两种：<br><b>有配对码入口</b>（索尼 BRAVIA 的 Android 14 等）：先按第 1 步配对，连上后运行 <code>adb tcpip 5555</code>，命令的第一行才会是 5555；不运行的话，第一行要换成配对后无线调试主页上的 IP:端口。<br><b>没有配对码入口</b>（TCL Q10M、Q10L、鹤 6 Ultra 等）：按<a href="https://github.com/pengchujin/aerial-tv/blob/main/docs/devices/adb-by-brand.md">分品牌说明</a>用数据线把电视连到电脑，授权后运行一次 <code>adb tcpip 5555</code>；没走这一步时，命令第一行的 <code>:5555</code> 连不上。</p>
       </div>
 
       <div class="panel" data-panel="phone">
@@ -265,12 +279,19 @@
         <p class="note">这些工具是用户反馈装过的，本仓库没有逐一实测。手机工具一般不能替你完成全部设置，装好后建议再用电脑或 Agent 跑一遍验收。</p>
       </div>
 
-      <div class="panel" data-panel="lite">
-        <p><b>Aerial Lite</b> 是给 <b>Android 4.0–4.4</b> 老电视、老盒子用的单独版本，外观和完整版一样。<b>现在是第一版（1.0），属于测试版</b>，只在虚拟机和新电视上测过，真实 4.x 电视上可能还有不少小问题。</p>
-        <p><b>不用单独操作</b>：「交给 Agent」和「一行命令」会先看电视的系统版本，4.x 装 Lite，5.0 及以上装完整版，不会装错。</p>
-        <p>没有电脑时：下载 <a href="download/aerial-lite.apk"><b>aerial-lite.apk</b></a> 拷进 U 盘，用电视的文件管理器打开安装（只装在 4.x 电视上）。装好后<b>按遥控器的主页键</b>，在系统问「使用哪个应用」时选 <b>Aerial Lite</b>，再选「<b>始终</b>」。</p>
-        <p class="note">Lite 没有桌面守护：固件把主页键锁死在自家桌面时，只能从应用列表打开 Lite。也没有航拍壁纸、信号源磁贴和应用内升级（升级就是再装一次）。还原：设置 → 应用 → Aerial Lite → 清除默认设置，或者卸载它。有问题请用<a href="https://github.com/pengchujin/aerial-tv/issues/new?template=device.yml">机型适配模板</a>反馈，标题写上 Lite。</p>
+      <div class="panel" data-panel="usb">
+        <p>不用电脑，也不用上面的第 1、2 步：把 APK 拷进 U 盘，插到电视上，用电视自带的文件管理器打开安装。</p>
+        <ul>
+          <li><a href="download/aerial-standard.apk"><b>aerial-standard.apk</b></a>：Android 5.0 及以上先装这个。</li>
+          <li><a href="download/aerial-guard.apk"><b>aerial-guard.apk</b></a>：上面那个装不上、提示不允许安装桌面类 App 时换这个。</li>
+          <li><a href="download/aerial-lite.apk"><b>aerial-lite.apk</b></a>：Android 4.0–4.4 的老电视、老盒子用的 Aerial Lite（测试版）。「交给 Agent」和「一行命令」会自动选 Lite，不会装错。</li>
+        </ul>
+        <p>装好后<b>按遥控器的主页键</b>：系统问「使用哪个应用」时选 <b>Aerial</b>，再选「<b>始终</b>」，就设好了，原生 Android TV 一般是这样。</p>
+        <p>直接回到原来的桌面、不问（国产电视大多这样）：从「我的应用」打开 Aerial，它会弹出「设为主屏幕」，按里面的入口去电视设置里打开桌面守护（无障碍）和通知使用权。电视设置里没有这些入口时，Aerial 只能当普通 App 从应用列表打开，要接管主页键就得用电脑或 Agent 设置一次（覆盖安装，设置不丢）。</p>
+        <p class="note">只用 U 盘装时，按主页键、开机、待机醒来能不能回到 Aerial，要看电视设置里有没有这几个入口；用电脑装最稳。以后升级可以在控制中心里点「有新版本」，也可以再用 U 盘装一次。</p>
+        <p class="note">Aerial Lite 外观和完整版一样，但没有桌面守护：装好后按主页键选 <b>Aerial Lite</b>、再选「始终」；固件把主页键锁死在自家桌面时，只能从应用列表打开。也没有航拍壁纸、信号源磁贴和应用内升级（升级就是再装一次）。还原：设置 → 应用 → Aerial Lite → 清除默认设置，或者卸载它。有问题请用<a href="https://github.com/pengchujin/aerial-tv/issues/new?template=device.yml">机型适配模板</a>反馈，标题写上 Lite。</p>
       </div>
+
 
       <p class="note">电视问是否允许调试时，选「始终允许」。TCL 会弹「多屏互动：正在发起应用推送」，选「同意」。</p>
     </div>
@@ -343,7 +364,7 @@
       </details>
       <details>
         <summary>我的电视能用吗？</summary>
-        <p>先看<a href="https://github.com/pengchujin/aerial-tv#支持的机型">机型列表</a>。不在列表里的大概率也可以，原生 Android TV / Google TV 最省事。LG webOS、三星 Tizen、华为鸿蒙智慧屏的系统不一样，装不了；Android 4.0–4.4 的老电视用 Aerial Lite（测试版，见安装区的「Android 4.x」），更老的不支持。老乐视、荣耀智慧屏、老康佳（看不到版本号）等机型打不开 ADB，暂时没有办法。老电视或内存小的电视会自动用「流畅」效果，也可以在 个性化 → 效果 里手动选。遇到问题见上面的<a href="#adapt">「装好了，但有地方不对？」</a>。</p>
+        <p>先看<a href="https://github.com/pengchujin/aerial-tv#支持的机型">机型列表</a>。不在列表里的大概率也可以，原生 Android TV / Google TV 最省事。LG webOS、三星 Tizen、华为鸿蒙智慧屏的系统不一样，装不了；Android 4.0–4.4 的老电视用 Aerial Lite（测试版，见安装区的「U 盘」，Agent 和一行命令会自动装它），更老的不支持。老乐视、荣耀智慧屏、老康佳（看不到版本号）等机型打不开 ADB，暂时没有办法。老电视或内存小的电视会自动用「流畅」效果，也可以在 个性化 → 效果 里手动选。遇到问题见上面的<a href="#adapt">「装好了，但有地方不对？」</a>。</p>
       </details>
     </div>
   </div>

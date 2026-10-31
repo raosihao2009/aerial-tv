@@ -22,6 +22,9 @@ adb shell appops set "$PKG" GET_USAGE_STATS default >/dev/null 2>&1 || true
 adb shell appops set "$PKG" android:get_usage_stats default >/dev/null 2>&1 || true
 adb shell appops set "$PKG" APP_AUTO_START default >/dev/null 2>&1 || true   # TCL only
 adb shell appops set "$PKG" APP_ASSOC_START default >/dev/null 2>&1 || true
+adb shell appops set "$PKG" AUTO_START default >/dev/null 2>&1 || true   # FFALCON T966D5's names
+adb shell appops set "$PKG" ASSOC_START default >/dev/null 2>&1 || true
+adb shell appops set "$PKG" ACCESS_RESTRICTED_SETTINGS default >/dev/null 2>&1 || true   # Android 13+
 adb shell am force-stop "$PKG"
 case "$(adb shell settings get secure screensaver_components | tr -d '\r')" in
   "$PKG"/*) adb shell settings put secure screensaver_components "$(adb shell settings get secure screensaver_default_component | tr -d '\r')" ;;
@@ -46,6 +49,14 @@ elif [ "$(adb shell getprop persist.vt.use_home_pkg | tr -d '\r')" = "$PKG" ] &&
   adb shell setprop persist.vt.use_home_pkg com.jamdeo.tv.vod
 fi
 adb shell cmd role remove-role-holder --user 0 android.app.role.HOME "$PKG" >/dev/null 2>&1 || true
+# Xiaomi where an older install made Aerial the default Home and the firmware took it: PatchWall then
+# runs outside the home stack and the short press of the power key no longer sleeps the TV (#848).
+# Home goes back to PatchWall; the fix takes a reboot.
+if adb shell pm path com.mitv.tvhome 2>/dev/null | grep -q package: &&
+   adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME -c android.intent.category.DEFAULT 2>/dev/null | tail -n 1 | grep -q "^$PKG/"; then
+  adb shell cmd package set-home-activity --user 0 com.mitv.tvhome/.MainActivityUserMode >/dev/null 2>&1 &&
+    echo "Xiaomi: Home is PatchWall again; restart the TV once."
+fi
 
 # Aerial Lite (Android 4.x) takes over only as the home app the owner chose; nothing else to undo.
 LITE=app.orchard.tv.lite
@@ -57,4 +68,4 @@ elif [ "$LITE_HERE" != 0 ]; then
   echo "Aerial Lite stays the home screen while it is installed and chosen. Run with --uninstall, or on the TV: Settings > Apps > Aerial Lite > Clear defaults, then press Home and pick the TV's launcher."
 fi
 adb shell input keyevent KEYCODE_HOME
-echo "Home now: $(adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME | tail -n 1 | tr -d '\r')"
+echo "Home now: $(adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME -c android.intent.category.DEFAULT | tail -n 1 | tr -d '\r')"

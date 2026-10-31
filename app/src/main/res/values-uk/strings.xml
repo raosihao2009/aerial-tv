@@ -28,6 +28,7 @@
     <string name="net_ethernet">Ethernet</string>
     <string name="net_wifi">Wi-Fi</string>
     <string name="net_offline">Немає з’єднання</string>
+    <string name="net_vpn">VPN</string>
     <string name="input_connected">Підключено</string>
     <string name="input_live_tv">Ефірне ТБ</string>
     <string name="input_antenna">Антена</string>
@@ -78,7 +79,7 @@
     <string name="wx_snow">Сніг</string>
     <string name="wx_thunder">Гроза</string>
     <string name="wp_daily_latest">Завжди сьогоднішнє</string>
-    <string name="wp_live">Аерозйомка · грає на верхньому ряду головного екрана</string>
+    <string name="wp_live">Аерозйомка · грає на верхньому ряду головного екрана (у дворядному вигляді — на обох рядах)</string>
     <string name="wp_photos_rotate">Одне на день</string>
     <string name="wp_daily_note">Фото дня від Bing, щодня нове.</string>
     <string name="wp_photos_rotate_note">Щодня інше з ваших фото.</string>
@@ -110,6 +111,7 @@
     <string name="ss_quality_hd">1080p</string>
     <string name="ss_quality_uhd">4K</string>
     <string name="ss_quality_dv">4K Dolby Vision</string>
+    <string name="ss_aerial_keeps">Aerial зберігає на телевізорі %2$d останні фільми (до %1$s); шпалери й заставка показують їх по черзі, щодня додається новий. У заставці вправо — новий фільм, вліво — попередній.</string>
     <string name="st_focus_style">Стиль фокуса</string>
     <string name="st_home_layout">Головний екран</string>
     <string name="st_layout">Розкладка</string>
@@ -187,6 +189,7 @@
     <string name="cc_update_failed_blocked">Цей телевізор не дозволяє застосункам встановлювати інші застосунки. Оновіться командою нижче.</string>
     <string name="cc_update_failed_signature">Aerial на цьому телевізорі підписаний інакше, ніж офіційний, тому оновити його поверх неможливо.</string>
     <string name="cc_update_failed_older">Новішої версії на сайті ще немає. Повторіть спробу пізніше.</string>
+    <string name="cc_self_compile">Зробити Aerial плавнішим</string>
     <string name="st_pin">Батьківський PIN-код</string>
     <string name="st_pin_off">Вимк.</string>
     <string name="st_pin_on">Увімк.</string>
@@ -211,6 +214,8 @@
     <string name="weather_snow">Сніг</string>
     <string name="weather_thunder">Грози</string>
     <string name="weather_high_low">Макс.: %1$d°  Мін.: %2$d°</string>
+    <string name="st_columns">Програм у ряду</string>
+    <string name="st_columns_hint">Скільки програм уміщується в ряд на головному екрані й у папках. Шість — більше видно одразу; чотири — більші, їх краще видно здалеку.</string>
     <string name="st_peek">Другий ряд</string>
     <string name="st_peek_show">Визирає</string>
     <string name="st_peek_hide">Прихований</string>
@@ -228,11 +233,13 @@
     <string name="ss_system">Системна</string>
     <string name="ss_system_hint">Заставка самого телевізора, як задумав виробник (наприклад, картини Xiaomi). Aerial свою не показує.</string>
     <string name="wp_videos_note">Ваші відео, надіслані з телефона: без звуку, одне за одним. Рухаються як аерозйомка і зупиняються на поточному кадрі.</string>
+    <string name="wp_videos_rotate">Мої відео по черзі</string>
+    <string name="wp_video_note">Ваше відео, надіслане з телефона: без звуку, по колу. Рухається як аерозйомка і зупиняється на поточному кадрі.</string>
     <string name="wp_source_note">Жива картинка цього входу за головним екраном, без звуку; звук є, якщо відкрити сам вхід. Біля застосунків нижче тло стає матовим. Поки картинки немає, видно темне тло.</string>
     <string name="st_play">Відтворення</string>
     <string name="st_play_still">У спокої</string>
     <string name="st_play_always">Завжди</string>
-    <string name="st_play_hint">У спокої: через 10 секунд на верхньому ряду; будь-яка кнопка зупиняє. Завжди: кнопки не зупиняють, тло трохи затемнене; зупиняється, коли ви переходите до застосунків нижче.</string>
+    <string name="st_play_hint">У спокої: через 10 секунд на верхньому ряду (у дворядному вигляді — на будь-якому з двох); будь-яка кнопка зупиняє. Завжди: кнопки не зупиняють, тло трохи затемнене; зупиняється, коли ви переходите до застосунків нижче.</string>
     <string name="ss_show_time">Час</string>
     <string name="ss_show_time_hint">Час на заставках з аерозйомкою і фото. Час і назва місця час від часу трохи зсуваються, щоб екран не вигорав.</string>
 </resources>

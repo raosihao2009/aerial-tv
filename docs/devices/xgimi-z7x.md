@@ -49,3 +49,13 @@ App 里的「开机自动恢复」默认关闭，**关着的话重启后 5555 �
 
 - 遥控器长按 Home 会触发系统级的后台清理，Aerial 也会被杀，随后由守护拉起，中间会闪一下原桌面。这是极米系统的既有行为，不是 Aerial 加的。
 - 这台固件不允许 shell 读日志：`adb shell logcat -d` 报 `logcat read failure / uid=2000`，`pm grant com.android.shell android.permission.READ_LOGS` 被系统拒绝（提示该包未申请此权限），`-b all`、`-b events` 同样失败。需要取证时改用 `dumpsys activity activities`、`dumpsys window | grep mCurrentFocus` 定时采样。
+
+## 默认桌面保不住、主页键慢 5 秒（m7642，Android 9：神灯 L1 #767、Z6X Pro #44）
+
+两台都是 `MediaTek/m7642_db/m7642:9/PPR2.180905.006.A1/...`。以下是报告人的分析和实测，手上没有这类机器。
+
+- `set-home-activity` 返回 `Success`，但默认桌面保不住：极米的 `com.android.newsettings/com.xgimi.newsettings.base.FallbackHome`（priority -1000）只声明了 HOME、**没有 DEFAULT**。`set-home-activity` 按 HOME + DEFAULT 记下两个候选（极米桌面、Aerial），而 FallbackHome 开机解锁后用不带 DEFAULT 的查询解析 HOME，候选变成三个，Android 9 的 `findPreferredActivity` 认为集合变了（`Result set changed, dropping preferred activity`），把 Aerial 降成非「始终」；之后落到极米的选择框，它读 `ro.vendor.lock.home=com.xgimi.home.immersed` 自动选回极米。
+- 不带 DEFAULT 的 `cmd package resolve-activity` 也会触发同一件事，所以 `install.sh`、`agent.md`、`report.sh` 等的验收查询从这一版起都带 `-c android.intent.category.DEFAULT`。
+- 默认桌面不是 Aerial 时，主页键先到选择框，Android 随后 5 秒内挂起后台启动（`stopAppSwitches`），守护 1.5 秒时的拉回要等到 5 秒（#44：每次 4965–4987 ms）。1.61 起守护认出选择框并拉回，不会再卡死，但这 5 秒 App 这边去不掉。
+- 报告人的解法（#767，神灯 L1 固件 v1.3.237 实测，跨真实重启有效）：用 shell 调 `IPackageManager.replacePreferredActivity` 写两条都选 Aerial 的规则：HOME + DEFAULT（极米、Aerial 两个候选）和只有 HOME（再加 FallbackHome，三个候选，priority 1）。他用的是 `service call package 70`，事务号是这一版 framework 的，**换固件或换 Android 版本不能照搬**。没有停用任何系统应用。
+- #44 报告人另一个办法是停用 `com.xgimi.home`，这和本项目「不停用原桌面」的原则冲突，文档和脚本都不采用。

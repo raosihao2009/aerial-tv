@@ -299,6 +299,8 @@ open class Sheet(context: Context, protected val close: () -> Unit) : FrameLayou
     private val rows = ArrayList<MutableList<Control>>()
     private var r = 0
     private var c = 0
+    /** The column focus last left each row from; see move. */
+    private val leftAt = HashMap<Int, Int>()
     private val press = Press()
     /** The content that scrolls, and the height it scrolls within; null for a sheet that fits. */
     var scroller: View? = null
@@ -320,6 +322,7 @@ open class Sheet(context: Context, protected val close: () -> Unit) : FrameLayou
     protected fun clearRows() {
         focused?.focusedLook = false
         rows.clear()
+        leftAt.clear()
         r = 0; c = 0
     }
 
@@ -382,11 +385,15 @@ open class Sheet(context: Context, protected val close: () -> Unit) : FrameLayou
         } else {
             val nr = r + dr
             if (nr !in rows.indices) return
-            // The control in the next row nearest the focused one's middle.
+            // The control in the next row nearest the focused one's middle. From a row-wide one,
+            // the one focus left that row from: Control Center's volume slider sits under three
+            // buttons, and Up always found the middle one, whichever Down came from (#860).
             val x = centerX(from)
             from.focusedLook = false
+            leftAt[r] = c
             r = nr
-            c = rows[r].indices.minByOrNull { kotlin.math.abs(centerX(rows[r][it]) - x) } ?: 0
+            val back = leftAt[r]?.takeIf { rows[r - dr].size == 1 && it in rows[r].indices }
+            c = back ?: rows[r].indices.minByOrNull { kotlin.math.abs(centerX(rows[r][it]) - x) } ?: 0
         }
         focused?.focusedLook = true
         focused?.let { onFocusMoved(it) }

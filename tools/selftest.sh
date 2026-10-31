@@ -46,6 +46,10 @@ fg() {
   printf '%s' "$w"
 }
 
+# After a PASS: whether Aerial is still in front $1 seconds later. Some firmwares stop third-party
+# apps on Home, Aerial too, a second after the guard brought it back (Dangbei H3S, issue #849).
+stays() { sleep "$1"; [ "$(fg)" = "$PKG" ]; }
+
 # Polls the foreground for up to $1 seconds; prints "<seconds> <package>" for the first time Aerial
 # is in front, or "- <package>" when it never is.
 wait_aerial() {
@@ -80,19 +84,33 @@ echo '```'
 # 1. Home Guard bound: everything below depends on it where Aerial is not the default home.
 ACC=$(sh_ settings get secure enabled_accessibility_services)
 BOUND=$(sh_ dumpsys accessibility | grep -c -E "label=(Aerial|$PKG)")
-HOME_TO=$(sh_ cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME | tail -n1)
-[ -n "$HOME_TO" ] || HOME_TO=$(sh_ pm resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME | tail -n1)
+# Android 6 and older have neither `cmd` nor `pm resolve-activity`; their "not found" and usage
+# text are not a Home (issue #818).
+HOME_TO=$(sh_ cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME -c android.intent.category.DEFAULT | grep -E '^[A-Za-z0-9_.]+/[A-Za-z0-9_.$]+$' | tail -n1)
+[ -n "$HOME_TO" ] || HOME_TO=$(sh_ pm resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME -c android.intent.category.DEFAULT | grep -E '^[A-Za-z0-9_.]+/[A-Za-z0-9_.$]+$' | tail -n1)
+[ -n "$HOME_TO" ] || HOME_TO="unknown (no cmd on this Android)"
 if [ "${HOME_TO%%/*}" = "$PKG" ]; then result guard PASS "Aerial is the default home ($HOME_TO)"
 elif [ "${BOUND:-0}" -gt 0 ]; then result guard PASS "Home Guard bound; default home is $HOME_TO"
 elif printf '%s' "$ACC" | grep -q "$PKG/"; then result guard FAIL "Home Guard enabled but not bound; default home is $HOME_TO"
 else result guard FAIL "Home Guard not enabled ($ACC); default home is $HOME_TO"
+fi
+# What Aerial needs to switch Home Guard on itself; an APK installed without install.sh has neither
+# (issue #853), and Android 13+ restricts one installed from a file (issues #811 #829).
+if [ "${HOME_TO%%/*}" != "$PKG" ] && [ "${BOUND:-0}" -eq 0 ]; then
+  sh_ dumpsys package "$PKG" | grep -q "WRITE_SECURE_SETTINGS: granted=true" ||
+    echo "  (WRITE_SECURE_SETTINGS is not granted: run install.sh repair, or the pm grant line of the install steps)"
+  sh_ appops get "$PKG" ACCESS_RESTRICTED_SETTINGS | grep -q -E "deny|ignore" &&
+    echo "  (ACCESS_RESTRICTED_SETTINGS is denied: adb shell appops set $PKG ACCESS_RESTRICTED_SETTINGS allow)"
 fi
 
 # 2. Home on Aerial itself.
 sh_ am start -W -n "$PKG/.MainActivity" >/dev/null; sleep 2
 sh_ input keyevent KEYCODE_HOME
 read -r secs pkg <<<"$(wait_aerial 8)"
-[ "$secs" != "-" ] && result home_on_aerial PASS "Aerial in front" || result home_on_aerial FAIL "in front after 8 s: $pkg"
+if [ "$secs" = "-" ]; then result home_on_aerial FAIL "in front after 8 s: $pkg"
+elif stays 4; then result home_on_aerial PASS "Aerial in front"
+else result home_on_aerial FAIL "Aerial in front, then $(fg) 4 s later"
+fi
 # Home Guard's own answer to the key can come a second or two after Aerial is already in front,
 # and it would cover the next app (TCL MT5879).
 sleep 3
@@ -110,7 +128,8 @@ fi
 sh_ input keyevent KEYCODE_HOME
 read -r secs pkg <<<"$(wait_aerial 12)"
 if [ "$OTHER" = "$PKG" ]; then result home_from_app SKIP "neither the settings nor another app came to front"
-elif [ "$secs" != "-" ]; then result home_from_app PASS "from $OTHER, Aerial in front after ${secs} s"
+elif [ "$secs" != "-" ] && stays 4; then result home_from_app PASS "from $OTHER, Aerial in front after ${secs} s"
+elif [ "$secs" != "-" ]; then result home_from_app FAIL "from $OTHER, Aerial in front after ${secs} s, then $(fg) 4 s later"
 else result home_from_app FAIL "from $OTHER, in front after 12 s: $pkg"
 fi
 sleep 3

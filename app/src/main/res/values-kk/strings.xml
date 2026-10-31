@@ -28,6 +28,7 @@
     <string name="net_ethernet">Ethernet</string>
     <string name="net_wifi">Wi-Fi</string>
     <string name="net_offline">Қосылмаған</string>
+    <string name="net_vpn">VPN</string>
     <string name="input_connected">Қосылған</string>
     <string name="input_live_tv">Эфирлік ТД</string>
     <string name="input_antenna">Антенна</string>
@@ -78,7 +79,7 @@
     <string name="wx_snow">Қар</string>
     <string name="wx_thunder">Нөсер</string>
     <string name="wp_daily_latest">Әрқашан бүгінгісі</string>
-    <string name="wp_live">Аэрожиын · басты экранның жоғарғы қатарында ойнайды</string>
+    <string name="wp_live">Аэрожиын · басты экранның жоғарғы қатарында ойнайды (екі қатарлы көріністе — екі қатарда да)</string>
     <string name="wp_photos_rotate">Күніне біреуі</string>
     <string name="wp_daily_note">Bing күн суреті, күн сайын жаңасына ауысады.</string>
     <string name="wp_photos_rotate_note">Күн сайын фотоларыңыздың басқасы.</string>
@@ -110,6 +111,7 @@
     <string name="ss_quality_hd">1080p</string>
     <string name="ss_quality_uhd">4K</string>
     <string name="ss_quality_dv">4K Dolby Vision</string>
+    <string name="ss_aerial_keeps">Aerial теледидарда соңғы %2$d фильмді сақтайды (ең көбі %1$s); тұсқағаз бен скринсейвер оларды кезекпен ойнатады, күн сайын жаңасы қосылады. Скринсейверде оңға — жаңа фильм, солға — алдыңғысы.</string>
     <string name="st_focus_style">Фокус стилі</string>
     <string name="st_home_layout">Басты экран</string>
     <string name="st_layout">Орналасу</string>
@@ -187,6 +189,7 @@
     <string name="cc_update_failed_blocked">Бұл теледидар қолданбаларға басқа қолданбаларды орнатуға рұқсат бермейді. Төмендегі пәрменмен жаңартыңыз.</string>
     <string name="cc_update_failed_signature">Бұл теледидардағы Aerial ресми нұсқадан басқаша қол қойылған, сондықтан оның үстінен жаңартуға болмайды.</string>
     <string name="cc_update_failed_older">Сайтта әзірге жаңа нұсқа жоқ. Кейінірек қайталап көріңіз.</string>
+    <string name="cc_self_compile">Aerial жұмысын тегістеу</string>
     <string name="st_pin">Ата-аналық PIN-код</string>
     <string name="st_pin_off">Өшірулі</string>
     <string name="st_pin_on">Қосулы</string>
@@ -211,6 +214,8 @@
     <string name="weather_snow">Қар</string>
     <string name="weather_thunder">Найзағай</string>
     <string name="weather_high_low">Макс.: %1$d°  Мин.: %2$d°</string>
+    <string name="st_columns">Қатардағы қолданбалар</string>
+    <string name="st_columns_hint">Басты экранда және қалталарда бір қатарға қанша қолданба сыяды. Алты — бірден көбірек көрінеді; төрт — үлкенірек, алыстан жақсы көрінеді.</string>
     <string name="st_peek">Екінші қатар</string>
     <string name="st_peek_show">Көрінеді</string>
     <string name="st_peek_hide">Жасырын</string>
@@ -228,11 +233,13 @@
     <string name="ss_system">Жүйелік</string>
     <string name="ss_system_hint">Теледидардың өз экран сақтағышы (мысалы, Xiaomi суреттері). Aerial өзінікін көрсетпейді.</string>
     <string name="wp_videos_note">Телефоннан жіберілген өз бейнелеріңіз: дыбыссыз, бірінен соң бірі. Аэрожиын сияқты қозғалады және ағымдағы кадрда тоқтайды.</string>
+    <string name="wp_videos_rotate">Бейнелерім кезекпен</string>
+    <string name="wp_video_note">Телефоннан жіберілген өз бейнеңіз: дыбыссыз, қайталанып ойнайды. Аэрожиын сияқты қозғалады және ағымдағы кадрда тоқтайды.</string>
     <string name="wp_source_note">Осы кірістің басты экран артындағы тірі суреті, дыбыссыз; дыбыс үшін кірістің өзін ашыңыз. Төмендегі қолданбаларда күңгірт фонға ауысады. Сурет жоқ кезде қараңғы фон көрінеді.</string>
     <string name="st_play">Ойнату</string>
     <string name="st_play_still">Тыныштықта</string>
     <string name="st_play_always">Әрдайым</string>
-    <string name="st_play_hint">Тыныштықта: жоғарғы қатарда 10 секундтан кейін; кез келген түйме тоқтатады. Әрдайым: түймелер тоқтатпайды, фон сәл күңгірттенеді; төмендегі қолданбаларға өткенде тоқтайды.</string>
+    <string name="st_play_hint">Тыныштықта: жоғарғы қатарда (екі қатарлы көріністе — екеуінің кез келгенінде) 10 секундтан кейін; кез келген түйме тоқтатады. Әрдайым: түймелер тоқтатпайды, фон сәл күңгірттенеді; төмендегі қолданбаларға өткенде тоқтайды.</string>
     <string name="ss_show_time">Уақыт</string>
     <string name="ss_show_time_hint">Аэрожиын және фото экран қорғауыштарындағы уақыт. Экран күйіп қалмас үшін уақыт пен орын атауы анда-санда сәл жылжиды.</string>
 </resources>

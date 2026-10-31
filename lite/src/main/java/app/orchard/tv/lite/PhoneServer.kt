@@ -242,6 +242,7 @@ class PhoneServer private constructor(private val context: Context, private val 
             .put("folders", folders)
             .put("hidden", JSONArray().apply { if (!locked) ops.hidden().forEach { put(tile(it)) } })
             .put("hiddenCount", ops.hidden().size)
+            .put("columns", LiteSettings.homeColumns)
             .put("locked", locked)
             .put("ready", ops.home().isNotEmpty())
     }
@@ -346,7 +347,7 @@ class PhoneServer private constructor(private val context: Context, private val 
         appendLine("Device      ${Build.MANUFACTURER} ${Build.MODEL} (${Build.DEVICE}), Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
         appendLine("Screen      ${Ui.screenW}x${Ui.screenH}")
         appendLine("Wallpaper   ${Wallpapers.selectedId}  screensaver=${Wallpapers.screensaver.key}  after=${LiteSettings.screensaverMinutes}")
-        appendLine("Settings    focus=${LiteSettings.focusStyle.key} one_row=${LiteSettings.oneRowHome} peek=${LiteSettings.peekNextRow} plate=${LiteSettings.homePlate} names=${LiteSettings.showAllNames} effects=${LiteSettings.effects.key} boot_app=${LiteSettings.bootApp}")
+        appendLine("Settings    focus=${LiteSettings.focusStyle.key} one_row=${LiteSettings.oneRowHome} columns=${LiteSettings.homeColumns} peek=${LiteSettings.peekNextRow} plate=${LiteSettings.homePlate} names=${LiteSettings.showAllNames} effects=${LiteSettings.effects.key} boot_app=${LiteSettings.bootApp}")
         appendLine("Apps        ${loaded().size}")
     }
 

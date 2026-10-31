@@ -178,6 +178,9 @@ fun AppMenu(
     var page by remember(shownApp.key, visible) { mutableStateOf(MenuPage.Main) }
     val folder = shownApp.folder
     val holder = folders.firstOrNull { shownApp.key in it.apps }
+    // A look at the disk (and a hash, for an input): once per app, not on each recomposition of the
+    // menu as it grows in.
+    val customIcon = remember(shownApp.key, CustomIcons.version) { CustomIcons.has(shownApp.key) }
 
     BackHandler(enabled = visible) { if (page != MenuPage.Main) page = MenuPage.Main else onDismiss() }
     LaunchedEffect(visible, page) {
@@ -239,14 +242,14 @@ fun AppMenu(
                             if (shownApp.source != null) {
                                 // A pinned TV input: no app info or uninstall, and "remove" unpins it.
                                 MenuRow(Glyph.Input, stringResource(R.string.menu_source_device), { page = MenuPage.Device }, trailing = "›")
-                                if (CustomIcons.has(shownApp.key)) {
+                                if (customIcon) {
                                     MenuRow(Glyph.Photo, stringResource(R.string.menu_reset_icon), { onResetIcon(shownApp.key) })
                                 }
                                 MenuRow(Glyph.EyeSlash, stringResource(R.string.menu_unpin_source), { onUnpin(shownApp.key) })
                             } else {
                                 MenuRow(Glyph.EyeSlash, stringResource(R.string.menu_hide), { onHide(shownApp.key) })
                                 // A picture chosen on the phone page; changing it is done there.
-                                if (CustomIcons.has(shownApp.key)) {
+                                if (customIcon) {
                                     MenuRow(Glyph.Photo, stringResource(R.string.menu_reset_icon), { onResetIcon(shownApp.key) })
                                 }
                                 if (shownApp.shortcut == null) MenuRow(Glyph.Info, stringResource(R.string.menu_info), { onInfo(shownApp.key) })

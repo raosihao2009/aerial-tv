@@ -50,3 +50,7 @@ standard/guard 版、改不改包名都一样；强杀还会清空无障碍绑�
 改包名后完全稳定——两代 EUI 的内存管理器放行规则不同。
 
 卸载还原：`pm uninstall com.stv.tvhome`
+
+## 超3 X55（X3-55）的信号源（#818 #998）
+
+同代的 X3-55（MStar monaco / guava，安卓 5.0.1，两位用户）没有 `tv_input` 服务（`service check tv_input` 为 not found，`service list` 里只有 MStar 的 `com.mstar.android.tv.ITvService`），Aerial 一个信号源都列不出。乐视自己的 `com.stv.signalsourcemanager/.MainActivity` 用 `am start` 能直接切到信号源画面，但只回到上次用的口，`sourceId` 之类参数不认（三张截图逐字节对比）。main 上（未发版）控制中心「信号源」在没有信号源时打开它（`SystemProbe.openInputPicker` 最后一条，Lite 同），没有真机验证。按主页键时 EUI 自己会拉起桌面和这个信号源应用，和守护抢（见上文），这次没改。

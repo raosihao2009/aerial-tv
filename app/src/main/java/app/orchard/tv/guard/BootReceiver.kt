@@ -39,6 +39,7 @@ class BootReceiver : BroadcastReceiver() {
     private fun onBoot(context: Context, action: String) {
         GuardSetup.ensureEnabled(context)
         if (action == Intent.ACTION_LOCKED_BOOT_COMPLETED) return
+        GuardSetup.rescanIfMissing(context)
         // Also when Aerial is the default Home: some firmwares start their own launcher at boot
         // regardless (Skyworth/Coolita 8R145, issue #43).
         // A guard that is already running looks at what is in front before taking Home: by the time

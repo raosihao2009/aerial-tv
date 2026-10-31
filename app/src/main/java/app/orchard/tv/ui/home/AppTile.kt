@@ -100,6 +100,7 @@ import app.orchard.tv.system.DiagLog
 import app.orchard.tv.ui.theme.LocalReducedMotion
 import app.orchard.tv.ui.theme.Motion
 import app.orchard.tv.ui.theme.Type
+import app.orchard.tv.ui.components.DiagLayers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -255,7 +256,7 @@ fun AppTile(
                 translationY = (1f - appear.value) * 18.dp.toPx()
             },
     ) {
-        if (lift > 0.01f && !AerialSettings.lite) {
+        if (lift > 0.01f && !AerialSettings.lite && DiagLayers.shows("shadow")) {
             // A lifted tile casts a soft shadow below it, as cards do on tvOS. The system's
             // elevation shadow is too faint to read on a TV; this one is baked, so it costs one
             // image draw while a tile is lifted.
@@ -505,7 +506,7 @@ fun AppTile(
             }
         }
 
-        if (showName) BasicText(
+        if (showName && DiagLayers.shows("names")) BasicText(
             text = app.label,
             style = Type.Headline.copy(
                 textAlign = TextAlign.Center,
@@ -598,7 +599,7 @@ object TileFaces {
      * Sizes worked out exactly as AppTile's: a face of another size is simply made there.
      */
     suspend fun prepare(arts: List<TileArt>, screenW: Int, density: Float, focused: Boolean = false) = coroutineScope {
-        val tileW = restTileWidth((screenW / density).dp).value * density
+        val tileW = restTileWidth((screenW / density).dp, AerialSettings.homeColumns).value * density
         val tileH = tileW * 9f / 16f
         val w = tileW.roundToInt()
         val h = tileH.roundToInt()
@@ -606,7 +607,13 @@ object TileFaces {
         val fh = if (focused) focusedPx(tileH) else h
         val radius = Corner.value * density * fw / w
         val rim = 0.5f * density * fw / w
-        if (!focused) restKey = (w.toLong() shl 32) or h.toLong()
+        if (!focused) {
+            val key = (w.toLong() shl 32) or h.toLong()
+            // Another number of apps a row: the faces at the old size go, focused ones too.
+            val resized = restKey != 0L && restKey != key
+            restKey = key
+            if (resized) trimMemory()
+        }
         val todo = arts.distinctBy { System.identityHashCode(it.back) }.filter { ready(it.back, fw, fh) == null }
         if (todo.isEmpty()) return@coroutineScope
         // Only for the faces at rest: the focused ones are made ahead of need, and a tile focused
