@@ -182,6 +182,12 @@ fun LiveSourceMenu(
                             e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_RIGHT && e.type == KeyEventType.KeyDown && from < sources.size - 1 -> {
                                 onMove(from, from + 1); true
                             }
+                            e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_UP && e.type == KeyEventType.KeyDown && from >= columns -> {
+                                onMove(from, from - columns); true
+                            }
+                            e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_DOWN && e.type == KeyEventType.KeyDown && from + columns < sources.size -> {
+                                onMove(from, from + columns); true
+                            }
                             e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_CENTER && e.type == KeyEventType.KeyUp -> {
                                 movingId = null; true
                             }
@@ -193,33 +199,30 @@ fun LiveSourceMenu(
             // 绝对定位每个卡片，带位置动画（完全照搬一级菜单 GridMetrics）
             // 行Y坐标逻辑（对齐 HomeScreen.topRowY）:
             //   双排: 底行贴 baseline, 上行 = 底行 - pitchY
-            //   单排+露出: 主行 = screenH - pitchY - 12dp (上抬12dp), 次行 = screenH - 12dp (露出12dp)
-            //             当焦点在次行时, 整个菜单上抬到双排布局(两行全可见)
-            //   单排+不露出: 主行 = screenH - basePad - tileH, 不显示次行
-            val maxVisible = if (oneRow && !peek) columns else columns * 2
+            //   单排+露出: 主行上抬12dp, 次行露12dp边; 焦点到次排时上抬两行全可见
+            //   单排+不露出: 主行贴baseline, 次行在屏幕外; 焦点到次排时上抬两行全可见
+            val maxVisible = columns * 2
             val visibleCount = minOf(sources.size, maxVisible)
             val numRows = (visibleCount + columns - 1) / columns
-            // 焦点在第几排？在单排+peek模式下，焦点到次排时整个菜单上抬
             val focusedIndex = sources.indexOfFirst { it.id == focusedId }.coerceAtLeast(0)
             val focusedRow = focusedIndex / columns
-            val lifted = oneRow && peek && focusedRow >= 1 && numRows >= 2
+            // 单排模式下焦点到次排时, 菜单上抬到两行全可见(无论peek开或关)
+            val lifted = oneRow && focusedRow >= 1 && numRows >= 2
             fun rowY(rowFromTop: Int): Dp = when {
                 lifted -> {
-                    // 焦点在次排: 两行全可见, 底行贴 baseline
                     screenH - basePad - tileH - pitchY * (numRows - 1 - rowFromTop)
                 }
                 !oneRow -> {
-                    // 双排: 最后一行贴 baseline，上面行逐行减 pitchY
                     screenH - basePad - tileH - pitchY * (numRows - 1 - rowFromTop)
                 }
                 peek -> {
-                    // 单排+peek: row 0 主行上抬, row 1 露出
                     if (rowFromTop == 0) screenH - pitchY - 12.dp
                     else screenH - 12.dp
                 }
                 else -> {
-                    // 单排无 peek: 只有 row 0
-                    screenH - basePad - tileH
+                    // 单排无 peek: row 0 贴baseline, row 1 在屏幕外(可聚焦, 聚焦后lifted=true)
+                    if (rowFromTop == 0) screenH - basePad - tileH
+                    else screenH + tileH
                 }
             }
             sources.take(visibleCount).forEachIndexed { index, source ->
