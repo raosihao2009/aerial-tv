@@ -141,7 +141,6 @@ fun ChannelFocusPreview(
             }
         }
         exo.addListener(readyListener)
-        surface?.let { exo.setVideoTextureView(it) }
         exo.setMediaSource(hls)
         exo.prepare()
         exo.playWhenReady = true
@@ -156,12 +155,10 @@ fun ChannelFocusPreview(
         }
 
         if (ready) {
-            // 新流就绪：释放旧 player，切换到新 player，渐出遮罩
+            // 新流就绪：释放旧 player，切换到新 player（LaunchedEffect 会自动绑定 surface）
             val old = player
             player = exo
             old?.release()
-            // 确保新 player 绑定到 surface
-            surface?.let { exo.setVideoTextureView(it) }
         } else {
             // 新流超时未就绪：放弃新 player，保持旧流，渐出遮罩
             DiagLog.i("channel preview: new stream not ready, keep old")
@@ -207,11 +204,20 @@ fun ChannelFocusPreview(
             modifier = Modifier.fillMaxSize(),
             factory = { ctx -> TextureView(ctx).also {
                 it.isFocusable = false; it.isFocusableInTouchMode = false
-                surface = it; player?.setVideoTextureView(it)
+                surface = it
             }},
             onRelease = { surface = null },
         )
-        // 加载遮罩：16:9 图片居中铺满
+        // player 或 surface 变化时重新绑定
+        LaunchedEffect(player, surface) {
+            val p = player; val s = surface
+            if (p != null && s != null) {
+                p.setVideoTextureView(s)
+                if (p.playbackState == Player.STATE_IDLE) p.prepare()
+                p.playWhenReady = true
+            }
+        }
+        // 加载遮罩：16:9 图片居中
         if (loadingAlpha > 0.01f) {
             Image(
                 painter = painterResource(R.drawable.live_loading),
@@ -219,7 +225,6 @@ fun ChannelFocusPreview(
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.7f * loadingAlpha))
                     .align(Alignment.Center),
                 alpha = loadingAlpha,
             )
