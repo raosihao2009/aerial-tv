@@ -208,7 +208,7 @@ fun LiveSourceMenu(
                 val colIndex = index % columns
                 val rowIndex = index / columns
                 val xPx = with(density) { (gridMargin + (tileW + gridGap) * colIndex).roundToPx() }
-                val yPx = with(density) { (screenH - bottomPad - tileH - rowIndex * (tileH + rowGap)).roundToPx() }
+                val yPx = with(density) { (screenH - bottomPad - tileH - (tileH + rowGap) * rowIndex).roundToPx() }
                 val targetOffset = IntOffset(xPx, yPx)
                 val animatedOffset by animateIntOffsetAsState(
                     targetOffset,
@@ -256,7 +256,7 @@ fun LiveSourceMenu(
                         .align(Alignment.BottomStart)
                         .padding(
                             start = gridMargin + (tileW + gridGap) * colIndex + tileW / 2 - 125.dp,
-                            bottom = bottomPad + tileH + rowIndex * (tileH + rowGap) + 20.dp,
+                            bottom = bottomPad + tileH + (tileH + rowGap) * rowIndex + 20.dp,
                         )
                         .width(250.dp)
                         .liquidGlass(20.dp)
