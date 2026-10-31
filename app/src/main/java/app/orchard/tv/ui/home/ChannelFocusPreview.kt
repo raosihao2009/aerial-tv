@@ -2,6 +2,11 @@ package app.orchard.tv.ui.home
 
 import android.net.Uri
 import android.view.TextureView
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -10,8 +15,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -23,6 +32,7 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import app.orchard.tv.LiveSource
+import app.orchard.tv.R
 import app.orchard.tv.system.DiagLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -43,18 +53,30 @@ fun ChannelFocusPreview(
     var restartSignal by remember { mutableStateOf(0) }
     val streamCache = remember { mutableMapOf<String, String?>() }
     val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main + kotlinx.coroutines.SupervisorJob())
-    // 记录最近一次用的 mediaItem，用于错误重试
-    var lastMediaSource by remember { mutableStateOf<androidx.media3.exoplayer.hls.HlsMediaSource?>(null) }
     var retryCount by remember { mutableStateOf(0) }
+    // 加载遮罩：切换直播源时渐入，新流就绪或失败后渐出
+    var loading by remember { mutableStateOf(false) }
+    val loadingAlpha by animateFloatAsState(
+        targetValue = if (loading) 1f else 0f,
+        animationSpec = tween(if (loading) 300 else 500),
+        label = "loadingAlpha",
+    )
+
     LaunchedEffect(source?.url, restartSignal) {
-        player?.release()
-        player = null
-        lastMediaSource = null
-        retryCount = 0
-        if (source == null) return@LaunchedEffect
+        if (source == null) {
+            player?.release(); player = null
+            return@LaunchedEffect
+        }
+
+        // 第一次加载(无旧 player)：直接准备，不显示遮罩
+        val firstLoad = player == null
+        if (!firstLoad) {
+            loading = true
+        }
 
         var streamUrl: String? = streamCache[source.url ?: ""]
         if (streamUrl == null) {
+            // 解析新流地址，最多重试 10 次
             for (attempt in 1..10) {
                 streamUrl = withContext(Dispatchers.IO) { resolveStreamUrl(source) }
                 if (streamUrl != null) break
@@ -62,79 +84,107 @@ fun ChannelFocusPreview(
             }
             streamCache[source.url ?: ""] = streamUrl
         }
-        DiagLog.i("channel preview: url = $streamUrl")
-        if (streamUrl != null) {
-            val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(context).apply {
-                setParameters(
-                    buildUponParameters()
-                        .setMaxVideoSize(Int.MAX_VALUE, Int.MAX_VALUE)
-                        .setForceHighestSupportedBitrate(true)
-                )
+        DiagLog.i("channel preview: url = $streamUrl, first=$firstLoad")
+
+        if (streamUrl == null) {
+            // 解析失败：保持旧流，渐出遮罩
+            DiagLog.i("channel preview: stream resolve failed, keep old")
+            loading = false
+            return@LaunchedEffect
+        }
+
+        // 准备新流
+        val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(context).apply {
+            setParameters(
+                buildUponParameters()
+                    .setMaxVideoSize(Int.MAX_VALUE, Int.MAX_VALUE)
+                    .setForceHighestSupportedBitrate(true)
+            )
+        }
+        val exo = ExoPlayer.Builder(context).setTrackSelector(trackSelector).build()
+        val factory = DefaultHttpDataSource.Factory()
+            .setUserAgent("Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+            .setConnectTimeoutMs(10_000).setReadTimeoutMs(10_000)
+        if (source.isBilibili || streamUrl.contains("bilibili.com")) {
+            val buvid3 = fetchBuvid3()
+            factory.setDefaultRequestProperties(mapOf(
+                "Referer" to "https://live.bilibili.com/",
+                "Cookie" to "buvid3=$buvid3"
+            ))
+        }
+        val hls = HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(Uri.parse(streamUrl)))
+
+        // 等待新流 READY
+        var ready = false
+        val readyListener = object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_READY) {
+                    ready = true
+                    retryCount = 0
+                }
             }
-            val exo = ExoPlayer.Builder(context).setTrackSelector(trackSelector).build()
-            player = exo
-            val factory = DefaultHttpDataSource.Factory()
-                .setUserAgent("Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
-                .setConnectTimeoutMs(10_000).setReadTimeoutMs(10_000)
-            if (source.isBilibili || streamUrl.contains("bilibili.com")) {
-                val buvid3 = fetchBuvid3()
-                factory.setDefaultRequestProperties(mapOf(
-                    "Referer" to "https://live.bilibili.com/",
-                    "Cookie" to "buvid3=$buvid3"
-                ))
-            }
-            val hls = HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(Uri.parse(streamUrl)))
-            lastMediaSource = hls
-            exo.setMediaSource(hls)
-            exo.addListener(object : Player.Listener {
-                override fun onPlayerError(error: PlaybackException) {
-                    DiagLog.i("player err: ${error.errorCodeName}, retry $retryCount")
-                    // 自动重试：断开/缓冲失败/网络抖动时重新 prepare，最多 3 次
-                    val p = player ?: return
-                    val src = lastMediaSource ?: return
-                    if (retryCount < 3) {
-                        retryCount++
-                        val attempt = retryCount
-                        scope.launch {
-                            kotlinx.coroutines.delay(1500L * attempt)
-                            runCatching {
-                                p.setMediaSource(src)
-                                p.prepare()
-                                p.playWhenReady = true
-                            }
+            override fun onPlayerError(error: PlaybackException) {
+                DiagLog.i("player err: ${error.errorCodeName}, retry $retryCount")
+                val p = exo
+                if (retryCount < 3) {
+                    retryCount++
+                    val attempt = retryCount
+                    scope.launch {
+                        kotlinx.coroutines.delay(1500L * attempt)
+                        runCatching {
+                            p.setMediaSource(hls)
+                            p.prepare()
+                            p.playWhenReady = true
                         }
                     }
                 }
-                override fun onPlaybackStateChanged(state: Int) {
-                    if (state == Player.STATE_READY) retryCount = 0
-                }
-            })
-            surface?.let { exo.setVideoTextureView(it) }
-            exo.prepare()
-            exo.playWhenReady = true
-            exo.seekToDefaultPosition()
+            }
         }
+        exo.addListener(readyListener)
+        surface?.let { exo.setVideoTextureView(it) }
+        exo.setMediaSource(hls)
+        exo.prepare()
+        exo.playWhenReady = true
+        exo.seekToDefaultPosition()
+
+        // 等待最多 15 秒让新流就绪
+        withContext(Dispatchers.Main) {
+            val deadline = System.currentTimeMillis() + 15_000
+            while (!ready && System.currentTimeMillis() < deadline) {
+                kotlinx.coroutines.delay(200)
+            }
+        }
+
+        if (ready) {
+            // 新流就绪：释放旧 player，切换到新 player，渐出遮罩
+            val old = player
+            player = exo
+            old?.release()
+            // 确保新 player 绑定到 surface
+            surface?.let { exo.setVideoTextureView(it) }
+        } else {
+            // 新流超时未就绪：放弃新 player，保持旧流，渐出遮罩
+            DiagLog.i("channel preview: new stream not ready, keep old")
+            exo.release()
+        }
+        loading = false
     }
 
     DisposableEffect(Unit) {
         val obs = LifecycleEventObserver { _, e ->
             when (e) {
                 Lifecycle.Event.ON_STOP -> {
-                    // 离开桌面(进 IPTV app)：暂停但保留 player，不释放
                     player?.pause()
                     player?.volume = 0f
                 }
                 Lifecycle.Event.ON_START -> {
-                    // 回到桌面：恢复播放；直播流直接跳到直播最新位置，不从头缓冲
                     player?.let {
                         it.volume = 1f
                         surface?.let { s -> it.setVideoTextureView(s) }
-                        // 只有在 prepared 完成后才直接 resume；未 prepared 过才 prepare
                         if (it.playbackState == Player.STATE_IDLE) {
                             it.prepare()
                         }
                         it.playWhenReady = true
-                        // 直播流追最新：如果停在很久之前的位置，跳到 live edge
                         if (it.isCurrentMediaItemLive) {
                             it.seekToDefaultPosition()
                         }
@@ -152,14 +202,29 @@ fun ChannelFocusPreview(
         }
     }
 
-    AndroidView(
-        modifier = modifier.fillMaxSize(),
-        factory = { ctx -> TextureView(ctx).also {
-            it.isFocusable = false; it.isFocusableInTouchMode = false
-            surface = it; player?.setVideoTextureView(it)
-        }},
-        onRelease = { surface = null },
-    )
+    Box(modifier = modifier.fillMaxSize()) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { ctx -> TextureView(ctx).also {
+                it.isFocusable = false; it.isFocusableInTouchMode = false
+                surface = it; player?.setVideoTextureView(it)
+            }},
+            onRelease = { surface = null },
+        )
+        // 加载遮罩：16:9 图片居中铺满
+        if (loadingAlpha > 0.01f) {
+            Image(
+                painter = painterResource(R.drawable.live_loading),
+                contentDescription = "直播加载中",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.7f * loadingAlpha))
+                    .align(Alignment.Center),
+                alpha = loadingAlpha,
+            )
+        }
+    }
 }
 
 private suspend fun resolveStreamUrl(source: LiveSource): String? = withContext(Dispatchers.IO) {
@@ -173,7 +238,7 @@ private suspend fun resolveStreamUrl(source: LiveSource): String? = withContext(
     } catch (e: Exception) { null }
 }
 
-private val buvidCache = mutableMapOf<String, String>()
+private val buvidCache = mutableMapOf<String, String?>()
 
 private fun fetchBuvid3(): String {
     buvidCache["buvid3"]?.let { return it }
