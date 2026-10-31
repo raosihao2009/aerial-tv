@@ -117,19 +117,17 @@ fun LiveSourceMenu(
     }
 
     val context = androidx.compose.ui.platform.LocalContext.current
-    val gridMargin = 56.dp
-    val gridGap = 28.dp
-    // 复用上游设置：每排 4/5/6 个，默认 5
+    // 完全对齐一级书架 HomeScreen.GridMetrics 的几何参数
     val columns = AerialSettings.homeColumns
-    // 玻璃底板开启时，首排会向上抬（和一级菜单同一套 Plate 常量：底部边距30dp + 内边距20dp）；
-    // 关闭时给 App 名称留 70dp。让二级菜单和一级菜单底部基线一致。
     val plate = AerialSettings.homePlate
-    val bottomPad = if (plate) {
-        30.dp + 20.dp + 10.dp
-    } else {
-        70.dp
-    }
-    val rowGap = 24.dp
+    // gridGap: 4→34dp, 5→28dp, 6→24dp (和一级菜单一致)
+    val gridGap = when (columns) { 4 -> 34.dp; 6 -> 24.dp; else -> 28.dp }
+    val gridMargin = 56.dp
+    // pitchY = tileH + 50.dp (一级菜单行距，包含名称空间)
+    // 底行基线：plate 开 → screenH - tileH - 50dp (PlateMarginBottom 30 + PlatePadV 20)
+    //           plate 关 → screenH - tileH - 70dp (名称空间)
+    val bottomPad = if (plate) 50.dp else 70.dp
+    val pitchYExtra = 50.dp // tileH 之外的行间距
     val showAllNames = AerialSettings.showAllNames
 
     val alpha = androidx.compose.animation.core.animateFloatAsState(
@@ -143,6 +141,7 @@ fun LiveSourceMenu(
         val screenH = maxHeight
         val tileW = (screenW - gridMargin * 2 - gridGap * (columns - 1)) / columns
         val tileH = tileW * 9f / 16f
+        val pitchY = tileH + pitchYExtra
 
         Box(
             modifier = Modifier
@@ -211,7 +210,7 @@ fun LiveSourceMenu(
                 val colIndex = index % columns
                 val rowFromTop = index / columns
                 val xPx = with(density) { (gridMargin + (tileW + gridGap) * colIndex).roundToPx() }
-                val yPx = with(density) { (screenH - bottomPad - tileH - (tileH + rowGap) * (numRows - 1 - rowFromTop)).roundToPx() }
+                val yPx = with(density) { (screenH - bottomPad - tileH - pitchY * (numRows - 1 - rowFromTop)).roundToPx() }
                 val targetOffset = IntOffset(xPx, yPx)
                 val animatedOffset by animateIntOffsetAsState(
                     targetOffset,
@@ -261,7 +260,7 @@ fun LiveSourceMenu(
                         .align(Alignment.BottomStart)
                         .padding(
                             start = gridMargin + (tileW + gridGap) * menuCol + tileW / 2 - 125.dp,
-                            bottom = bottomPad + tileH + (tileH + rowGap) * menuRowFromBottom + 20.dp,
+                            bottom = bottomPad + tileH + pitchY * menuRowFromBottom + 20.dp,
                         )
                         .width(250.dp)
                         .liquidGlass(20.dp)
