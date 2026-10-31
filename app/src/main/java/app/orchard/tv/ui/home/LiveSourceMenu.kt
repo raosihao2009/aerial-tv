@@ -205,20 +205,13 @@ fun LiveSourceMenu(
                     }
                 }
                 val app = remember(fallback, artState.value) { fallback.copy(art = artState.value ?: fallback.art) }
-                // 行排列：最后一排(靠近一级书架)放最近的源；更早的源向上叠
-                // 例如 5 个源、4 列：底行=[1,2,3,4]，上行=[0]
-                val upperCount = (sources.size - columns).coerceAtLeast(0)
-                val colIndex: Int
-                val rowFromBottom: Int
-                if (index >= upperCount) {
-                    colIndex = index - upperCount
-                    rowFromBottom = 0
-                } else {
-                    colIndex = index % columns
-                    rowFromBottom = 1 + (upperCount - 1 - index) / columns
-                }
+                // 标准行优先换行：第一排在最上，后续行向屏幕底部叠。
+                // 5 源 4 列：上行=[0,1,2,3]，下行(底行)=[4]
+                val numRows = (sources.size + columns - 1) / columns
+                val colIndex = index % columns
+                val rowFromTop = index / columns
                 val xPx = with(density) { (gridMargin + (tileW + gridGap) * colIndex).roundToPx() }
-                val yPx = with(density) { (screenH - bottomPad - tileH - (tileH + rowGap) * rowFromBottom).roundToPx() }
+                val yPx = with(density) { (screenH - bottomPad - tileH - (tileH + rowGap) * (numRows - 1 - rowFromTop)).roundToPx() }
                 val targetOffset = IntOffset(xPx, yPx)
                 val animatedOffset by animateIntOffsetAsState(
                     targetOffset,
@@ -257,16 +250,10 @@ fun LiveSourceMenu(
             if (menuForId != null) {
                 val source = sources.find { it.id == menuForId } ?: return@BoxWithConstraints
                 val sourceIndex = sources.indexOf(source)
-                // 和卡片同一套行列计算
-                val upperCount = (sources.size - columns).coerceAtLeast(0)
-                val menuCol: Int
-                val menuRowFromBottom: Int
-                if (sourceIndex >= upperCount) {
-                    menuCol = sourceIndex - upperCount; menuRowFromBottom = 0
-                } else {
-                    menuCol = sourceIndex % columns
-                    menuRowFromBottom = 1 + (upperCount - 1 - sourceIndex) / columns
-                }
+                val numRows = (sources.size + columns - 1) / columns
+                val menuCol = sourceIndex % columns
+                val menuRowFromTop = sourceIndex / columns
+                val menuRowFromBottom = numRows - 1 - menuRowFromTop
                 val first = remember { FocusRequester() }
                 LaunchedEffect(menuForId) { first.requestFocus() }
                 Column(
