@@ -40,9 +40,15 @@ fun ChannelFocusPreview(
 
     var restartSignal by remember { mutableStateOf(0) }
     val streamCache = remember { mutableMapOf<String, String?>() }
+    val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main + kotlinx.coroutines.SupervisorJob())
+    // 记录最近一次用的 mediaItem，用于错误重试
+    var lastMediaSource by remember { mutableStateOf<androidx.media3.exoplayer.hls.HlsMediaSource?>(null) }
+    var retryCount by remember { mutableStateOf(0) }
     LaunchedEffect(source?.url, restartSignal) {
         player?.release()
         player = null
+        lastMediaSource = null
+        retryCount = 0
         if (source == null) return@LaunchedEffect
 
         var streamUrl: String? = streamCache[source.url ?: ""]
@@ -70,9 +76,30 @@ fun ChannelFocusPreview(
                     "Cookie" to "buvid3=placeholder"
                 ))
             val hls = HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(Uri.parse(streamUrl)))
+            lastMediaSource = hls
             exo.setMediaSource(hls)
             exo.addListener(object : Player.Listener {
-                override fun onPlayerError(error: PlaybackException) { DiagLog.i("player err: ${error.errorCodeName}") }
+                override fun onPlayerError(error: PlaybackException) {
+                    DiagLog.i("player err: ${error.errorCodeName}, retry $retryCount")
+                    // 自动重试：断开/缓冲失败/网络抖动时重新 prepare，最多 3 次
+                    val p = player ?: return
+                    val src = lastMediaSource ?: return
+                    if (retryCount < 3) {
+                        retryCount++
+                        val attempt = retryCount
+                        scope.launch {
+                            kotlinx.coroutines.delay(1500L * attempt)
+                            runCatching {
+                                p.setMediaSource(src)
+                                p.prepare()
+                                p.playWhenReady = true
+                            }
+                        }
+                    }
+                }
+                override fun onPlaybackStateChanged(state: Int) {
+                    if (state == Player.STATE_READY) retryCount = 0
+                }
             })
             surface?.let { exo.setVideoTextureView(it) }
             exo.prepare()
@@ -84,14 +111,25 @@ fun ChannelFocusPreview(
     DisposableEffect(Unit) {
         val obs = LifecycleEventObserver { _, e ->
             when (e) {
-                Lifecycle.Event.ON_STOP -> { player?.pause(); player?.volume = 0f }
+                Lifecycle.Event.ON_STOP -> {
+                    // 离开桌面(进 IPTV app)：暂停但保留 player，不释放
+                    player?.pause()
+                    player?.volume = 0f
+                }
                 Lifecycle.Event.ON_START -> {
-                    // 先尝试直接恢复旧player，失败再重启
+                    // 回到桌面：恢复播放；直播流直接跳到直播最新位置，不从头缓冲
                     player?.let {
                         it.volume = 1f
                         surface?.let { s -> it.setVideoTextureView(s) }
-                        it.prepare()
+                        // 只有在 prepared 完成后才直接 resume；未 prepared 过才 prepare
+                        if (it.playbackState == Player.STATE_IDLE) {
+                            it.prepare()
+                        }
                         it.playWhenReady = true
+                        // 直播流追最新：如果停在很久之前的位置，跳到 live edge
+                        if (it.isCurrentMediaItemLive) {
+                            it.seekToDefaultPosition()
+                        }
                     } ?: run { restartSignal++ }
                 }
                 else -> {}
@@ -100,6 +138,7 @@ fun ChannelFocusPreview(
         lifecycleOwner.lifecycle.addObserver(obs)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(obs)
+            scope.cancel()
             val p = player; player = null
             p?.release()
         }

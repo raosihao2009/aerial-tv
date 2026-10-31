@@ -205,10 +205,20 @@ fun LiveSourceMenu(
                     }
                 }
                 val app = remember(fallback, artState.value) { fallback.copy(art = artState.value ?: fallback.art) }
-                val colIndex = index % columns
-                val rowIndex = index / columns
+                // 行排列：最后一排(靠近一级书架)放最近的源；更早的源向上叠
+                // 例如 5 个源、4 列：底行=[1,2,3,4]，上行=[0]
+                val upperCount = (sources.size - columns).coerceAtLeast(0)
+                val colIndex: Int
+                val rowFromBottom: Int
+                if (index >= upperCount) {
+                    colIndex = index - upperCount
+                    rowFromBottom = 0
+                } else {
+                    colIndex = index % columns
+                    rowFromBottom = 1 + (upperCount - 1 - index) / columns
+                }
                 val xPx = with(density) { (gridMargin + (tileW + gridGap) * colIndex).roundToPx() }
-                val yPx = with(density) { (screenH - bottomPad - tileH - (tileH + rowGap) * rowIndex).roundToPx() }
+                val yPx = with(density) { (screenH - bottomPad - tileH - (tileH + rowGap) * rowFromBottom).roundToPx() }
                 val targetOffset = IntOffset(xPx, yPx)
                 val animatedOffset by animateIntOffsetAsState(
                     targetOffset,
@@ -247,16 +257,24 @@ fun LiveSourceMenu(
             if (menuForId != null) {
                 val source = sources.find { it.id == menuForId } ?: return@BoxWithConstraints
                 val sourceIndex = sources.indexOf(source)
-                val colIndex = sourceIndex % columns
-                val rowIndex = sourceIndex / columns
+                // 和卡片同一套行列计算
+                val upperCount = (sources.size - columns).coerceAtLeast(0)
+                val menuCol: Int
+                val menuRowFromBottom: Int
+                if (sourceIndex >= upperCount) {
+                    menuCol = sourceIndex - upperCount; menuRowFromBottom = 0
+                } else {
+                    menuCol = sourceIndex % columns
+                    menuRowFromBottom = 1 + (upperCount - 1 - sourceIndex) / columns
+                }
                 val first = remember { FocusRequester() }
                 LaunchedEffect(menuForId) { first.requestFocus() }
                 Column(
                     Modifier
                         .align(Alignment.BottomStart)
                         .padding(
-                            start = gridMargin + (tileW + gridGap) * colIndex + tileW / 2 - 125.dp,
-                            bottom = bottomPad + tileH + (tileH + rowGap) * rowIndex + 20.dp,
+                            start = gridMargin + (tileW + gridGap) * menuCol + tileW / 2 - 125.dp,
+                            bottom = bottomPad + tileH + (tileH + rowGap) * menuRowFromBottom + 20.dp,
                         )
                         .width(250.dp)
                         .liquidGlass(20.dp)
