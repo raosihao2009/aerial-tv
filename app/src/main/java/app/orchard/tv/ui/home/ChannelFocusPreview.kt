@@ -65,7 +65,11 @@ fun ChannelFocusPreview(
         DiagLog.i("channel preview: url = $streamUrl")
         if (streamUrl != null) {
             val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(context).apply {
-                setParameters(buildUponParameters().setMaxVideoSize(Int.MAX_VALUE, Int.MAX_VALUE))
+                setParameters(
+                    buildUponParameters()
+                        .setMaxVideoSize(Int.MAX_VALUE, Int.MAX_VALUE)
+                        .setForceHighestSupportedBitrate(true)
+                )
             }
             val exo = ExoPlayer.Builder(context).setTrackSelector(trackSelector).build()
             player = exo
@@ -180,7 +184,7 @@ private fun extractRoomIdFromUrl(url: String): Long? =
     Regex("live\\.bilibili\\.com/(\\d+)").find(url)?.groupValues?.getOrNull(1)?.toLongOrNull()
 
 private fun fetchBilibiliHlsUrl(roomId: Long): String? = runCatching {
-    val api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1,2&codec=0&qn=1000&platform=web"
+    val api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1,2&codec=0,1&qn=10000&platform=web"
     val c = java.net.URL(api).openConnection() as java.net.HttpURLConnection
     c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36")
     c.setRequestProperty("Referer", "https://live.bilibili.com/")
