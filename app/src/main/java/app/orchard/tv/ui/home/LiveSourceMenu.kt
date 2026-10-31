@@ -125,18 +125,19 @@ fun LiveSourceMenu(
     // gridGap: 4→34dp, 5→28dp, 6→24dp (和一级菜单一致)
     val gridGap = when (columns) { 4 -> 34.dp; 6 -> 24.dp; else -> 28.dp }
     val gridMargin = 56.dp
-    val pitchYExtra = 50.dp // tileH 之外的行间距
-    // 底行基线对齐一级书架 topRowY:
-    //   双排: 底行贴 baseline
-    //   单排+露出一点: 底行向上抬 12dp (留 peek 空间)
-    //   单排+不露出: 底行贴 baseline
-    val basePad = if (plate) 50.dp else 70.dp
+    val pitchYExtra = 50.dp
+    // 底行基线严格对齐一级书架 topRowY 公式:
+    //   peek:        topRowY = screenH - pitchY - 12  → bottomPad = 50+12 = 62dp (与 plate 无关)
+    //   双排:        底行贴 PlateMarginBottom+PlatePadV → bottomPad = plate?50:70
+    //   单排无peek:  同上 plate?50:70
     val bottomPad = when {
-        !oneRow -> basePad
-        peek -> basePad + 12.dp
-        else -> basePad
+        peek -> 62.dp
+        !oneRow -> if (plate) 50.dp else 70.dp
+        else -> if (plate) 50.dp else 70.dp
     }
     val showAllNames = AerialSettings.showAllNames
+    // 单排模式只显示一排(和一级书架 shelfRows=1 一致)；双排最多两排
+    val maxRows = if (oneRow) 1 else 2
 
     val alpha = androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
@@ -199,7 +200,10 @@ fun LiveSourceMenu(
                 },
         ) {
             // 绝对定位每个卡片，带位置动画（完全照搬一级菜单）
-            sources.forEachIndexed { index, source ->
+            // 单排模式只显示一排，双排最多两排（和一级书架 shelfRows 一致）
+            val visibleCount = minOf(sources.size, maxRows * columns)
+            val numRows = (visibleCount + columns - 1) / columns
+            sources.take(visibleCount).forEachIndexed { index, source ->
                 androidx.compose.runtime.key(source.id) {
                 val fallback = remember(source.id, source.name) { liveSourceAppEntry(source, context) }
                 val artState = androidx.compose.runtime.produceState<app.orchard.tv.apps.TileArt?>(initialValue = fallback.art, source.id, source.name) {
@@ -213,8 +217,6 @@ fun LiveSourceMenu(
                 }
                 val app = remember(fallback, artState.value) { fallback.copy(art = artState.value ?: fallback.art) }
                 // 标准行优先换行：第一排在最上，后续行向屏幕底部叠。
-                // 5 源 4 列：上行=[0,1,2,3]，下行(底行)=[4]
-                val numRows = (sources.size + columns - 1) / columns
                 val colIndex = index % columns
                 val rowFromTop = index / columns
                 val xPx = with(density) { (gridMargin + (tileW + gridGap) * colIndex).roundToPx() }
@@ -257,7 +259,6 @@ fun LiveSourceMenu(
             if (menuForId != null) {
                 val source = sources.find { it.id == menuForId } ?: return@BoxWithConstraints
                 val sourceIndex = sources.indexOf(source)
-                val numRows = (sources.size + columns - 1) / columns
                 val menuCol = sourceIndex % columns
                 val menuRowFromTop = sourceIndex / columns
                 val menuRowFromBottom = numRows - 1 - menuRowFromTop
