@@ -126,18 +126,8 @@ fun LiveSourceMenu(
     val gridGap = when (columns) { 4 -> 34.dp; 6 -> 24.dp; else -> 28.dp }
     val gridMargin = 56.dp
     val pitchYExtra = 50.dp
-    // 底行基线严格对齐一级书架 topRowY 公式:
-    //   peek:        topRowY = screenH - pitchY - 12  → bottomPad = 50+12 = 62dp (与 plate 无关)
-    //   双排:        底行贴 PlateMarginBottom+PlatePadV → bottomPad = plate?50:70
-    //   单排无peek:  同上 plate?50:70
-    val bottomPad = when {
-        peek -> 62.dp
-        !oneRow -> if (plate) 50.dp else 70.dp
-        else -> if (plate) 50.dp else 70.dp
-    }
+    val basePad = if (plate) 50.dp else 70.dp
     val showAllNames = AerialSettings.showAllNames
-    // 单排模式只显示一排(和一级书架 shelfRows=1 一致)；双排最多两排
-    val maxRows = if (oneRow) 1 else 2
 
     val alpha = androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
@@ -199,10 +189,29 @@ fun LiveSourceMenu(
                     } else false
                 },
         ) {
-            // 绝对定位每个卡片，带位置动画（完全照搬一级菜单）
-            // 单排模式只显示一排，双排最多两排（和一级书架 shelfRows 一致）
-            val visibleCount = minOf(sources.size, maxRows * columns)
+            // 绝对定位每个卡片，带位置动画（完全照搬一级菜单 GridMetrics）
+            // 行Y坐标逻辑（对齐 HomeScreen.topRowY）:
+            //   双排: 底行贴 baseline, 上行 = 底行 - pitchY
+            //   单排+露出: 主行 = screenH - pitchY - 12dp (上抬12dp), 次行 = screenH - 12dp (露出12dp)
+            //   单排+不露出: 主行 = screenH - basePad - tileH, 不显示次行
+            val maxVisible = if (oneRow && !peek) columns else columns * 2
+            val visibleCount = minOf(sources.size, maxVisible)
             val numRows = (visibleCount + columns - 1) / columns
+            fun rowY(rowFromTop: Int): Dp = when {
+                !oneRow -> {
+                    // 双排: 最后一行贴 baseline，上面行逐行减 pitchY
+                    screenH - basePad - tileH - pitchY * (numRows - 1 - rowFromTop)
+                }
+                peek -> {
+                    // 单排+peek: row 0 主行上抬, row 1 露出
+                    if (rowFromTop == 0) screenH - pitchY - 12.dp
+                    else screenH - 12.dp
+                }
+                else -> {
+                    // 单排无 peek: 只有 row 0
+                    screenH - basePad - tileH
+                }
+            }
             sources.take(visibleCount).forEachIndexed { index, source ->
                 androidx.compose.runtime.key(source.id) {
                 val fallback = remember(source.id, source.name) { liveSourceAppEntry(source, context) }
@@ -220,7 +229,7 @@ fun LiveSourceMenu(
                 val colIndex = index % columns
                 val rowFromTop = index / columns
                 val xPx = with(density) { (gridMargin + (tileW + gridGap) * colIndex).roundToPx() }
-                val yPx = with(density) { (screenH - bottomPad - tileH - pitchY * (numRows - 1 - rowFromTop)).roundToPx() }
+                val yPx = with(density) { rowY(rowFromTop).roundToPx() }
                 val targetOffset = IntOffset(xPx, yPx)
                 val animatedOffset by animateIntOffsetAsState(
                     targetOffset,
@@ -261,7 +270,9 @@ fun LiveSourceMenu(
                 val sourceIndex = sources.indexOf(source)
                 val menuCol = sourceIndex % columns
                 val menuRowFromTop = sourceIndex / columns
-                val menuRowFromBottom = numRows - 1 - menuRowFromTop
+                // 上下文菜单位置：在该卡片上方弹出
+                val tileBottom = rowY(menuRowFromTop) + tileH
+                val menuBottomPad = screenH - tileBottom + 20.dp
                 val first = remember { FocusRequester() }
                 LaunchedEffect(menuForId) { first.requestFocus() }
                 Column(
@@ -269,7 +280,7 @@ fun LiveSourceMenu(
                         .align(Alignment.BottomStart)
                         .padding(
                             start = gridMargin + (tileW + gridGap) * menuCol + tileW / 2 - 125.dp,
-                            bottom = bottomPad + tileH + pitchY * menuRowFromBottom + 20.dp,
+                            bottom = menuBottomPad,
                         )
                         .width(250.dp)
                         .liquidGlass(20.dp)
