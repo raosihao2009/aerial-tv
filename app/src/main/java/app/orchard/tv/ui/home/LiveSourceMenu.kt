@@ -120,14 +120,22 @@ fun LiveSourceMenu(
     // 完全对齐一级书架 HomeScreen.GridMetrics 的几何参数
     val columns = AerialSettings.homeColumns
     val plate = AerialSettings.homePlate
+    val oneRow = AerialSettings.oneRowHome
+    val peek = AerialSettings.peekNextRow
     // gridGap: 4→34dp, 5→28dp, 6→24dp (和一级菜单一致)
     val gridGap = when (columns) { 4 -> 34.dp; 6 -> 24.dp; else -> 28.dp }
     val gridMargin = 56.dp
-    // pitchY = tileH + 50.dp (一级菜单行距，包含名称空间)
-    // 底行基线：plate 开 → screenH - tileH - 50dp (PlateMarginBottom 30 + PlatePadV 20)
-    //           plate 关 → screenH - tileH - 70dp (名称空间)
-    val bottomPad = if (plate) 50.dp else 70.dp
     val pitchYExtra = 50.dp // tileH 之外的行间距
+    // 底行基线对齐一级书架 topRowY:
+    //   双排: 底行贴 baseline
+    //   单排+露出一点: 底行向上抬 12dp (留 peek 空间)
+    //   单排+不露出: 底行贴 baseline
+    val basePad = if (plate) 50.dp else 70.dp
+    val bottomPad = when {
+        !oneRow -> basePad
+        peek -> basePad + 12.dp
+        else -> basePad
+    }
     val showAllNames = AerialSettings.showAllNames
 
     val alpha = androidx.compose.animation.core.animateFloatAsState(
