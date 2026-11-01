@@ -1314,33 +1314,41 @@ function renderLive() {
   grid.style.setProperty('--cols', cols);
   grid.style.userSelect = 'none';
   grid.style.webkitUserSelect = 'none';
+  grid.style.webkitTouchCallout = 'none';
   const keys = [];
   visible.forEach(s => {
     keys.push(s.id);
     const tile = el('div', 'atile');
     tile.setAttribute('role', 'button');
     tile.dataset.key = s.id;
+    tile.style.userSelect = 'none';
+    tile.style.webkitUserSelect = 'none';
+    tile.style.webkitTouchCallout = 'none';
     const pic = el('div', 'tpic');
-    pic.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
-    pic.style.display = 'grid'; pic.style.placeItems = 'center';
-    pic.style.color = '#fff'; pic.style.fontSize = '32px'; pic.style.fontWeight = '700';
-    pic.textContent = (s.name || '?').charAt(0);
+    if (s.preset) {
+      const img = el('img'); img.alt = ''; img.draggable = false; img.loading = 'lazy';
+      img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover';
+      img.src = `${base}live-icon/${encodeURIComponent(s.id)}`;
+      pic.appendChild(img);
+    } else {
+      pic.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+      pic.style.display = 'grid'; pic.style.placeItems = 'center';
+      pic.style.color = '#fff'; pic.style.fontSize = '32px'; pic.style.fontWeight = '700';
+      pic.textContent = (s.name || '?').charAt(0);
+    }
     tile.append(pic, el('span', 'n', s.name));
     grid.appendChild(tile);
   });
 
   // 添加按钮
   const addTile = el('div', 'atile');
+  addTile.style.userSelect = 'none'; addTile.style.webkitUserSelect = 'none';
   const addPic = el('div', 'tpic');
   addPic.style.display = 'grid'; addPic.style.placeItems = 'center';
   addPic.style.background = 'var(--fill)'; addPic.style.color = 'var(--secondary)';
   addPic.style.fontSize = '40px'; addPic.textContent = '+';
   addTile.append(addPic, el('span', 'n', '添加直播源'));
-  addTile.onclick = () => {
-    const name = prompt('名称'); if (!name) return;
-    const url = prompt('直播地址(B站链接或m3u8)'); if (!url) return;
-    post('/api/live-source', { name, url }, refresh);
-  };
+  addTile.onclick = () => liveAddSheet();
   grid.appendChild(addTile);
   box.appendChild(grid);
 
@@ -1371,18 +1379,49 @@ function renderLive() {
   }
 }
 
+function liveAddSheet() {
+  openSheet(body => {
+    body.appendChild(el('h3', '', '添加直播源'));
+    const nl = el('div', 'list'); body.appendChild(nl);
+    const f = el('form', 'item field');
+    const input = el('input'); input.type = 'text'; input.placeholder = '名称';
+    const save = el('button', 'link', '保存'); save.disabled = true;
+    input.oninput = () => save.disabled = !input.value.trim();
+    f.append(input, save); nl.appendChild(f);
+    const ul = el('div', 'list'); body.appendChild(ul);
+    const uf = el('form', 'item field');
+    const uinput = el('input'); uinput.type = 'text'; uinput.placeholder = 'B站链接或m3u8地址';
+    const usave = el('button', 'link', '保存'); usave.disabled = true;
+    uinput.oninput = () => usave.disabled = !uinput.value.trim();
+    uf.append(uinput, usave); ul.appendChild(uf);
+    f.onsubmit = ev => ev.preventDefault();
+    uf.onsubmit = ev => { ev.preventDefault(); closeSheet(); post('/api/live-source', { name: input.value, url: uinput.value }, refresh); };
+    const cl = el('div', 'list'); body.appendChild(cl);
+    const cancel = el('div', 'item tint center', '取消');
+    cancel.onclick = closeSheet;
+    cl.appendChild(cancel);
+  });
+}
+
 function liveSheet(s) {
   openSheet(body => {
     // 图标预览
     const pic = el('div', 'pic');
-    const icon = el('div');
-    icon.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
-    icon.style.display = 'grid'; icon.style.placeItems = 'center';
-    icon.style.color = '#fff'; icon.style.fontSize = '48px'; icon.style.fontWeight = '700';
-    icon.style.width = '120px'; icon.style.height = '120px'; icon.style.borderRadius = '20px';
-    icon.textContent = (s.name || '?').charAt(0);
-    pic.appendChild(icon); body.appendChild(pic);
-
+    if (s.preset) {
+      const img = el('img'); img.src = `${base}live-icon/${encodeURIComponent(s.id)}`;
+      img.style.width = '120px'; img.style.height = '120px'; img.style.borderRadius = '20px';
+      img.style.objectFit = 'cover';
+      pic.appendChild(img);
+    } else {
+      const icon = el('div');
+      icon.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+      icon.style.display = 'grid'; icon.style.placeItems = 'center';
+      icon.style.color = '#fff'; icon.style.fontSize = '48px'; icon.style.fontWeight = '700';
+      icon.style.width = '120px'; icon.style.height = '120px'; icon.style.borderRadius = '20px';
+      icon.textContent = (s.name || '?').charAt(0);
+      pic.appendChild(icon);
+    }
+    body.appendChild(pic);
     body.appendChild(el('h3', '', s.name));
 
     // 名称编辑

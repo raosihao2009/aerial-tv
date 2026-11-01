@@ -60,6 +60,7 @@ class PhoneServer private constructor(private val context: Context, private val 
                 path == "/api/state" -> json(state())
                 path == "/api/diagnostics" -> text(Response.Status.OK, Diagnostics.report(context))
                 path.startsWith("/thumb/") -> thumb(path.removePrefix("/thumb/"))
+                path.startsWith("/live-icon/") -> liveIcon(path.removePrefix("/live-icon/"))
                 session.method == Method.POST && path == "/api/wallpaper" -> {
                     val id = form(session)["id"].orEmpty()
                     onMain { Wallpapers.select(id) }
@@ -474,6 +475,27 @@ class PhoneServer private constructor(private val context: Context, private val 
         bmp.compress(Bitmap.CompressFormat.JPEG, 82, out)
         val bytes = out.toByteArray()
         return newFixedLengthResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(bytes), bytes.size.toLong()).apply {
+            addHeader("Cache-Control", "max-age=600")
+        }
+    }
+
+    private fun liveIcon(id: String): Response {
+        val resName = when (id) {
+            "preset_0" -> "live_cctv"
+            "preset_1" -> "live_yangshipin"
+            "preset_2" -> "live_cctvkuikan"
+            "preset_3" -> "live_kuikan"
+            "preset_4" -> "live_dongfangmingzhu"
+            "preset_5" -> "live_dengzi"
+            else -> return text(Response.Status.NOT_FOUND, "")
+        }
+        val resId = context.resources.getIdentifier(resName, "drawable", context.packageName)
+        if (resId == 0) return text(Response.Status.NOT_FOUND, "")
+        val bmp = android.graphics.BitmapFactory.decodeResource(context.resources, resId)
+        val out = ByteArrayOutputStream()
+        bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
+        val bytes = out.toByteArray()
+        return newFixedLengthResponse(Response.Status.OK, "image/png", ByteArrayInputStream(bytes), bytes.size.toLong()).apply {
             addHeader("Cache-Control", "max-age=600")
         }
     }
