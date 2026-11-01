@@ -1317,12 +1317,7 @@ function renderLive() {
     pic.style.color = '#fff'; pic.style.fontSize = '32px'; pic.style.fontWeight = '700';
     pic.textContent = (s.name || '?').charAt(0);
     tile.append(pic, el('span', 'n', s.name));
-    tile.onclick = () => {
-      const name = prompt('名称', s.name); if (name === null) return;
-      const url = prompt('直播地址', s.url); if (url === null) return;
-      post('/api/live-source', { id: s.id, name, url }, refresh);
-    };
-    tile.oncontextmenu = (e) => { e.preventDefault(); if (!s.preset && confirm('删除「' + s.name + '」？')) post('/api/live-source/delete', { id: s.id }, refresh); };
+    tile.onclick = () => liveSheet(s);
     grid.appendChild(tile);
   });
 
@@ -1341,6 +1336,55 @@ function renderLive() {
   grid.appendChild(addTile);
 
   box.appendChild(grid);
+}
+
+function liveSheet(s) {
+  openSheet(body => {
+    // 图标预览
+    const pic = el('div', 'pic');
+    const icon = el('div');
+    icon.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+    icon.style.display = 'grid'; icon.style.placeItems = 'center';
+    icon.style.color = '#fff'; icon.style.fontSize = '48px'; icon.style.fontWeight = '700';
+    icon.style.width = '120px'; icon.style.height = '120px'; icon.style.borderRadius = '20px';
+    icon.textContent = (s.name || '?').charAt(0);
+    pic.appendChild(icon); body.appendChild(pic);
+
+    body.appendChild(el('h3', '', s.name));
+
+    // 名称编辑
+    const nl = el('div', 'list'); body.appendChild(nl);
+    const f = el('form', 'item field');
+    const input = el('input'); input.type = 'text'; input.value = s.name; input.maxLength = 24;
+    input.placeholder = '名称';
+    const save = el('button', 'link', '保存');
+    input.oninput = () => save.disabled = input.value.trim() === s.name;
+    f.append(input, save); nl.appendChild(f);
+    f.onsubmit = ev => { ev.preventDefault(); closeSheet(); post('/api/live-source', { id: s.id, name: input.value }, refresh); };
+
+    // 地址编辑
+    const ul = el('div', 'list'); body.appendChild(ul);
+    const uf = el('form', 'item field');
+    const uinput = el('input'); uinput.type = 'text'; uinput.value = s.url; uinput.placeholder = '直播地址';
+    const usave = el('button', 'link', '保存');
+    uinput.oninput = () => usave.disabled = uinput.value.trim() === s.url;
+    uf.append(uinput, usave); ul.appendChild(uf);
+    uf.onsubmit = ev => { ev.preventDefault(); closeSheet(); post('/api/live-source', { id: s.id, url: uinput.value }, refresh); };
+
+    // 删除按钮(仅自定义源)
+    if (!s.preset) {
+      const dl = el('div', 'list'); body.appendChild(dl);
+      const del = el('div', 'item tint center'); del.style.color = 'var(--red)'; del.textContent = '删除';
+      del.onclick = () => { closeSheet(); if (confirm('删除「' + s.name + '」？')) post('/api/live-source/delete', { id: s.id }, refresh); };
+      dl.appendChild(del);
+    }
+
+    // 取消
+    const cl = el('div', 'list'); body.appendChild(cl);
+    const cancel = el('div', 'item tint center', '取消');
+    cancel.onclick = closeSheet;
+    cl.appendChild(cancel);
+  });
 }
 
 function post(path, data, cb) {
