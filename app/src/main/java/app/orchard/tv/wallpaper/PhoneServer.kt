@@ -327,51 +327,52 @@ class PhoneServer private constructor(private val context: Context, private val 
                 put("chosen", Weather.chosen)
                 Weather.now?.let { put("celsius", it.celsius); put("kind", it.kind.name.lowercase()); put("day", it.day) }
             })
-            .put("liveSources", try {
-                JSONArray().apply {
-                // 预设源
-                val presets = listOf(
-                    Triple("preset_0", "央视网", "https://b23.tv/oJgZJqv"),
-                    Triple("preset_1", "央视频", "https://b23.tv/anI3d9f"),
-                    Triple("preset_2", "央视网快看", "https://b23.tv/zxbwWNq"),
-                    Triple("preset_3", "快看", "https://b23.tv/efy30LE"),
-                    Triple("preset_4", "东方明珠", "https://b23.tv/djN4x6N"),
-                    Triple("preset_5", "我就是邓子", "https://b23.tv/7HCyKBv"),
-                )
-                val prefs = context.getSharedPreferences("live_sources", Context.MODE_PRIVATE)
-                val hidden = prefs.getStringSet("hidden", emptySet()) ?: emptySet()
-                val overrides = org.json.JSONObject(prefs.getString("overrides", "{}") ?: "{}")
-                val presetUrls = presets.map { it.third }.toSet()
+            .put("liveSources", buildLiveSources())
+    }
 
-                // 构建全部源map
-                val all = mutableListOf<JSONObject>()
-                presets.forEach {
-                    val ov = overrides.optJSONObject(it.first)
-                    val name = ov?.optString("name")?.takeIf { n -> n.isNotEmpty() } ?: it.second
-                    val url = ov?.optString("url")?.takeIf { u -> u.isNotEmpty() } ?: it.third
-                    all.add(JSONObject().put("id", it.first).put("name", name).put("url", url)
-                        .put("preset", true).put("hidden", it.first in hidden))
-                }
-                val list = org.json.JSONArray(prefs.getString("custom_list", "[]") ?: "[]")
-                for (i in 0 until list.length()) {
-                    val o = list.getJSONObject(i)
-                    if (o.getString("url") in presetUrls) continue
-                    all.add(JSONObject().put("id", o.getString("id")).put("name", o.getString("name"))
-                        .put("url", o.getString("url")).put("preset", false)
-                        .put("hidden", o.getString("id") in hidden))
-                }
+    private fun buildLiveSources(): JSONArray {
+        return try {
+            val presets = listOf(
+                Triple("preset_0", "央视网", "https://b23.tv/oJgZJqv"),
+                Triple("preset_1", "央视频", "https://b23.tv/anI3d9f"),
+                Triple("preset_2", "央视网快看", "https://b23.tv/zxbwWNq"),
+                Triple("preset_3", "快看", "https://b23.tv/efy30LE"),
+                Triple("preset_4", "东方明珠", "https://b23.tv/djN4x6N"),
+                Triple("preset_5", "我就是邓子", "https://b23.tv/7HCyKBv"),
+            )
+            val prefs = context.getSharedPreferences("live_sources", Context.MODE_PRIVATE)
+            val hidden = prefs.getStringSet("hidden", emptySet()) ?: emptySet()
+            val overrides = org.json.JSONObject(prefs.getString("overrides", "{}") ?: "{}")
+            val presetUrls = presets.map { it.third }.toSet()
 
-                // 按保存的顺序排列
-                val savedOrder = prefs.getString("order", null)?.split(",")?.filter { it.isNotEmpty() } ?: emptyList()
-                val ordered = mutableListOf<JSONObject>()
-                savedOrder.forEach { id ->
-                    all.find { it.getString("id") == id }?.let { ordered.add(it) }
-                }
-                all.forEach { if (it.getString("id") !in savedOrder) ordered.add(it) }
+            val all = mutableListOf<JSONObject>()
+            presets.forEach {
+                val ov = overrides.optJSONObject(it.first)
+                val name = ov?.optString("name")?.takeIf { n -> n.isNotEmpty() } ?: it.second
+                val url = ov?.optString("url")?.takeIf { u -> u.isNotEmpty() } ?: it.third
+                all.add(JSONObject().put("id", it.first).put("name", name).put("url", url)
+                    .put("preset", true).put("hidden", it.first in hidden))
+            }
+            val list = org.json.JSONArray(prefs.getString("custom_list", "[]") ?: "[]")
+            for (i in 0 until list.length()) {
+                val o = list.getJSONObject(i)
+                if (o.getString("url") in presetUrls) continue
+                all.add(JSONObject().put("id", o.getString("id")).put("name", o.getString("name"))
+                    .put("url", o.getString("url")).put("preset", false)
+                    .put("hidden", o.getString("id") in hidden))
+            }
 
-                ordered.forEach { put(it) }
-                }
-            } catch (e: Exception) { JSONArray() })
+            val savedOrder = prefs.getString("order", null)?.split(",")?.filter { it.isNotEmpty() } ?: emptyList()
+            val ordered = mutableListOf<JSONObject>()
+            savedOrder.forEach { id ->
+                all.find { it.getString("id") == id }?.let { ordered.add(it) }
+            }
+            all.forEach { if (it.getString("id") !in savedOrder) ordered.add(it) }
+
+            JSONArray().apply { ordered.forEach { put(it) } }
+        } catch (e: Exception) {
+            JSONArray()
+        }
     }
 
     /** Home in order, each folder's apps and the hidden apps, by the names Home shows. */
