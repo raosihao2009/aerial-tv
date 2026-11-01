@@ -342,6 +342,7 @@ class PhoneServer private constructor(private val context: Context, private val 
                 Weather.now?.let { put("celsius", it.celsius); put("kind", it.kind.name.lowercase()); put("day", it.day) }
             })
             .put("liveSources", buildLiveSources())
+            .put("selectedLiveId", context.getSharedPreferences("live_sources", Context.MODE_PRIVATE).getString("selected_id", "preset_0"))
     }
 
     private fun buildLiveSources(): JSONArray {
