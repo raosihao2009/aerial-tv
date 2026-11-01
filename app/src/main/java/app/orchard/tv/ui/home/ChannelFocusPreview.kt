@@ -63,6 +63,8 @@ fun ChannelFocusPreview(
     var loading by remember { mutableStateOf(false) }
     // 回退提示
     var toastMessage by remember { mutableStateOf<String?>(null) }
+    // 当前已在播放的源名称(用于切换失败时提示继续观看谁)
+    var currentPlayingName by remember { mutableStateOf<String?>(null) }
     val loadingAlpha by animateFloatAsState(
         targetValue = if (loading) 1f else 0f,
         animationSpec = tween(if (loading) 300 else 500),
@@ -91,11 +93,17 @@ fun ChannelFocusPreview(
         DiagLog.i("channel preview: url = $streamUrl")
 
         if (streamUrl == null) {
-            // 解析失败(可能已下播)：提示并回退到央视网快看
-            DiagLog.i("channel preview: stream resolve failed, fallback")
+            // 解析失败(可能已下播)
+            DiagLog.i("channel preview: stream resolve failed")
             loading = false
-            toastMessage = "「${source.name}」暂时无法观看，已切换至「央视网快看」"
-            onFallback()
+            if (player != null) {
+                // 切换源失败：继续播当前源
+                toastMessage = "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
+            } else {
+                // 开机首次加载失败：回退央视网快看
+                toastMessage = "「${source.name}」暂时无法观看，已切换至「央视网快看」"
+                onFallback()
+            }
             return@LaunchedEffect
         }
 
@@ -165,13 +173,20 @@ fun ChannelFocusPreview(
             val old = player
             player = exo
             old?.release()
+            currentPlayingName = source.name
         } else {
-            // 新流超时未就绪：放弃新 player，回退到央视网快看
-            DiagLog.i("channel preview: new stream not ready, fallback")
+            // 新流超时未就绪
+            DiagLog.i("channel preview: new stream not ready")
             exo.release()
             loading = false
-            toastMessage = "「${source.name}」暂时无法观看，已切换至「央视网快看」"
-            onFallback()
+            if (player != null) {
+                // 切换源失败：继续播当前源
+                toastMessage = "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
+            } else {
+                // 开机首次加载超时：回退央视网快看
+                toastMessage = "「${source.name}」暂时无法观看，已切换至「央视网快看」"
+                onFallback()
+            }
             return@LaunchedEffect
         }
         loading = false
