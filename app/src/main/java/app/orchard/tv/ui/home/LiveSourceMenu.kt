@@ -326,8 +326,10 @@ fun LiveSourceMenu(
                     BasicText(source.name, style = TextStyle(Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold),
                         modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 6.dp))
                     MenuRow(Glyph.Move, "移动", { movingId = source.id; menuForId = null }, focusRequester = first)
-                    MenuRow(Glyph.EyeSlash, "从直播菜单隐藏", { onHide(source.id); menuForId = null })
-                    MenuRow(Glyph.Trash, "删除", { onDelete(source.id); menuForId = null }, destructive = true)
+                    if (source.id != "preset_2") {
+                        MenuRow(Glyph.EyeSlash, "从直播预览隐藏", { onHide(source.id); menuForId = null })
+                        MenuRow(Glyph.Trash, "删除", { onDelete(source.id); menuForId = null }, destructive = true)
+                    }
                 }
             }
         }

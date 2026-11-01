@@ -257,8 +257,14 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun hideLiveSource(id: String) {
-        // 隐藏=从列表移除，预设源不能隐藏
-        removeLiveSource(id)
+        if (id == "preset_2") return
+        liveSources = liveSources.filter { it.id != id }
+        if (currentLiveSourceId == id) currentLiveSourceId = "preset_2"
+        val prefs = context.getSharedPreferences("live_sources", android.content.Context.MODE_PRIVATE)
+        val hidden = (prefs.getStringSet("hidden", emptySet()) ?: emptySet()).toMutableSet()
+        hidden.add(id)
+        prefs.edit().putStringSet("hidden", hidden).apply()
+        saveCustomList()
     }
 
     fun renameLiveSource(id: String, newName: String) {
