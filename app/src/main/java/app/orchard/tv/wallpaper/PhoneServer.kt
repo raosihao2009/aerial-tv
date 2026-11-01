@@ -504,12 +504,16 @@ class PhoneServer private constructor(private val context: Context, private val 
         }
         val resId = context.resources.getIdentifier(resName, "drawable", context.packageName)
         if (resId == 0) return text(Response.Status.NOT_FOUND, "")
-        val bmp = android.graphics.BitmapFactory.decodeResource(context.resources, resId)
+        val opts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeResource(context.resources, resId, opts)
+        opts.inSampleSize = (opts.outWidth / 480).coerceAtLeast(1)
+        opts.inJustDecodeBounds = false
+        val bmp = android.graphics.BitmapFactory.decodeResource(context.resources, resId, opts)
         val out = ByteArrayOutputStream()
-        bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
+        bmp.compress(Bitmap.CompressFormat.JPEG, 80, out)
         val bytes = out.toByteArray()
-        return newFixedLengthResponse(Response.Status.OK, "image/png", ByteArrayInputStream(bytes), bytes.size.toLong()).apply {
-            addHeader("Cache-Control", "max-age=600")
+        return newFixedLengthResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(bytes), bytes.size.toLong()).apply {
+            addHeader("Cache-Control", "public, max-age=86400")
         }
     }
 
