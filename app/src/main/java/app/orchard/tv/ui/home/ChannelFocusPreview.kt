@@ -81,7 +81,7 @@ fun ChannelFocusPreview(
             }
             streamCache[source.url ?: ""] = streamUrl
         }
-        DiagLog.i("channel preview: url = $streamUrl, first=$firstLoad")
+        DiagLog.i("channel preview: url = $streamUrl")
 
         if (streamUrl == null) {
             // 解析失败：保持旧流，渐出遮罩
