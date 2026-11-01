@@ -1300,48 +1300,54 @@ function card(w) {
   return b;
 }
 function renderLive() {
-  const el2 = $('#liveBody');
-  if (!el2) return;
+  const box = $('#liveBody');
+  if (!box) return;
   const sources = (state && state.liveSources) || [];
-  el2.innerHTML = '';
+  box.innerHTML = '';
+
+  const grid = el('div', 'agrid');
+  grid.style.setProperty('--cols', 5);
 
   sources.forEach(s => {
-    const row = el('div', 'list');
-    const item = el('div', 'item');
-    const txt = el('span', 'txt');
-    const name = el('b', null, s.name);
-    const url = el('span', 'sub', s.url);
-    txt.appendChild(name); txt.appendChild(url);
-    const btn = el('button', 'link', s.preset ? '编辑' : '删除');
-    btn.onclick = () => {
-      if (s.preset) {
-        const n = prompt('名称', s.name);
-        if (n) post('/api/live-source', { id: s.id, name: n }, refresh);
-      } else {
-        if (confirm('删除「' + s.name + '」？')) post('/api/live-source/delete', { id: s.id }, refresh);
-      }
+    const tile = el('div', 'atile');
+    tile.setAttribute('role', 'button');
+    const pic = el('div', 'tpic');
+    pic.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+    pic.style.display = 'grid'; pic.style.placeItems = 'center';
+    pic.style.color = '#fff'; pic.style.fontSize = '32px'; pic.style.fontWeight = '700';
+    pic.textContent = (s.name || '?').charAt(0);
+    tile.append(pic, el('span', 'n', s.name));
+    tile.onclick = () => {
+      const name = prompt('名称', s.name); if (name === null) return;
+      const url = prompt('直播地址', s.url); if (url === null) return;
+      post('/api/live-source', { id: s.id, name, url }, refresh);
     };
-    item.appendChild(txt); item.appendChild(btn);
-    row.appendChild(item);
-    el2.appendChild(row);
+    tile.oncontextmenu = (e) => { e.preventDefault(); if (!s.preset && confirm('删除「' + s.name + '」？')) post('/api/live-source/delete', { id: s.id }, refresh); };
+    grid.appendChild(tile);
   });
 
-  const addRow = el('div', 'list');
-  const addItem = el('div', 'item tint center', '+ 添加直播源');
-  addItem.onclick = () => {
-    const n = prompt('名称'); if (!n) return;
-    const u = prompt('直播地址(B站链接或m3u8)'); if (!u) return;
-    post('/api/live-source', { name: n, url: u }, refresh);
+  // 添加按钮
+  const addTile = el('div', 'atile');
+  const addPic = el('div', 'tpic');
+  addPic.style.display = 'grid'; addPic.style.placeItems = 'center';
+  addPic.style.background = 'var(--fill)'; addPic.style.color = 'var(--secondary)';
+  addPic.style.fontSize = '40px'; addPic.textContent = '+';
+  addTile.append(addPic, el('span', 'n', '添加直播源'));
+  addTile.onclick = () => {
+    const name = prompt('名称'); if (!name) return;
+    const url = prompt('直播地址(B站链接或m3u8)'); if (!url) return;
+    post('/api/live-source', { name, url }, refresh);
   };
-  addRow.appendChild(addItem);
-  el2.appendChild(addRow);
+  grid.appendChild(addTile);
+
+  box.appendChild(grid);
 }
 
 function post(path, data, cb) {
   const body = new URLSearchParams(data).toString();
   fetch(base + path, { method: 'POST', body })
     .then(r => r.json())
-    .then(s => { state = s; if (cb) cb(); else renderLive(); });
+    .then(s => { state = s; if (cb) cb(); else refresh(); });
 }
 
 function renderWallpapers() {
