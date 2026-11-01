@@ -60,6 +60,7 @@ data class LiveSource(
     val isBilibili: Boolean = true,
     val isPreset: Boolean = false,
     val colorIndex: Int = 0,
+    val liveStatus: Int = 0, // 0=unknown, 1=live, 2=offline
 )
 
 sealed interface Overlay {

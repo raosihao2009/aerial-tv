@@ -298,8 +298,8 @@ fun LiveSourceMenu(
                         ) {
                             BasicText("直播中", style = TextStyle(Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold))
                         }
-                    } else if (source.url.isBlank()) {
-                        Box(
+                    } else when (source.liveStatus) {
+                        2 -> Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
                                 .padding(6.dp)
@@ -308,8 +308,7 @@ fun LiveSourceMenu(
                         ) {
                             BasicText("未开播", style = TextStyle(Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold))
                         }
-                    } else {
-                        Box(
+                        1 -> Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
                                 .padding(6.dp)
@@ -318,6 +317,7 @@ fun LiveSourceMenu(
                         ) {
                             BasicText("已开播", style = TextStyle(Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold))
                         }
+                        else -> {}
                     }
                 }
                 }
