@@ -140,32 +140,32 @@ fun ChannelFocusPreview(
             override fun onPlayerError(error: PlaybackException) {
                 DiagLog.i("player err: ${error.errorCodeName}, retry $retryCount")
                 val p = exo
-                // 先快速检测是否B站下播(下播就不重试, 直接回退)
+                // 先快速检测是否B站下播(下播就不重试)
                 scope.launch {
                     val offline = withContext(Dispatchers.IO) { checkIfOffline(source) }
-                    if (offline) {
-                        DiagLog.i("player err: source is offline, immediate fallback")
+                    // 是否有旧源在播(player 还不是当前 exo)
+                    val hasOld = player != null && player !== exo
+                    if (offline || retryCount >= 3) {
+                        // 下播或重试耗尽
                         loading = false
-                        toastMessage = "「${source.name}」暂时无法观看，已切换至「央视网快看」"
-                        onFallback()
+                        if (hasOld) {
+                            // 切换源失败: 继续播旧源
+                            toastMessage = "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
+                        } else {
+                            // 当前源挂了: 回退央视网快看
+                            toastMessage = "「${source.name}」暂时无法观看，已切换至「央视网快看」"
+                            onFallback()
+                        }
                         return@launch
                     }
-                    // 不是下播, 是网络卡顿: 重试
-                    if (retryCount < 3) {
-                        retryCount++
-                        val attempt = retryCount
-                        kotlinx.coroutines.delay(1500L * attempt)
-                        runCatching {
-                            p.setMediaSource(hls)
-                            p.prepare()
-                            p.playWhenReady = true
-                        }
-                    } else {
-                        // 重试3次仍失败: 回退
-                        DiagLog.i("player err exhausted, fallback")
-                        loading = false
-                        toastMessage = "「${source.name}」暂时无法观看，已切换至「央视网快看」"
-                        onFallback()
+                    // 网络卡顿: 重试
+                    retryCount++
+                    val attempt = retryCount
+                    kotlinx.coroutines.delay(1500L * attempt)
+                    runCatching {
+                        p.setMediaSource(hls)
+                        p.prepare()
+                        p.playWhenReady = true
                     }
                 }
             }
