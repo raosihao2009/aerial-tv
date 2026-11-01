@@ -1349,22 +1349,23 @@ function renderLive() {
     },
     i => liveSheet(visible[i]));
 
-  // 已隐藏列表(照主屏幕hidden的写法)
+  // 已隐藏列表(小图标网格)
   box.appendChild(el('h2', '', '隐藏的直播源'));
   if (!hidden.length) { box.appendChild(el('p', 'foot', '没有隐藏的直播源。')); return; }
-  const hl = el('div', 'list'); box.appendChild(hl);
+  const hg = el('div', 'agrid'); hg.style.setProperty('--cols', '4'); box.appendChild(hg);
   hidden.forEach(s => {
-    const row = el('div', 'item arow'); row.setAttribute('role', 'button'); row.tabIndex = 0;
-    row.appendChild(el('span', 'txt', s.name));
-    const b = el('button', 'link act', '显示');
-    b.onclick = ev => { ev.stopPropagation(); b.disabled = true; api('api/live-source/hide', { id: s.id, hide: '0' }).then(take).catch(() => {}); };
-    row.appendChild(b); hl.appendChild(row);
+    const tile = el('div', 'atile'); tile.style.opacity = '0.6';
+    const pic = el('div', 'tpic');
+    if (s.preset) { const img = el('img'); img.src = `${base}live-icon/${encodeURIComponent(s.id)}`; pic.appendChild(img); }
+    else { pic.style.background = 'linear-gradient(135deg, #667eea, #764ba2)'; pic.style.display = 'grid'; pic.style.placeItems = 'center'; pic.style.color = '#fff'; pic.textContent = (s.name||'?').charAt(0); }
+    tile.append(pic, el('span', 'n', s.name));
+    tile.onclick = () => api('api/live-source/hide', { id: s.id, hide: '0' }).then(take).catch(() => {});
+    hg.appendChild(tile);
   });
 }
 
 function liveSheet(s) {
   openSheet(body => {
-    // 图标预览(用.pic类, 16:9长方形, 同主屏幕)
     const pic = el('div', 'pic');
     if (s.preset) {
       const img = el('img'); img.src = `${base}live-icon/${encodeURIComponent(s.id)}`; pic.appendChild(img);
@@ -1377,38 +1378,41 @@ function liveSheet(s) {
     body.appendChild(pic);
     body.appendChild(el('h3', '', s.name));
 
-    // 名称
+    // 名称(一个表单, 一次保存)
     const nl = el('div', 'list'); body.appendChild(nl);
     const f = el('form', 'item field');
     const input = el('input'); input.type = 'text'; input.value = s.name; input.maxLength = 24;
     input.placeholder = '名称';
     const save = el('button', 'link', '保存');
-    const sync = () => save.disabled = input.value.trim() === s.name;
-    input.oninput = sync; sync();
     f.append(input, save); nl.appendChild(f);
+    body.appendChild(el('p', 'meta', '改成你想在电视上看到的名字。'));
+
+    // 地址(同一表单一起提交)
+    const ul2 = el('div', 'list'); body.appendChild(ul2);
+    const uinput = el('input'); uinput.type = 'text'; uinput.value = s.url; uinput.placeholder = 'B站链接或m3u8地址';
+    ul2.appendChild(uinput);
+    body.appendChild(el('p', 'meta', '直播源地址, 支持B站短链接或m3u8直链。'));
+
     f.onsubmit = async ev => {
       ev.preventDefault(); closeSheet();
-      try { take(await api('api/live-source', { id: s.id, name: input.value })); } catch (e) {}
+      try { take(await api('api/live-source', { id: s.id, name: input.value, url: uinput.value })); } catch (e) {}
     };
 
-    // 地址
-    const ul = el('div', 'list'); body.appendChild(ul);
-    const uf = el('form', 'item field');
-    const uinput = el('input'); uinput.type = 'text'; uinput.value = s.url; uinput.placeholder = '直播地址';
-    const usave = el('button', 'link', '保存');
-    const usync = () => usave.disabled = uinput.value.trim() === s.url;
-    uinput.oninput = usync; usync();
-    uf.append(uinput, usave); ul.appendChild(uf);
-    uf.onsubmit = async ev => {
-      ev.preventDefault(); closeSheet();
-      try { take(await api('api/live-source', { id: s.id, url: uinput.value })); } catch (e) {}
+    // 选一张图片(蓝色)
+    const il = el('div', 'list'); body.appendChild(il);
+    il.appendChild(el('div', 'item tint center', '选一张图片')).onclick = () => {
+      const fi = el('input'); fi.type = 'file'; fi.accept = 'image/*';
+      fi.onchange = () => { if (!fi.files[0]) return; const fd = new FormData(); fd.append('file', fi.files[0]);
+        fetch(base + 'live-icon/' + encodeURIComponent(s.id), { method: 'POST', body: fd }).then(() => take(state)); };
+      fi.click();
     };
+    il.lastChild.style.color = '#007aff'; il.lastChild.style.fontWeight = '600';
 
     // 隐藏(红色)
     const hdl = el('div', 'list'); body.appendChild(hdl);
     const hideBtn = el('div', 'item tint center');
     hideBtn.style.color = '#ff3b30'; hideBtn.style.fontWeight = '600';
-    hideBtn.textContent = s.hidden ? '显示' : '从直播预览隐藏';
+    hideBtn.textContent = s.hidden ? '从直播预览显示' : '从直播预览隐藏';
     hideBtn.onclick = async () => { closeSheet(); try { take(await api('api/live-source/hide', { id: s.id, hide: s.hidden ? '0' : '1' })); } catch (e) {} };
     hdl.appendChild(hideBtn);
 
