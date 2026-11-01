@@ -2071,7 +2071,7 @@ applyI18n();
 show((location.hash || '').slice(1) || (() => { try { return localStorage.getItem('aerial-tab'); } catch (e) { return null; } })(), true);
 async function refresh() { try { state = await api('api/state'); render(); } catch (e) {} }
 refresh();
-setInterval(() => { if (!document.hidden && sheet.hidden && !arrDragging) refresh(); }, 6000);
+setInterval(() => { if (!document.hidden && sheet.hidden && !arrDragging) refresh(); }, 2000);
 </script>
 </body>
 </html>
