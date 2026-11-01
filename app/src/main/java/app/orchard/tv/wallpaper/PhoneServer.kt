@@ -315,7 +315,8 @@ class PhoneServer private constructor(private val context: Context, private val 
                 put("chosen", Weather.chosen)
                 Weather.now?.let { put("celsius", it.celsius); put("kind", it.kind.name.lowercase()); put("day", it.day) }
             })
-            .put("liveSources", JSONArray().apply {
+            .put("liveSources", try {
+                JSONArray().apply {
                 // 预设源
                 val presets = listOf(
                     Triple("preset_0", "央视网", "https://b23.tv/oJgZJqv"),
@@ -353,7 +354,8 @@ class PhoneServer private constructor(private val context: Context, private val 
                 all.forEach { if (it.getString("id") !in savedOrder) ordered.add(it) }
 
                 ordered.forEach { put(it) }
-            })
+                }
+            } catch (e: Exception) { JSONArray() })
     }
 
     /** Home in order, each folder's apps and the hidden apps, by the names Home shows. */
