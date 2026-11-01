@@ -183,18 +183,30 @@ class PhoneServer private constructor(private val context: Context, private val 
                 session.method == Method.POST && path == "/api/live-source" -> {
                     val f = form(session)
                     val prefs = context.getSharedPreferences("live_sources", Context.MODE_PRIVATE)
-                    val list = org.json.JSONArray(prefs.getString("custom_list", "[]") ?: "[]")
                     val id = f["id"].orEmpty()
                     if (id.isNotEmpty()) {
-                        for (i in 0 until list.length()) {
-                            if (list.getJSONObject(i).optString("id") == id) {
-                                val o = list.getJSONObject(i)
-                                f["name"]?.let { o.put("name", it) }
-                                f["url"]?.let { o.put("url", it.trim()) }
-                                break
+                        if (id.startsWith("preset_")) {
+                            // 预设源: 存name/url覆盖
+                            val overrides = org.json.JSONObject(prefs.getString("overrides", "{}") ?: "{}")
+                            val o = overrides.optJSONObject(id) ?: org.json.JSONObject()
+                            f["name"]?.let { o.put("name", it) }
+                            f["url"]?.let { o.put("url", it.trim()) }
+                            overrides.put(id, o)
+                            prefs.edit().putString("overrides", overrides.toString()).apply()
+                        } else {
+                            val list = org.json.JSONArray(prefs.getString("custom_list", "[]") ?: "[]")
+                            for (i in 0 until list.length()) {
+                                if (list.getJSONObject(i).optString("id") == id) {
+                                    val o = list.getJSONObject(i)
+                                    f["name"]?.let { o.put("name", it) }
+                                    f["url"]?.let { o.put("url", it.trim()) }
+                                    break
+                                }
                             }
+                            prefs.edit().putString("custom_list", list.toString()).apply()
                         }
                     } else {
+                        val list = org.json.JSONArray(prefs.getString("custom_list", "[]") ?: "[]")
                         val newId = "custom_" + System.currentTimeMillis()
                         list.put(org.json.JSONObject()
                             .put("id", newId)
@@ -202,8 +214,8 @@ class PhoneServer private constructor(private val context: Context, private val 
                             .put("url", f["url"].orEmpty().trim())
                             .put("isBilibili", f["url"].orEmpty().contains("b23.tv") || f["url"].orEmpty().contains("live.bilibili.com"))
                             .put("colorIndex", list.length()))
+                        prefs.edit().putString("custom_list", list.toString()).apply()
                     }
-                    prefs.edit().putString("custom_list", list.toString()).apply()
                     json(state())
                 }
                 session.method == Method.POST && path == "/api/live-source/delete" -> {
@@ -328,12 +340,16 @@ class PhoneServer private constructor(private val context: Context, private val 
                 )
                 val prefs = context.getSharedPreferences("live_sources", Context.MODE_PRIVATE)
                 val hidden = prefs.getStringSet("hidden", emptySet()) ?: emptySet()
+                val overrides = org.json.JSONObject(prefs.getString("overrides", "{}") ?: "{}")
                 val presetUrls = presets.map { it.third }.toSet()
 
                 // 构建全部源map
                 val all = mutableListOf<JSONObject>()
                 presets.forEach {
-                    all.add(JSONObject().put("id", it.first).put("name", it.second).put("url", it.third)
+                    val ov = overrides.optJSONObject(it.first)
+                    val name = ov?.optString("name")?.takeIf { n -> n.isNotEmpty() } ?: it.second
+                    val url = ov?.optString("url")?.takeIf { u -> u.isNotEmpty() } ?: it.third
+                    all.add(JSONObject().put("id", it.first).put("name", name).put("url", url)
                         .put("preset", true).put("hidden", it.first in hidden))
                 }
                 val list = org.json.JSONArray(prefs.getString("custom_list", "[]") ?: "[]")

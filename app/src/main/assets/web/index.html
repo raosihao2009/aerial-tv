@@ -1312,6 +1312,8 @@ function renderLive() {
   // 可见源网格
   const grid = el('div', 'agrid');
   grid.style.setProperty('--cols', cols);
+  grid.style.userSelect = 'none';
+  grid.style.webkitUserSelect = 'none';
   const keys = [];
   visible.forEach(s => {
     keys.push(s.id);
