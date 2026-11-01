@@ -1305,31 +1305,19 @@ function renderLive() {
   const sources = (state && state.liveSources) || [];
   box.innerHTML = '';
 
-  const cols = homeCols();
   const visible = sources.filter(s => !s.hidden);
   const hidden = sources.filter(s => s.hidden);
 
-  // 可见源网格
+  // 可见源网格(完全照主屏幕tileGrid的写法)
   const grid = el('div', 'agrid');
-  grid.style.setProperty('--cols', cols);
-  grid.style.userSelect = 'none';
-  grid.style.webkitUserSelect = 'none';
-  grid.style.webkitTouchCallout = 'none';
-  const keys = [];
+  grid.style.setProperty('--cols', homeCols());
   visible.forEach(s => {
-    keys.push(s.id);
-    const tile = el('div', 'atile');
-    tile.setAttribute('role', 'button');
-    tile.dataset.key = s.id;
-    tile.style.userSelect = 'none';
-    tile.style.webkitUserSelect = 'none';
-    tile.style.webkitTouchCallout = 'none';
+    const tile = el('div', 'atile'); tile.dataset.key = s.id; tile.setAttribute('role', 'button'); tile.tabIndex = 0;
+    tile.setAttribute('aria-label', s.name);
     const pic = el('div', 'tpic');
     if (s.preset) {
       const img = el('img'); img.alt = ''; img.draggable = false; img.loading = 'lazy';
-      img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover';
-      img.src = `${base}live-icon/${encodeURIComponent(s.id)}`;
-      pic.appendChild(img);
+      img.src = `${base}live-icon/${encodeURIComponent(s.id)}`; pic.appendChild(img);
     } else {
       pic.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
       pic.style.display = 'grid'; pic.style.placeItems = 'center';
@@ -1337,133 +1325,105 @@ function renderLive() {
       pic.textContent = (s.name || '?').charAt(0);
     }
     tile.append(pic, el('span', 'n', s.name));
-    tile.onclick = () => liveSheet(s);
     grid.appendChild(tile);
   });
 
   // 添加按钮
   const addTile = el('div', 'atile');
-  addTile.style.userSelect = 'none'; addTile.style.webkitUserSelect = 'none';
   const addPic = el('div', 'tpic');
   addPic.style.display = 'grid'; addPic.style.placeItems = 'center';
   addPic.style.background = 'var(--fill)'; addPic.style.color = 'var(--secondary)';
   addPic.style.fontSize = '40px'; addPic.textContent = '+';
   addTile.append(addPic, el('span', 'n', '添加直播源'));
-  addTile.onclick = () => liveAddSheet();
   grid.appendChild(addTile);
   box.appendChild(grid);
 
-  // 启用拖拽排序(只用drag, 不用其onTap)
-  sortableGrid(grid, keys, (fromKey, toKey) => {
-    const fromIdx = keys.indexOf(fromKey);
-    const toIdx = keys.indexOf(toKey);
-    if (fromIdx < 0 || toIdx < 0) return;
-    keys.splice(toIdx, 0, keys.splice(fromIdx, 1)[0]);
-    api('api/live-source/reorder', { order: keys.join(',') }).then(take).catch(() => {});
-  }, () => {});
+  // 拖拽排序+点击(照主屏幕buildHomeView的写法)
+  sortableGrid(grid, visible.map(s => s.id),
+    (key, target) => {
+      const order = visible.map(s => s.id);
+      const fi = order.indexOf(key), ti = order.indexOf(target);
+      if (fi < 0 || ti < 0) return;
+      order.splice(ti, 0, order.splice(fi, 1)[0]);
+      api('api/live-source/reorder', { order: order.join(',') }).then(take).catch(() => {});
+    },
+    i => { if (visible[i]) liveSheet(visible[i]); });
 
-  // 已隐藏列表
-  if (hidden.length) {
-    box.appendChild(el('h2', '', '隐藏的直播源'));
-    const hl = el('div', 'list'); box.appendChild(hl);
-    hidden.forEach(s => {
-      const item = el('div', 'item');
-      item.appendChild(el('span', 'txt', s.name));
-      const show = el('button', 'link', '显示');
-      show.onclick = () => api('api/live-source/hide', { id: s.id, hide: '0' }).then(take).catch(() => {});
-      item.appendChild(show);
-      hl.appendChild(item);
-    });
-  }
-}
-
-function liveAddSheet() {
-  openSheet(body => {
-    body.appendChild(el('h3', '', '添加直播源'));
-    const nl = el('div', 'list'); body.appendChild(nl);
-    const f = el('form', 'item field');
-    const input = el('input'); input.type = 'text'; input.placeholder = '名称';
-    const save = el('button', 'link', '保存'); save.disabled = true;
-    input.oninput = () => save.disabled = !input.value.trim();
-    f.append(input, save); nl.appendChild(f);
-    const ul = el('div', 'list'); body.appendChild(ul);
-    const uf = el('form', 'item field');
-    const uinput = el('input'); uinput.type = 'text'; uinput.placeholder = 'B站链接或m3u8地址';
-    const usave = el('button', 'link', '保存'); usave.disabled = true;
-    uinput.oninput = () => usave.disabled = !uinput.value.trim();
-    uf.append(uinput, usave); ul.appendChild(uf);
-    f.onsubmit = ev => ev.preventDefault();
-    uf.onsubmit = ev => { ev.preventDefault(); closeSheet(); api('api/live-source', { name: input.value, url: uinput.value }).then(take).catch(() => {}); };
-    const cl = el('div', 'list'); body.appendChild(cl);
-    const cancel = el('div', 'item tint center', '取消');
-    cancel.onclick = closeSheet;
-    cl.appendChild(cancel);
+  // 已隐藏列表(照主屏幕hidden的写法)
+  box.appendChild(el('h2', '', '隐藏的直播源'));
+  if (!hidden.length) { box.appendChild(el('p', 'foot', '没有隐藏的直播源。')); return; }
+  const hl = el('div', 'list'); box.appendChild(hl);
+  hidden.forEach(s => {
+    const row = el('div', 'item arow'); row.setAttribute('role', 'button'); row.tabIndex = 0;
+    row.appendChild(el('span', 'txt', s.name));
+    const b = el('button', 'link act', '显示');
+    b.onclick = ev => { ev.stopPropagation(); b.disabled = true; api('api/live-source/hide', { id: s.id, hide: '0' }).then(take).catch(() => {}); };
+    row.appendChild(b); hl.appendChild(row);
   });
 }
 
 function liveSheet(s) {
   openSheet(body => {
-    // 图标预览
-    const iconWrap = el('div');
-    iconWrap.style.display = 'grid'; iconWrap.style.placeItems = 'center';
-    iconWrap.style.marginTop = '20px'; iconWrap.style.marginBottom = '16px';
+    // 图标预览(用.pic类, 16:9长方形, 同主屏幕)
+    const pic = el('div', 'pic');
     if (s.preset) {
-      const img = el('img'); img.src = `${base}live-icon/${encodeURIComponent(s.id)}`;
-      img.style.width = '100px'; img.style.height = '100px'; img.style.borderRadius = '22px';
-      img.style.objectFit = 'cover';
-      iconWrap.appendChild(img);
+      const img = el('img'); img.src = `${base}live-icon/${encodeURIComponent(s.id)}`; pic.appendChild(img);
     } else {
-      const icon = el('div');
-      icon.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
-      icon.style.display = 'grid'; icon.style.placeItems = 'center';
-      icon.style.color = '#fff'; icon.style.fontSize = '40px'; icon.style.fontWeight = '700';
-      icon.style.width = '100px'; icon.style.height = '100px'; icon.style.borderRadius = '22px';
-      icon.textContent = (s.name || '?').charAt(0);
-      iconWrap.appendChild(icon);
+      pic.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+      pic.style.display = 'grid'; pic.style.placeItems = 'center';
+      pic.style.color = '#fff'; pic.style.fontSize = '48px'; pic.style.fontWeight = '700';
+      pic.textContent = (s.name || '?').charAt(0);
     }
-    body.appendChild(iconWrap);
+    body.appendChild(pic);
     body.appendChild(el('h3', '', s.name));
 
-    // 名称编辑
-    const nl = el('div', 'list'); nl.style.marginTop = '12px'; body.appendChild(nl);
+    // 名称
+    const nl = el('div', 'list'); body.appendChild(nl);
     const f = el('form', 'item field');
     const input = el('input'); input.type = 'text'; input.value = s.name; input.maxLength = 24;
     input.placeholder = '名称';
     const save = el('button', 'link', '保存');
-    input.oninput = () => save.disabled = input.value.trim() === s.name;
+    const sync = () => save.disabled = input.value.trim() === s.name;
+    input.oninput = sync; sync();
     f.append(input, save); nl.appendChild(f);
-    f.onsubmit = ev => { ev.preventDefault(); closeSheet(); api('api/live-source', { id: s.id, name: input.value }).then(take).catch(() => {}); };
+    f.onsubmit = async ev => {
+      ev.preventDefault(); closeSheet();
+      try { take(await api('api/live-source', { id: s.id, name: input.value })); } catch (e) {}
+    };
 
-    // 地址编辑
+    // 地址
     const ul = el('div', 'list'); body.appendChild(ul);
     const uf = el('form', 'item field');
     const uinput = el('input'); uinput.type = 'text'; uinput.value = s.url; uinput.placeholder = '直播地址';
     const usave = el('button', 'link', '保存');
-    uinput.oninput = () => usave.disabled = uinput.value.trim() === s.url;
+    const usync = () => usave.disabled = uinput.value.trim() === s.url;
+    uinput.oninput = usync; usync();
     uf.append(uinput, usave); ul.appendChild(uf);
-    uf.onsubmit = ev => { ev.preventDefault(); closeSheet(); api('api/live-source', { id: s.id, url: uinput.value }).then(take).catch(() => {}); };
+    uf.onsubmit = async ev => {
+      ev.preventDefault(); closeSheet();
+      try { take(await api('api/live-source', { id: s.id, url: uinput.value })); } catch (e) {}
+    };
 
-    // 隐藏/显示按钮(红色)
+    // 隐藏(红色)
     const hdl = el('div', 'list'); body.appendChild(hdl);
     const hideBtn = el('div', 'item tint center');
     hideBtn.style.color = '#ff3b30'; hideBtn.style.fontWeight = '600';
     hideBtn.textContent = s.hidden ? '显示' : '从直播预览隐藏';
-    hideBtn.onclick = () => { closeSheet(); api('api/live-source/hide', { id: s.id, hide: s.hidden ? '0' : '1' }).then(take).catch(() => {}); };
+    hideBtn.onclick = async () => { closeSheet(); try { take(await api('api/live-source/hide', { id: s.id, hide: s.hidden ? '0' : '1' })); } catch (e) {} };
     hdl.appendChild(hideBtn);
 
-    // 删除按钮(红色, 所有源)
+    // 删除(红色)
     const dl = el('div', 'list'); body.appendChild(dl);
     const del = el('div', 'item tint center');
     del.style.color = '#ff3b30'; del.style.fontWeight = '600';
     del.textContent = '删除';
-    del.onclick = () => { closeSheet(); if (confirm('删除「' + s.name + '」？')) api('api/live-source/delete', { id: s.id }).then(take).catch(() => {}); };
+    del.onclick = async () => { closeSheet(); if (!confirm('删除「' + s.name + '」？')) return; try { take(await api('api/live-source/delete', { id: s.id })); } catch (e) {} };
     dl.appendChild(del);
 
     // 取消
     const cl = el('div', 'list'); body.appendChild(cl);
-    const cancel = el('div', 'item tint center', '取消');
-    cancel.onclick = closeSheet;
-    cl.appendChild(cancel);
+    el('div', 'item tint center', '取消').onclick = closeSheet;
+    cl.lastChild.onclick = closeSheet;
   });
 }
 
