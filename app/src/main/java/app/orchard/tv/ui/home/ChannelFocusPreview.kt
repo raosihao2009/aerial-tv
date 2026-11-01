@@ -140,23 +140,33 @@ fun ChannelFocusPreview(
             override fun onPlayerError(error: PlaybackException) {
                 DiagLog.i("player err: ${error.errorCodeName}, retry $retryCount")
                 val p = exo
-                if (retryCount < 3) {
-                    retryCount++
-                    val attempt = retryCount
-                    scope.launch {
+                // 先快速检测是否B站下播(下播就不重试, 直接回退)
+                scope.launch {
+                    val offline = withContext(Dispatchers.IO) { checkIfOffline(source) }
+                    if (offline) {
+                        DiagLog.i("player err: source is offline, immediate fallback")
+                        loading = false
+                        toastMessage = "「${source.name}」暂时无法观看，已切换至「央视网快看」"
+                        onFallback()
+                        return@launch
+                    }
+                    // 不是下播, 是网络卡顿: 重试
+                    if (retryCount < 3) {
+                        retryCount++
+                        val attempt = retryCount
                         kotlinx.coroutines.delay(1500L * attempt)
                         runCatching {
                             p.setMediaSource(hls)
                             p.prepare()
                             p.playWhenReady = true
                         }
+                    } else {
+                        // 重试3次仍失败: 回退
+                        DiagLog.i("player err exhausted, fallback")
+                        loading = false
+                        toastMessage = "「${source.name}」暂时无法观看，已切换至「央视网快看」"
+                        onFallback()
                     }
-                } else {
-                    // 重试3次仍失败：直播源挂了，回退央视网快看
-                    DiagLog.i("player err exhausted, fallback")
-                    loading = false
-                    toastMessage = "「${source.name}」暂时无法观看，已切换至「央视网快看」"
-                    onFallback()
                 }
             }
         }
@@ -353,3 +363,22 @@ private fun fetchBilibiliHlsUrl(roomId: Long): String? = runCatching {
     }
     candidates.maxByOrNull { it.qn }?.url
 }.getOrNull()
+
+/** 检测B站直播间是否已下播 */
+private fun checkIfOffline(source: LiveSource): Boolean = runCatching {
+    if (!source.isBilibili && !source.url.contains("b23.tv") && !source.url.contains("live.bilibili.com")) {
+        return@runCatching false
+    }
+    val roomId = extractBilibiliRoomId(source.url) ?: return@runCatching false
+    val buvid3 = fetchBuvid3()
+    val api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1,2&codec=0,1&qn=10000&platform=web"
+    val c = java.net.URL(api).openConnection() as java.net.HttpURLConnection
+    c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36")
+    c.setRequestProperty("Referer", "https://live.bilibili.com/")
+    c.setRequestProperty("Cookie", "buvid3=$buvid3")
+    c.connectTimeout = 5000; c.readTimeout = 5000
+    val body = c.inputStream.bufferedReader().readText(); c.disconnect()
+    val status = JSONObject(body).optJSONObject("data")?.optInt("live_status", 1) ?: 1
+    DiagLog.i("checkIfOffline room=$roomId status=$status")
+    status != 1
+}.getOrDefault(false)
