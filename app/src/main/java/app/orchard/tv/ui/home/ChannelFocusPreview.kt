@@ -86,13 +86,16 @@ fun ChannelFocusPreview(
 
         var streamUrl: String? = streamCache[source.url ?: ""]
         if (streamUrl == null) {
-            // 解析新流地址，最多重试 2 次(下播就快速失败)
-            for (attempt in 1..2) {
+            // 解析新流地址，最多重试 5 次(网络刚恢复/待机回来可能需要等)
+            for (attempt in 1..5) {
                 streamUrl = withContext(Dispatchers.IO) { resolveStreamUrl(source) }
                 if (streamUrl != null) break
-                kotlinx.coroutines.delay(1500)
+                kotlinx.coroutines.delay(2000)
             }
-            streamCache[source.url ?: ""] = streamUrl
+            // 只缓存成功的 URL, 失败不缓存(避免下次直接读 null)
+            if (streamUrl != null) {
+                streamCache[source.url ?: ""] = streamUrl
+            }
         }
         DiagLog.i("channel preview: url = $streamUrl")
 
