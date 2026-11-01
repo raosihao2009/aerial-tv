@@ -306,7 +306,16 @@ fun LiveSourceMenu(
                         )
                         .width(250.dp)
                         .liquidGlass(20.dp)
-                        .padding(8.dp),
+                        .padding(8.dp)
+                        .onPreviewKeyEvent { e ->
+                            if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_HOME && e.type == KeyEventType.KeyDown) {
+                                menuForId = null
+                                movingId = null
+                                onDismiss()
+                                return@onPreviewKeyEvent true
+                            }
+                            false
+                        },
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     BasicText(source.name, style = TextStyle(Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold),
