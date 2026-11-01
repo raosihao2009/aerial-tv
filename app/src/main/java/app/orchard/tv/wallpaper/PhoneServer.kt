@@ -308,11 +308,13 @@ class PhoneServer private constructor(private val context: Context, private val 
                     Triple("preset_5", "我就是邓子", "https://b23.tv/7HCyKBv"),
                 )
                 presets.forEach { put(JSONObject().put("id", it.first).put("name", it.second).put("url", it.third).put("preset", true)) }
-                // 自定义源
+                val presetUrls = presets.map { it.third }.toSet()
+                // 自定义源(跳过与预设URL重复的)
                 val prefs = context.getSharedPreferences("live_sources", Context.MODE_PRIVATE)
                 val list = org.json.JSONArray(prefs.getString("custom_list", "[]") ?: "[]")
                 for (i in 0 until list.length()) {
                     val o = list.getJSONObject(i)
+                    if (o.getString("url") in presetUrls) continue
                     put(JSONObject().put("id", o.getString("id")).put("name", o.getString("name")).put("url", o.getString("url")).put("preset", false))
                 }
             })
