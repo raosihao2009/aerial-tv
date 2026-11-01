@@ -155,6 +155,9 @@ fun LiveSourceMenu(
                 .onPreviewKeyEvent { e ->
                     if (!visible) return@onPreviewKeyEvent false
                     if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_HOME && e.type == KeyEventType.KeyDown) {
+                        // Home键: 先关上下文菜单/退出移动模式, 再关闭二级菜单
+                        if (menuForId != null) menuForId = null
+                        if (movingId != null) movingId = null
                         onDismiss()
                         return@onPreviewKeyEvent true
                     }
