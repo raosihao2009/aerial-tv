@@ -230,6 +230,12 @@ class PhoneServer private constructor(private val context: Context, private val 
                     prefs.edit().putStringSet("hidden", hidden).apply()
                     json(state())
                 }
+                session.method == Method.POST && path == "/api/live-source/reorder" -> {
+                    val order = form(session)["order"].orEmpty()
+                    val prefs = context.getSharedPreferences("live_sources", Context.MODE_PRIVATE)
+                    prefs.edit().putString("order", order).apply()
+                    json(state())
+                }
                 else -> text(Response.Status.NOT_FOUND, "Not found")
             }
         }.getOrElse {
@@ -322,19 +328,31 @@ class PhoneServer private constructor(private val context: Context, private val 
                 val prefs = context.getSharedPreferences("live_sources", Context.MODE_PRIVATE)
                 val hidden = prefs.getStringSet("hidden", emptySet()) ?: emptySet()
                 val presetUrls = presets.map { it.third }.toSet()
+
+                // 构建全部源map
+                val all = mutableListOf<JSONObject>()
                 presets.forEach {
-                    put(JSONObject().put("id", it.first).put("name", it.second).put("url", it.third)
+                    all.add(JSONObject().put("id", it.first).put("name", it.second).put("url", it.third)
                         .put("preset", true).put("hidden", it.first in hidden))
                 }
-                // 自定义源(跳过与预设URL重复的)
                 val list = org.json.JSONArray(prefs.getString("custom_list", "[]") ?: "[]")
                 for (i in 0 until list.length()) {
                     val o = list.getJSONObject(i)
                     if (o.getString("url") in presetUrls) continue
-                    put(JSONObject().put("id", o.getString("id")).put("name", o.getString("name"))
+                    all.add(JSONObject().put("id", o.getString("id")).put("name", o.getString("name"))
                         .put("url", o.getString("url")).put("preset", false)
                         .put("hidden", o.getString("id") in hidden))
                 }
+
+                // 按保存的顺序排列
+                val savedOrder = prefs.getString("order", null)?.split(",")?.filter { it.isNotEmpty() } ?: emptyList()
+                val ordered = mutableListOf<JSONObject>()
+                savedOrder.forEach { id ->
+                    all.find { it.getString("id") == id }?.let { ordered.add(it) }
+                }
+                all.forEach { if (it.getString("id") !in savedOrder) ordered.add(it) }
+
+                ordered.forEach { put(it) }
             })
     }
 

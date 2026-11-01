@@ -1312,16 +1312,18 @@ function renderLive() {
   // 可见源网格
   const grid = el('div', 'agrid');
   grid.style.setProperty('--cols', cols);
+  const keys = [];
   visible.forEach(s => {
+    keys.push(s.id);
     const tile = el('div', 'atile');
     tile.setAttribute('role', 'button');
+    tile.dataset.key = s.id;
     const pic = el('div', 'tpic');
     pic.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
     pic.style.display = 'grid'; pic.style.placeItems = 'center';
     pic.style.color = '#fff'; pic.style.fontSize = '32px'; pic.style.fontWeight = '700';
     pic.textContent = (s.name || '?').charAt(0);
     tile.append(pic, el('span', 'n', s.name));
-    tile.onclick = () => liveSheet(s);
     grid.appendChild(tile);
   });
 
@@ -1339,6 +1341,18 @@ function renderLive() {
   };
   grid.appendChild(addTile);
   box.appendChild(grid);
+
+  // 启用拖拽排序
+  sortableGrid(grid, keys, (fromKey, toKey) => {
+    const fromIdx = keys.indexOf(fromKey);
+    const toIdx = keys.indexOf(toKey);
+    if (fromIdx < 0 || toIdx < 0) return;
+    keys.splice(toIdx, 0, keys.splice(fromIdx, 1)[0]);
+    post('/api/live-source/reorder', { order: keys.join(',') });
+  }, (key) => {
+    const s = visible.find(x => x.id === key);
+    if (s) liveSheet(s);
+  });
 
   // 已隐藏列表
   if (hidden.length) {
