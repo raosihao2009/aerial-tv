@@ -1318,7 +1318,7 @@ function renderLive() {
     const pic = el('div', 'tpic');
     if (s.preset) {
       const img = el('img'); img.alt = ''; img.draggable = false; img.loading = 'lazy';
-      img.src = `${base}live-icon/${encodeURIComponent(s.id)}`; pic.appendChild(img);
+      img.src = `${base}live-icon/${encodeURIComponent(s.id)}?v=${Date.now()}`; pic.appendChild(img);
     } else {
       pic.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
       pic.style.display = 'grid'; pic.style.placeItems = 'center';
@@ -1360,8 +1360,8 @@ function renderLive() {
   const hl = el('div', 'list'); box.appendChild(hl);
   hidden.forEach(s => {
     const row = el('div', 'item'); row.style.alignItems = 'center'; row.style.gap = '14px';
-    const thumb = el('div', 'thumb');
-    if (s.preset) { const img = el('img'); img.src = `${base}live-icon/${encodeURIComponent(s.id)}`; thumb.appendChild(img); }
+    const thumb = el('div', 'thumb'); thumb.style.overflow = 'hidden';
+    if (s.preset) { const img = el('img'); img.src = `${base}live-icon/${encodeURIComponent(s.id)}?v=${Date.now()}`; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; thumb.appendChild(img); }
     else { thumb.style.background = 'linear-gradient(135deg,#667eea,#764ba2)'; thumb.style.display='grid'; thumb.style.placeItems='center'; thumb.style.color='#fff'; thumb.style.fontSize='18px'; thumb.textContent = (s.name||'?').charAt(0); }
     row.appendChild(thumb);
     row.appendChild(el('span', 'txt', s.name));
@@ -1377,7 +1377,7 @@ function liveSheet(s) {
   openSheet(body => {
     const pic = el('div', 'pic');
     if (s.preset) {
-      const img = el('img'); img.src = `${base}live-icon/${encodeURIComponent(s.id)}`; pic.appendChild(img);
+      const img = el('img'); img.src = `${base}live-icon/${encodeURIComponent(s.id)}?v=${Date.now()}`; pic.appendChild(img);
     } else {
       pic.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
       pic.style.display = 'grid'; pic.style.placeItems = 'center';
@@ -1413,7 +1413,7 @@ function liveSheet(s) {
       il.appendChild(el('div', 'item tint center', '选一张图片')).onclick = () => {
         const fi = el('input'); fi.type = 'file'; fi.accept = 'image/*';
         fi.onchange = () => { if (!fi.files[0]) return; const fd = new FormData(); fd.append('file', fi.files[0]);
-          fetch(base + 'live-icon/' + encodeURIComponent(s.id), { method: 'POST', body: fd }).then(() => take(state)); };
+          fetch(base + 'live-icon/' + encodeURIComponent(s.id), { method: 'POST', body: fd }).then(r => r.json()).then(s2 => take(s2)); };
         fi.click();
       };
       il.lastChild.style.color = '#007aff'; il.lastChild.style.fontWeight = '600';
