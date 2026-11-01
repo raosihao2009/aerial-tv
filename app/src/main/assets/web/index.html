@@ -1308,13 +1308,12 @@ function renderLive() {
   const visible = sources.filter(s => !s.hidden);
   const hidden = sources.filter(s => s.hidden);
 
-  // 可见源网格
+  // 可见源网格(照主屏幕: tileGrid + sortableGrid)
   const grid = el('div', 'agrid');
   grid.style.setProperty('--cols', homeCols());
   visible.forEach(s => {
     const tile = el('div', 'atile'); tile.dataset.key = s.id; tile.setAttribute('role', 'button'); tile.tabIndex = 0;
     tile.setAttribute('aria-label', s.name);
-    tile.style.cursor = 'pointer';
     const pic = el('div', 'tpic');
     if (s.preset) {
       const img = el('img'); img.alt = ''; img.draggable = false; img.loading = 'lazy';
@@ -1326,7 +1325,6 @@ function renderLive() {
       pic.textContent = (s.name || '?').charAt(0);
     }
     tile.append(pic, el('span', 'n', s.name));
-    tile.addEventListener('click', () => liveSheet(s));
     grid.appendChild(tile);
   });
   box.appendChild(grid);
@@ -1339,6 +1337,17 @@ function renderLive() {
     try { take(await api('api/live-source', { name: '新的直播', url: '' })); } catch (e) {}
   };
   addRow.appendChild(addBtn);
+
+  // 拖拽+点击(完全照主屏幕buildHomeView)
+  sortableGrid(grid, visible.map(s => s.id),
+    (key, target) => {
+      const order = visible.map(s => s.id);
+      const fi = order.indexOf(key), ti = order.indexOf(target);
+      if (fi < 0 || ti < 0) return;
+      order.splice(ti, 0, order.splice(fi, 1)[0]);
+      api('api/live-source/reorder', { order: order.join(',') }).then(take).catch(() => {});
+    },
+    i => liveSheet(visible[i]));
 
   // 已隐藏列表(照主屏幕hidden的写法)
   box.appendChild(el('h2', '', '隐藏的直播源'));
