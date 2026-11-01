@@ -217,6 +217,7 @@ class PhoneServer private constructor(private val context: Context, private val 
                             .put("colorIndex", list.length()))
                         prefs.edit().putString("custom_list", list.toString()).apply()
                     }
+                    onMain { app.orchard.tv.HomeViewModel.notifyLiveSourcesChanged() }
                     json(state())
                 }
                 session.method == Method.POST && path == "/api/live-source/delete" -> {
@@ -238,6 +239,7 @@ class PhoneServer private constructor(private val context: Context, private val 
                         }
                         prefs.edit().putString("custom_list", newList.toString()).apply()
                     }
+                    onMain { app.orchard.tv.HomeViewModel.notifyLiveSourcesChanged() }
                     json(state())
                 }
                 session.method == Method.POST && path == "/api/live-source/hide" -> {
@@ -250,12 +252,14 @@ class PhoneServer private constructor(private val context: Context, private val 
                     }
                     if (hide) hidden.add(id) else hidden.remove(id)
                     prefs.edit().putStringSet("hidden", hidden).apply()
+                    onMain { app.orchard.tv.HomeViewModel.notifyLiveSourcesChanged() }
                     json(state())
                 }
                 session.method == Method.POST && path == "/api/live-source/reorder" -> {
                     val order = form(session)["order"].orEmpty()
                     val prefs = context.getSharedPreferences("live_sources", Context.MODE_PRIVATE)
                     prefs.edit().putString("order", order).apply()
+                    onMain { app.orchard.tv.HomeViewModel.notifyLiveSourcesChanged() }
                     json(state())
                 }
                 else -> text(Response.Status.NOT_FOUND, "Not found")

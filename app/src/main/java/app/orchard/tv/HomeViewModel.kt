@@ -88,6 +88,13 @@ private val BOOT_CATCH_UP_MS = listOf(60_000L, 180_000L)
 
 class HomeViewModel(app: Application) : AndroidViewModel(app) {
     private val context get() = getApplication<Application>()
+
+    companion object {
+        @Volatile var instance: HomeViewModel? = null
+        fun notifyLiveSourcesChanged() { instance?.reloadLiveSources() }
+    }
+
+    init { instance = this }
     private val store = LayoutStore(app)
     private var all: List<AppEntry> = emptyList()
 
@@ -169,8 +176,13 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     var liveSources by mutableStateOf<List<LiveSource>>(emptyList()); private set
 
     init {
+        reloadLiveSources()
         val prefs = context.getSharedPreferences("live_sources", android.content.Context.MODE_PRIVATE)
         currentLiveSourceId = prefs.getString("selected_id", "preset_0") ?: "preset_0"
+    }
+
+    fun reloadLiveSources() {
+        val prefs = context.getSharedPreferences("live_sources", android.content.Context.MODE_PRIVATE)
         val customJson = prefs.getString("custom_list", "[]") ?: "[]"
         val saved = runCatching {
             val arr = org.json.JSONArray(customJson)
