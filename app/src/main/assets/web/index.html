@@ -1300,37 +1300,41 @@ function card(w) {
   return b;
 }
 function renderLive() {
-  const el = $('#liveBody');
+  const el2 = $('#liveBody');
+  if (!el2) return;
   const sources = (state && state.liveSources) || [];
-  el.innerHTML = '';
+  el2.innerHTML = '';
 
   sources.forEach(s => {
-    const row = document.createElement('div');
-    row.className = 'list';
-    row.innerHTML = `<div class="item"><span class="txt"><b>${esc(s.name)}</b><span class="sub">${esc(s.url)}</span></span><button class="link">${s.preset ? '编辑' : '删除'}</button></div>`;
-    row.querySelector('button').onclick = () => {
+    const row = el('div', 'list');
+    const item = el('div', 'item');
+    const txt = el('span', 'txt');
+    const name = el('b', null, s.name);
+    const url = el('span', 'sub', s.url);
+    txt.appendChild(name); txt.appendChild(url);
+    const btn = el('button', 'link', s.preset ? '编辑' : '删除');
+    btn.onclick = () => {
       if (s.preset) {
-        const name = prompt('名称', s.name);
-        if (name) post('/api/live-source', { id: s.id, name }, renderLive);
+        const n = prompt('名称', s.name);
+        if (n) post('/api/live-source', { id: s.id, name: n }, refresh);
       } else {
-        if (confirm('删除「' + s.name + '」？')) post('/api/live-source/delete', { id: s.id }, renderLive);
+        if (confirm('删除「' + s.name + '」？')) post('/api/live-source/delete', { id: s.id }, refresh);
       }
     };
-    el.appendChild(row);
+    item.appendChild(txt); item.appendChild(btn);
+    row.appendChild(item);
+    el2.appendChild(row);
   });
 
-  // 添加按钮
-  const addRow = document.createElement('div');
-  addRow.className = 'list';
-  addRow.innerHTML = '<div class="item tint center"><span>+ 添加直播源</span></div>';
-  addRow.onclick = () => {
-    const name = prompt('名称');
-    if (!name) return;
-    const url = prompt('直播地址(B站链接或m3u8)');
-    if (!url) return;
-    post('/api/live-source', { name, url }, renderLive);
+  const addRow = el('div', 'list');
+  const addItem = el('div', 'item tint center', '+ 添加直播源');
+  addItem.onclick = () => {
+    const n = prompt('名称'); if (!n) return;
+    const u = prompt('直播地址(B站链接或m3u8)'); if (!u) return;
+    post('/api/live-source', { name: n, url: u }, refresh);
   };
-  el.appendChild(addRow);
+  addRow.appendChild(addItem);
+  el2.appendChild(addRow);
 }
 
 function post(path, data, cb) {
@@ -1962,7 +1966,6 @@ function sortableGrid(grid, keys, onMove, onTap) {
 
 function render() {
   if (!state) return;
-  // The page polls; skip the rebuild when nothing changed, so pictures do not flicker and taps are not lost.
   const json = JSON.stringify(state);
   if (json === stateJson) return;
   stateJson = json;
@@ -1971,6 +1974,7 @@ function render() {
   renderMore();
   renderInputs();
   renderArrange(false);
+  renderLive();
 }
 
 initLangSwitch();
