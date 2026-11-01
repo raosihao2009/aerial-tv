@@ -289,7 +289,8 @@ fun LiveSourceMenu(
                         rowEnd = index == sources.size - 1,
                         showName = showAllNames || focusedId == source.id,
                     )
-                    val badgeScale = (tileW / 200.dp).coerceIn(0.7f, 1.3f)
+                    val isFocused = focusedId == source.id
+                    val badgeScale = (tileW / 200.dp).coerceIn(0.7f, 1.3f) * (if (isFocused) 1.15f else 1f)
                     val badgePad = (6.dp * badgeScale)
                     val badgeRadius = (6.dp * badgeScale)
                     val badgeHPad = (8.dp * badgeScale)
