@@ -1301,17 +1301,41 @@ function renderLive() {
   const el = $('#liveBody');
   const sources = (state && state.liveSources) || [];
   el.innerHTML = '';
+
   sources.forEach(s => {
     const row = document.createElement('div');
     row.className = 'list';
-    row.innerHTML = `<div class="item"><span class="txt"><b>${esc(s.name)}</b><span class="sub">${esc(s.url)}</span></span>${s.preset ? '' : '<button class="link" style="color:var(--red)">删除</button>'}</div>`;
+    row.innerHTML = `<div class="item"><span class="txt"><b>${esc(s.name)}</b><span class="sub">${esc(s.url)}</span></span><button class="link">${s.preset ? '编辑' : '删除'}</button></div>`;
+    row.querySelector('button').onclick = () => {
+      if (s.preset) {
+        const name = prompt('名称', s.name);
+        if (name) post('/api/live-source', { id: s.id, name }, renderLive);
+      } else {
+        if (confirm('删除「' + s.name + '」？')) post('/api/live-source/delete', { id: s.id }, renderLive);
+      }
+    };
     el.appendChild(row);
   });
+
   // 添加按钮
   const addRow = document.createElement('div');
   addRow.className = 'list';
   addRow.innerHTML = '<div class="item tint center"><span>+ 添加直播源</span></div>';
+  addRow.onclick = () => {
+    const name = prompt('名称');
+    if (!name) return;
+    const url = prompt('直播地址(B站链接或m3u8)');
+    if (!url) return;
+    post('/api/live-source', { name, url }, renderLive);
+  };
   el.appendChild(addRow);
+}
+
+function post(path, data, cb) {
+  const body = new URLSearchParams(data).toString();
+  fetch(base + path, { method: 'POST', body })
+    .then(r => r.json())
+    .then(s => { state = s; if (cb) cb(); else renderLive(); });
 }
 
 function renderWallpapers() {
