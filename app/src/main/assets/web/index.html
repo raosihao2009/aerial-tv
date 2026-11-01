@@ -1347,7 +1347,7 @@ function renderLive() {
       order.splice(ti, 0, order.splice(fi, 1)[0]);
       api('api/live-source/reorder', { order: order.join(',') }).then(take).catch(() => {});
     },
-    i => liveSheet(visible[i]));
+    i => { try { liveSheet(visible[i]); } catch(e) { alert('liveSheet: ' + e.message); } });
 
   // 已隐藏列表(照主屏幕hidden的写法)
   box.appendChild(el('h2', '', '隐藏的直播源'));
