@@ -288,6 +288,17 @@ fun LiveSourceMenu(
                         rowEnd = index == sources.size - 1,
                         showName = showAllNames || focusedId == source.id,
                     )
+                    if (source.id == currentId) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(6.dp)
+                                .background(Color(0xCC007AFF), androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            BasicText("直播中", style = TextStyle(Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold))
+                        }
+                    }
                 }
                 }
             }
