@@ -1373,6 +1373,7 @@ function renderLive() {
 }
 
 function liveSheet(s) {
+  const protected_ = s.id === 'preset_2';
   openSheet(body => {
     const pic = el('div', 'pic');
     if (s.preset) {
@@ -1386,18 +1387,18 @@ function liveSheet(s) {
     body.appendChild(pic);
     body.appendChild(el('h3', '', s.name));
 
-    // 名称(一个表单, 一次保存)
+    // 名称
     const nl = el('div', 'list'); body.appendChild(nl);
     const f = el('form', 'item field');
     const input = el('input'); input.type = 'text'; input.value = s.name; input.maxLength = 24;
-    input.placeholder = '名称';
-    const save = el('button', 'link', '保存');
+    input.placeholder = '名称'; input.disabled = protected_;
+    const save = el('button', 'link', '保存'); save.disabled = protected_;
     f.append(input, save); nl.appendChild(f);
-    body.appendChild(el('p', 'meta', '改成你想在电视上看到的名字。'));
+    body.appendChild(el('p', 'meta', protected_ ? '央视网快看不允许修改。' : '改成你想在电视上看到的名字。'));
 
-    // 地址(同一表单一起提交)
+    // 地址
     const ul2 = el('div', 'list'); body.appendChild(ul2);
-    const uinput = el('input'); uinput.type = 'text'; uinput.value = s.url; uinput.placeholder = 'B站链接或m3u8地址';
+    const uinput = el('input'); uinput.type = 'text'; uinput.value = s.url; uinput.placeholder = 'B站链接或m3u8地址'; uinput.disabled = protected_;
     ul2.appendChild(uinput);
     body.appendChild(el('p', 'meta', '直播源地址, 支持B站短链接或m3u8直链。'));
 
@@ -1406,31 +1407,33 @@ function liveSheet(s) {
       try { take(await api('api/live-source', { id: s.id, name: input.value, url: uinput.value })); } catch (e) {}
     };
 
-    // 选一张图片(蓝色)
-    const il = el('div', 'list'); body.appendChild(il);
-    il.appendChild(el('div', 'item tint center', '选一张图片')).onclick = () => {
-      const fi = el('input'); fi.type = 'file'; fi.accept = 'image/*';
-      fi.onchange = () => { if (!fi.files[0]) return; const fd = new FormData(); fd.append('file', fi.files[0]);
-        fetch(base + 'live-icon/' + encodeURIComponent(s.id), { method: 'POST', body: fd }).then(() => take(state)); };
-      fi.click();
-    };
-    il.lastChild.style.color = '#007aff'; il.lastChild.style.fontWeight = '600';
+    if (!protected_) {
+      // 选一张图片(蓝色)
+      const il = el('div', 'list'); body.appendChild(il);
+      il.appendChild(el('div', 'item tint center', '选一张图片')).onclick = () => {
+        const fi = el('input'); fi.type = 'file'; fi.accept = 'image/*';
+        fi.onchange = () => { if (!fi.files[0]) return; const fd = new FormData(); fd.append('file', fi.files[0]);
+          fetch(base + 'live-icon/' + encodeURIComponent(s.id), { method: 'POST', body: fd }).then(() => take(state)); };
+        fi.click();
+      };
+      il.lastChild.style.color = '#007aff'; il.lastChild.style.fontWeight = '600';
 
-    // 隐藏(红色)
-    const hdl = el('div', 'list'); body.appendChild(hdl);
-    const hideBtn = el('div', 'item tint center');
-    hideBtn.style.color = '#ff3b30'; hideBtn.style.fontWeight = '600';
-    hideBtn.textContent = s.hidden ? '从直播预览显示' : '从直播预览隐藏';
-    hideBtn.onclick = async () => { closeSheet(); try { take(await api('api/live-source/hide', { id: s.id, hide: s.hidden ? '0' : '1' })); } catch (e) {} };
-    hdl.appendChild(hideBtn);
+      // 隐藏(红色)
+      const hdl = el('div', 'list'); body.appendChild(hdl);
+      const hideBtn = el('div', 'item tint center');
+      hideBtn.style.color = '#ff3b30'; hideBtn.style.fontWeight = '600';
+      hideBtn.textContent = s.hidden ? '从直播预览显示' : '从直播预览隐藏';
+      hideBtn.onclick = async () => { closeSheet(); try { take(await api('api/live-source/hide', { id: s.id, hide: s.hidden ? '0' : '1' })); } catch (e) {} };
+      hdl.appendChild(hideBtn);
 
-    // 删除(红色)
-    const dl = el('div', 'list'); body.appendChild(dl);
-    const del = el('div', 'item tint center');
-    del.style.color = '#ff3b30'; del.style.fontWeight = '600';
-    del.textContent = '删除';
-    del.onclick = async () => { closeSheet(); if (!confirm('删除「' + s.name + '」？')) return; try { take(await api('api/live-source/delete', { id: s.id })); } catch (e) {} };
-    dl.appendChild(del);
+      // 删除(红色)
+      const dl = el('div', 'list'); body.appendChild(dl);
+      const del = el('div', 'item tint center');
+      del.style.color = '#ff3b30'; del.style.fontWeight = '600';
+      del.textContent = '删除';
+      del.onclick = async () => { closeSheet(); if (!confirm('删除「' + s.name + '」？')) return; try { take(await api('api/live-source/delete', { id: s.id })); } catch (e) {} };
+      dl.appendChild(del);
+    }
 
     // 取消
     const cl = el('div', 'list'); body.appendChild(cl);

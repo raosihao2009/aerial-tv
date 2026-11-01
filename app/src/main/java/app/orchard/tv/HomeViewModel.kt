@@ -243,7 +243,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         val s = liveSources.find { it.id == id } ?: return
         if (s.isPreset) return
         liveSources = liveSources - s
-        if (currentLiveSourceId == id) currentLiveSourceId = "preset_0"
+        if (currentLiveSourceId == id) currentLiveSourceId = "preset_2"
         saveCustomList()
     }
 

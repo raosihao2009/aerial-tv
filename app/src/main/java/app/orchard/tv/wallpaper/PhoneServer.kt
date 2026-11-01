@@ -60,6 +60,25 @@ class PhoneServer private constructor(private val context: Context, private val 
                 path == "/api/state" -> json(state())
                 path == "/api/diagnostics" -> text(Response.Status.OK, Diagnostics.report(context))
                 path.startsWith("/thumb/") -> thumb(path.removePrefix("/thumb/"))
+                session.method == Method.POST && path.startsWith("/live-icon/") -> {
+                    val id = path.removePrefix("/live-icon/")
+                    val files = HashMap<String, String>()
+                    session.parseBody(files)
+                    val tmpPath = files["file"]
+                    if (tmpPath != null) {
+                        val src = java.io.File(tmpPath)
+                        // 缩放保存
+                        val bmp = android.graphics.BitmapFactory.decodeFile(src.absolutePath)
+                        if (bmp != null) {
+                            val scaled = if (bmp.width > 480) android.graphics.Bitmap.createScaledBitmap(bmp, 480, (480 * bmp.height / bmp.width), true) else bmp
+                            val out = java.io.File(context.filesDir, "live_icon_$id.jpg")
+                            val fos = java.io.FileOutputStream(out)
+                            scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, fos)
+                            fos.close()
+                        }
+                    }
+                    json(state())
+                }
                 path.startsWith("/live-icon/") -> liveIcon(path.removePrefix("/live-icon/"))
                 session.method == Method.POST && path == "/api/wallpaper" -> {
                     val id = form(session)["id"].orEmpty()
@@ -493,7 +512,15 @@ class PhoneServer private constructor(private val context: Context, private val 
         }
     }
 
-    private fun liveIcon(id: String): Response {
+    private fun liveIcon(id: String, session: IHTTPSession? = null): Response {
+        // 用户上传的图标优先
+        val uploadFile = java.io.File(context.filesDir, "live_icon_$id.jpg")
+        if (uploadFile.exists()) {
+            val bytes = uploadFile.readBytes()
+            return newFixedLengthResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(bytes), bytes.size.toLong()).apply {
+                addHeader("Cache-Control", "public, max-age=300")
+            }
+        }
         val resName = when (id) {
             "preset_0" -> "live_cctv"
             "preset_1" -> "live_yangshipin"
