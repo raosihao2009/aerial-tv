@@ -214,6 +214,38 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         savedOrder.forEach { id -> all.find { it.id == id }?.let { ordered.add(it) } }
         all.forEach { if (it.id !in savedOrder) ordered.add(it) }
         liveSources = ordered.filter { it.id !in hidden }
+        checkLiveStatuses()
+    }
+
+    private fun checkLiveStatuses() {
+        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            liveSources.forEach { src ->
+                if (src.url.isBlank() || !src.isBilibili) return@forEach
+                val status = runCatching {
+                    // 跟随短链跳转拿room id
+                    val conn = (java.net.URL(src.url).openConnection() as java.net.HttpURLConnection).apply {
+                        instanceFollowRedirects = false; connectTimeout = 3000; readTimeout = 3000
+                        setRequestProperty("User-Agent", "Mozilla/5.0")
+                    }
+                    val loc = conn.getHeaderField("Location") ?: src.url
+                    conn.disconnect()
+                    val roomId = Regex("/(?:live|room)/?(\\d+)").find(loc)?.value?.replace(Regex("[^\\d]"), "")
+                        ?: Regex("b23\\.tv/([\\w]+)").find(loc)?.value?.let { null }
+                    if (roomId.isNullOrBlank()) return@runCatching 0
+                    // 调B站API
+                    val apiUrl = "https://api.live.bilibili.com/room/v1/Room/get_info?room_id=$roomId"
+                    val apiConn = (java.net.URL(apiUrl).openConnection() as java.net.HttpURLConnection).apply {
+                        connectTimeout = 3000; readTimeout = 3000
+                        setRequestProperty("User-Agent", "Mozilla/5.0")
+                    }
+                    val json = apiConn.inputStream.bufferedReader().readText()
+                    apiConn.disconnect()
+                    val obj = org.json.JSONObject(json).getJSONObject("data")
+                    if (obj.getInt("live_status") == 1) 1 else 2
+                }.getOrDefault(0)
+                liveSources = liveSources.map { if (it.id == src.id) it.copy(liveStatus = status) else it }
+            }
+        }
     }
 
     fun getAllLiveSources(): List<LiveSource> = liveSources
