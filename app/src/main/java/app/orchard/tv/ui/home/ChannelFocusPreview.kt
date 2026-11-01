@@ -192,10 +192,15 @@ fun ChannelFocusPreview(
         if (ready) {
             // 新流就绪：释放旧 player，切换到新 player（LaunchedEffect 会自动绑定 surface）
             val old = player
+            val oldName = currentPlayingName
             player = exo
             old?.release()
             currentPlayingName = source.name
             playingSourceId = source.id
+            // 切换成功提示(有旧源才提示)
+            if (oldName != null && oldName != source.name) {
+                toastMessage = "已经从「$oldName」切换至「${source.name}」"
+            }
         } else {
             // 新流超时未就绪
             DiagLog.i("channel preview: new stream not ready")
@@ -223,16 +228,28 @@ fun ChannelFocusPreview(
                     player?.volume = 0f
                 }
                 Lifecycle.Event.ON_START -> {
-                    player?.let {
-                        it.volume = 1f
-                        surface?.let { s -> it.setVideoTextureView(s) }
-                        if (it.playbackState == Player.STATE_IDLE) {
-                            it.prepare()
+                    player?.let { p ->
+                        // 待机回来: 显示加载图直到流重新就绪
+                        loading = true
+                        p.volume = 1f
+                        surface?.let { s -> p.setVideoTextureView(s) }
+                        if (p.playbackState == Player.STATE_IDLE) {
+                            p.prepare()
                         }
-                        it.playWhenReady = true
-                        if (it.isCurrentMediaItemLive) {
-                            it.seekToDefaultPosition()
+                        p.playWhenReady = true
+                        if (p.isCurrentMediaItemLive) {
+                            p.seekToDefaultPosition()
                         }
+                        // 等 ready 后再撤掉加载图
+                        val listener = object : Player.Listener {
+                            override fun onPlaybackStateChanged(state: Int) {
+                                if (state == Player.STATE_READY) {
+                                    loading = false
+                                    p.removeListener(this)
+                                }
+                            }
+                        }
+                        p.addListener(listener)
                     } ?: run { restartSignal++ }
                 }
                 else -> {}
