@@ -96,6 +96,13 @@ fun LiveSourceMenu(
     }
     LaunchedEffect(menuForId) { onMenuOpenChange(menuForId != null) }
     LaunchedEffect(movingId) { onMovingChange(movingId != null) }
+    // 二级菜单关闭时, 清掉上下文菜单和移动状态(无论什么原因关闭)
+    LaunchedEffect(visible) {
+        if (!visible) {
+            menuForId = null
+            movingId = null
+        }
+    }
     val requesters = remember { HashMap<String, FocusRequester>() }
     fun requester(id: String) = requesters.getOrPut(id) { FocusRequester() }
     // 上下文菜单关闭后焦点直接回到原卡片(不延迟, 不闪烁)
