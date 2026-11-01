@@ -1335,6 +1335,24 @@ function renderLive() {
   addPic.style.background = 'var(--fill)'; addPic.style.color = 'var(--secondary)';
   addPic.style.fontSize = '40px'; addPic.textContent = '+';
   addTile.append(addPic, el('span', 'n', '添加直播源'));
+  addTile.onclick = () => openSheet(body => {
+    body.appendChild(el('h3', '', '添加直播源'));
+    const nl = el('div', 'list'); body.appendChild(nl);
+    const f = el('form', 'item field');
+    const input = el('input'); input.type = 'text'; input.placeholder = '名称';
+    const save = el('button', 'link', '保存'); save.disabled = true;
+    input.oninput = () => save.disabled = !input.value.trim();
+    f.append(input, save); nl.appendChild(f);
+    const ul = el('div', 'list'); body.appendChild(ul);
+    const uf = el('form', 'item field');
+    const uinput = el('input'); uinput.type = 'text'; uinput.placeholder = 'B站链接或m3u8';
+    const usave = el('button', 'link', '保存');
+    uf.append(uinput, usave); ul.appendChild(uf);
+    uf.onsubmit = async ev => { ev.preventDefault(); closeSheet(); try { take(await api('api/live-source', { name: input.value, url: uinput.value })); } catch (e) {} };
+    const cl = el('div', 'list'); body.appendChild(cl);
+    el('div', 'item tint center', '取消').onclick = closeSheet;
+    cl.lastChild.onclick = closeSheet;
+  });
   grid.appendChild(addTile);
   box.appendChild(grid);
 
