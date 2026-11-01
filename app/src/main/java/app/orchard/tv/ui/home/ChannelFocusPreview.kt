@@ -68,11 +68,8 @@ fun ChannelFocusPreview(
             return@LaunchedEffect
         }
 
-        // 第一次加载(无旧 player)：直接准备，不显示遮罩
-        val firstLoad = player == null
-        if (!firstLoad) {
-            loading = true
-        }
+        // 加载遮罩：任何加载(开机首次/切换源)都显示
+        loading = true
 
         var streamUrl: String? = streamCache[source.url ?: ""]
         if (streamUrl == null) {
