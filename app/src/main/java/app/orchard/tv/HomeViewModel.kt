@@ -285,8 +285,10 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                 .put("url", it.url).put("isBilibili", it.isBilibili).put("colorIndex", it.colorIndex)
                 .put("isPreset", it.isPreset))
         }
+        val order = liveSources.joinToString(",") { it.id }
         context.getSharedPreferences("live_sources", android.content.Context.MODE_PRIVATE)
-            .edit().putString("custom_list", arr.toString()).apply()
+            .edit().putString("custom_list", arr.toString())
+            .putString("order", order).apply()
     }
 
     /** The phone page's arranging: the tile menu's steps, without the focus moves that go with them on the TV. */
