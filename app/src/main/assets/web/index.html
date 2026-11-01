@@ -1351,8 +1351,8 @@ function renderLive() {
     if (fromIdx < 0 || toIdx < 0) return;
     keys.splice(toIdx, 0, keys.splice(fromIdx, 1)[0]);
     post('/api/live-source/reorder', { order: keys.join(',') });
-  }, (key) => {
-    const s = visible.find(x => x.id === key);
+  }, (idx) => {
+    const s = visible[idx];
     if (s) liveSheet(s);
   });
 
