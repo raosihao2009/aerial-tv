@@ -1325,6 +1325,7 @@ function renderLive() {
       pic.textContent = (s.name || '?').charAt(0);
     }
     tile.append(pic, el('span', 'n', s.name));
+    tile.onclick = () => liveSheet(s);
     grid.appendChild(tile);
   });
   box.appendChild(grid);
@@ -1338,7 +1339,7 @@ function renderLive() {
   };
   addRow.appendChild(addBtn);
 
-  // 拖拽排序+点击
+  // 拖拽排序
   sortableGrid(grid, visible.map(s => s.id),
     (key, target) => {
       const order = visible.map(s => s.id);
@@ -1346,8 +1347,7 @@ function renderLive() {
       if (fi < 0 || ti < 0) return;
       order.splice(ti, 0, order.splice(fi, 1)[0]);
       api('api/live-source/reorder', { order: order.join(',') }).then(take).catch(() => {});
-    },
-    i => { if (visible[i]) liveSheet(visible[i]); });
+    }, null);
 
   // 已隐藏列表(照主屏幕hidden的写法)
   box.appendChild(el('h2', '', '隐藏的直播源'));
@@ -2037,7 +2037,7 @@ function sortableGrid(grid, keys, onMove, onTap) {
     const up = e => {
       if (e.pointerId !== pid || ended) return;
       ended = true; finish();
-      if (lifted) drop(); else { swallowNextClick(); onTap(from); }
+      if (lifted) drop(); else if (onTap) { swallowNextClick(); onTap(from); }
     };
     const cancel = e => {
       if (e.pointerId !== pid || ended) return;
