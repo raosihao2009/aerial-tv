@@ -151,6 +151,12 @@ fun ChannelFocusPreview(
                             p.playWhenReady = true
                         }
                     }
+                } else {
+                    // 重试3次仍失败：直播源挂了，回退央视网快看
+                    DiagLog.i("player err exhausted, fallback")
+                    loading = false
+                    toastMessage = "「${source.name}」暂时无法观看，已切换至「央视网快看」"
+                    onFallback()
                 }
             }
         }
