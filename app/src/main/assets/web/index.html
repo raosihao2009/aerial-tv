@@ -1337,6 +1337,7 @@ function renderLive() {
       pic.textContent = (s.name || '?').charAt(0);
     }
     tile.append(pic, el('span', 'n', s.name));
+    tile.onclick = () => liveSheet(s);
     grid.appendChild(tile);
   });
 
@@ -1352,17 +1353,14 @@ function renderLive() {
   grid.appendChild(addTile);
   box.appendChild(grid);
 
-  // 启用拖拽排序
+  // 启用拖拽排序(只用drag, 不用其onTap)
   sortableGrid(grid, keys, (fromKey, toKey) => {
     const fromIdx = keys.indexOf(fromKey);
     const toIdx = keys.indexOf(toKey);
     if (fromIdx < 0 || toIdx < 0) return;
     keys.splice(toIdx, 0, keys.splice(fromIdx, 1)[0]);
-    post('/api/live-source/reorder', { order: keys.join(',') });
-  }, (idx) => {
-    const s = visible[idx];
-    if (s) liveSheet(s);
-  });
+    api('api/live-source/reorder', { order: keys.join(',') }).then(take).catch(() => {});
+  }, () => {});
 
   // 已隐藏列表
   if (hidden.length) {
@@ -1372,7 +1370,7 @@ function renderLive() {
       const item = el('div', 'item');
       item.appendChild(el('span', 'txt', s.name));
       const show = el('button', 'link', '显示');
-      show.onclick = () => post('/api/live-source/hide', { id: s.id, hide: '0' }, refresh);
+      show.onclick = () => api('api/live-source/hide', { id: s.id, hide: '0' }).then(take).catch(() => {});
       item.appendChild(show);
       hl.appendChild(item);
     });
@@ -1395,7 +1393,7 @@ function liveAddSheet() {
     uinput.oninput = () => usave.disabled = !uinput.value.trim();
     uf.append(uinput, usave); ul.appendChild(uf);
     f.onsubmit = ev => ev.preventDefault();
-    uf.onsubmit = ev => { ev.preventDefault(); closeSheet(); post('/api/live-source', { name: input.value, url: uinput.value }, refresh); };
+    uf.onsubmit = ev => { ev.preventDefault(); closeSheet(); api('api/live-source', { name: input.value, url: uinput.value }).then(take).catch(() => {}); };
     const cl = el('div', 'list'); body.appendChild(cl);
     const cancel = el('div', 'item tint center', '取消');
     cancel.onclick = closeSheet;
@@ -1434,7 +1432,7 @@ function liveSheet(s) {
     const save = el('button', 'link', '保存');
     input.oninput = () => save.disabled = input.value.trim() === s.name;
     f.append(input, save); nl.appendChild(f);
-    f.onsubmit = ev => { ev.preventDefault(); closeSheet(); post('/api/live-source', { id: s.id, name: input.value }, refresh); };
+    f.onsubmit = ev => { ev.preventDefault(); closeSheet(); api('api/live-source', { id: s.id, name: input.value }).then(take).catch(() => {}); };
 
     // 地址编辑
     const ul = el('div', 'list'); body.appendChild(ul);
@@ -1443,14 +1441,14 @@ function liveSheet(s) {
     const usave = el('button', 'link', '保存');
     uinput.oninput = () => usave.disabled = uinput.value.trim() === s.url;
     uf.append(uinput, usave); ul.appendChild(uf);
-    uf.onsubmit = ev => { ev.preventDefault(); closeSheet(); post('/api/live-source', { id: s.id, url: uinput.value }, refresh); };
+    uf.onsubmit = ev => { ev.preventDefault(); closeSheet(); api('api/live-source', { id: s.id, url: uinput.value }).then(take).catch(() => {}); };
 
     // 隐藏/显示按钮(红色)
     const hdl = el('div', 'list'); body.appendChild(hdl);
     const hideBtn = el('div', 'item tint center');
     hideBtn.style.color = '#ff3b30'; hideBtn.style.fontWeight = '600';
     hideBtn.textContent = s.hidden ? '显示' : '从直播预览隐藏';
-    hideBtn.onclick = () => { closeSheet(); post('/api/live-source/hide', { id: s.id, hide: s.hidden ? '0' : '1' }, refresh); };
+    hideBtn.onclick = () => { closeSheet(); api('api/live-source/hide', { id: s.id, hide: s.hidden ? '0' : '1' }).then(take).catch(() => {}); };
     hdl.appendChild(hideBtn);
 
     // 删除按钮(红色, 所有源)
@@ -1458,7 +1456,7 @@ function liveSheet(s) {
     const del = el('div', 'item tint center');
     del.style.color = '#ff3b30'; del.style.fontWeight = '600';
     del.textContent = '删除';
-    del.onclick = () => { closeSheet(); if (confirm('删除「' + s.name + '」？')) post('/api/live-source/delete', { id: s.id }, refresh); };
+    del.onclick = () => { closeSheet(); if (confirm('删除「' + s.name + '」？')) api('api/live-source/delete', { id: s.id }).then(take).catch(() => {}); };
     dl.appendChild(del);
 
     // 取消
