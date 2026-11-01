@@ -304,6 +304,8 @@ class PhoneServer private constructor(private val context: Context, private val 
                     Triple("preset_1", "央视频", "https://b23.tv/anI3d9f"),
                     Triple("preset_2", "央视网快看", "https://b23.tv/zxbwWNq"),
                     Triple("preset_3", "快看", "https://b23.tv/efy30LE"),
+                    Triple("preset_4", "东方明珠", "https://b23.tv/djN4x6N"),
+                    Triple("preset_5", "我就是邓子", "https://b23.tv/7HCyKBv"),
                 )
                 presets.forEach { put(JSONObject().put("id", it.first).put("name", it.second).put("url", it.third).put("preset", true)) }
                 // 自定义源

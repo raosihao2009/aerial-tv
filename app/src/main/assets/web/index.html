@@ -291,6 +291,12 @@
   <input id="iconFile" type="file" accept="image/*" hidden>
 </section>
 
+<!-- Live preview sources -->
+<section data-tab="live" hidden>
+  <div id="liveBody"></div>
+  <p class="foot" data-i18n="live_hint"></p>
+</section>
+
 <!-- Wallpaper and screensaver -->
 <section data-tab="looks" hidden>
   <div class="hero" id="hero"><img id="heroImg" alt=""><div class="cap"><small data-i18n="current_wp"></small><b id="heroTitle"></b></div></div>
@@ -358,6 +364,7 @@
 
 <nav role="tablist">
   <button role="tab" data-go="home"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="7" height="6" rx="1.8"/><rect x="13.5" y="4.5" width="7" height="6" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="6" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="6" rx="1.8"/></svg><span data-i18n="tab_home"></span></button>
+  <button role="tab" data-go="live"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M10 9.5l5 2.5-5 2.5z" fill="currentColor" stroke="none"/><path d="M8 21h8"/></svg><span data-i18n="tab_live"></span></button>
   <button role="tab" data-go="looks"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="3"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3.5 17l5-5 4 4 2.5-2.5 5.5 5"/></svg><span data-i18n="tab_looks"></span></button>
   <button role="tab" data-go="more"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="8" cy="12" r=".6" fill="currentColor"/><circle cx="12" cy="12" r=".6" fill="currentColor"/><circle cx="16" cy="12" r=".6" fill="currentColor"/></svg><span data-i18n="tab_more"></span></button>
 </nav>
@@ -380,7 +387,7 @@ let state = null, stateJson = '';
 
 // The language: ?lang=ru in the address, else the one picked under More (kept on the phone), else the
 // first of the phone's preferred languages that has a table, else English. Keys are in KEYS, one array of texts per language.
-const KEYS = ["screensaver", "screensaver_short", "ss_aerial", "ss_photos", "ss_clock", "focus", "focus_high", "focus_standard", "weather", "city_ph", "set", "upload_label", "feedback_h", "feedback_hint", "diag_show", "diag_copy", "diag_github", "hint_aerial", "hint_photos", "hint_clock", "g_live", "g_live_sub", "g_daily", "g_daily_sub", "g_photo", "g_builtin", "g_auto", "toast_wallpaper", "aria_delete", "confirm_delete", "wx_clear", "wx_partlycloudy", "wx_cloudy", "wx_fog", "wx_rain", "wx_snow", "wx_thunder", "wx_chosen", "wx_auto_btn", "toast_auto", "wx_guessed", "wx_none", "tag_source", "aria_rename", "toast_renamed", "toast_name_reset", "toast_rename_fail", "aria_reset_icon", "toast_icon_reset", "focus_hint_standard", "focus_hint_high", "daily_title", "daily_caption", "rotate_title", "rotate_caption", "empty_photos", "add_second", "toast_tv_updated", "sending_n", "toast_added", "toast_no_photos", "toast_send_fail", "toast_city_set", "toast_city_nf", "toast_set_fail", "toast_sending_icon", "toast_icon_set", "toast_icon_bad", "diag_collecting", "toast_diag_fail", "toast_copied", "toast_copy_manual", "language", "hint_follows", "ss_videos", "hint_videos", "videos_h", "videos_upload", "videos_hint", "videos_empty", "confirm_video_delete", "toast_videos_added", "toast_video_bad", "sending_video", "hint_system", "tab_home", "tab_more", "current_wp", "cancel", "save", "name_ph", "rename_hint", "change_icon", "this_tv", "folder_count", "folder_ph", "inputs_h", "inputs_hint", "rename_hint_app", "was_named", "arrange_hint", "arrange_unready", "hidden_h", "hidden_none", "hidden_locked", "show_app", "hide_app", "to_folder", "new_folder", "out_of_folder", "ungroup", "ungroup_confirm", "folder_hint", "toast_hidden", "toast_shown", "toast_in_folder", "toast_out_folder", "toast_ungrouped", "tab_looks", "looks_title", "show_on_home", "source_device", "source_plain", "source_device_hint", "tv_model", "sw_always", "sw_always_sub", "sw_weather", "sw_saver_time", "sw_saver_time_sub", "g_source_sub", "icon_h", "icon_library", "icon_own", "icon_custom", "toast_icon_picked", "drop_hint", "drop_sub", "drop_none", "toast_diag_paste"];
+const KEYS = ["screensaver", "screensaver_short", "ss_aerial", "ss_photos", "ss_clock", "focus", "focus_high", "focus_standard", "weather", "city_ph", "set", "upload_label", "feedback_h", "feedback_hint", "diag_show", "diag_copy", "diag_github", "hint_aerial", "hint_photos", "hint_clock", "g_live", "g_live_sub", "g_daily", "g_daily_sub", "g_photo", "g_builtin", "g_auto", "toast_wallpaper", "aria_delete", "confirm_delete", "wx_clear", "wx_partlycloudy", "wx_cloudy", "wx_fog", "wx_rain", "wx_snow", "wx_thunder", "wx_chosen", "wx_auto_btn", "toast_auto", "wx_guessed", "wx_none", "tag_source", "aria_rename", "toast_renamed", "toast_name_reset", "toast_rename_fail", "aria_reset_icon", "toast_icon_reset", "focus_hint_standard", "focus_hint_high", "daily_title", "daily_caption", "rotate_title", "rotate_caption", "empty_photos", "add_second", "toast_tv_updated", "sending_n", "toast_added", "toast_no_photos", "toast_send_fail", "toast_city_set", "toast_city_nf", "toast_set_fail", "toast_sending_icon", "toast_icon_set", "toast_icon_bad", "diag_collecting", "toast_diag_fail", "toast_copied", "toast_copy_manual", "language", "hint_follows", "ss_videos", "hint_videos", "videos_h", "videos_upload", "videos_hint", "videos_empty", "confirm_video_delete", "toast_videos_added", "toast_video_bad", "sending_video", "hint_system", "tab_home", "tab_live", "tab_more", "current_wp", "cancel", "save", "name_ph", "rename_hint", "change_icon", "this_tv", "folder_count", "folder_ph", "inputs_h", "inputs_hint", "rename_hint_app", "was_named", "arrange_hint", "arrange_unready", "hidden_h", "hidden_none", "hidden_locked", "show_app", "hide_app", "to_folder", "new_folder", "out_of_folder", "ungroup", "ungroup_confirm", "folder_hint", "toast_hidden", "toast_shown", "toast_in_folder", "toast_out_folder", "toast_ungrouped", "tab_looks", "looks_title", "show_on_home", "source_device", "source_plain", "source_device_hint", "tv_model", "sw_always", "sw_always_sub", "sw_weather", "sw_saver_time", "sw_saver_time_sub", "g_source_sub", "icon_h", "icon_library", "icon_own", "icon_custom", "toast_icon_picked", "drop_hint", "drop_sub", "drop_none", "toast_diag_paste"];
 const TEXTS = {
  "zh": [
   "屏幕保护程序",
@@ -1159,8 +1166,8 @@ async function api(path, body) {
 function take(next) { state = next; stateJson = ''; render(); }
 
 /* Tabs. The tab is kept in the address (#home) and on the phone, and each tab keeps its own scroll. */
-const TABS = ['home', 'looks', 'more'];
-const TITLES = { home: 'tab_home', looks: 'looks_title', more: 'tab_more' };
+const TABS = ['home', 'live', 'looks', 'more'];
+const TITLES = { home: 'tab_home', live: 'tab_live', looks: 'looks_title', more: 'tab_more' };
 // The four tabs of 1.46 and 1.47's first builds.
 const OLD_TABS = { wallpaper: 'looks', screensaver: 'looks' };
 const scrolls = {};
@@ -1185,6 +1192,7 @@ function show(next, keepScroll) {
   document.querySelectorAll('nav button').forEach(b => b.setAttribute('aria-selected', b.dataset.go === tab ? 'true' : 'false'));
   setTitle();
   if (tab === 'home') placeShelves();   // measured while the tab shows
+  if (tab === 'live') renderLive();
   window.scrollTo(0, scrolls[tab] || 0);
   try { localStorage.setItem('aerial-tab', tab); } catch (e) {}
   history.replaceState(null, '', '#' + tab);
@@ -1289,6 +1297,23 @@ function card(w) {
   }
   return b;
 }
+function renderLive() {
+  const el = $('#liveBody');
+  const sources = (state && state.liveSources) || [];
+  el.innerHTML = '';
+  sources.forEach(s => {
+    const row = document.createElement('div');
+    row.className = 'list';
+    row.innerHTML = `<div class="item"><span class="txt"><b>${esc(s.name)}</b><span class="sub">${esc(s.url)}</span></span>${s.preset ? '' : '<button class="link" style="color:var(--red)">删除</button>'}</div>`;
+    el.appendChild(row);
+  });
+  // 添加按钮
+  const addRow = document.createElement('div');
+  addRow.className = 'list';
+  addRow.innerHTML = '<div class="item tint center"><span>+ 添加直播源</span></div>';
+  el.appendChild(addRow);
+}
+
 function renderWallpapers() {
   $('#heroImg').src = `${base}thumb/${encodeURIComponent(state.selected)}`;
   $('#heroTitle').textContent = titleOf(state.selected);
