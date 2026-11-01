@@ -50,6 +50,7 @@ fun ChannelFocusPreview(
     source: LiveSource?,
     modifier: Modifier = Modifier,
     onFallback: () -> Unit = {},
+    onRevert: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -66,6 +67,8 @@ fun ChannelFocusPreview(
     var toastMessage by remember { mutableStateOf<String?>(null) }
     // 当前已在播放的源名称(用于切换失败时提示继续观看谁)
     var currentPlayingName by remember { mutableStateOf<String?>(null) }
+    // 上一个正在播放的源 id(切换失败时回退焦点)
+    var playingSourceId by remember { mutableStateOf<String?>(null) }
     val loadingAlpha by animateFloatAsState(
         targetValue = if (loading) 1f else 0f,
         animationSpec = tween(if (loading) 300 else 500),
@@ -83,11 +86,11 @@ fun ChannelFocusPreview(
 
         var streamUrl: String? = streamCache[source.url ?: ""]
         if (streamUrl == null) {
-            // 解析新流地址，最多重试 10 次
-            for (attempt in 1..10) {
+            // 解析新流地址，最多重试 2 次(下播就快速失败)
+            for (attempt in 1..2) {
                 streamUrl = withContext(Dispatchers.IO) { resolveStreamUrl(source) }
                 if (streamUrl != null) break
-                kotlinx.coroutines.delay(3000)
+                kotlinx.coroutines.delay(1500)
             }
             streamCache[source.url ?: ""] = streamUrl
         }
@@ -98,8 +101,9 @@ fun ChannelFocusPreview(
             DiagLog.i("channel preview: stream resolve failed")
             loading = false
             if (player != null) {
-                // 切换源失败：继续播当前源
+                // 切换源失败：继续播当前源，焦点回退到旧源
                 toastMessage = "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
+                playingSourceId?.let { onRevert(it) }
             } else {
                 // 开机首次加载失败：回退央视网快看
                 toastMessage = "「${source.name}」暂时无法观看，已切换至「央视网快看」"
@@ -191,14 +195,16 @@ fun ChannelFocusPreview(
             player = exo
             old?.release()
             currentPlayingName = source.name
+            playingSourceId = source.id
         } else {
             // 新流超时未就绪
             DiagLog.i("channel preview: new stream not ready")
             exo.release()
             loading = false
             if (player != null) {
-                // 切换源失败：继续播当前源
+                // 切换源失败：继续播当前源，焦点回退
                 toastMessage = "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
+                playingSourceId?.let { onRevert(it) }
             } else {
                 // 开机首次加载超时：回退央视网快看
                 toastMessage = "「${source.name}」暂时无法观看，已切换至「央视网快看」"
