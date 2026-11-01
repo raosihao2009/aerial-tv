@@ -42,8 +42,6 @@ import app.orchard.tv.system.DiagLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.invokeOnCompletion
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
@@ -126,10 +124,7 @@ fun ChannelFocusPreview(
             )
         }
         val exo = ExoPlayer.Builder(context).setTrackSelector(trackSelector).build()
-        // 协程取消时(快速切源)释放未被采用的 player, 防止旧音频泄漏
-        kotlinx.coroutines.currentCoroutineContext().invokeOnCompletion {
-            if (player !== exo) exo.release()
-        }
+        try {
         val factory = DefaultHttpDataSource.Factory()
             .setUserAgent("Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
             .setConnectTimeoutMs(10_000).setReadTimeoutMs(10_000)
@@ -227,6 +222,10 @@ fun ChannelFocusPreview(
             return@LaunchedEffect
         }
         loading = false
+        } finally {
+            // 协程被取消(快速切源)时, 释放未被采用的 player
+            if (player !== exo) exo.release()
+        }
     }
 
     DisposableEffect(Unit) {
