@@ -9,7 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Text
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -24,6 +24,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import app.orchard.tv.ui.components.liquidGlass
 import androidx.lifecycle.Lifecycle
@@ -276,10 +277,12 @@ fun ChannelFocusPreview(
                 kotlinx.coroutines.delay(4000)
                 toastMessage = null
             }
-            androidx.compose.material3.Text(
+            BasicText(
                 msg,
-                color = Color.White,
-                fontSize = androidx.compose.ui.unit.TextUnit(14f, androidx.compose.ui.unit.TextUnitType.Sp),
+                style = androidx.compose.ui.text.TextStyle(
+                    color = Color.White,
+                    fontSize = 14.sp,
+                ),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 28.dp)
