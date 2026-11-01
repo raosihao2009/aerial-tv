@@ -1328,6 +1328,7 @@ function renderLive() {
     grid.appendChild(tile);
   });
   box.appendChild(grid);
+  box.appendChild(el('p', 'foot', '和电视上的排列一样。按住图标拖到想放的位置；点一下可以改名、换图标、隐藏、配置直播地址等。'));
 
   // 添加按钮(网格下方)
   const addRow = el('div', 'list'); box.appendChild(addRow);
@@ -1338,7 +1339,7 @@ function renderLive() {
   };
   addRow.appendChild(addBtn);
 
-  // 拖拽+点击(完全照主屏幕buildHomeView)
+  // 拖拽+点击
   sortableGrid(grid, visible.map(s => s.id),
     (key, target) => {
       const order = visible.map(s => s.id);
@@ -1349,18 +1350,21 @@ function renderLive() {
     },
     i => liveSheet(visible[i]));
 
-  // 已隐藏列表(小图标网格)
+  // 已隐藏列表(照主屏幕: 图标+名称+显示按钮)
   box.appendChild(el('h2', '', '隐藏的直播源'));
   if (!hidden.length) { box.appendChild(el('p', 'foot', '没有隐藏的直播源。')); return; }
-  const hg = el('div', 'agrid'); hg.style.setProperty('--cols', '4'); box.appendChild(hg);
+  const hl = el('div', 'list'); box.appendChild(hl);
   hidden.forEach(s => {
-    const tile = el('div', 'atile'); tile.style.opacity = '0.6';
-    const pic = el('div', 'tpic');
-    if (s.preset) { const img = el('img'); img.src = `${base}live-icon/${encodeURIComponent(s.id)}`; pic.appendChild(img); }
-    else { pic.style.background = 'linear-gradient(135deg, #667eea, #764ba2)'; pic.style.display = 'grid'; pic.style.placeItems = 'center'; pic.style.color = '#fff'; pic.textContent = (s.name||'?').charAt(0); }
-    tile.append(pic, el('span', 'n', s.name));
-    tile.onclick = () => api('api/live-source/hide', { id: s.id, hide: '0' }).then(take).catch(() => {});
-    hg.appendChild(tile);
+    const row = el('div', 'item'); row.style.alignItems = 'center'; row.style.gap = '14px';
+    const thumb = el('div', 'thumb');
+    if (s.preset) { const img = el('img'); img.src = `${base}live-icon/${encodeURIComponent(s.id)}`; thumb.appendChild(img); }
+    else { thumb.style.background = 'linear-gradient(135deg,#667eea,#764ba2)'; thumb.style.display='grid'; thumb.style.placeItems='center'; thumb.style.color='#fff'; thumb.style.fontSize='18px'; thumb.textContent = (s.name||'?').charAt(0); }
+    row.appendChild(thumb);
+    row.appendChild(el('span', 'txt', s.name));
+    const b = el('button', 'link act', '显示');
+    b.style.color = '#007aff'; b.style.fontWeight = '600';
+    b.onclick = ev => { ev.stopPropagation(); b.disabled = true; api('api/live-source/hide', { id: s.id, hide: '0' }).then(take).catch(() => {}); };
+    row.appendChild(b); hl.appendChild(row);
   });
 }
 
