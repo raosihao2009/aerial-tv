@@ -785,6 +785,7 @@ fun HomeScreen(
             if (channelPreviewVisible) {
                 ChannelFocusPreview(
                     source = vm.getAllLiveSources().firstOrNull { it.id == vm.currentLiveSourceId },
+                    onFallback = { vm.selectLiveSource("preset_2") },
                 )
             }
             Box(

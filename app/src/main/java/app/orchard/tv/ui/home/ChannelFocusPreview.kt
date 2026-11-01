@@ -8,6 +8,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -21,7 +23,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import app.orchard.tv.ui.components.liquidGlass
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -44,6 +48,7 @@ import org.json.JSONObject
 fun ChannelFocusPreview(
     source: LiveSource?,
     modifier: Modifier = Modifier,
+    onFallback: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -56,6 +61,8 @@ fun ChannelFocusPreview(
     var retryCount by remember { mutableStateOf(0) }
     // 加载遮罩：切换直播源时渐入，新流就绪或失败后渐出
     var loading by remember { mutableStateOf(false) }
+    // 回退提示
+    var toastMessage by remember { mutableStateOf<String?>(null) }
     val loadingAlpha by animateFloatAsState(
         targetValue = if (loading) 1f else 0f,
         animationSpec = tween(if (loading) 300 else 500),
@@ -84,9 +91,11 @@ fun ChannelFocusPreview(
         DiagLog.i("channel preview: url = $streamUrl")
 
         if (streamUrl == null) {
-            // 解析失败：保持旧流，渐出遮罩
-            DiagLog.i("channel preview: stream resolve failed, keep old")
+            // 解析失败(可能已下播)：提示并回退到央视网快看
+            DiagLog.i("channel preview: stream resolve failed, fallback")
             loading = false
+            toastMessage = "「${source.name}」暂时无法观看，已切换至「央视网快看」"
+            onFallback()
             return@LaunchedEffect
         }
 
@@ -157,9 +166,13 @@ fun ChannelFocusPreview(
             player = exo
             old?.release()
         } else {
-            // 新流超时未就绪：放弃新 player，保持旧流，渐出遮罩
-            DiagLog.i("channel preview: new stream not ready, keep old")
+            // 新流超时未就绪：放弃新 player，回退到央视网快看
+            DiagLog.i("channel preview: new stream not ready, fallback")
             exo.release()
+            loading = false
+            toastMessage = "「${source.name}」暂时无法观看，已切换至「央视网快看」"
+            onFallback()
+            return@LaunchedEffect
         }
         loading = false
     }
@@ -226,6 +239,23 @@ fun ChannelFocusPreview(
                 alpha = loadingAlpha,
             )
         }
+        // 回退提示(和移动卡片提示同款)
+        toastMessage?.let { msg ->
+            LaunchedEffect(msg) {
+                kotlinx.coroutines.delay(4000)
+                toastMessage = null
+            }
+            androidx.compose.material3.Text(
+                msg,
+                color = Color.White,
+                fontSize = androidx.compose.ui.unit.TextUnit(14f, androidx.compose.ui.unit.TextUnitType.Sp),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 28.dp)
+                    .liquidGlass(20.dp)
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+            )
+        }
     }
 }
 
@@ -276,6 +306,12 @@ private fun fetchBilibiliHlsUrl(roomId: Long): String? = runCatching {
     c.setRequestProperty("Cookie", "buvid3=$buvid3")
     c.connectTimeout = 10000; c.readTimeout = 10000
     val body = c.inputStream.bufferedReader().readText(); c.disconnect()
+    // 检测下播：live_status != 1 表示未开播
+    val liveStatus = JSONObject(body).optJSONObject("data")?.optInt("live_status", 1) ?: 1
+    if (liveStatus != 1) {
+        DiagLog.i("bilibili room $roomId offline (status=$liveStatus)")
+        return@runCatching null
+    }
     val streams = JSONObject(body).getJSONObject("data").getJSONObject("playurl_info").getJSONObject("playurl").getJSONArray("stream")
     data class StreamItem(val qn: Int, val url: String)
     val candidates = mutableListOf<StreamItem>()
