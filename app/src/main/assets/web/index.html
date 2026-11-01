@@ -1305,10 +1305,14 @@ function renderLive() {
   const sources = (state && state.liveSources) || [];
   box.innerHTML = '';
 
-  const grid = el('div', 'agrid');
-  grid.style.setProperty('--cols', 5);
+  const cols = homeCols();
+  const visible = sources.filter(s => !s.hidden);
+  const hidden = sources.filter(s => s.hidden);
 
-  sources.forEach(s => {
+  // 可见源网格
+  const grid = el('div', 'agrid');
+  grid.style.setProperty('--cols', cols);
+  visible.forEach(s => {
     const tile = el('div', 'atile');
     tile.setAttribute('role', 'button');
     const pic = el('div', 'tpic');
@@ -1334,8 +1338,21 @@ function renderLive() {
     post('/api/live-source', { name, url }, refresh);
   };
   grid.appendChild(addTile);
-
   box.appendChild(grid);
+
+  // 已隐藏列表
+  if (hidden.length) {
+    box.appendChild(el('h2', '', '隐藏的直播源'));
+    const hl = el('div', 'list'); box.appendChild(hl);
+    hidden.forEach(s => {
+      const item = el('div', 'item');
+      item.appendChild(el('span', 'txt', s.name));
+      const show = el('button', 'link', '显示');
+      show.onclick = () => post('/api/live-source/hide', { id: s.id, hide: '0' }, refresh);
+      item.appendChild(show);
+      hl.appendChild(item);
+    });
+  }
 }
 
 function liveSheet(s) {
@@ -1370,6 +1387,14 @@ function liveSheet(s) {
     uinput.oninput = () => usave.disabled = uinput.value.trim() === s.url;
     uf.append(uinput, usave); ul.appendChild(uf);
     uf.onsubmit = ev => { ev.preventDefault(); closeSheet(); post('/api/live-source', { id: s.id, url: uinput.value }, refresh); };
+
+    // 隐藏/显示按钮(红色)
+    const hdl = el('div', 'list'); body.appendChild(hdl);
+    const hideBtn = el('div', 'item tint center');
+    hideBtn.style.color = 'var(--red)';
+    hideBtn.textContent = s.hidden ? '显示' : '从直播预览隐藏';
+    hideBtn.onclick = () => { closeSheet(); post('/api/live-source/hide', { id: s.id, hide: s.hidden ? '0' : '1' }, refresh); };
+    hdl.appendChild(hideBtn);
 
     // 删除按钮(仅自定义源)
     if (!s.preset) {
