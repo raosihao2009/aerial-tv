@@ -1308,7 +1308,7 @@ function renderLive() {
   const visible = sources.filter(s => !s.hidden);
   const hidden = sources.filter(s => s.hidden);
 
-  // 可见源网格(完全照主屏幕tileGrid的写法)
+  // 可见源网格
   const grid = el('div', 'agrid');
   grid.style.setProperty('--cols', homeCols());
   visible.forEach(s => {
@@ -1325,39 +1325,20 @@ function renderLive() {
       pic.textContent = (s.name || '?').charAt(0);
     }
     tile.append(pic, el('span', 'n', s.name));
-    tile.onclick = () => liveSheet(s);
     grid.appendChild(tile);
   });
-
-  // 添加按钮
-  const addTile = el('div', 'atile');
-  const addPic = el('div', 'tpic');
-  addPic.style.display = 'grid'; addPic.style.placeItems = 'center';
-  addPic.style.background = 'var(--fill)'; addPic.style.color = 'var(--secondary)';
-  addPic.style.fontSize = '40px'; addPic.textContent = '+';
-  addTile.append(addPic, el('span', 'n', '添加直播源'));
-  addTile.onclick = () => openSheet(body => {
-    body.appendChild(el('h3', '', '添加直播源'));
-    const nl = el('div', 'list'); body.appendChild(nl);
-    const f = el('form', 'item field');
-    const input = el('input'); input.type = 'text'; input.placeholder = '名称';
-    const save = el('button', 'link', '保存'); save.disabled = true;
-    input.oninput = () => save.disabled = !input.value.trim();
-    f.append(input, save); nl.appendChild(f);
-    const ul = el('div', 'list'); body.appendChild(ul);
-    const uf = el('form', 'item field');
-    const uinput = el('input'); uinput.type = 'text'; uinput.placeholder = 'B站链接或m3u8';
-    const usave = el('button', 'link', '保存');
-    uf.append(uinput, usave); ul.appendChild(uf);
-    uf.onsubmit = async ev => { ev.preventDefault(); closeSheet(); try { take(await api('api/live-source', { name: input.value, url: uinput.value })); } catch (e) {} };
-    const cl = el('div', 'list'); body.appendChild(cl);
-    el('div', 'item tint center', '取消').onclick = closeSheet;
-    cl.lastChild.onclick = closeSheet;
-  });
-  grid.appendChild(addTile);
   box.appendChild(grid);
 
-  // 拖拽排序(点击用tile.onclick)
+  // 添加按钮(网格下方)
+  const addRow = el('div', 'list'); box.appendChild(addRow);
+  const addBtn = el('div', 'item tint center', '+ 添加直播源');
+  addBtn.style.fontWeight = '600';
+  addBtn.onclick = async () => {
+    try { take(await api('api/live-source', { name: '新的直播', url: '' })); } catch (e) {}
+  };
+  addRow.appendChild(addBtn);
+
+  // 拖拽排序+点击
   sortableGrid(grid, visible.map(s => s.id),
     (key, target) => {
       const order = visible.map(s => s.id);
@@ -1365,7 +1346,8 @@ function renderLive() {
       if (fi < 0 || ti < 0) return;
       order.splice(ti, 0, order.splice(fi, 1)[0]);
       api('api/live-source/reorder', { order: order.join(',') }).then(take).catch(() => {});
-    }, () => {});
+    },
+    i => { if (visible[i]) liveSheet(visible[i]); });
 
   // 已隐藏列表(照主屏幕hidden的写法)
   box.appendChild(el('h2', '', '隐藏的直播源'));
