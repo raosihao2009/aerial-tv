@@ -142,7 +142,21 @@ fun LiveSourceMenu(
         label = "liveMenuAlpha",
     )
 
-    androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize().alpha(alpha.value)) {
+    androidx.compose.foundation.layout.BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .alpha(alpha.value)
+            .onPreviewKeyEvent { e ->
+                if (!visible) return@onPreviewKeyEvent false
+                if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_HOME && e.type == KeyEventType.KeyDown) {
+                    if (menuForId != null) menuForId = null
+                    if (movingId != null) movingId = null
+                    onDismiss()
+                    return@onPreviewKeyEvent true
+                }
+                false
+            }
+    ) {
         val screenW = maxWidth
         val screenH = maxHeight
         val tileW = (screenW - gridMargin * 2 - gridGap * (columns - 1)) / columns
@@ -154,13 +168,6 @@ fun LiveSourceMenu(
                 .fillMaxSize()
                 .onPreviewKeyEvent { e ->
                     if (!visible) return@onPreviewKeyEvent false
-                    if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_HOME && e.type == KeyEventType.KeyDown) {
-                        // Home键: 先关上下文菜单/退出移动模式, 再关闭二级菜单
-                        if (menuForId != null) menuForId = null
-                        if (movingId != null) movingId = null
-                        onDismiss()
-                        return@onPreviewKeyEvent true
-                    }
                     // 任何方向键/确认键后才允许菜单键呼出上下文菜单
                     if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_UP ||
                         e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_DOWN ||
@@ -306,16 +313,7 @@ fun LiveSourceMenu(
                         )
                         .width(250.dp)
                         .liquidGlass(20.dp)
-                        .padding(8.dp)
-                        .onPreviewKeyEvent { e ->
-                            if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_HOME && e.type == KeyEventType.KeyDown) {
-                                menuForId = null
-                                movingId = null
-                                onDismiss()
-                                return@onPreviewKeyEvent true
-                            }
-                            false
-                        },
+                        .padding(8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     BasicText(source.name, style = TextStyle(Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold),
