@@ -1406,26 +1406,28 @@ function liveAddSheet() {
 function liveSheet(s) {
   openSheet(body => {
     // 图标预览
-    const pic = el('div', 'pic');
+    const iconWrap = el('div');
+    iconWrap.style.display = 'grid'; iconWrap.style.placeItems = 'center';
+    iconWrap.style.marginTop = '20px'; iconWrap.style.marginBottom = '16px';
     if (s.preset) {
       const img = el('img'); img.src = `${base}live-icon/${encodeURIComponent(s.id)}`;
-      img.style.width = '120px'; img.style.height = '120px'; img.style.borderRadius = '20px';
+      img.style.width = '100px'; img.style.height = '100px'; img.style.borderRadius = '22px';
       img.style.objectFit = 'cover';
-      pic.appendChild(img);
+      iconWrap.appendChild(img);
     } else {
       const icon = el('div');
       icon.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
       icon.style.display = 'grid'; icon.style.placeItems = 'center';
-      icon.style.color = '#fff'; icon.style.fontSize = '48px'; icon.style.fontWeight = '700';
-      icon.style.width = '120px'; icon.style.height = '120px'; icon.style.borderRadius = '20px';
+      icon.style.color = '#fff'; icon.style.fontSize = '40px'; icon.style.fontWeight = '700';
+      icon.style.width = '100px'; icon.style.height = '100px'; icon.style.borderRadius = '22px';
       icon.textContent = (s.name || '?').charAt(0);
-      pic.appendChild(icon);
+      iconWrap.appendChild(icon);
     }
-    body.appendChild(pic);
+    body.appendChild(iconWrap);
     body.appendChild(el('h3', '', s.name));
 
     // 名称编辑
-    const nl = el('div', 'list'); body.appendChild(nl);
+    const nl = el('div', 'list'); nl.style.marginTop = '12px'; body.appendChild(nl);
     const f = el('form', 'item field');
     const input = el('input'); input.type = 'text'; input.value = s.name; input.maxLength = 24;
     input.placeholder = '名称';
@@ -1446,18 +1448,18 @@ function liveSheet(s) {
     // 隐藏/显示按钮(红色)
     const hdl = el('div', 'list'); body.appendChild(hdl);
     const hideBtn = el('div', 'item tint center');
-    hideBtn.style.color = 'var(--red)';
+    hideBtn.style.color = '#ff3b30'; hideBtn.style.fontWeight = '600';
     hideBtn.textContent = s.hidden ? '显示' : '从直播预览隐藏';
     hideBtn.onclick = () => { closeSheet(); post('/api/live-source/hide', { id: s.id, hide: s.hidden ? '0' : '1' }, refresh); };
     hdl.appendChild(hideBtn);
 
-    // 删除按钮(仅自定义源)
-    if (!s.preset) {
-      const dl = el('div', 'list'); body.appendChild(dl);
-      const del = el('div', 'item tint center'); del.style.color = 'var(--red)'; del.textContent = '删除';
-      del.onclick = () => { closeSheet(); if (confirm('删除「' + s.name + '」？')) post('/api/live-source/delete', { id: s.id }, refresh); };
-      dl.appendChild(del);
-    }
+    // 删除按钮(红色, 所有源)
+    const dl = el('div', 'list'); body.appendChild(dl);
+    const del = el('div', 'item tint center');
+    del.style.color = '#ff3b30'; del.style.fontWeight = '600';
+    del.textContent = '删除';
+    del.onclick = () => { closeSheet(); if (confirm('删除「' + s.name + '」？')) post('/api/live-source/delete', { id: s.id }, refresh); };
+    dl.appendChild(del);
 
     // 取消
     const cl = el('div', 'list'); body.appendChild(cl);
@@ -1469,7 +1471,7 @@ function liveSheet(s) {
 
 function post(path, data, cb) {
   const body = new URLSearchParams(data).toString();
-  fetch(base + path, { method: 'POST', body })
+  fetch(base + path.replace(/^\//, ''), { method: 'POST', body })
     .then(r => r.json())
     .then(s => { state = s; if (cb) cb(); else refresh(); });
 }

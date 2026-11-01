@@ -222,13 +222,22 @@ class PhoneServer private constructor(private val context: Context, private val 
                 session.method == Method.POST && path == "/api/live-source/delete" -> {
                     val id = form(session)["id"].orEmpty()
                     val prefs = context.getSharedPreferences("live_sources", Context.MODE_PRIVATE)
-                    val list = org.json.JSONArray(prefs.getString("custom_list", "[]") ?: "[]")
-                    val newList = org.json.JSONArray()
-                    for (i in 0 until list.length()) {
-                        val o = list.getJSONObject(i)
-                        if (o.optString("id") != id) newList.put(o)
+                    if (id.startsWith("preset_")) {
+                        // 预设源删除=隐藏
+                        val hidden = mutableSetOf<String>().apply {
+                            addAll(prefs.getStringSet("hidden", emptySet()) ?: emptySet())
+                        }
+                        hidden.add(id)
+                        prefs.edit().putStringSet("hidden", hidden).apply()
+                    } else {
+                        val list = org.json.JSONArray(prefs.getString("custom_list", "[]") ?: "[]")
+                        val newList = org.json.JSONArray()
+                        for (i in 0 until list.length()) {
+                            val o = list.getJSONObject(i)
+                            if (o.optString("id") != id) newList.put(o)
+                        }
+                        prefs.edit().putString("custom_list", newList.toString()).apply()
                     }
-                    prefs.edit().putString("custom_list", newList.toString()).apply()
                     json(state())
                 }
                 session.method == Method.POST && path == "/api/live-source/hide" -> {
