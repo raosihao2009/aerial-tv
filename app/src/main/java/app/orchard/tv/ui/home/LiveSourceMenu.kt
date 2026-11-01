@@ -289,34 +289,40 @@ fun LiveSourceMenu(
                         rowEnd = index == sources.size - 1,
                         showName = showAllNames || focusedId == source.id,
                     )
+                    val badgeScale = (tileW / 200.dp).coerceIn(0.7f, 1.3f)
+                    val badgePad = (6.dp * badgeScale)
+                    val badgeRadius = (6.dp * badgeScale)
+                    val badgeHPad = (8.dp * badgeScale)
+                    val badgeVPad = (3.dp * badgeScale)
+                    val badgeFont = (11.sp * badgeScale)
                     if (source.id == currentId) {
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .padding(6.dp)
-                                .background(Color(0xCC007AFF), androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                                .padding(badgePad)
+                                .background(Color(0xCC007AFF), androidx.compose.foundation.shape.RoundedCornerShape(badgeRadius))
+                                .padding(horizontal = badgeHPad, vertical = badgeVPad)
                         ) {
-                            BasicText("直播中", style = TextStyle(Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold))
+                            BasicText("直播中", style = TextStyle(Color.White, fontSize = badgeFont, fontWeight = FontWeight.Bold))
                         }
                     } else when (source.liveStatus) {
                         2 -> Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .padding(6.dp)
-                                .background(Color(0xCCFF3B30), androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                                .padding(badgePad)
+                                .background(Color(0xCCFF3B30), androidx.compose.foundation.shape.RoundedCornerShape(badgeRadius))
+                                .padding(horizontal = badgeHPad, vertical = badgeVPad)
                         ) {
-                            BasicText("未开播", style = TextStyle(Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold))
+                            BasicText("未开播", style = TextStyle(Color.White, fontSize = badgeFont, fontWeight = FontWeight.Bold))
                         }
                         1 -> Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .padding(6.dp)
-                                .background(Color(0xCC34C759), androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                                .padding(badgePad)
+                                .background(Color(0xCC34C759), androidx.compose.foundation.shape.RoundedCornerShape(badgeRadius))
+                                .padding(horizontal = badgeHPad, vertical = badgeVPad)
                         ) {
-                            BasicText("已开播", style = TextStyle(Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold))
+                            BasicText("已开播", style = TextStyle(Color.White, fontSize = badgeFont, fontWeight = FontWeight.Bold))
                         }
                         else -> {}
                     }
