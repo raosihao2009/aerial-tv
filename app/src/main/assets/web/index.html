@@ -1311,6 +1311,7 @@ function renderLive() {
   // 可见源网格(照主屏幕: tileGrid + sortableGrid)
   const grid = el('div', 'agrid');
   grid.style.setProperty('--cols', homeCols());
+  const selectedId = state.selectedLiveId || 'preset_0';
   visible.forEach(s => {
     const tile = el('div', 'atile'); tile.dataset.key = s.id; tile.setAttribute('role', 'button'); tile.tabIndex = 0;
     tile.setAttribute('aria-label', s.name);
@@ -1323,6 +1324,9 @@ function renderLive() {
       pic.style.display = 'grid'; pic.style.placeItems = 'center';
       pic.style.color = '#fff'; pic.style.fontSize = '32px'; pic.style.fontWeight = '700';
       pic.textContent = (s.name || '?').charAt(0);
+    }
+    if (s.id === selectedId) {
+      pic.style.outline = '3px solid #007aff'; pic.style.outlineOffset = '-3px';
     }
     tile.append(pic, el('span', 'n', s.name));
     grid.appendChild(tile);
