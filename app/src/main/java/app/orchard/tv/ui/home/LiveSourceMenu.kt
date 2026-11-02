@@ -231,12 +231,12 @@ fun LiveSourceMenu(
                     } else false
                 },
         ) {
-            // 大时钟（一级菜单同款 CornerClock）
-            CornerClock(
+            // 大时钟（一级菜单同款 ShelfClock）
+            ShelfClock(
                 now = java.time.LocalDateTime.now(),
-                modifier = Modifier.align(Alignment.TopStart).padding(start = 28.dp, top = 80.dp)
+                modifier = Modifier.align(Alignment.TopStart).padding(horizontal = 56.dp).padding(top = 80.dp)
             )
-            // 控制中心（一级菜单同款 StatusPill，右上角）
+            // 控制中心（一级菜单同款 StatusPill）
             val pillFocus = remember { FocusRequester() }
             StatusPill(
                 now = java.time.LocalDateTime.now(),
