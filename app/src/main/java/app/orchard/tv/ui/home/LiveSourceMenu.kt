@@ -228,27 +228,19 @@ fun LiveSourceMenu(
                     } else false
                 },
         ) {
-            // 时钟（左上角）
-            val now = remember { mutableStateOf(System.currentTimeMillis()) }
-            LaunchedEffect(visible) {
-                while (visible) { now.value = System.currentTimeMillis(); kotlinx.coroutines.delay(1000) }
-            }
-            val fmt = remember { java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()) }
-            BasicText(
-                fmt.format(now.value),
-                style = TextStyle(Color.White.copy(alpha = 0.7f), fontSize = 20.sp),
-                modifier = Modifier.align(Alignment.TopStart).padding(28.dp)
+            // 时钟+控制中心按钮（与一级菜单同款 StatusPill）
+            val pillFocus = remember { FocusRequester() }
+            val now = java.time.LocalDateTime.now()
+            StatusPill(
+                now = now,
+                network = NetworkStatus.Unknown,
+                showTime = true,
+                enabled = true,
+                focusRequester = pillFocus,
+                onFocused = {},
+                onClick = { onOpenControlCenter() },
+                modifier = Modifier.align(Alignment.TopEnd).padding(28.dp)
             )
-            // 控制中心按钮（右上角）
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(28.dp)
-                    .liquidGlass(20.dp)
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                BasicText("控制中心", style = TextStyle(Color.White, fontSize = 14.sp))
-            }
             // 绝对定位每个卡片，带位置动画（完全照搬一级菜单 GridMetrics）
             // 行Y坐标逻辑（对齐 HomeScreen.topRowY）:
             //   双排: 底行贴 baseline, 上行 = 底行 - pitchY
