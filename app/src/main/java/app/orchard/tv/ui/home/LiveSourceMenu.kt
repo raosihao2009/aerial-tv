@@ -231,23 +231,46 @@ fun LiveSourceMenu(
                     } else false
                 },
         ) {
-            // 大时钟（一级菜单同款 ShelfClock）
-            ShelfClock(
-                now = java.time.LocalDateTime.now(),
-                modifier = Modifier.align(Alignment.TopStart).padding(horizontal = 56.dp).padding(top = 80.dp)
-            )
+            // 时钟（照搬一级菜单三种形态）
+            val clockRight = AerialSettings.clockRight
+            if (AerialSettings.largeClock) {
+                ShelfClock(
+                    now = java.time.LocalDateTime.now(),
+                    alignEnd = clockRight,
+                    modifier = Modifier
+                        .align(if (clockRight) Alignment.TopEnd else Alignment.TopStart)
+                        .padding(horizontal = 56.dp)
+                        .padding(top = 80.dp)
+                )
+            } else if (!clockRight) {
+                CornerClock(
+                    now = java.time.LocalDateTime.now(),
+                    modifier = Modifier.align(Alignment.TopStart).padding(start = 56.dp, top = 28.dp)
+                )
+            }
             // 控制中心（一级菜单同款 StatusPill）
-            val pillFocus = remember { FocusRequester() }
-            StatusPill(
-                now = java.time.LocalDateTime.now(),
-                network = app.orchard.tv.system.NetworkStatus(),
-                showTime = false,
-                enabled = true,
-                focusRequester = pillFocus,
-                onFocused = {},
-                onClick = { onOpenControlCenter() },
-                modifier = Modifier.align(Alignment.TopEnd).focusProperties { right = FocusRequester.Cancel }
-            )
+            Row(
+                modifier = Modifier.align(Alignment.TopEnd),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (!AerialSettings.largeClock && clockRight) {
+                    CornerClock(
+                        now = java.time.LocalDateTime.now(),
+                        modifier = Modifier.padding(end = 14.dp)
+                    )
+                }
+                val pillFocus = remember { FocusRequester() }
+                StatusPill(
+                    now = java.time.LocalDateTime.now(),
+                    network = app.orchard.tv.system.NetworkStatus(),
+                    showTime = false,
+                    enabled = true,
+                    focusRequester = pillFocus,
+                    onFocused = {},
+                    onClick = { onOpenControlCenter() },
+                    modifier = Modifier.focusProperties { right = FocusRequester.Cancel }
+                )
+            }
             // 绝对定位每个卡片，带位置动画（完全照搬一级菜单 GridMetrics）
             // 行Y坐标逻辑（对齐 HomeScreen.topRowY）:
             //   双排: 底行贴 baseline, 上行 = 底行 - pitchY
