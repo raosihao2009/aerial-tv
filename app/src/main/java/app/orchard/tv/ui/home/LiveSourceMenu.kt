@@ -268,13 +268,14 @@ fun LiveSourceMenu(
             val numRows = (sources.size + columns - 1) / columns
             val focusedIndex = sources.indexOfFirst { it.id == focusedId }.coerceAtLeast(0)
             val focusedRow = focusedIndex / columns
-            // 严格按公式:
-            // 焦点第0排: 第0排贴底, 第1排peek
-            // 焦点第N排(N>=1): 第N-1排上方, 第N排贴底, 第N+1排peek
+            // 完全重构:
+            // 焦点第0排: 第0排贴底, 第1排peek在上方
+            // 焦点第N>=1排: 第N-1排在上方, 第N排贴底, 第N+1排peek在上方
             fun rowY(rowFromTop: Int): Dp {
-                val shifted = rowFromTop - focusedRow
-                val peekOffset = if (peek && shifted == 1) 20.dp else 0.dp
-                return screenH - basePad - tileH - pitchY * shifted + peekOffset
+                val baseY = screenH - basePad - tileH
+                val diff = rowFromTop - focusedRow
+                val peekOffset = if (peek && diff == 1) 20.dp else 0.dp
+                return baseY - pitchY * diff + peekOffset
             }
             sources.forEachIndexed { index, source ->
                 val rowFromTop = index / columns
