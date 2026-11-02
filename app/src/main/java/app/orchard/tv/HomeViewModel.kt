@@ -254,10 +254,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectLiveSource(id: String) {
         val s = liveSources.find { it.id == id } ?: return
-        if (s.url.isBlank()) {
-            android.widget.Toast.makeText(context, "「${s.name}」暂未设置直播地址，请继续观看「${liveSources.find { it.id == currentLiveSourceId }?.name ?: "央视网快看"}」", android.widget.Toast.LENGTH_SHORT).show()
-            return
-        }
+        if (s.url.isBlank()) return
         currentLiveSourceId = id
         context.getSharedPreferences("live_sources", android.content.Context.MODE_PRIVATE)
             .edit().putString("selected_id", id).apply()
@@ -305,7 +302,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         val prefs = context.getSharedPreferences("live_sources", android.content.Context.MODE_PRIVATE)
         val hidden = (prefs.getStringSet("hidden", emptySet()) ?: emptySet()).toMutableSet()
         hidden.add(id)
-        prefs.edit().putStringSet("hidden", hidden).apply()
+        prefs.edit().putStringSet("hidden", hidden).commit()
         saveCustomList()
         notifyLiveSourcesChanged()
     }

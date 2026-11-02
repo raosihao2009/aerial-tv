@@ -92,6 +92,7 @@ fun LiveSourceMenu(
     var focusedId by remember { mutableStateOf(currentId) }
     var menuForId by remember { mutableStateOf<String?>(null) }
     var movingId by remember { mutableStateOf<String?>(null) }
+    var bannerMsg by remember { mutableStateOf<String?>(null) }
     var ignoreMenuKeyUp by remember { mutableStateOf(true) }
     LaunchedEffect(visible) {
         if (visible) ignoreMenuKeyUp = true
@@ -307,7 +308,7 @@ fun LiveSourceMenu(
                         moving = movingId == source.id,
                         appearDelayMs = null,
                         onFocused = { focusedId = source.id; Sounds.focusMoved() },
-                        onClick = { if (movingId == null) { onSelect(source.id); onDismiss() } },
+                        onClick = { if (movingId == null) { if (source.url.isBlank()) { bannerMsg = "「${source.name}」暂未设置直播地址"; kotlinx.coroutines.GlobalScope.launch { kotlinx.coroutines.delay(2500); bannerMsg = null } } else { onSelect(source.id); onDismiss() } } },
                         onLongPress = { if (movingId == null) menuForId = source.id },
                         rowEnd = index == sources.size - 1,
                         showName = showAllNames || focusedId == source.id,
@@ -318,6 +319,17 @@ fun LiveSourceMenu(
             if (movingId != null) {
                 BasicText(
                     "用方向键移动 · 按确定键完成",
+                    style = TextStyle(Color.White, fontSize = 14.sp),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 28.dp)
+                        .liquidGlass(20.dp)
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                )
+            }
+            if (bannerMsg != null) {
+                BasicText(
+                    bannerMsg!!,
                     style = TextStyle(Color.White, fontSize = 14.sp),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
