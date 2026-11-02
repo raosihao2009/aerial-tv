@@ -1316,14 +1316,11 @@ function renderLive() {
     const tile = el('div', 'atile'); tile.dataset.key = s.id; tile.setAttribute('role', 'button'); tile.tabIndex = 0;
     tile.setAttribute('aria-label', s.name);
     const pic = el('div', 'tpic');
-    if (s.preset) {
+    {
       const img = el('img'); img.alt = ''; img.draggable = false; img.loading = 'lazy';
-      img.src = `${base}live-icon/${encodeURIComponent(s.id)}?v=${Date.now()}`; pic.appendChild(img);
-    } else {
-      pic.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
-      pic.style.display = 'grid'; pic.style.placeItems = 'center';
-      pic.style.color = '#fff'; pic.style.fontSize = '32px'; pic.style.fontWeight = '700';
-      pic.textContent = (s.name || '?').charAt(0);
+      img.src = `${base}live-icon/${encodeURIComponent(s.id)}?v=${Date.now()}`;
+      img.onerror = () => { pic.style.background='linear-gradient(135deg,#667eea,#764ba2)'; pic.style.display='grid'; pic.style.placeItems='center'; pic.style.color='#fff'; pic.style.fontSize='32px'; pic.style.fontWeight='700'; pic.textContent=(s.name||'?').charAt(0); img.remove(); };
+      pic.appendChild(img);
     }
     if (s.id === selectedId) {
       pic.style.outline = '3px solid #007aff'; pic.style.outlineOffset = '-3px';
@@ -1381,13 +1378,10 @@ function liveSheet(s) {
   const protected_ = s.id === 'preset_2';
   openSheet(body => {
     const pic = el('div', 'pic');
-    if (s.preset) {
-      const img = el('img'); img.src = `${base}live-icon/${encodeURIComponent(s.id)}?v=${Date.now()}`; pic.appendChild(img);
-    } else {
-      pic.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
-      pic.style.display = 'grid'; pic.style.placeItems = 'center';
-      pic.style.color = '#fff'; pic.style.fontSize = '48px'; pic.style.fontWeight = '700';
-      pic.textContent = (s.name || '?').charAt(0);
+    {
+      const img = el('img'); img.src = `${base}live-icon/${encodeURIComponent(s.id)}?v=${Date.now()}`;
+      img.onerror = () => { pic.style.background='linear-gradient(135deg,#667eea,#764ba2)'; pic.style.display='grid'; pic.style.placeItems='center'; pic.style.color='#fff'; pic.style.fontSize='48px'; pic.style.fontWeight='700'; pic.textContent=(s.name||'?').charAt(0); img.remove(); };
+      pic.appendChild(img);
     }
     body.appendChild(pic);
     body.appendChild(el('h3', '', s.name));
