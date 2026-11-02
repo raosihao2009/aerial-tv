@@ -268,12 +268,19 @@ fun LiveSourceMenu(
             val numRows = (sources.size + columns - 1) / columns
             val focusedIndex = sources.indexOfFirst { it.id == focusedId }.coerceAtLeast(0)
             val focusedRow = focusedIndex / columns
-            // 完全重构:
-            // 焦点第0排: 第0排贴底, 第1排peek在上方
-            // 焦点第N>=1排: 第N-1排在上方, 第N排贴底, 第N+1排peek在上方
+            // 显示规律:
+            // 焦点第0排: 第0排贴底, 第1排peek
+            // 焦点第1排: 第0排上方, 第1排贴底, 第2排peek
+            // 焦点第N>=2排: 偶数排N贴底, 奇数排N+1贴底(显示N/N+1/N+2)
+            val bottomRow = when {
+                focusedRow == 0 -> 0
+                focusedRow == 1 -> 1
+                focusedRow % 2 == 0 -> focusedRow
+                else -> focusedRow + 1
+            }
             fun rowY(rowFromTop: Int): Dp {
                 val baseY = screenH - basePad - tileH
-                val diff = rowFromTop - focusedRow
+                val diff = rowFromTop - bottomRow
                 val peekOffset = if (peek && diff == 1) 20.dp else 0.dp
                 return baseY - pitchY * diff + peekOffset
             }
