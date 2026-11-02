@@ -258,7 +258,7 @@ fun LiveSourceMenu(
                 focusRequester = pillFocus,
                 onFocused = {},
                 onClick = { onOpenControlCenter() },
-                modifier = Modifier.align(Alignment.TopEnd).focusProperties { right = FocusRequester.Cancel }
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = 42.dp).focusProperties { right = FocusRequester.Cancel }
             )
             // 绝对定位每个卡片，带位置动画（完全照搬一级菜单 GridMetrics）
             // 行Y坐标逻辑（对齐 HomeScreen.topRowY）:
