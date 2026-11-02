@@ -267,6 +267,9 @@ fun LiveSourceMenu(
                 return screenH - basePad - tileH - pitchY * shifted
             }
             sources.forEachIndexed { index, source ->
+                val rowFromTop = index / columns
+                val shifted = rowFromTop - scrollRow
+                if (shifted < 0 || shifted >= 2) return@forEachIndexed
                 androidx.compose.runtime.key(source.id) {
                 val fallback = remember(source.id, source.name) { liveSourceAppEntry(source, context) }
                 val artState = androidx.compose.runtime.produceState<app.orchard.tv.apps.TileArt?>(initialValue = fallback.art, source.id, source.name, source.liveStatus, source.id == currentId, source.iconTs) {
