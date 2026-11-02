@@ -262,7 +262,7 @@ object TileArtFactory {
             }
             // 把状态标签直接画到位图上
             if (statusText != null && statusColor != 0) {
-                val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE; textSize = H * 0.09f; isFakeBoldText = true }
+                val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE; textSize = H * 0.12f; isFakeBoldText = true }
                 val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = statusColor }
                 val tw = textPaint.measureText(statusText)
                 val th = textPaint.descent() - textPaint.ascent()

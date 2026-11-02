@@ -222,7 +222,8 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     private fun checkLiveStatuses() {
         kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             liveSources.forEach { src ->
-                if (src.url.isBlank() || !src.isBilibili) return@forEach
+                if (src.url.isBlank()) return@forEach
+                if (!src.url.contains("b23.tv") && !src.url.contains("bilibili.com")) return@forEach
                 val status = runCatching {
                     // 跟随短链跳转
                     val conn = (java.net.URL(src.url).openConnection() as java.net.HttpURLConnection).apply {
