@@ -246,16 +246,22 @@ object TileArtFactory {
         opts.inSampleSize = maxOf(1, opts.outWidth / W)
         opts.inJustDecodeBounds = false
         val bmp = android.graphics.BitmapFactory.decodeResource(ctx.resources, resId, opts)
+        return bitmapTileFromBitmap(ctx, bmp, top, bottom)
+    }
+
+    fun bitmapTileFromBitmap(ctx: android.content.Context, bmp: android.graphics.Bitmap?, top: Int, bottom: Int): TileArt {
         val back = createBitmap(W, H)
         Canvas(back).apply {
             drawColor(0xFF111111.toInt())
-            val scale = max(W.toFloat() / bmp.width, H.toFloat() / bmp.height)
-            val dw = (bmp.width * scale).roundToInt()
-            val dh = (bmp.height * scale).roundToInt()
-            drawBitmap(bmp, null, android.graphics.Rect((W - dw) / 2, (H - dh) / 2, (W + dw) / 2, (H + dh) / 2),
-                Paint(Paint.FILTER_BITMAP_FLAG))
+            if (bmp != null) {
+                val scale = max(W.toFloat() / bmp.width, H.toFloat() / bmp.height)
+                val dw = (bmp.width * scale).roundToInt()
+                val dh = (bmp.height * scale).roundToInt()
+                drawBitmap(bmp, null, android.graphics.Rect((W - dw) / 2, (H - dh) / 2, (W + dw) / 2, (H + dh) / 2),
+                    Paint(Paint.FILTER_BITMAP_FLAG))
+            }
         }
-        bmp.recycle()
+        bmp?.recycle()
         return finish(back, null)
     }
 

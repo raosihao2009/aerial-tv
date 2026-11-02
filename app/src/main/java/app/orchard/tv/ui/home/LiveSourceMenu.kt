@@ -255,11 +255,21 @@ fun LiveSourceMenu(
                 androidx.compose.runtime.key(source.id) {
                 val fallback = remember(source.id, source.name) { liveSourceAppEntry(source, context) }
                 val artState = androidx.compose.runtime.produceState<app.orchard.tv.apps.TileArt?>(initialValue = fallback.art, source.id, source.name) {
-                    val resId = liveSourceIconResId(source)
-                    if (resId != null) {
-                        val (top, bottom) = liveColors[source.colorIndex % liveColors.size]
-                        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                            runCatching { TileArtFactory.bitmapTileFromResId(context, resId, top, bottom) }.getOrNull() ?: fallback.art
+                    value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                        // 优先用户上传的图标
+                        val uploadFile = java.io.File(context.filesDir, "live_icon_${source.id}.jpg")
+                        if (uploadFile.exists()) {
+                            runCatching {
+                                val bmp = android.graphics.BitmapFactory.decodeFile(uploadFile.absolutePath)
+                                val (top, bottom) = liveColors[source.colorIndex % liveColors.size]
+                                TileArtFactory.bitmapTileFromBitmap(context, bmp, top, bottom)
+                            }.getOrNull() ?: fallback.art
+                        } else {
+                            val resId = liveSourceIconResId(source)
+                            if (resId != null) {
+                                val (top, bottom) = liveColors[source.colorIndex % liveColors.size]
+                                runCatching { TileArtFactory.bitmapTileFromResId(context, resId, top, bottom) }.getOrNull() ?: fallback.art
+                            } else fallback.art
                         }
                     }
                 }
