@@ -1170,6 +1170,7 @@ fun HomeScreen(
             onDismiss = { vm.overlay = Overlay.None },
             onMenuOpenChange = { liveMenuOpen = it },
             onMovingChange = { liveMoving = it },
+            onOpenControlCenter = { vm.overlay = Overlay.ControlCenter() },
         )
     }
 }

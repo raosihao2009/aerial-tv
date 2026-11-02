@@ -5,6 +5,7 @@ import android.view.KeyEvent as NativeKeyEvent
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateIntOffsetAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
@@ -88,6 +89,7 @@ fun LiveSourceMenu(
     onDismiss: () -> Unit,
     onMenuOpenChange: (Boolean) -> Unit = {},
     onMovingChange: (Boolean) -> Unit = {},
+    onOpenControlCenter: () -> Unit = {},
 ) {
     var focusedId by remember { mutableStateOf(currentId) }
     var menuForId by remember { mutableStateOf<String?>(null) }
@@ -237,6 +239,17 @@ fun LiveSourceMenu(
                 style = TextStyle(Color.White.copy(alpha = 0.7f), fontSize = 20.sp),
                 modifier = Modifier.align(Alignment.TopStart).padding(28.dp)
             )
+            // 控制中心按钮（右上角）
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(28.dp)
+                    .liquidGlass(20.dp)
+                    .clickable { onOpenControlCenter() }
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                BasicText("控制中心", style = TextStyle(Color.White, fontSize = 14.sp))
+            }
             // 绝对定位每个卡片，带位置动画（完全照搬一级菜单 GridMetrics）
             // 行Y坐标逻辑（对齐 HomeScreen.topRowY）:
             //   双排: 底行贴 baseline, 上行 = 底行 - pitchY
