@@ -254,21 +254,33 @@ fun LiveSourceMenu(
             sources.take(visibleCount).forEachIndexed { index, source ->
                 androidx.compose.runtime.key(source.id) {
                 val fallback = remember(source.id, source.name) { liveSourceAppEntry(source, context) }
-                val artState = androidx.compose.runtime.produceState<app.orchard.tv.apps.TileArt?>(initialValue = fallback.art, source.id, source.name) {
+                val artState = androidx.compose.runtime.produceState<app.orchard.tv.apps.TileArt?>(initialValue = fallback.art, source.id, source.name, source.liveStatus, source.id == currentId) {
+                    val statusText = when {
+                        source.id == currentId -> "直播中"
+                        source.liveStatus == 2 -> "未开播"
+                        source.liveStatus == 1 -> "已开播"
+                        else -> null
+                    }
+                    val statusColor = when {
+                        source.id == currentId -> 0xFF007AFF.toInt()
+                        source.liveStatus == 2 -> 0xFFFF3B30.toInt()
+                        source.liveStatus == 1 -> 0xFF34C759.toInt()
+                        else -> 0
+                    }
                     value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                        // 优先用户上传的图标
                         val uploadFile = java.io.File(context.filesDir, "live_icon_${source.id}.jpg")
                         if (uploadFile.exists()) {
                             runCatching {
                                 val bmp = android.graphics.BitmapFactory.decodeFile(uploadFile.absolutePath)
                                 val (top, bottom) = liveColors[source.colorIndex % liveColors.size]
-                                TileArtFactory.bitmapTileFromBitmap(context, bmp, top, bottom)
+                                TileArtFactory.bitmapTileFromBitmap(context, bmp, top, bottom, statusText, statusColor)
                             }.getOrNull() ?: fallback.art
                         } else {
                             val resId = liveSourceIconResId(source)
                             if (resId != null) {
                                 val (top, bottom) = liveColors[source.colorIndex % liveColors.size]
-                                runCatching { TileArtFactory.bitmapTileFromResId(context, resId, top, bottom) }.getOrNull() ?: fallback.art
+                                val bmp = android.graphics.BitmapFactory.decodeResource(context.resources, resId)
+                                runCatching { TileArtFactory.bitmapTileFromBitmap(context, bmp, top, bottom, statusText, statusColor) }.getOrNull() ?: fallback.art
                             } else fallback.art
                         }
                     }
@@ -300,25 +312,6 @@ fun LiveSourceMenu(
                         rowEnd = index == sources.size - 1,
                         showName = showAllNames || focusedId == source.id,
                     )
-                    // 状态标签：小药丸贴在缩略图中下方，像图标的一部分
-                    val statusColor = when {
-                        source.id == currentId -> Color(0xFF007AFF)
-                        source.liveStatus == 2 -> Color(0xFFFF3B30)
-                        source.liveStatus == 1 -> Color(0xFF34C759)
-                        else -> null
-                    }
-                    if (statusColor != null) {
-                        val statusText = if (source.id == currentId) "直播中" else if (source.liveStatus == 2) "未开播" else "已开播"
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .padding(bottom = tileH * 0.12f)
-                                .background(statusColor, androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
-                                .padding(horizontal = 6.dp, vertical = 1.dp)
-                        ) {
-                            BasicText(statusText, style = TextStyle(Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold))
-                        }
-                    }
                 }
                 }
             }

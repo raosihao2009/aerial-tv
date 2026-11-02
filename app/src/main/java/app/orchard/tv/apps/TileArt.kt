@@ -249,7 +249,7 @@ object TileArtFactory {
         return bitmapTileFromBitmap(ctx, bmp, top, bottom)
     }
 
-    fun bitmapTileFromBitmap(ctx: android.content.Context, bmp: android.graphics.Bitmap?, top: Int, bottom: Int): TileArt {
+    fun bitmapTileFromBitmap(ctx: android.content.Context, bmp: android.graphics.Bitmap?, top: Int, bottom: Int, statusText: String? = null, statusColor: Int = 0): TileArt {
         val back = createBitmap(W, H)
         Canvas(back).apply {
             drawColor(0xFF111111.toInt())
@@ -259,6 +259,24 @@ object TileArtFactory {
                 val dh = (bmp.height * scale).roundToInt()
                 drawBitmap(bmp, null, android.graphics.Rect((W - dw) / 2, (H - dh) / 2, (W + dw) / 2, (H + dh) / 2),
                     Paint(Paint.FILTER_BITMAP_FLAG))
+            }
+            // 把状态标签直接画到位图上
+            if (statusText != null && statusColor != 0) {
+                val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE; textSize = H * 0.07f; isFakeBoldText = true }
+                val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = statusColor }
+                val tw = textPaint.measureText(statusText)
+                val th = textPaint.descent() - textPaint.ascent()
+                val pillW = tw + th * 0.8f
+                val pillH = th * 1.3f
+                val cx = W / 2f
+                val cy = H * 0.75f
+                val left = cx - pillW / 2
+                val topY = cy - pillH / 2
+                val r = pillH / 2
+                val rectF = android.graphics.RectF(left, topY, left + pillW, topY + pillH)
+                drawRoundRect(rectF, r, r, bgPaint)
+                val textY = cy - (textPaint.descent() + textPaint.ascent()) / 2
+                drawText(statusText, cx - tw / 2, textY, textPaint)
             }
         }
         bmp?.recycle()
