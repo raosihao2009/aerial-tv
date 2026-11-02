@@ -231,29 +231,19 @@ fun LiveSourceMenu(
                     } else false
                 },
         ) {
-            // 大时钟（与一级菜单同款，左上角纯展示）
-            val now = java.time.LocalDateTime.now()
-            Column(modifier = Modifier.align(Alignment.TopStart).padding(28.dp)) {
-                BasicText(
-                    String.format("%02d:%02d", now.hour, now.minute),
-                    style = TextStyle(Color.White, fontSize = 56.sp, fontWeight = FontWeight.Bold)
-                )
-            }
-            // 控制中心按钮（右上角，只能从下方按上键进入，不能从右方进入）
-            val ccFocus = remember { FocusRequester() }
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(28.dp)
-                    .focusable()
-                    .focusRequester(ccFocus)
+            // 时钟+控制中心（一级菜单同款 StatusPill）
+            val pillFocus = remember { FocusRequester() }
+            StatusPill(
+                now = java.time.LocalDateTime.now(),
+                network = app.orchard.tv.system.NetworkStatus(),
+                showTime = true,
+                enabled = true,
+                focusRequester = pillFocus,
+                onFocused = {},
+                onClick = { onOpenControlCenter() },
+                modifier = Modifier.align(Alignment.TopEnd)
                     .focusProperties { right = FocusRequester.Cancel }
-                    .clickable { onOpenControlCenter() }
-                    .liquidGlass(20.dp)
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                BasicText("控制中心", style = TextStyle(Color.White, fontSize = 14.sp))
-            }
+            )
             // 绝对定位每个卡片，带位置动画（完全照搬一级菜单 GridMetrics）
             // 行Y坐标逻辑（对齐 HomeScreen.topRowY）:
             //   双排: 底行贴 baseline, 上行 = 底行 - pitchY
