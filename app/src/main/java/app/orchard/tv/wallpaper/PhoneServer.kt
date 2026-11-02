@@ -77,6 +77,7 @@ class PhoneServer private constructor(private val context: Context, private val 
                             fos.close()
                         }
                     }
+                    onMain { app.orchard.tv.HomeViewModel.notifyLiveSourcesChanged() }
                     json(state())
                 }
                 path.startsWith("/live-icon/") -> liveIcon(path.removePrefix("/live-icon/"))
