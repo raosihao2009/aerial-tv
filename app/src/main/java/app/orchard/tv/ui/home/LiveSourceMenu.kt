@@ -259,7 +259,8 @@ fun LiveSourceMenu(
             val scrollRow = focusedRow.coerceAtLeast(0)
             fun rowY(rowFromTop: Int): Dp {
                 val shifted = rowFromTop - scrollRow
-                return 200.dp + pitchY * shifted
+                val peekOffset = if (peek) 20.dp else 0.dp
+                return screenH - basePad - tileH - pitchY * shifted + peekOffset
             }
             sources.forEachIndexed { index, source ->
                 val rowFromTop = index / columns
