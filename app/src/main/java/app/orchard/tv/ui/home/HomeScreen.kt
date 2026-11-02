@@ -584,7 +584,9 @@ fun HomeScreen(
                         if (overlay == Overlay.None && !pillFocused && focusedIndex >= 0) return@onPreviewKeyEvent false
                         // Inside a folder, Menu is the focused app's, as on Home.
                         if (overlay is Overlay.Folder) return@onPreviewKeyEvent false
-                        vm.overlay = if (overlay is Overlay.ControlCenter) Overlay.None else Overlay.ControlCenter()
+                        vm.overlay = if (overlay is Overlay.ControlCenter) {
+                            if (liveMenuOpen) Overlay.LiveSourceMenu else Overlay.None
+                        } else Overlay.ControlCenter()
                         true
                     }
                     NativeKeyEvent.KEYCODE_TV_INPUT -> {
