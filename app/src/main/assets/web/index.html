@@ -1413,7 +1413,7 @@ function liveSheet(s) {
       il.appendChild(el('div', 'item tint center', '选一张图片')).onclick = () => {
         const fi = el('input'); fi.type = 'file'; fi.accept = 'image/*';
         fi.onchange = () => { if (!fi.files[0]) return; const fd = new FormData(); fd.append('file', fi.files[0]);
-          fetch(base + 'live-icon/' + encodeURIComponent(s.id), { method: 'POST', body: fd }).then(r => r.json()).then(s2 => take(s2)); };
+          fetch(base + 'live-icon/' + encodeURIComponent(s.id), { method: 'POST', body: fd }).then(r => r.json()).then(s2 => { take(s2); const ns = (s2.liveSources||[]).find(x=>x.id===s.id) || s; closeSheet(); liveSheet(ns); }); };
         fi.click();
       };
       il.lastChild.style.color = '#007aff'; il.lastChild.style.fontWeight = '600';

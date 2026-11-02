@@ -259,7 +259,11 @@ class PhoneServer private constructor(private val context: Context, private val 
                         }
                         prefs.edit().putString("custom_list", newList.toString()).apply()
                     }
-                    onMain { app.orchard.tv.HomeViewModel.notifyLiveSourcesChanged() }
+                    onMain {
+                        val hvm = app.orchard.tv.HomeViewModel.instance
+                        if (hvm.currentLiveSourceId == id) hvm.currentLiveSourceId = "preset_2"
+                        app.orchard.tv.HomeViewModel.notifyLiveSourcesChanged()
+                    }
                     json(state())
                 }
                 session.method == Method.POST && path == "/api/live-source/hide" -> {
