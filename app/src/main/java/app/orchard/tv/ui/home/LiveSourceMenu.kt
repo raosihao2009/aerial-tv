@@ -231,29 +231,23 @@ fun LiveSourceMenu(
                     } else false
                 },
         ) {
-            // 大时钟（左上角，与一级菜单同款）
-            val now = java.time.LocalDateTime.now()
-            Column(modifier = Modifier.align(Alignment.TopStart).padding(28.dp)) {
-                BasicText("晚上好!", style = TextStyle(Color.White.copy(alpha = 0.7f), fontSize = 24.sp))
-                BasicText(
-                    String.format("%02d:%02d", now.hour, now.minute),
-                    style = TextStyle(Color.White, fontSize = 72.sp, fontWeight = FontWeight.Bold)
-                )
-                BasicText("11月2日 周一", style = TextStyle(Color.White.copy(alpha = 0.85f), fontSize = 22.sp))
-            }
-            // 右上角状态栏（WiFi + 开关图标，点击打开控制中心）
-            val ccFocus = remember { FocusRequester() }
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(28.dp)
-                    .focusable()
-                    .focusRequester(ccFocus)
-                    .focusProperties { right = FocusRequester.Cancel }
-                    .clickable { onOpenControlCenter() }
-            ) {
-                BasicText("📶 🔘", style = TextStyle(Color.White, fontSize = 28.sp))
-            }
+            // 大时钟（一级菜单同款 CornerClock）
+            CornerClock(
+                now = java.time.LocalDateTime.now(),
+                modifier = Modifier.align(Alignment.TopStart).padding(28.dp)
+            )
+            // 控制中心（一级菜单同款 StatusPill，右上角）
+            val pillFocus = remember { FocusRequester() }
+            StatusPill(
+                now = java.time.LocalDateTime.now(),
+                network = app.orchard.tv.system.NetworkStatus(),
+                showTime = false,
+                enabled = true,
+                focusRequester = pillFocus,
+                onFocused = {},
+                onClick = { onOpenControlCenter() },
+                modifier = Modifier.align(Alignment.TopEnd).focusProperties { right = FocusRequester.Cancel }
+            )
             // 绝对定位每个卡片，带位置动画（完全照搬一级菜单 GridMetrics）
             // 行Y坐标逻辑（对齐 HomeScreen.topRowY）:
             //   双排: 底行贴 baseline, 上行 = 底行 - pitchY
