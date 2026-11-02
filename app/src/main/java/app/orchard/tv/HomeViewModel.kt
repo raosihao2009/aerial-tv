@@ -254,7 +254,10 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectLiveSource(id: String) {
         val s = liveSources.find { it.id == id } ?: return
-        if (s.url.isBlank()) return
+        if (s.url.isBlank()) {
+            android.widget.Toast.makeText(context, "「${s.name}」并没有直播地址，继续观看「${liveSources.find { it.id == currentLiveSourceId }?.name ?: '央视网快看'}」", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
         currentLiveSourceId = id
         context.getSharedPreferences("live_sources", android.content.Context.MODE_PRIVATE)
             .edit().putString("selected_id", id).apply()
