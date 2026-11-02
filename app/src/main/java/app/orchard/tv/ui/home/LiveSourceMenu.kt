@@ -289,43 +289,24 @@ fun LiveSourceMenu(
                         rowEnd = index == sources.size - 1,
                         showName = showAllNames || focusedId == source.id,
                     )
-                    val isFocused = focusedId == source.id
-                    val badgeScale = (tileW / 200.dp).coerceIn(0.7f, 1.3f) * (if (isFocused) 1.15f else 1f)
-                    val badgePad = (6.dp * badgeScale)
-                    val badgeRadius = (6.dp * badgeScale)
-                    val badgeHPad = (8.dp * badgeScale)
-                    val badgeVPad = (3.dp * badgeScale)
-                    val badgeFont = (11.sp * badgeScale)
-                    if (source.id == currentId) {
+                    // 状态条：叠在缩略图底部，随卡片自然缩放
+                    val statusColor = when {
+                        source.id == currentId -> Color(0xCC007AFF)
+                        source.liveStatus == 2 -> Color(0xCCFF3B30)
+                        source.liveStatus == 1 -> Color(0xCC34C759)
+                        else -> null
+                    }
+                    if (statusColor != null) {
+                        val statusText = if (source.id == currentId) "直播中" else if (source.liveStatus == 2) "未开播" else "已开播"
                         Box(
                             modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(badgePad)
-                                .background(Color(0xCC007AFF), androidx.compose.foundation.shape.RoundedCornerShape(badgeRadius))
-                                .padding(horizontal = badgeHPad, vertical = badgeVPad)
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = tileH * 0.15f)
+                                .background(statusColor, androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
-                            BasicText("直播中", style = TextStyle(Color.White, fontSize = badgeFont, fontWeight = FontWeight.Bold))
+                            BasicText(statusText, style = TextStyle(Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold))
                         }
-                    } else when (source.liveStatus) {
-                        2 -> Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(badgePad)
-                                .background(Color(0xCCFF3B30), androidx.compose.foundation.shape.RoundedCornerShape(badgeRadius))
-                                .padding(horizontal = badgeHPad, vertical = badgeVPad)
-                        ) {
-                            BasicText("未开播", style = TextStyle(Color.White, fontSize = badgeFont, fontWeight = FontWeight.Bold))
-                        }
-                        1 -> Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(badgePad)
-                                .background(Color(0xCC34C759), androidx.compose.foundation.shape.RoundedCornerShape(badgeRadius))
-                                .padding(horizontal = badgeHPad, vertical = badgeVPad)
-                        ) {
-                            BasicText("已开播", style = TextStyle(Color.White, fontSize = badgeFont, fontWeight = FontWeight.Bold))
-                        }
-                        else -> {}
                     }
                 }
                 }

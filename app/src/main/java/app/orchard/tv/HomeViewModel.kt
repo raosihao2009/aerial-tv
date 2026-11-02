@@ -319,10 +319,10 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun saveCustomList() {
         val arr = org.json.JSONArray()
-        liveSources.forEach {
+        liveSources.filter { !it.isPreset }.forEach {
             arr.put(org.json.JSONObject().put("id", it.id).put("name", it.name)
                 .put("url", it.url).put("isBilibili", it.isBilibili).put("colorIndex", it.colorIndex)
-                .put("isPreset", it.isPreset))
+                .put("isPreset", false))
         }
         val order = liveSources.joinToString(",") { it.id }
         context.getSharedPreferences("live_sources", android.content.Context.MODE_PRIVATE)
