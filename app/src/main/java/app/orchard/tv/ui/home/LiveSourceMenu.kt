@@ -290,7 +290,7 @@ fun LiveSourceMenu(
                         rowEnd = index == sources.size - 1,
                         showName = showAllNames || focusedId == source.id,
                     )
-                    // 状态条：直接渲染在图标底部，像图标的一部分
+                    // 状态标签：小药丸贴在缩略图中下方，像图标的一部分
                     val statusColor = when {
                         source.id == currentId -> Color(0xFF007AFF)
                         source.liveStatus == 2 -> Color(0xFFFF3B30)
@@ -302,10 +302,9 @@ fun LiveSourceMenu(
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
-                                .fillMaxWidth()
-                                .background(statusColor)
-                                .padding(vertical = 1.dp),
-                            contentAlignment = Alignment.Center
+                                .padding(bottom = tileH * 0.12f)
+                                .background(statusColor, androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
+                                .padding(horizontal = 6.dp, vertical = 1.dp)
                         ) {
                             BasicText(statusText, style = TextStyle(Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold))
                         }

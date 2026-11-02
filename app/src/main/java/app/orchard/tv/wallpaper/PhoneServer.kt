@@ -519,7 +519,7 @@ class PhoneServer private constructor(private val context: Context, private val 
         if (uploadFile.exists()) {
             val bytes = uploadFile.readBytes()
             return newFixedLengthResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(bytes), bytes.size.toLong()).apply {
-                addHeader("Cache-Control", "public, max-age=300")
+                addHeader("Cache-Control", "no-cache, no-store, must-revalidate")
             }
         }
         val resName = when (id) {
