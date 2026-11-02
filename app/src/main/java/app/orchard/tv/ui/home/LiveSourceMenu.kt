@@ -289,7 +289,7 @@ fun LiveSourceMenu(
                         rowEnd = index == sources.size - 1,
                         showName = showAllNames || focusedId == source.id,
                     )
-                    // 状态条：贴在缩略图底部边缘，一体化
+                    // 状态条：直接渲染在图标底部，像图标的一部分
                     val statusColor = when {
                         source.id == currentId -> Color(0xFF007AFF)
                         source.liveStatus == 2 -> Color(0xFFFF3B30)
@@ -301,12 +301,12 @@ fun LiveSourceMenu(
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
-                                .fillMaxWidth(0.6f)
+                                .fillMaxWidth()
                                 .background(statusColor)
-                                .padding(vertical = 2.dp),
+                                .padding(vertical = 1.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            BasicText(statusText, style = TextStyle(Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold))
+                            BasicText(statusText, style = TextStyle(Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold))
                         }
                     }
                 }
