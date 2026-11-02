@@ -9,6 +9,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
@@ -246,7 +247,7 @@ fun LiveSourceMenu(
                     .padding(28.dp)
                     .focusable()
                     .focusRequester(ccFocus)
-                    .focusProperties { right = FocusRequester.Disabled }
+                    .focusProperties { right = FocusRequester.Cancel }
                     .clickable { onOpenControlCenter() }
                     .liquidGlass(20.dp)
                     .padding(horizontal = 16.dp, vertical = 8.dp)
