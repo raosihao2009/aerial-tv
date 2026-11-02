@@ -255,7 +255,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     fun selectLiveSource(id: String) {
         val s = liveSources.find { it.id == id } ?: return
         if (s.url.isBlank()) {
-            android.widget.Toast.makeText(context, "「${s.name}」并没有直播地址，继续观看「${liveSources.find { it.id == currentLiveSourceId }?.name ?: "央视网快看"}」", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(context, "「${s.name}」暂未设置直播地址，请继续观看「${liveSources.find { it.id == currentLiveSourceId }?.name ?: "央视网快看"}」", android.widget.Toast.LENGTH_SHORT).show()
             return
         }
         currentLiveSourceId = id

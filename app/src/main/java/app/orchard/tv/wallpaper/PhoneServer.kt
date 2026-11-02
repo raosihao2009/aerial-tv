@@ -275,7 +275,10 @@ class PhoneServer private constructor(private val context: Context, private val 
                     }
                     if (hide) hidden.add(id) else hidden.remove(id)
                     prefs.edit().putStringSet("hidden", hidden).apply()
-                    onMain { app.orchard.tv.HomeViewModel.notifyLiveSourcesChanged() }
+                    onMain {
+                        if (hide) app.orchard.tv.HomeViewModel.instance?.onLiveSourceDeleted(id)
+                        app.orchard.tv.HomeViewModel.notifyLiveSourcesChanged()
+                    }
                     json(state())
                 }
                 session.method == Method.POST && path == "/api/live-source/reorder" -> {
