@@ -231,13 +231,17 @@ fun LiveSourceMenu(
                     } else false
                 },
         ) {
-            // 时钟（左上角，纯展示，与一级菜单同款大时钟）
-            BasicText(
-                String.format("%02d:%02d", java.time.LocalDateTime.now().hour, java.time.LocalDateTime.now().minute),
-                style = TextStyle(Color.White, fontSize = 56.sp, fontWeight = FontWeight.Bold),
-                modifier = Modifier.align(Alignment.TopStart).padding(28.dp)
-            )
-            // 控制中心按钮（右上角）
+            // 大时钟（左上角，与一级菜单同款）
+            val now = java.time.LocalDateTime.now()
+            Column(modifier = Modifier.align(Alignment.TopStart).padding(28.dp)) {
+                BasicText("晚上好!", style = TextStyle(Color.White.copy(alpha = 0.7f), fontSize = 24.sp))
+                BasicText(
+                    String.format("%02d:%02d", now.hour, now.minute),
+                    style = TextStyle(Color.White, fontSize = 72.sp, fontWeight = FontWeight.Bold)
+                )
+                BasicText("11月2日 周一", style = TextStyle(Color.White.copy(alpha = 0.85f), fontSize = 22.sp))
+            }
+            // 右上角状态栏（WiFi + 开关图标，点击打开控制中心）
             val ccFocus = remember { FocusRequester() }
             Box(
                 modifier = Modifier
@@ -248,7 +252,7 @@ fun LiveSourceMenu(
                     .focusProperties { right = FocusRequester.Cancel }
                     .clickable { onOpenControlCenter() }
             ) {
-                BasicText("控制中心", style = TextStyle(Color.White, fontSize = 18.sp))
+                BasicText("📶 🔘", style = TextStyle(Color.White, fontSize = 28.sp))
             }
             // 绝对定位每个卡片，带位置动画（完全照搬一级菜单 GridMetrics）
             // 行Y坐标逻辑（对齐 HomeScreen.topRowY）:
