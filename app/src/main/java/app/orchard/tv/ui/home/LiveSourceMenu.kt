@@ -226,6 +226,17 @@ fun LiveSourceMenu(
                     } else false
                 },
         ) {
+            // 时钟（左上角）
+            val now = remember { mutableStateOf(System.currentTimeMillis()) }
+            LaunchedEffect(visible) {
+                while (visible) { now.value = System.currentTimeMillis(); kotlinx.coroutines.delay(1000) }
+            }
+            val fmt = remember { java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()) }
+            BasicText(
+                fmt.format(now.value),
+                style = TextStyle(Color.White.copy(alpha = 0.7f), fontSize = 20.sp),
+                modifier = Modifier.align(Alignment.TopStart).padding(28.dp)
+            )
             // 绝对定位每个卡片，带位置动画（完全照搬一级菜单 GridMetrics）
             // 行Y坐标逻辑（对齐 HomeScreen.topRowY）:
             //   双排: 底行贴 baseline, 上行 = 底行 - pitchY
