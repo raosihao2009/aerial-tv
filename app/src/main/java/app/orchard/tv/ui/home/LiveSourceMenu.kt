@@ -256,11 +256,10 @@ fun LiveSourceMenu(
             val numRows = (sources.size + columns - 1) / columns
             val focusedIndex = sources.indexOfFirst { it.id == focusedId }.coerceAtLeast(0)
             val focusedRow = focusedIndex / columns
-            // 滚动：始终保持焦点行在底部两行之内，上方行滚出屏幕
-            val scrollRow = (focusedRow - 1).coerceAtLeast(0)
+            val scrollRow = focusedRow.coerceAtLeast(0)
             fun rowY(rowFromTop: Int): Dp {
                 val shifted = rowFromTop - scrollRow
-                return 200.dp + pitchY * shifted
+                return screenH - basePad - tileH - pitchY * shifted
             }
             sources.forEachIndexed { index, source ->
                 val rowFromTop = index / columns
