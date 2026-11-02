@@ -303,7 +303,6 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         val hidden = (prefs.getStringSet("hidden", emptySet()) ?: emptySet()).toMutableSet()
         hidden.add(id)
         prefs.edit().putStringSet("hidden", hidden).commit()
-        saveCustomList()
         notifyLiveSourcesChanged()
     }
 
