@@ -1339,7 +1339,12 @@ function renderLive() {
   const addBtn = el('div', 'item tint center', '+ 添加直播源');
   addBtn.style.fontWeight = '600';
   addBtn.onclick = async () => {
-    try { take(await api('api/live-source', { name: '新的直播', url: '' })); } catch (e) {}
+    try {
+      const s2 = await api('api/live-source', { name: '新的直播', url: '' });
+      take(s2);
+      const ns = (s2.liveSources||[]).find(x => !x.preset) || (s2.liveSources||[])[s2.liveSources.length-1];
+      if (ns) liveSheet(ns);
+    } catch (e) {}
   };
   addRow.appendChild(addBtn);
 
@@ -1398,11 +1403,18 @@ function liveSheet(s) {
 
     // 地址
     const ul2 = el('div', 'list'); body.appendChild(ul2);
+    const uf = el('form', 'item field');
     const uinput = el('input'); uinput.type = 'text'; uinput.value = s.url; uinput.placeholder = 'B站链接或m3u8地址'; uinput.disabled = protected_;
-    ul2.appendChild(uinput);
-    body.appendChild(el('p', 'meta', '直播源地址, 支持B站短链接或m3u8直链。'));
+    const usave = el('button', 'link', '保存'); usave.disabled = protected_;
+    uf.append(uinput, usave); ul2.appendChild(uf);
+    const meta1 = el('p', 'meta', '直播源地址, 支持B站短链接或m3u8直链。'); meta1.style.textAlign = 'left'; body.appendChild(meta1);
+    const meta0 = body.querySelectorAll('p.meta')[0]; if (meta0) meta0.style.textAlign = 'left';
 
     f.onsubmit = async ev => {
+      ev.preventDefault(); closeSheet();
+      try { take(await api('api/live-source', { id: s.id, name: input.value, url: uinput.value })); } catch (e) {}
+    };
+    uf.onsubmit = async ev => {
       ev.preventDefault(); closeSheet();
       try { take(await api('api/live-source', { id: s.id, name: input.value, url: uinput.value })); } catch (e) {}
     };
