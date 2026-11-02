@@ -233,7 +233,7 @@ fun LiveSourceMenu(
             val now = java.time.LocalDateTime.now()
             StatusPill(
                 now = now,
-                network = NetworkStatus.Unknown,
+                network = app.orchard.tv.system.NetworkStatus(),
                 showTime = true,
                 enabled = true,
                 focusRequester = pillFocus,
