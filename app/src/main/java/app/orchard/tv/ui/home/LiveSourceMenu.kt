@@ -228,18 +228,12 @@ fun LiveSourceMenu(
                     } else false
                 },
         ) {
-            // 时钟+控制中心按钮（与一级菜单同款 StatusPill）
-            val pillFocus = remember { FocusRequester() }
+            // 时钟（纯展示，不可聚焦）
             val now = java.time.LocalDateTime.now()
-            StatusPill(
-                now = now,
-                network = app.orchard.tv.system.NetworkStatus(),
-                showTime = true,
-                enabled = true,
-                focusRequester = pillFocus,
-                onFocused = {},
-                onClick = { onOpenControlCenter() },
-                modifier = Modifier.align(Alignment.TopEnd).padding(28.dp)
+            BasicText(
+                String.format("%02d:%02d", now.hour, now.minute),
+                style = TextStyle(Color.White.copy(alpha = 0.8f), fontSize = 28.sp),
+                modifier = Modifier.align(Alignment.TopStart).padding(28.dp)
             )
             // 绝对定位每个卡片，带位置动画（完全照搬一级菜单 GridMetrics）
             // 行Y坐标逻辑（对齐 HomeScreen.topRowY）:
@@ -258,7 +252,6 @@ fun LiveSourceMenu(
             sources.forEachIndexed { index, source ->
                 val rowFromTop = index / columns
                 val shifted = rowFromTop - scrollRow
-                if (shifted < 0 || shifted >= 2) return@forEachIndexed
                 androidx.compose.runtime.key(source.id) {
                 val fallback = remember(source.id, source.name) { liveSourceAppEntry(source, context) }
                 val artState = androidx.compose.runtime.produceState<app.orchard.tv.apps.TileArt?>(initialValue = fallback.art, source.id, source.name, source.liveStatus, source.id == currentId, source.iconTs) {
