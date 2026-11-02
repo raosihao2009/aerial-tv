@@ -231,19 +231,25 @@ fun LiveSourceMenu(
                     } else false
                 },
         ) {
-            // 时钟+控制中心（一级菜单同款 StatusPill）
-            val pillFocus = remember { FocusRequester() }
-            StatusPill(
-                now = java.time.LocalDateTime.now(),
-                network = app.orchard.tv.system.NetworkStatus(),
-                showTime = true,
-                enabled = true,
-                focusRequester = pillFocus,
-                onFocused = {},
-                onClick = { onOpenControlCenter() },
-                modifier = Modifier.align(Alignment.TopEnd)
-                    .focusProperties { right = FocusRequester.Cancel }
+            // 时钟（左上角，纯展示，与一级菜单同款大时钟）
+            BasicText(
+                String.format("%02d:%02d", java.time.LocalDateTime.now().hour, java.time.LocalDateTime.now().minute),
+                style = TextStyle(Color.White, fontSize = 56.sp, fontWeight = FontWeight.Bold),
+                modifier = Modifier.align(Alignment.TopStart).padding(28.dp)
             )
+            // 控制中心按钮（右上角）
+            val ccFocus = remember { FocusRequester() }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(28.dp)
+                    .focusable()
+                    .focusRequester(ccFocus)
+                    .focusProperties { right = FocusRequester.Cancel }
+                    .clickable { onOpenControlCenter() }
+            ) {
+                BasicText("控制中心", style = TextStyle(Color.White, fontSize = 18.sp))
+            }
             // 绝对定位每个卡片，带位置动画（完全照搬一级菜单 GridMetrics）
             // 行Y坐标逻辑（对齐 HomeScreen.topRowY）:
             //   双排: 底行贴 baseline, 上行 = 底行 - pitchY
@@ -261,7 +267,6 @@ fun LiveSourceMenu(
             sources.forEachIndexed { index, source ->
                 val rowFromTop = index / columns
                 val shifted = rowFromTop - scrollRow
-                if (shifted !in 0..1) return@forEachIndexed
                 androidx.compose.runtime.key(source.id) {
                 val fallback = remember(source.id, source.name) { liveSourceAppEntry(source, context) }
                 val artState = androidx.compose.runtime.produceState<app.orchard.tv.apps.TileArt?>(initialValue = fallback.art, source.id, source.name, source.liveStatus, source.id == currentId, source.iconTs) {
