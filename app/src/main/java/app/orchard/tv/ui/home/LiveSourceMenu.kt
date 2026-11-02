@@ -310,7 +310,7 @@ fun LiveSourceMenu(
                     spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessHigh),
                     label = "slot",
                 )
-                Box(modifier = Modifier.offset { animatedOffset }) {
+                Box(modifier = Modifier.offset { animatedOffset }.alpha(if (shifted in 0..1) 1f else 0f)) {
                     AppTile(
                         app = app,
                         width = tileW,
