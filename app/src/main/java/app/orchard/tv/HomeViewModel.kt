@@ -307,6 +307,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         hidden.add(id)
         prefs.edit().putStringSet("hidden", hidden).apply()
         saveCustomList()
+        notifyLiveSourcesChanged()
     }
 
     fun renameLiveSource(id: String, newName: String) {
