@@ -256,30 +256,17 @@ fun LiveSourceMenu(
             //   单排+露出: 主行上抬12dp, 次行露12dp边; 焦点到次排时上抬两行全可见
             //   单排+不露出: 主行贴baseline, 次行在屏幕外; 焦点到次排时上抬两行全可见
             val maxVisible = columns * 2
-            val visibleCount = minOf(sources.size, maxVisible)
+            val visibleCount = sources.size
             val numRows = (visibleCount + columns - 1) / columns
             val focusedIndex = sources.indexOfFirst { it.id == focusedId }.coerceAtLeast(0)
             val focusedRow = focusedIndex / columns
-            // 单排模式下焦点到次排时, 菜单上抬到两行全可见(无论peek开或关)
-            val lifted = oneRow && focusedRow >= 1 && numRows >= 2
-            fun rowY(rowFromTop: Int): Dp = when {
-                lifted -> {
-                    screenH - basePad - tileH - pitchY * (numRows - 1 - rowFromTop)
-                }
-                !oneRow -> {
-                    screenH - basePad - tileH - pitchY * (numRows - 1 - rowFromTop)
-                }
-                peek -> {
-                    if (rowFromTop == 0) screenH - pitchY - 12.dp
-                    else screenH - 12.dp
-                }
-                else -> {
-                    // 单排无 peek: row 0 贴baseline, row 1 在屏幕外(可聚焦, 聚焦后lifted=true)
-                    if (rowFromTop == 0) screenH - basePad - tileH
-                    else screenH + tileH
-                }
+            // 滚动偏移：焦点行始终保持在底部两行内
+            val scrollRow = (focusedRow - 1).coerceAtLeast(0)
+            fun rowY(rowFromTop: Int): Dp {
+                val shifted = rowFromTop - scrollRow
+                return screenH - basePad - tileH - pitchY * shifted
             }
-            sources.take(visibleCount).forEachIndexed { index, source ->
+            sources.forEachIndexed { index, source ->
                 androidx.compose.runtime.key(source.id) {
                 val fallback = remember(source.id, source.name) { liveSourceAppEntry(source, context) }
                 val artState = androidx.compose.runtime.produceState<app.orchard.tv.apps.TileArt?>(initialValue = fallback.art, source.id, source.name, source.liveStatus, source.id == currentId, source.iconTs) {
