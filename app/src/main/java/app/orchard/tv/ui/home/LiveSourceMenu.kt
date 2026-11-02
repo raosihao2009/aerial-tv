@@ -254,7 +254,7 @@ fun LiveSourceMenu(
             sources.take(visibleCount).forEachIndexed { index, source ->
                 androidx.compose.runtime.key(source.id) {
                 val fallback = remember(source.id, source.name) { liveSourceAppEntry(source, context) }
-                val artState = androidx.compose.runtime.produceState<app.orchard.tv.apps.TileArt?>(initialValue = fallback.art, source.id, source.name, source.liveStatus, source.id == currentId) {
+                val artState = androidx.compose.runtime.produceState<app.orchard.tv.apps.TileArt?>(initialValue = fallback.art, source.id, source.name, source.liveStatus, source.id == currentId, source.iconTs) {
                     val statusText = when {
                         source.id == currentId -> "直播中"
                         source.liveStatus == 2 -> "未开播"

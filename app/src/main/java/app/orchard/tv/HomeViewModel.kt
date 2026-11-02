@@ -60,7 +60,8 @@ data class LiveSource(
     val isBilibili: Boolean = true,
     val isPreset: Boolean = false,
     val colorIndex: Int = 0,
-    val liveStatus: Int = 0, // 0=unknown, 1=live, 2=offline
+    val liveStatus: Int = 0,
+    val iconTs: Long = 0,
 )
 
 sealed interface Overlay {
@@ -202,13 +203,14 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         val overrides = org.json.JSONObject(prefs.getString("overrides", "{}") ?: "{}")
         val hidden = prefs.getStringSet("hidden", emptySet()) ?: emptySet()
         val all = mutableListOf<LiveSource>()
+        fun iconTsFor(id: String) = java.io.File(context.filesDir, "live_icon_$id.jpg").takeIf { it.exists() }?.lastModified() ?: 0L
         presetLiveSources.forEach { p ->
             val ov = overrides.optJSONObject(p.id)
             val name = ov?.optString("name")?.takeIf { it.isNotEmpty() } ?: p.name
             val url = ov?.optString("url")?.takeIf { it.isNotEmpty() } ?: p.url
-            all.add(p.copy(name = name, url = url))
+            all.add(p.copy(name = name, url = url, iconTs = iconTsFor(p.id)))
         }
-        all.addAll(saved)
+        all.addAll(saved.map { it.copy(iconTs = iconTsFor(it.id)) })
         val savedOrder = prefs.getString("order", null)?.split(",")?.filter { it.isNotEmpty() } ?: emptyList()
         val ordered = mutableListOf<LiveSource>()
         savedOrder.forEach { id -> all.find { it.id == id }?.let { ordered.add(it) } }
