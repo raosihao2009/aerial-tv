@@ -234,7 +234,7 @@ fun LiveSourceMenu(
             // 大时钟（一级菜单同款 CornerClock）
             CornerClock(
                 now = java.time.LocalDateTime.now(),
-                modifier = Modifier.align(Alignment.TopStart).padding(28.dp)
+                modifier = Modifier.align(Alignment.TopStart).padding(start = 28.dp, top = 80.dp)
             )
             // 控制中心（一级菜单同款 StatusPill，右上角）
             val pillFocus = remember { FocusRequester() }
@@ -260,7 +260,7 @@ fun LiveSourceMenu(
             val scrollRow = (focusedRow - 1).coerceAtLeast(0)
             fun rowY(rowFromTop: Int): Dp {
                 val shifted = rowFromTop - scrollRow
-                return screenH - basePad - tileH - pitchY * shifted
+                return 200.dp + pitchY * shifted
             }
             sources.forEachIndexed { index, source ->
                 val rowFromTop = index / columns
