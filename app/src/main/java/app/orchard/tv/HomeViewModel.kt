@@ -222,20 +222,20 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             liveSources.forEach { src ->
                 if (src.url.isBlank() || !src.isBilibili) return@forEach
                 val status = runCatching {
-                    // 跟随短链跳转拿room id
+                    // 跟随短链跳转
                     val conn = (java.net.URL(src.url).openConnection() as java.net.HttpURLConnection).apply {
-                        instanceFollowRedirects = false; connectTimeout = 3000; readTimeout = 3000
+                        instanceFollowRedirects = true; connectTimeout = 5000; readTimeout = 5000
                         setRequestProperty("User-Agent", "Mozilla/5.0")
                     }
-                    val loc = conn.getHeaderField("Location") ?: src.url
+                    val finalUrl = conn.url.toString()
                     conn.disconnect()
-                    val roomId = Regex("/(?:live|room)/?(\\d+)").find(loc)?.value?.replace(Regex("[^\\d]"), "")
-                        ?: Regex("b23\\.tv/([\\w]+)").find(loc)?.value?.let { null }
+                    // 从URL提取房间号
+                    val roomId = Regex("live\\.bilibili\\.com/(\\d+)").find(finalUrl)?.groupValues?.get(1)
+                        ?: Regex("/(\\d{5,})").find(finalUrl)?.groupValues?.get(1)
                     if (roomId.isNullOrBlank()) return@runCatching 0
-                    // 调B站API
                     val apiUrl = "https://api.live.bilibili.com/room/v1/Room/get_info?room_id=$roomId"
                     val apiConn = (java.net.URL(apiUrl).openConnection() as java.net.HttpURLConnection).apply {
-                        connectTimeout = 3000; readTimeout = 3000
+                        connectTimeout = 5000; readTimeout = 5000
                         setRequestProperty("User-Agent", "Mozilla/5.0")
                     }
                     val json = apiConn.inputStream.bufferedReader().readText()

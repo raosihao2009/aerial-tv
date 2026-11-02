@@ -289,11 +289,11 @@ fun LiveSourceMenu(
                         rowEnd = index == sources.size - 1,
                         showName = showAllNames || focusedId == source.id,
                     )
-                    // 状态条：叠在缩略图底部，随卡片自然缩放
+                    // 状态条：贴在缩略图底部边缘，一体化
                     val statusColor = when {
-                        source.id == currentId -> Color(0xCC007AFF)
-                        source.liveStatus == 2 -> Color(0xCCFF3B30)
-                        source.liveStatus == 1 -> Color(0xCC34C759)
+                        source.id == currentId -> Color(0xFF007AFF)
+                        source.liveStatus == 2 -> Color(0xFFFF3B30)
+                        source.liveStatus == 1 -> Color(0xFF34C759)
                         else -> null
                     }
                     if (statusColor != null) {
@@ -301,11 +301,12 @@ fun LiveSourceMenu(
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
-                                .padding(bottom = tileH * 0.15f)
-                                .background(statusColor, androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .fillMaxWidth(0.6f)
+                                .background(statusColor)
+                                .padding(vertical = 2.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            BasicText(statusText, style = TextStyle(Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold))
+                            BasicText(statusText, style = TextStyle(Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold))
                         }
                     }
                 }
