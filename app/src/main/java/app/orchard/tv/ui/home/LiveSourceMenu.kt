@@ -245,7 +245,6 @@ fun LiveSourceMenu(
                     .align(Alignment.TopEnd)
                     .padding(28.dp)
                     .liquidGlass(20.dp)
-                    .clickable { onOpenControlCenter() }
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
                 BasicText("控制中心", style = TextStyle(Color.White, fontSize = 14.sp))
@@ -255,12 +254,10 @@ fun LiveSourceMenu(
             //   双排: 底行贴 baseline, 上行 = 底行 - pitchY
             //   单排+露出: 主行上抬12dp, 次行露12dp边; 焦点到次排时上抬两行全可见
             //   单排+不露出: 主行贴baseline, 次行在屏幕外; 焦点到次排时上抬两行全可见
-            val maxVisible = columns * 2
-            val visibleCount = sources.size
-            val numRows = (visibleCount + columns - 1) / columns
+            val numRows = (sources.size + columns - 1) / columns
             val focusedIndex = sources.indexOfFirst { it.id == focusedId }.coerceAtLeast(0)
             val focusedRow = focusedIndex / columns
-            // 滚动偏移：焦点行始终保持在底部两行内
+            // 滚动：始终保持焦点行在底部两行之内，上方行滚出屏幕
             val scrollRow = (focusedRow - 1).coerceAtLeast(0)
             fun rowY(rowFromTop: Int): Dp {
                 val shifted = rowFromTop - scrollRow
