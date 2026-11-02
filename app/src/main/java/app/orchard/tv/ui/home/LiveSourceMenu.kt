@@ -252,7 +252,7 @@ fun LiveSourceMenu(
             val pillFocus = remember { FocusRequester() }
             StatusPill(
                 now = java.time.LocalDateTime.now(),
-                network = app.orchard.tv.system.NetworkStatus(),
+                network = app.orchard.tv.system.NetworkStatus(app.orchard.tv.system.NetKind.Wifi, "WiFi", 1f, false),
                 showTime = false,
                 enabled = true,
                 focusRequester = pillFocus,
