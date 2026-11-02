@@ -231,13 +231,14 @@ fun LiveSourceMenu(
                     } else false
                 },
         ) {
-            // 时钟（纯展示，不可聚焦）
+            // 大时钟（与一级菜单同款，左上角纯展示）
             val now = java.time.LocalDateTime.now()
-            BasicText(
-                String.format("%02d:%02d", now.hour, now.minute),
-                style = TextStyle(Color.White.copy(alpha = 0.8f), fontSize = 28.sp),
-                modifier = Modifier.align(Alignment.TopStart).padding(28.dp)
-            )
+            Column(modifier = Modifier.align(Alignment.TopStart).padding(28.dp)) {
+                BasicText(
+                    String.format("%02d:%02d", now.hour, now.minute),
+                    style = TextStyle(Color.White, fontSize = 56.sp, fontWeight = FontWeight.Bold)
+                )
+            }
             // 控制中心按钮（右上角，只能从下方按上键进入，不能从右方进入）
             val ccFocus = remember { FocusRequester() }
             Box(
@@ -270,6 +271,7 @@ fun LiveSourceMenu(
             sources.forEachIndexed { index, source ->
                 val rowFromTop = index / columns
                 val shifted = rowFromTop - scrollRow
+                if (shifted !in 0..1) return@forEachIndexed
                 androidx.compose.runtime.key(source.id) {
                 val fallback = remember(source.id, source.name) { liveSourceAppEntry(source, context) }
                 val artState = androidx.compose.runtime.produceState<app.orchard.tv.apps.TileArt?>(initialValue = fallback.art, source.id, source.name, source.liveStatus, source.id == currentId, source.iconTs) {
