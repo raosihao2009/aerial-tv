@@ -180,6 +180,7 @@ fun LiveSourceMenu(
         val tileW = (screenW - gridMargin * 2 - gridGap * (columns - 1)) / columns
         val tileH = tileW * 9f / 16f
         val pitchY = tileH + pitchYExtra
+        val pillFocus = remember { FocusRequester() }
 
         Box(
             modifier = Modifier
@@ -257,7 +258,6 @@ fun LiveSourceMenu(
                 )
             }
             // 控制中心（一级菜单同款 StatusPill）
-            val pillFocus = remember { FocusRequester() }
             StatusPill(
                 now = java.time.LocalDateTime.now(),
                 network = app.orchard.tv.system.NetworkStatus(app.orchard.tv.system.NetKind.Wifi, "WiFi", 1f, false),
