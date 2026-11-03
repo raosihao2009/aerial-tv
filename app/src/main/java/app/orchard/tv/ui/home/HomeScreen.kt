@@ -641,6 +641,11 @@ fun HomeScreen(
         val openFolder = (overlay as? Overlay.Folder)?.id ?: (overlay as? Overlay.AppMenu)?.inFolder
         val folderOpen = overlay is Overlay.HiddenApps || openFolder != null
         val ccOpen = overlay is Overlay.ControlCenter
+        // CC打开时清除焦点，确保CC面板立即获得焦点
+        val homeFocusManager = androidx.compose.ui.platform.LocalFocusManager.current
+        LaunchedEffect(ccOpen) {
+            if (ccOpen) homeFocusManager.clearFocus()
+        }
         var sheetIn by remember { mutableStateOf(false) }
         var sheetWarm by remember { mutableStateOf(false) }
         // Folders open on Home frosted, as on tvOS; Control Center keeps Home sharp, dimmed.
@@ -665,13 +670,8 @@ fun HomeScreen(
         LaunchedEffect(ccOpen, sourceInput) {
             homeShot = null
             if (!ccOpen || Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return@LaunchedEffect
-            // 直播模式(透流或直播源菜单)下不截图，直接显示实时视频
-            if (sourceInput != null || overlay is Overlay.LiveSourceMenu || ccFromLiveMenu) return@LaunchedEffect
-            delay(HOME_SHOT_AFTER_MS)
-            while (true) {
-                homeShot = runCatching { homeLayer.toImageBitmap() }.getOrNull()
-                delay(HOME_SHOT_EVERY_MS)
-            }
+            // CC打开时不截图，直接显示实时视频(无论直播透流还是动态壁纸)
+            return@LaunchedEffect
         }
 
         val ambientApp = apps.getOrNull(focusedIndex) ?: apps.firstOrNull()
