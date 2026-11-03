@@ -272,20 +272,14 @@ fun LiveSourceMenu(
             // 焦点第0排: 第0排贴底, 第1排peek
             // 焦点第1排: 第0排上方, 第1排贴底, 第2排peek
             // 焦点第N>=2排: 偶数排N贴底, 奇数排N+1贴底(显示N/N+1/N+2)
-            val bottomRow = when {
-                focusedRow >= numRows - 1 -> numRows - 1
-                focusedRow % 2 == 0 -> focusedRow + 1
-                else -> focusedRow
-            }
             fun rowY(rowFromTop: Int): Dp {
-                val baseY = screenH - basePad - tileH
-                val diff = rowFromTop - bottomRow
+                val diff = rowFromTop - focusedRow
                 val peekOffset = if (peek && diff == 1) 20.dp else 0.dp
-                return baseY + pitchY * diff - peekOffset
+                return screenH - basePad - tileH - pitchY * diff + peekOffset
             }
             sources.forEachIndexed { index, source ->
                 val rowFromTop = index / columns
-                val shifted = rowFromTop - bottomRow
+                val shifted = rowFromTop - focusedRow
                 androidx.compose.runtime.key(source.id) {
                 val fallback = remember(source.id, source.name) { liveSourceAppEntry(source, context) }
                 val artState = androidx.compose.runtime.produceState<app.orchard.tv.apps.TileArt?>(initialValue = fallback.art, source.id, source.name, source.liveStatus, source.id == currentId, source.iconTs) {
