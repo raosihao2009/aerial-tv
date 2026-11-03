@@ -1155,7 +1155,7 @@ fun HomeScreen(
 
         // ===== 新增：直播源选择菜单组件 =====
         LiveSourceMenu(
-            visible = overlay is Overlay.LiveSourceMenu || (overlay is Overlay.ControlCenter && ccFromLiveMenu),
+            visible = overlay is Overlay.LiveSourceMenu,
             sources = vm.getAllLiveSources(),
             currentId = vm.currentLiveSourceId,
             onSelect = { vm.selectLiveSource(it); vm.overlay = Overlay.None },

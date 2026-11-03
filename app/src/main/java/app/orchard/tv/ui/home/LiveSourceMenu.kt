@@ -156,7 +156,7 @@ fun LiveSourceMenu(
     val showAllNames = AerialSettings.showAllNames
 
     val alpha = androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (!visible) 0f else if (controlCenterOpen) 0.4f else 1f,
+        targetValue = if (!visible) 0f else 1f,
         animationSpec = androidx.compose.animation.core.tween(300),
         label = "liveMenuAlpha",
     )
@@ -355,7 +355,7 @@ fun LiveSourceMenu(
                         width = tileW,
                         height = tileH,
                         focusRequester = requester(source.id),
-                        enabled = menuForId == null && visible,
+                        enabled = menuForId == null && visible && !controlCenterOpen,
                         moving = movingId == source.id,
                         appearDelayMs = null,
                         onFocused = { focusedId = source.id; Sounds.focusMoved() },
