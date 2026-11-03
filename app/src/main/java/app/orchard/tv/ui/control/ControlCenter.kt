@@ -215,7 +215,7 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
             delay(3000)
         }
     }
-    LaunchedEffect(visible) {
+    LaunchedEffect(takeFocus) {
         if (!takeFocus) return@LaunchedEffect
         withFrameNanos { }
         withFrameNanos { }
@@ -348,7 +348,7 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
 private fun UpdatePage(vm: HomeViewModel, takeFocus: Boolean) {
     val context = LocalContext.current
     val first = remember { FocusRequester() }
-    LaunchedEffect(visible) {
+    LaunchedEffect(takeFocus) {
         if (!takeFocus) return@LaunchedEffect
         withFrameNanos { }
         withFrameNanos { }
@@ -423,7 +423,7 @@ private fun UpdatePage(vm: HomeViewModel, takeFocus: Boolean) {
 private fun SetupPage(vm: HomeViewModel, takeFocus: Boolean, onOpen: (android.content.Intent) -> Unit) {
     val context = LocalContext.current
     val first = remember { FocusRequester() }
-    LaunchedEffect(visible) {
+    LaunchedEffect(takeFocus) {
         if (!takeFocus) return@LaunchedEffect
         withFrameNanos { }
         withFrameNanos { }
@@ -612,7 +612,7 @@ private fun BrightnessRow(vm: HomeViewModel) {
 @Composable
 private fun InputsPage(vm: HomeViewModel, takeFocus: Boolean, onOpen: (android.content.Intent) -> Unit) {
     val first = remember { FocusRequester() }
-    LaunchedEffect(visible) {
+    LaunchedEffect(takeFocus) {
         if (!takeFocus) return@LaunchedEffect
         withFrameNanos { }
         withFrameNanos { }
@@ -657,7 +657,7 @@ private fun InputsPage(vm: HomeViewModel, takeFocus: Boolean, onOpen: (android.c
 @Composable
 private fun InputSettingsPage(vm: HomeViewModel, takeFocus: Boolean) {
     val first = remember { FocusRequester() }
-    LaunchedEffect(visible) {
+    LaunchedEffect(takeFocus) {
         if (!takeFocus) return@LaunchedEffect
         withFrameNanos { }
         withFrameNanos { }
