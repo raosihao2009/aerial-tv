@@ -799,6 +799,8 @@ fun HomeScreen(
                     .graphicsLayer {
                         // 二创：UI 隐藏时隐藏所有应用图标和时钟（带过渡动画）
                         if (channelPreviewVisible) alpha = uiAlpha
+                        // 二级菜单打开时隐藏一级菜单网格
+                        if (overlay is Overlay.LiveSourceMenu) alpha = 0f
                     },
             ) {
                 val clockRight = AerialSettings.clockRight
