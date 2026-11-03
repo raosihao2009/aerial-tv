@@ -194,6 +194,15 @@ fun LiveSourceMenu(
                         e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_CENTER) {
                         ignoreMenuKeyUp = false
                     }
+                    if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_RIGHT && e.type == KeyEventType.KeyDown) {
+                        val focusedIdx = sources.indexOfFirst { it.id == focusedId }
+                        val colInRow = focusedIdx % columns
+                        val isLastInRow = colInRow == columns - 1 || focusedIdx == sources.size - 1
+                        if (isLastInRow && menuForId == null && movingId == null) {
+                            runCatching { pillFocus.requestFocus() }
+                            return@onPreviewKeyEvent true
+                        }
+                    }
                     if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_MENU && e.type == KeyEventType.KeyUp && menuForId == null && movingId == null && !ignoreMenuKeyUp) {
                         requester(focusedId).requestFocus()
                         sources.find { it.id == focusedId }?.let { menuForId = it.id }
@@ -258,7 +267,10 @@ fun LiveSourceMenu(
                 focusRequester = pillFocus,
                 onFocused = {},
                 onClick = { onOpenControlCenter() },
-                modifier = Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = 42.dp).focusProperties { right = FocusRequester.Cancel }
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = 42.dp).focusProperties {
+                    right = FocusRequester.Cancel
+                    down = requester(focusedId)
+                }
             )
             // 绝对定位每个卡片，带位置动画（完全照搬一级菜单 GridMetrics）
             // 行Y坐标逻辑（对齐 HomeScreen.topRowY）:
