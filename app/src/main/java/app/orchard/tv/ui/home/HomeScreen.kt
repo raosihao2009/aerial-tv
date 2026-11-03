@@ -799,8 +799,6 @@ fun HomeScreen(
                     .graphicsLayer {
                         // 二创：UI 隐藏时隐藏所有应用图标和时钟（带过渡动画）
                         if (channelPreviewVisible) alpha = uiAlpha
-                        // 二级菜单打开时隐藏一级菜单网格
-                        if (overlay is Overlay.LiveSourceMenu) alpha = 0f
                     },
             ) {
                 val clockRight = AerialSettings.clockRight
@@ -1165,7 +1163,7 @@ fun HomeScreen(
 
         // ===== 新增：直播源选择菜单组件 =====
         LiveSourceMenu(
-            visible = overlay is Overlay.LiveSourceMenu,
+            visible = overlay is Overlay.LiveSourceMenu || (overlay is Overlay.ControlCenter && ccFromLiveMenu),
             sources = vm.getAllLiveSources(),
             currentId = vm.currentLiveSourceId,
             onSelect = { vm.selectLiveSource(it); vm.overlay = Overlay.None },
