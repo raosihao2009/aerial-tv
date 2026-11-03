@@ -207,8 +207,8 @@ fun LiveSourceMenu(
                         ignoreMenuKeyUp = false
                     }
                     if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_UP && e.type == KeyEventType.KeyDown) {
-                        val focusedIdx = sources.indexOfFirst { it.id == focusedId }
-                        val isTopRow = focusedIdx < columns
+                        val fi = sources.indexOfFirst { it.id == focusedId }
+                        val isTopRow = fi >= 0 && fi < columns
                         if (isTopRow && menuForId == null && movingId == null) {
                             runCatching { pillFocus.requestFocus() }
                             return@onPreviewKeyEvent true
@@ -269,9 +269,10 @@ fun LiveSourceMenu(
                 )
             }
             // 控制中心（一级菜单同款 StatusPill）
+            val pillNetwork = remember { app.orchard.tv.system.NetworkStatus(app.orchard.tv.system.NetKind.Wifi, "WiFi", 1f, false) }
             StatusPill(
                 now = java.time.LocalDateTime.now(),
-                network = app.orchard.tv.system.NetworkStatus(app.orchard.tv.system.NetKind.Wifi, "WiFi", 1f, false),
+                network = pillNetwork,
                 showTime = false,
                 enabled = menuForId == null && movingId == null,
                 focusRequester = pillFocus,
@@ -288,15 +289,14 @@ fun LiveSourceMenu(
             //   单排+露出: 主行上抬12dp, 次行露12dp边; 焦点到次排时上抬两行全可见
             //   单排+不露出: 主行贴baseline, 次行在屏幕外; 焦点到次排时上抬两行全可见
             val numRows = (sources.size + columns - 1) / columns
-            val focusedIndex = sources.indexOfFirst { it.id == focusedId }.coerceAtLeast(0)
+            val focusedIndex = remember(sources, focusedId) { sources.indexOfFirst { it.id == focusedId }.coerceAtLeast(0) }
             val focusedRow = focusedIndex / columns
             // 双排: 焦点行贴底, 上一行在上方, 无peek
             var bottomRow = focusedRow
             if (bottomRow >= numRows) bottomRow = numRows - 1
-            fun rowY(rowFromTop: Int): Dp {
-                val diff = rowFromTop - bottomRow
-                return screenH - tileH - 62.dp + pitchY * diff
-            }
+            val baseY = remember(screenH, tileH) { screenH - tileH - 62.dp }
+            val pitchYVal = remember(tileH) { pitchY }
+            fun rowY(rowFromTop: Int): Dp = baseY + pitchYVal * (rowFromTop - bottomRow)
             sources.forEachIndexed { index, source ->
                 val rowFromTop = index / columns
                 val shifted = rowFromTop - bottomRow
