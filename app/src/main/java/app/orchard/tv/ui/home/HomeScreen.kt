@@ -661,9 +661,10 @@ fun HomeScreen(
         // issue #466: the reporter rebuilt the same steps in a small app and got the same 16 frames).
         val homeLayer = rememberGraphicsLayer()
         var homeShot by remember { mutableStateOf<ImageBitmap?>(null) }
-        LaunchedEffect(ccOpen) {
+        LaunchedEffect(ccOpen, sourceInput) {
             homeShot = null
             if (!ccOpen || Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return@LaunchedEffect
+            if (sourceInput != null) return@LaunchedEffect // 直播透流硬件层无法截图，直接显示实时画面
             delay(HOME_SHOT_AFTER_MS)
             while (true) {
                 homeShot = runCatching { homeLayer.toImageBitmap() }.getOrNull()
@@ -1035,15 +1036,6 @@ fun HomeScreen(
             repeat(3) { withFrameNanos { } }
             sheetWarm = false
         }
-        ControlCenter(
-            visible = overlay is Overlay.ControlCenter,
-            page = (overlay as? Overlay.ControlCenter)?.page ?: CcPage.Main,
-            vm = vm,
-            now = now,
-            onOpen = { vm.overlay = Overlay.None; onOpen(it) },
-            onClose = { vm.overlay = if (ccFromLiveMenu) { ccFromLiveMenu = false; Overlay.LiveSourceMenu } else Overlay.None },
-            warm = ccWarm,
-        )
 
         FolderView(
             name = openFolder?.let { id -> apps.firstOrNull { it.folder?.id == id }?.label },
@@ -1174,6 +1166,7 @@ fun HomeScreen(
             onMenuOpenChange = { liveMenuOpen = it },
             onMovingChange = { liveMoving = it },
             onOpenControlCenter = { ccFromLiveMenu = true; vm.overlay = Overlay.ControlCenter() },
+            controlCenterOpen = overlay is Overlay.ControlCenter,
         )
     }
 }

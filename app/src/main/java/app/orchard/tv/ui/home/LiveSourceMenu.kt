@@ -93,6 +93,7 @@ fun LiveSourceMenu(
     onMenuOpenChange: (Boolean) -> Unit = {},
     onMovingChange: (Boolean) -> Unit = {},
     onOpenControlCenter: () -> Unit = {},
+    controlCenterOpen: Boolean = false,
 ) {
     var focusedId by remember { mutableStateOf(currentId) }
     var menuForId by remember { mutableStateOf<String?>(null) }
@@ -155,7 +156,7 @@ fun LiveSourceMenu(
     val showAllNames = AerialSettings.showAllNames
 
     val alpha = androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (visible) 1f else 0f,
+        targetValue = if (!visible) 0f else if (controlCenterOpen) 0.4f else 1f,
         animationSpec = androidx.compose.animation.core.tween(300),
         label = "liveMenuAlpha",
     )
@@ -165,7 +166,7 @@ fun LiveSourceMenu(
             .fillMaxSize()
             .alpha(alpha.value)
             .onPreviewKeyEvent { e ->
-                if (!visible) return@onPreviewKeyEvent false
+                if (!visible || controlCenterOpen) return@onPreviewKeyEvent false
                 if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_HOME && e.type == KeyEventType.KeyDown) {
                     if (menuForId != null) menuForId = null
                     if (movingId != null) movingId = null
