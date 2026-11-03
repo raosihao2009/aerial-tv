@@ -1168,5 +1168,15 @@ fun HomeScreen(
             onOpenControlCenter = { ccFromLiveMenu = true; vm.overlay = Overlay.ControlCenter() },
             controlCenterOpen = overlay is Overlay.ControlCenter,
         )
+
+        ControlCenter(
+            visible = overlay is Overlay.ControlCenter,
+            page = (overlay as? Overlay.ControlCenter)?.page ?: CcPage.Main,
+            vm = vm,
+            now = now,
+            onOpen = { vm.overlay = Overlay.None; onOpen(it) },
+            onClose = { vm.overlay = if (ccFromLiveMenu) { ccFromLiveMenu = false; Overlay.LiveSourceMenu } else Overlay.None },
+            warm = ccWarm,
+        )
     }
 }
