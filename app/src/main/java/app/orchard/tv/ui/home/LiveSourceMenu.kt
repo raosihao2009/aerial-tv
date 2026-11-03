@@ -194,11 +194,10 @@ fun LiveSourceMenu(
                         e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_CENTER) {
                         ignoreMenuKeyUp = false
                     }
-                    if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_RIGHT && e.type == KeyEventType.KeyDown) {
+                    if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_UP && e.type == KeyEventType.KeyDown) {
                         val focusedIdx = sources.indexOfFirst { it.id == focusedId }
-                        val colInRow = focusedIdx % columns
-                        val isLastInRow = colInRow == columns - 1 || focusedIdx == sources.size - 1
-                        if (isLastInRow && menuForId == null && movingId == null) {
+                        val isTopRow = focusedIdx < columns
+                        if (isTopRow && menuForId == null && movingId == null) {
                             runCatching { pillFocus.requestFocus() }
                             return@onPreviewKeyEvent true
                         }
