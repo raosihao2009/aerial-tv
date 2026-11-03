@@ -319,6 +319,7 @@ fun HomeScreen(
         animationSpec = androidx.compose.animation.core.tween(250), label = "uiAlpha")
     var liveMenuOpen by remember { mutableStateOf(false) }
     var liveMoving by remember { mutableStateOf(false) }
+    var ccFromLiveMenu by remember { mutableStateOf(false) }
     var lastKeyTime by remember { mutableStateOf(0L) }
     val focusedPkg = apps.getOrNull(focusedIndex)?.packageName ?: ""
     val channelPreviewVisible = AerialSettings.livePreviewEnabled &&
@@ -688,7 +689,7 @@ fun HomeScreen(
                 hold = filmSaver && vm.filmFront,
                 standIn = (overlay == Overlay.None || overlay is Overlay.Wallpaper ||
                     (overlay is Overlay.AppMenu && overlay.inFolder == null)) ||
-                    (overlay is Overlay.ControlCenter && !liveMenuOpen),
+                    (overlay is Overlay.ControlCenter && !ccFromLiveMenu),
                 panel = overlay != Overlay.None,
                 otherFormatSaver = vm.screensaverVisible && !filmSaver && Wallpapers.screensaver == ScreensaverMode.Aerial &&
                     !AerialFormats.screensaverCarriesWallpaper(appContext),
@@ -1041,7 +1042,7 @@ fun HomeScreen(
             vm = vm,
             now = now,
             onOpen = { vm.overlay = Overlay.None; onOpen(it) },
-            onClose = { vm.overlay = if (liveMenuOpen) Overlay.LiveSourceMenu else Overlay.None },
+            onClose = { vm.overlay = if (ccFromLiveMenu) { ccFromLiveMenu = false; Overlay.LiveSourceMenu } else Overlay.None },
             warm = ccWarm,
         )
 
@@ -1173,7 +1174,7 @@ fun HomeScreen(
             onDismiss = { vm.overlay = Overlay.None },
             onMenuOpenChange = { liveMenuOpen = it },
             onMovingChange = { liveMoving = it },
-            onOpenControlCenter = { vm.overlay = Overlay.ControlCenter() },
+            onOpenControlCenter = { ccFromLiveMenu = true; vm.overlay = Overlay.ControlCenter() },
         )
     }
 }
