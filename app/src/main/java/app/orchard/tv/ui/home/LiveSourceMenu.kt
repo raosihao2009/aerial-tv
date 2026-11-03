@@ -273,7 +273,7 @@ fun LiveSourceMenu(
             // 焦点第1排: 第0排上方, 第1排贴底, 第2排peek
             // 焦点第N>=2排: 偶数排N贴底, 奇数排N+1贴底(显示N/N+1/N+2)
             val bottomRow = when {
-                focusedRow <= 1 -> focusedRow
+                focusedRow >= numRows - 1 -> numRows - 1
                 focusedRow % 2 == 0 -> focusedRow + 1
                 else -> focusedRow
             }
