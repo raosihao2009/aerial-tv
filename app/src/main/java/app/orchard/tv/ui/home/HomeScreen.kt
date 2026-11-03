@@ -661,6 +661,7 @@ fun HomeScreen(
         // issue #466: the reporter rebuilt the same steps in a small app and got the same 16 frames).
         val homeLayer = rememberGraphicsLayer()
         var homeShot by remember { mutableStateOf<ImageBitmap?>(null) }
+        val sourceInput = Wallpapers.sourceInput
         LaunchedEffect(ccOpen, sourceInput) {
             homeShot = null
             if (!ccOpen || Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return@LaunchedEffect
@@ -681,7 +682,6 @@ fun HomeScreen(
         // 上游 v1.75：移动壁纸的影片渲染（从 Box 内挪到 Box 外，在最底层绘制）
         val filmMoves = vm.filmFront && (overlay == Overlay.None || overlay is Overlay.ControlCenter) && !vm.screensaverVisible && !pastShelf &&
             !inGrid && moving == null
-        val sourceInput = Wallpapers.sourceInput
         when {
             Wallpapers.selectedId == Wallpapers.LIVE -> LiveWallpaper(
                 moving = filmMoves,
