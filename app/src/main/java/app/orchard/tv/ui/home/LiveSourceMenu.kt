@@ -360,7 +360,7 @@ fun LiveSourceMenu(
                         onFocused = { focusedId = source.id; Sounds.focusMoved() },
                         onClick = { if (movingId == null) { if (source.url.isBlank()) { bannerMsg = "「${source.name}」暂未设置直播地址" } else { onSelect(source.id); onDismiss() } } },
                         onLongPress = { if (movingId == null) menuForId = source.id },
-                        rowEnd = index == sources.size - 1,
+                        rowEnd = index % columns == columns - 1 || index == sources.size - 1,
                         showName = showAllNames || focusedId == source.id,
                     )
                 }
