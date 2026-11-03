@@ -217,7 +217,7 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
     }
     LaunchedEffect(Unit) {
         if (!takeFocus) return@LaunchedEffect
-        withFrameNanos { }
+        kotlinx.coroutines.delay(100)
         runCatching { first.requestFocus() }
     }
 
