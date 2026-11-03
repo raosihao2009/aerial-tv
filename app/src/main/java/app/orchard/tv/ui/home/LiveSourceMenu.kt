@@ -141,6 +141,11 @@ fun LiveSourceMenu(
     LaunchedEffect(movingId, sources) {
         movingId?.let { runCatching { requester(it).requestFocus() } }
     }
+    // CC打开时清除二级菜单焦点，让CC立即获得焦点
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    LaunchedEffect(controlCenterOpen) {
+        if (controlCenterOpen) focusManager.clearFocus()
+    }
 
     val context = androidx.compose.ui.platform.LocalContext.current
     // 完全对齐一级书架 HomeScreen.GridMetrics 的几何参数

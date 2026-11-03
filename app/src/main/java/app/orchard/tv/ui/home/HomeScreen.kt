@@ -665,7 +665,8 @@ fun HomeScreen(
         LaunchedEffect(ccOpen, sourceInput) {
             homeShot = null
             if (!ccOpen || Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return@LaunchedEffect
-            if (sourceInput != null) return@LaunchedEffect // 直播透流硬件层无法截图，直接显示实时画面
+            // 直播模式(透流或直播源菜单)下不截图，直接显示实时视频
+            if (sourceInput != null || overlay is Overlay.LiveSourceMenu || ccFromLiveMenu) return@LaunchedEffect
             delay(HOME_SHOT_AFTER_MS)
             while (true) {
                 homeShot = runCatching { homeLayer.toImageBitmap() }.getOrNull()
@@ -800,8 +801,8 @@ fun HomeScreen(
                     .graphicsLayer {
                         // 二创：UI 隐藏时隐藏所有应用图标和时钟（带过渡动画）
                         if (channelPreviewVisible) alpha = uiAlpha
-                        // 二级菜单打开时隐藏一级网格（含从二级菜单打开的CC）
-                        if (overlay is Overlay.LiveSourceMenu || (overlay is Overlay.ControlCenter && ccFromLiveMenu)) alpha = 0f
+                        // 二级菜单或控制中心打开时隐藏一级网格
+                        if (overlay is Overlay.LiveSourceMenu || overlay is Overlay.ControlCenter) alpha = 0f
                     },
             ) {
                 val clockRight = AerialSettings.clockRight
