@@ -689,7 +689,7 @@ fun HomeScreen(
                 hold = filmSaver && vm.filmFront,
                 standIn = overlay == Overlay.None || overlay is Overlay.Wallpaper ||
                     (overlay is Overlay.AppMenu && overlay.inFolder == null),
-                panel = overlay != Overlay.None,
+                panel = overlay != Overlay.None && overlay !is Overlay.ControlCenter,
                 otherFormatSaver = vm.screensaverVisible && !filmSaver && Wallpapers.screensaver == ScreensaverMode.Aerial &&
                     !AerialFormats.screensaverCarriesWallpaper(appContext),
                 lastInputAt = { vm.lastInputAt },
