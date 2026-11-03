@@ -641,11 +641,6 @@ fun HomeScreen(
         val openFolder = (overlay as? Overlay.Folder)?.id ?: (overlay as? Overlay.AppMenu)?.inFolder
         val folderOpen = overlay is Overlay.HiddenApps || openFolder != null
         val ccOpen = overlay is Overlay.ControlCenter
-        // CC打开时清除焦点，确保CC面板立即获得焦点
-        val homeFocusManager = androidx.compose.ui.platform.LocalFocusManager.current
-        LaunchedEffect(ccOpen) {
-            if (ccOpen) homeFocusManager.clearFocus()
-        }
         var sheetIn by remember { mutableStateOf(false) }
         var sheetWarm by remember { mutableStateOf(false) }
         // Folders open on Home frosted, as on tvOS; Control Center keeps Home sharp, dimmed.

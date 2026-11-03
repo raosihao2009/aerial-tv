@@ -218,6 +218,7 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
     LaunchedEffect(Unit) {
         if (!takeFocus) return@LaunchedEffect
         withFrameNanos { }
+        withFrameNanos { }
         runCatching { first.requestFocus() }
     }
 
@@ -350,6 +351,7 @@ private fun UpdatePage(vm: HomeViewModel, takeFocus: Boolean) {
     LaunchedEffect(Unit) {
         if (!takeFocus) return@LaunchedEffect
         withFrameNanos { }
+        withFrameNanos { }
         runCatching { first.requestFocus() }
     }
     DisposableEffect(Unit) { onDispose { Updates.resetInstall() } }
@@ -423,6 +425,7 @@ private fun SetupPage(vm: HomeViewModel, takeFocus: Boolean, onOpen: (android.co
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         if (!takeFocus) return@LaunchedEffect
+        withFrameNanos { }
         withFrameNanos { }
         runCatching { first.requestFocus() }
     }
@@ -612,6 +615,7 @@ private fun InputsPage(vm: HomeViewModel, takeFocus: Boolean, onOpen: (android.c
     LaunchedEffect(Unit) {
         if (!takeFocus) return@LaunchedEffect
         withFrameNanos { }
+        withFrameNanos { }
         runCatching { first.requestFocus() }
     }
     Column(Modifier.heightIn(max = 470.dp).verticalScroll(rememberScrollState())) {
@@ -655,6 +659,7 @@ private fun InputSettingsPage(vm: HomeViewModel, takeFocus: Boolean) {
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         if (!takeFocus) return@LaunchedEffect
+        withFrameNanos { }
         withFrameNanos { }
         runCatching { first.requestFocus() }
     }
