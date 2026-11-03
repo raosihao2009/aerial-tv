@@ -288,7 +288,7 @@ fun LiveSourceMenu(
             }
             sources.forEachIndexed { index, source ->
                 val rowFromTop = index / columns
-                val shifted = rowFromTop - focusedRow
+                val shifted = rowFromTop - bottomRow
                 androidx.compose.runtime.key(source.id) {
                 val fallback = remember(source.id, source.name) { liveSourceAppEntry(source, context) }
                 val artState = androidx.compose.runtime.produceState<app.orchard.tv.apps.TileArt?>(initialValue = fallback.art, source.id, source.name, source.liveStatus, source.id == currentId, source.iconTs) {
