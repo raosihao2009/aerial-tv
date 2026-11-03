@@ -150,7 +150,7 @@ fun LiveSourceMenu(
     // gridGap: 4→34dp, 5→28dp, 6→24dp (和一级菜单一致)
     val gridGap = when (columns) { 4 -> 34.dp; 6 -> 24.dp; else -> 28.dp }
     val gridMargin = 56.dp
-    val pitchYExtra = 70.dp
+    val pitchYExtra = 50.dp
     val basePad = if (plate) 50.dp else 70.dp
     val showAllNames = AerialSettings.showAllNames
 
