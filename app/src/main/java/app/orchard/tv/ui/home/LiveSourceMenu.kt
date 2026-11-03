@@ -280,23 +280,13 @@ fun LiveSourceMenu(
             val numRows = (sources.size + columns - 1) / columns
             val focusedIndex = sources.indexOfFirst { it.id == focusedId }.coerceAtLeast(0)
             val focusedRow = focusedIndex / columns
-            // 显示规律:
-            // 焦点第0排: 第0排贴底, 第1排peek
-            // 焦点第1排: 第0排上方, 第1排贴底, 第2排peek
-            // 焦点第N>=2排: 偶数排N贴底, 奇数排N+1贴底(显示N/N+1/N+2)
-            // 第1排单独(0-indexed 0): bottomRow=0, 第2排peek
-            // 第2/3排一组: 焦点在第2排(0-indexed 1)时, 第1排上方第2排贴底第3排peek
-            // 第3/4排一组: 第3排上方第4排贴底第5排peek (0-indexed 2,3)
-            var bottomRow = when {
-                focusedRow == 0 -> 0
-                focusedRow % 2 == 0 -> focusedRow + 1
-                else -> focusedRow
-            }
+            // 简单翻页: 焦点行作为底行, 上方一行, 下方一行peek
+            var bottomRow = focusedRow
             if (bottomRow >= numRows) bottomRow = numRows - 1
             fun rowY(rowFromTop: Int): Dp {
                 val diff = rowFromTop - bottomRow
                 // 有下一排可peek: 底行 = screenH - pitchY - 12 (peek排顶部距屏底12dp)
-                // 最后一排(无peek): 底行 = screenH - tileH - 20 (底行底部距屏底20dp)
+                // 最后一排(无peek): 底行 = screenH - tileH - 62 (底部边距和有peek时一致)
                 val hasPeek = bottomRow < numRows - 1
                 val baseY = if (hasPeek) screenH - pitchY - 12.dp else screenH - tileH - 62.dp
                 return baseY + pitchY * diff
