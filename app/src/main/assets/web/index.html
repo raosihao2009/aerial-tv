@@ -1341,7 +1341,8 @@ function renderLive() {
     try {
       const s2 = await api('api/live-source', { name: '新的直播', url: '' });
       take(s2);
-      const ns = (s2.liveSources||[]).find(x => !x.preset) || (s2.liveSources||[])[s2.liveSources.length-1];
+      const customs = (s2.liveSources||[]).filter(x => x.id && x.id.startsWith("custom_"));
+      const ns = customs.sort((a,b) => b.id.localeCompare(a.id))[0];
       if (ns) liveSheet(ns);
     } catch (e) {}
   };
