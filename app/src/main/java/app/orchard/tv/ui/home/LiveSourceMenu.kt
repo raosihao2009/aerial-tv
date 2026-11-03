@@ -280,8 +280,10 @@ fun LiveSourceMenu(
             }
             fun rowY(rowFromTop: Int): Dp {
                 val diff = rowFromTop - bottomRow
-                val peekOffset = if (peek && diff == 1) 40.dp else 0.dp
-                return screenH - basePad - tileH + pitchY * diff - peekOffset
+                val twoRow = bottomRow >= 1
+                val peekOffset = if (peek && diff == 1) 12.dp else 0.dp
+                val baseY = if (twoRow) screenH - 50.dp - tileH - pitchY else screenH - tileH - 70.dp
+                return baseY + pitchY * diff - peekOffset
             }
             sources.forEachIndexed { index, source ->
                 val rowFromTop = index / columns
