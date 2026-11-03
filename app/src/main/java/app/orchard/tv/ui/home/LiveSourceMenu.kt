@@ -340,12 +340,16 @@ fun LiveSourceMenu(
                 val xPx = with(density) { (gridMargin + (tileW + gridGap) * colIndex).roundToPx() }
                 val yPx = with(density) { rowY(rowFromTop).roundToPx() }
                 val targetOffset = IntOffset(xPx, yPx)
+                val visibleRow = shifted in -1..1
                 val animatedOffset by animateIntOffsetAsState(
                     targetOffset,
                     spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessHigh),
                     label = "slot",
                 )
-                Box(modifier = Modifier.offset { animatedOffset }.alpha(if (shifted in -1..1) 1f else 0f)) {
+                Box(modifier = Modifier
+                    .offset { if (visibleRow) animatedOffset else targetOffset }
+                    .graphicsLayer { alpha = if (visibleRow) 1f else 0f }
+                ) {
                     AppTile(
                         app = app,
                         width = tileW,
