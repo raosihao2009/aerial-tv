@@ -353,7 +353,6 @@ fun LiveSourceMenu(
                         focusRequester = requester(source.id),
                         enabled = menuForId == null && visible && !controlCenterOpen,
                         moving = movingId == source.id,
-                        appearDelayMs = null,
                         onFocused = { focusedId = source.id; Sounds.focusMoved() },
                         onClick = { if (movingId == null) { if (source.url.isBlank()) { bannerMsg = "「${source.name}」暂未设置直播地址" } else { onSelect(source.id); onDismiss() } } },
                         onLongPress = { if (movingId == null) menuForId = source.id },
