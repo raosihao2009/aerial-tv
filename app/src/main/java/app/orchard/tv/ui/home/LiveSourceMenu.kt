@@ -274,7 +274,7 @@ fun LiveSourceMenu(
                 now = java.time.LocalDateTime.now(),
                 network = pillNetwork,
                 showTime = false,
-                enabled = menuForId == null && movingId == null,
+                enabled = menuForId == null && movingId == null && !controlCenterOpen,
                 focusRequester = pillFocus,
                 onFocused = {},
                 onClick = { onOpenControlCenter() },
