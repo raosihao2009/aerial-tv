@@ -272,9 +272,11 @@ fun LiveSourceMenu(
             // 焦点第0排: 第0排贴底, 第1排peek
             // 焦点第1排: 第0排上方, 第1排贴底, 第2排peek
             // 焦点第N>=2排: 偶数排N贴底, 奇数排N+1贴底(显示N/N+1/N+2)
-            // 翻页式布局(1-indexed): 第1排单独, 第2/3排一组, 第4/5排一组, 第6/7排一组
-            // 0-indexed: (0), (1,2), (3,4), (5,6)... 每组下排贴底, 上排在其上方
-            var bottomRow = (focusedRow + 1) / 2 * 2
+            // 翻页式布局(1-indexed): 奇数排在上方, 偶数排贴底, 下一组奇数排peek
+            // 组: (1,2), (3,4), (5,6)... 0-indexed: (0,1), (2,3), (4,5)...
+            // 焦点在0-indexed偶数(1-indexed奇数=上方): bottomRow=focusedRow+1
+            // 焦点在0-indexed奇数(1-indexed偶数=贴底): bottomRow=focusedRow
+            var bottomRow = if (focusedRow % 2 == 0) focusedRow + 1 else focusedRow
             if (bottomRow >= numRows) bottomRow = numRows - 1
             fun rowY(rowFromTop: Int): Dp {
                 val diff = rowFromTop - bottomRow
