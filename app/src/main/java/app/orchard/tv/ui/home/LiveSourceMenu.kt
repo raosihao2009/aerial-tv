@@ -273,7 +273,7 @@ fun LiveSourceMenu(
                 now = java.time.LocalDateTime.now(),
                 network = app.orchard.tv.system.NetworkStatus(app.orchard.tv.system.NetKind.Wifi, "WiFi", 1f, false),
                 showTime = false,
-                enabled = true,
+                enabled = menuForId == null && movingId == null,
                 focusRequester = pillFocus,
                 onFocused = {},
                 onClick = { onOpenControlCenter() },
