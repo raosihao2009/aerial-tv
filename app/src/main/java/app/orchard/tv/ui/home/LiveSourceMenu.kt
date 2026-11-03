@@ -283,7 +283,7 @@ fun LiveSourceMenu(
                 // 有下一排可peek: 底行 = screenH - pitchY - 12 (peek排顶部距屏底12dp)
                 // 最后一排(无peek): 底行 = screenH - tileH - 20 (底行底部距屏底20dp)
                 val hasPeek = bottomRow < numRows - 1
-                val baseY = if (hasPeek) screenH - pitchY - 12.dp else screenH - tileH - 50.dp
+                val baseY = if (hasPeek) screenH - pitchY - 12.dp else screenH - tileH - 62.dp
                 return baseY + pitchY * diff
             }
             sources.forEachIndexed { index, source ->
