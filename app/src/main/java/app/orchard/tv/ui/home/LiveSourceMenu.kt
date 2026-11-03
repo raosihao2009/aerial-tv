@@ -280,16 +280,12 @@ fun LiveSourceMenu(
             val numRows = (sources.size + columns - 1) / columns
             val focusedIndex = sources.indexOfFirst { it.id == focusedId }.coerceAtLeast(0)
             val focusedRow = focusedIndex / columns
-            // 简单翻页: 焦点行作为底行, 上方一行, 下方一行peek
+            // 双排: 焦点行贴底, 上一行在上方, 无peek
             var bottomRow = focusedRow
             if (bottomRow >= numRows) bottomRow = numRows - 1
             fun rowY(rowFromTop: Int): Dp {
                 val diff = rowFromTop - bottomRow
-                // 有下一排可peek: 底行 = screenH - pitchY - 12 (peek排顶部距屏底12dp)
-                // 最后一排(无peek): 底行 = screenH - tileH - 62 (底部边距和有peek时一致)
-                val hasPeek = bottomRow < numRows - 1
-                val baseY = if (hasPeek) screenH - pitchY - 12.dp else screenH - tileH - 62.dp
-                return baseY + pitchY * diff
+                return screenH - tileH - 62.dp + pitchY * diff
             }
             sources.forEachIndexed { index, source ->
                 val rowFromTop = index / columns
