@@ -38,7 +38,7 @@ TCL 手机 App 有一个「把手机里的 APK 推到电视」的功能。电视
   - 握手：第一条消息发 `159>>1>>0`，表示不加密。电视会回 `253>>1>>0`，以及一条 `159>>…` 设备信息。
   - 心跳：发 `150>>`，电视回 `150>>YES`。会话安静太久会被电视断开。
   - 安装指令：`223>>INSTALL>>包名>>名字>>下载地址>>2>>versionCode>>大小MB>>>>>>>>apkPathMd5`。来源填 `2`（本地）并带上 `apkPathMd5`，就会跳过商店查询，也跳过版本和签名检查，直接在电视右上角弹「多屏互动：正在发起应用推送，同意后将接收应用并进行安装 [拒绝] [同意]」。
-  - 回复：`223>>INSTALL>>…>>confirm_pending|denied`；同意之后会连续收到 `223>>PROGRESS>>包名>>名字>>阶段>>百分比>>…`，阶段 1 是下载中，3 是安装中，5 是装好了，2 是失败。
+  - 回复：`223>>INSTALL>>…>>confirm_pending|denied`；同意之后会连续收到 `223>>PROGRESS>>包名>>名字>>阶段>>百分比>>…`，阶段 1 是下载中，3 是安装中，5 是装好了，2 是失败，4 是下载完但被系统校验拒绝（电视上显示「安装失败 100%」）。2026-11-02 实测：推 `aerial-standard.apk` 时校验器日志是 `verifier: fetch signature info from: com.tcl.cyberui` / `signature does not match for tcl app.orchard.tv, will not be installed!`，多屏互动收到 code=3，回 `PROGRESS>>…>>4>>2`（#1163）。所以 TCL 上只能推 guard 版；guard 版同版本覆盖照常成功。
 - 下载地址用的是 `adb reverse tcp:8765 tcp:8765` 加上 Mac 本机 `127.0.0.1` 的 HTTP 服务，电视下载的是 `http://127.0.0.1:8765/Aerial.apk`，所以不需要在局域网上开端口。
 - 用遥控器操作时：提示框出现后焦点在「拒绝」上，要先按「右」再按 OK。
 - 有 ADB 时不用人去点：提示框是多屏互动的悬浮窗，`uiautomator dump` 能看到「同意」按钮 `com.tcl.MultiScreenInteraction_TV:id/btn_positive`，对它的中心点 `input tap` 就会开始安装（2026-10-21 实测，按钮在 `[1650,240][1858,304]`）。
@@ -64,7 +64,7 @@ TCL 手机 App 有一个「把手机里的 APK 推到电视」的功能。电视
 - 冷启动后，第三方 App 的服务绑定、广播接收和进程启动，都要经过 `TclAppBootManagerImpl`（在 `/apex/com.tcl.tcore/javalib/tcl-service.jar` 里，由 `ActiveServices` 调用 `getTclAppBootManagerInjector().canBindServiceGo`）。默认会拒绝，日志里是 `ActivityManager: forbid bind service app.orchard.tv/...HomeGuardService`，所以开机后停在 TCL 桌面。
 - 放行条件是两个 TCL 自定义的 AppOps：`APP_AUTO_START`（op 100，系统拉起）和 `APP_ASSOC_START`（op 101，其他 App 关联拉起）。默认分别是 `ignore` 和 `default`。`install.sh` 用 `appops set app.orchard.tv APP_AUTO_START allow`（以及 `APP_ASSOC_START`）放行，`restore.sh` 会改回 `default`。
 - 2026-10-20 实测：放行后 `adb reboot`，开机约 0.5 秒通知监听就被绑定，Aerial 被拉起，守护服务接管桌面。
-- 试过但没用的办法：`settings put system boot_app_mode boot_launcher` 加上 `boot_app_componentname app.orchard.tv/.MainActivity`（TCL「开机进入」的设置，由 `com.tcl.ttvs` 的 MMMService 管理），重启后还是进 TCL 桌面，已改回空值。
+- `system boot_app_mode boot_launcher` 加 `boot_app_componentname app.orchard.tv/.MainActivity`（TCL「开机进入」，`com.tcl.ttvs` 的 MMMService 管）：2026-10-20 试时重启后还是进 TCL 桌面；2026-11-03 在 1.81 测试包、当前固件上重测有效：两次 `adb reboot` 都是 13.7–14.1 秒第一个起来的就是 Aerial（在开机画面结束前），TCL 桌面没到过前台；守护在 20.8 秒还以为原桌面在前、多拉了一次（onPause 到 onResume 7 ms）。不设时对照两次：一次 13.8 秒 TCL 桌面、24 秒守护拉回（TCL 桌面露 10 秒），一次一直停在 TCL 桌面直到 5 分钟后屏保（那次开机日志被冲掉，原因没查到）。测完两项改回空值，户主自己再试也满意，1.81 起 `install.sh` 在装有 `com.tcl.ttvs` 或这项已有值的电视上设它，原值记在 `settings global aerial_boot_app_*`，`restore.sh` 改回。#1185 雷鸟鹤 6 2027（T966D5）也是这个设置。
 - TCL 开机时有可能把 `screensaver_components` 写回「艺术画报」（实测出现过一次）。所以 `install.sh` 接管屏保时，会通过 ConfigReceiver 发送 `own_screensaver=true`，之后 Aerial 每次启动都会检查，被改回去就再改成 Aerial（`GuardSetup.keepScreensaver`）。
 
 ## HOME 与守护
@@ -124,3 +124,7 @@ TCL 手机 App 有一个「把手机里的 APK 推到电视」的功能。电视
 - `/sdcard` 截图在 shell 下可以正常写入。
 - TCL 的 `com.tcl.guard`（安全卫士）是大部分 App 的 installerPackageName，其中的 `PackageInstallerService` 是 Binder 接口，shell 用不了。
 - `persist.tcl.installapk.enable=1` 和 `package_verifier_enable=0` 这些属性对上面的校验链都没有影响。
+
+## 按键偶尔卡 1–2 秒再一起到（#1081，2026-11-01 在这台上复现）
+
+雷鸟鹤 6 2025（同为 tcl_mt5879_cn，安卓 11）报告：每 3–5 分钟遥控器卡一下，然后连续触发好几次。在这台上用 `hid` 造的虚拟键盘、在 Aerial 首页每 1.5 秒按一次左右键共 5 分钟（守护开着按键过滤）：100 次按下里中位延迟 4 ms，有一次 1016 ms，按下和抬起一起到。同一时刻 system_server 主线程 `Slow dispatch took 2001ms ... AlarmManager$ListenerWrapper`，是 JobScheduler 的 `*job.delay*` 闹钟，旁边有 TCL 拦 Plex 后台任务的 `forbid bind service`。按键过滤后的按键要经 system_server 主线程重新注入（`AccessibilityInputFilter`，#774 也是这条路），主线程一卡按键就积压。不是 Aerial 的代码；能做的只有不过滤按键（主页键会先显示 TCL 桌面几秒），要户主决定。

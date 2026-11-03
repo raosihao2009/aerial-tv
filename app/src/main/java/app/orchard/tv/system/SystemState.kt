@@ -237,10 +237,18 @@ object SystemProbe {
             // Konka V563 (Hi3751V563, Android 9) answers no ACTION_SETTINGS; the reporter opened its
             // settings panel here by component (issue #771).
             Intent(Intent.ACTION_MAIN).setComponent(ComponentName("com.konka.tvsettings", "com.konka.settingcenter.settings.view.MainSettingsActivity")),
+            // Hisense VIDAA_TV (NOVA72691, Android 9): ACTION_SETTINGS goes to AOSP's
+            // com.android.settings (priority 1) over Hisense's own page, which declares it too and
+            // is what the TV's System Settings tile opens (issue #1085, the reporter's adb).
+            Intent(Settings.ACTION_SETTINGS).setComponent(ComponentName("com.android.tv.settings", "com.hisense.systemsettings.MainActivity")),
             Intent(Settings.ACTION_SETTINGS),
             // Konka Android TV 553 (Hi3751V553, Android 5.1.1) has neither of the above: its settings
             // are a second app, opened by component on the TV by the reporter (issue #918).
             Intent(Intent.ACTION_MAIN).setComponent(ComponentName("com.konka.systemsetting", "com.konka.systemsetting.MainActivity")),
+            // Redmi Projector Lite (Projector_10, CVTE/ASU Android 9): no activity answers
+            // ACTION_SETTINGS; the vendor's main activity is still directly launchable.
+            Intent(Intent.ACTION_MAIN).setComponent(ComponentName(
+                "com.android.settings", "com.asu.settings.TvMainActivity")),
             // TCL MT5879 (China): nothing answers ACTION_SETTINGS; MAIN opens TCL's full settings panel.
             Intent(Intent.ACTION_MAIN).setComponent(ComponentName("com.tcl.settings", "com.tcl.settings.ui.MainActivity")),
             // PPTV K55U27 (MStar, Android 6): its settings app answers no standard action (issue #264).
@@ -345,7 +353,7 @@ object SystemProbe {
     }
     private fun xgimiDisplayManagerClass(): Class<*>? = xgimiDisplayManagerClassOnce
 
-    private fun xgimiDisplayManager(): Any? {
+    internal fun xgimiDisplayManager(): Any? {
         val c = xgimiDisplayManagerClass() ?: return null
         return runCatching { c.getMethod("getInstance").invoke(null) }.getOrNull()
             ?: runCatching { c.getDeclaredConstructor().also { it.isAccessible = true }.newInstance() }.getOrNull()
@@ -365,6 +373,9 @@ object SystemProbe {
     fun setXgimiBrightnessLevel(level: Int): Boolean {
         val c = xgimiDisplayManagerClass() ?: return false
         val dm = xgimiDisplayManager() ?: return false
+        // X7 Max's 10+ Boost ignores ordinary DLP writes. Exit only the detected Boost mode;
+        // other XGIMI light engines keep their existing path.
+        if (XgimiBoost.enabled() == true && !XgimiBoost.disable()) return false
         val target = level.coerceIn(1, XGIMI_DLP_LUMENS_MAX)
         return runCatching { c.getMethod("setDlpLumensLevel", java.lang.Byte.TYPE).invoke(dm, target.toByte()) }.isSuccess
     }
@@ -470,6 +481,11 @@ object SystemProbe {
                     // its brightness one step in; opened by component on the TV (issue #895). Before
                     // the display action, which those TVs answer with the settings' main page.
                     Intent(Intent.ACTION_MAIN).setComponent(TIANCI_PICTURE),
+                    // Hisense VIDAA_TV (75E8H, m7642, Android 9): the picture page, its brightness
+                    // one step in; the display action opens screensaver and calibration there
+                    // (issue #1025, the reporter tried both). Not a standard action, so only where
+                    // a firmware declares it.
+                    Intent("android.settings.IMAGE_SETTINGS"),
                     Intent(Settings.ACTION_DISPLAY_SETTINGS),
                     // PPTV K55U27: picture and sound, where its brightness is (issue #264).
                     Intent("com.pptv.intent.action.PICTUREAUDIO_ACTIVITY")
@@ -538,10 +554,18 @@ object SystemProbe {
         if (runCatching { pm.getActivityInfo(LETV_SOURCES, 0) }.getOrNull()?.exported == true &&
             runCatching { context.startActivity(letv) }.isSuccess
         ) return true
+        // Sharp's Foxconn-built MStar firmware (CVTM648, Android 6) lists no inputs either; its own
+        // source panel, the one the remote's input key shows, picks one and switches through
+        // MStar's player (issue #1048, the reporter opened it with adb). Only where it is exported.
+        val sharp = Intent(Intent.ACTION_MAIN).setComponent(FOXCONN_SOURCES).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (runCatching { pm.getActivityInfo(FOXCONN_SOURCES, 0) }.getOrNull()?.exported == true &&
+            runCatching { context.startActivity(sharp) }.isSuccess
+        ) return true
         return false
     }
 
     private val LETV_SOURCES = ComponentName("com.stv.signalsourcemanager", "com.stv.signalsourcemanager.MainActivity")
+    private val FOXCONN_SOURCES = ComponentName("com.mstar.tvsetting", "com.foxconn.etvg.inputsource.FxcInputSourceActitvity")
 
     /**
      * TCL's own input panel, where the firmware has one. The remote's input key opens it by itself,
@@ -675,9 +699,14 @@ object SystemProbe {
                 val cec = infos.firstOrNull { it.parentId == info.id }
                 val generic = genericRoute(cec ?: info, kind)
                 val intent = (if (xiaomi) xiaomiRoute(info, kind, label, profile)?.takeIf { resolves(context, it) } else null)
+                    // TCL's own inputs go to TCL's player before the generic intent: a file manager
+                    // answers any content:// VIEW (with the provider's cursor type), so the
+                    // passthrough intent "resolved" and every source tile opened Solid Explorer
+                    // (TCL 75Q10L, MT9655, Android 14, issue #1107, the reporter's adb).
+                    ?: tclPlayer?.takeIf { info.id.startsWith(TCL_INPUTS) }?.let { tclRoute(it, kind, label, hw(info.id)) }
                     ?: generic.takeIf { resolves(context, it) }
                     ?: droidLogicRoute(context, info)
-                    ?: tclPlayer?.let { tclRoute(it, kind, label) }
+                    ?: tclPlayer?.let { tclRoute(it, kind, label, hw(info.id)) }
                     ?: generic
                 val device = cec
                     ?.let { runCatching { it.loadLabel(context).toString() }.getOrNull() }
@@ -750,6 +779,9 @@ object SystemProbe {
 
     private const val TCL_PLAYER = "com.tcl.tv"
 
+    /** The input service TCL registers its inputs with in the framework (Q9L Pro, 75Q10L, T966D5). */
+    private const val TCL_INPUTS = "com.tcl.tvinput/"
+
     private fun tclPlayer(context: Context): ComponentName? =
         ComponentName(TCL_PLAYER, "$TCL_PLAYER.TVActivity")
             .takeIf { runCatching { context.packageManager.getActivityInfo(it, 0) }.isSuccess }
@@ -761,10 +793,14 @@ object SystemProbe {
     /**
      * FFALCON/TCL T966D5 (Android 14) lists its inputs in the framework, but nothing there opens
      * the passthrough intent: every input said this TV could not switch to it (issue #395). TCL's
-     * player is tried there with the ordinals MT5879 uses (see tclSources), chosen by the input's
-     * name; not verified on that TV.
+     * player takes the input's hardware id: on TCL Q9L Pro (Android 14) HDMI 1-4 are HW15-18 and
+     * `targetSourceId` 15-18 switch to them, while MT5879's 8-11 gave "device_id:0 is invalid" and
+     * no picture (issue #792, the reporter's adb); the same on TCL 75Q10L (MT9655, Android 14,
+     * 16-18 switched to HDMI 2-4, issue #1107); TV and AV, HW2 and HW3, are 2 and 3 on MT5879
+     * too. Without a hardware id, the MT5879 ordinals by the input's name (see tclSources).
      */
-    private fun tclRoute(player: ComponentName, kind: SourceKind, label: String): Intent? {
+    private fun tclRoute(player: ComponentName, kind: SourceKind, label: String, hw: Int?): Intent? {
+        if (hw != null && kind != SourceKind.Other) return tclIntent(player, hw)
         val ordinal = when (kind) {
             SourceKind.Hdmi -> Regex("(\\d)").find(label)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 1..4 }?.let { 7 + it }
             SourceKind.Tuner -> 2

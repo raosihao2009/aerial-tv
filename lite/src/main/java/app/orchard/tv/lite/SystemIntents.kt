@@ -18,6 +18,8 @@ object SystemIntents {
         Intent("com.xiaomi.mitv.settings.SETTINGS").setComponent(ComponentName("com.xiaomi.mitv.settings", "com.xiaomi.mitv.settings.entry.MainActivity")),
         Intent(Intent.ACTION_MAIN).setComponent(ComponentName("com.haier.tv.menusetting", "com.haier.tv.menusetting.RootActivity")),
         Intent(Intent.ACTION_MAIN).setComponent(ComponentName("com.konka.tvsettings", "com.konka.settingcenter.settings.view.MainSettingsActivity")),
+        // Hisense VIDAA_TV: its own page before AOSP's, as in the full app (#1085).
+        Intent(Settings.ACTION_SETTINGS).setComponent(ComponentName("com.android.tv.settings", "com.hisense.systemsettings.MainActivity")),
         Intent(Settings.ACTION_SETTINGS),
         Intent(Intent.ACTION_MAIN).setComponent(ComponentName("com.konka.systemsetting", "com.konka.systemsetting.MainActivity")),
         Intent(Intent.ACTION_MAIN).setComponent(ComponentName("com.tcl.settings", "com.tcl.settings.ui.MainActivity")),
@@ -45,6 +47,37 @@ object SystemIntents {
         )
         val info = runCatching { context.packageManager.resolveActivity(intent, 0)?.activityInfo }.getOrNull()
         return intent.takeIf { info != null && info.exported && info.enabled && info.applicationInfo.enabled }
+    }
+
+    /**
+     * HDMI 1-3, AV and the antenna through Xiaomi's player, which takes the port as its `input` number: 23-25 for HDMI, the
+     * full app's xiaomiSources. Mi TV 2 (49", Android 4.3) lists no inputs, and its owner opened
+     * them this way from another launcher (issue #1094); Mi TV 2 and 3 on Android 5.1 did the same
+     * in the full app (#599 #309). Not on boxes, which have the player but no HDMI inputs, and
+     * only before Android 5, where no TV lists its inputs: later Mi TV 4 boards number them
+     * otherwise, which the full app knows.
+     * CLEAR_TOP: a player task in the background is otherwise only brought back, its input unchanged.
+     */
+    fun xiaomiInputs(context: Context): List<Pair<String, Intent>> {
+        if (Build.VERSION.SDK_INT >= 21) return emptyList()
+        val player = ComponentName("com.xiaomi.mitv.tvplayer", "com.xiaomi.mitv.tvplayer.ExternalSourceActivity")
+        if (runCatching { context.packageManager.getActivityInfo(player, 0) }.isFailure) return emptyList()
+        val traits = runCatching {
+            Class.forName("android.os.SystemProperties").getMethod("get", String::class.java).invoke(null, "ro.build.characteristics") as String
+        }.getOrNull().orEmpty()
+        if ("stb" in traits || "mbx" in traits) return emptyList()
+        fun play(input: Int) = Intent("com.xiaomi.mitv.tvplayer.EXTSRC_PLAY").setComponent(player)
+            .putExtra("input", input)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        // AV is 2 and the antenna 1, DTMB its own page where the player has it (MiTV2-49, the
+        // owner's list, issue #1094). VGA (0) is left out: not every Mi TV of these years has one,
+        // and nothing tells which.
+        val dtmb = ComponentName("com.xiaomi.mitv.tvplayer", "com.xiaomi.mitv.tvplayer.dtmb.DTMBActivity")
+        val digital = if (runCatching { context.packageManager.getActivityInfo(dtmb, 0) }.isSuccess) {
+            listOf("DTMB" to Intent("com.xiaomi.mitv.tvplayer.DTMB_PLAY").setComponent(dtmb).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
+        } else emptyList()
+        return (1..3).map { port -> "HDMI $port" to play(22 + port) } +
+            listOf("AV" to play(2), context.getString(R.string.input_antenna) to play(1)) + digital
     }
 
     /**
@@ -80,6 +113,11 @@ object SystemIntents {
         val letv = ComponentName("com.stv.signalsourcemanager", "com.stv.signalsourcemanager.MainActivity")
         if (runCatching { pm.getActivityInfo(letv, 0) }.getOrNull()?.exported == true &&
             runCatching { context.startActivity(Intent(Intent.ACTION_MAIN).setComponent(letv).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
+        ) return true
+        // Sharp's Foxconn-built MStar source panel (CVTM648, Android 6, the full app's issue #1048).
+        val sharp = ComponentName("com.mstar.tvsetting", "com.foxconn.etvg.inputsource.FxcInputSourceActitvity")
+        if (runCatching { pm.getActivityInfo(sharp, 0) }.getOrNull()?.exported == true &&
+            runCatching { context.startActivity(Intent(Intent.ACTION_MAIN).setComponent(sharp).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
         ) return true
         return false
     }

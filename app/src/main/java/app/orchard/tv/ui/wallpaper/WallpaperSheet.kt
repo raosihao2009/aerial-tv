@@ -13,7 +13,6 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.relocation.BringIntoViewResponder
 import androidx.compose.foundation.relocation.bringIntoViewResponder
@@ -65,12 +64,15 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import app.orchard.tv.R
 import app.orchard.tv.settings.AerialSettings
+import app.orchard.tv.settings.Restricted
+import app.orchard.tv.settings.RestrictedKind
 import app.orchard.tv.settings.FocusStyle
 import app.orchard.tv.settings.UiSounds
 import app.orchard.tv.settings.Effects
@@ -79,6 +81,9 @@ import app.orchard.tv.ui.components.Pressable
 import app.orchard.tv.ui.components.consumeTaps
 import app.orchard.tv.ui.components.dismissOnTap
 import app.orchard.tv.ui.components.liquidGlass
+import app.orchard.tv.ui.components.smoothBackground
+import app.orchard.tv.ui.components.smoothBorder
+import app.orchard.tv.ui.components.smoothCut
 import app.orchard.tv.ui.theme.Glyph
 import app.orchard.tv.ui.theme.GlyphIcon
 import app.orchard.tv.ui.theme.Motion
@@ -115,6 +120,8 @@ fun WallpaperSheet(
     onHiddenApps: () -> Unit,
     onStartScreensaver: () -> Unit,
     onPin: (on: Boolean) -> Unit,
+    /** Kids and Elders mode's setup (behind the PIN). */
+    onKids: () -> Unit,
     /** The sheet is all the way in (true) or not: Home need not draw under it then ([SheetCovers]). */
     onSettled: (Boolean) -> Unit = {},
     /** Draw the closed sheet once, nearly clear, so that its first opening is not its first draw (HomeScreen). */
@@ -169,7 +176,7 @@ fun WallpaperSheet(
             // How Home looks, in the order you see it: the picture behind everything, how Home
             // is laid out over it, what replaces it when idle, then the weather and the PIN.
             // Settings sit in tvOS-style grouped rows; each group's note follows the focused row.
-            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(scroll)) {
+            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(scroll).latestBringIntoView(scroll)) {
                 BasicText(stringResource(R.string.wp_title), style = Type.LargeTitle)
                 Spacer(Modifier.height(16.dp))
                 SectionTitle(R.string.wp_wallpaper)
@@ -355,8 +362,21 @@ fun WallpaperSheet(
                 Spacer(Modifier.height(10.dp))
                 Group(stringResource(R.string.st_pin_hint)) { note ->
                     SettingRow(R.string.st_pin, null, note, first = true) {
-                        // The last row that takes focus: bring the note under it into view too.
                         PinChoice(onPin, onFocused = { scope.launch { scroll.animateScrollTo(scroll.maxValue) } })
+                    }
+                    SettingRow(R.string.st_kids, stringResource(R.string.st_kids_hint), note) {
+                        // The last row that takes focus: bring the note under it into view too.
+                        Box(Modifier.onFocusChanged { if (it.hasFocus) scope.launch { scroll.animateScrollTo(scroll.maxValue) } }) {
+                            ActionChip(
+                                when {
+                                    !Restricted.enabled -> stringResource(R.string.st_off)
+                                    Restricted.kind == RestrictedKind.Kids -> stringResource(R.string.kids_kind_kids)
+                                    else -> stringResource(R.string.kids_kind_elders)
+                                },
+                                Glyph.ChevronRight,
+                                onKids,
+                            )
+                        }
                     }
                 }
                 Spacer(Modifier.height(24.dp))
@@ -460,14 +480,24 @@ private fun wallpaperNote(wp: Wallpaper): String? = when {
     else -> null
 }
 
+private val CardCorner = 12.dp
+
 @Composable
 private fun WallpaperCard(wp: Wallpaper, focusRequester: FocusRequester?, onFocused: () -> Unit) {
     val selected = Wallpapers.selectedId == wp.id
     // A moving wallpaper's card is made again when the frame it stopped on changes, also while the
     // sheet is open: the film stopped as the sheet opened is decoded seconds later (Xiaomi MiTV-MFTR0).
     val picture = if (wp.kind == WallpaperKind.Live || wp.kind == WallpaperKind.Video) Wallpapers.pictureVersion else 0
-    val thumb by produceState<ImageBitmap?>(null, wp.id, Wallpapers.items, picture) {
-        value = withContext(Dispatchers.Default) { Wallpapers.thumbnail(wp.id)?.asImageBitmap() }
+    // The picture is cut to the card's continuous outline once, at the size it is drawn, so the
+    // card is one image draw and nothing is clipped (see SmoothCorners.kt).
+    val density = LocalDensity.current
+    val cardW = with(density) { 168.dp.roundToPx() }
+    val cardH = with(density) { 94.dp.roundToPx() }
+    val corner = with(density) { CardCorner.toPx() }
+    val thumb by produceState<ImageBitmap?>(null, wp.id, Wallpapers.items, picture, cardW, cardH) {
+        value = withContext(Dispatchers.Default) {
+            Wallpapers.thumbnail(wp.id)?.let { smoothCut(it, cardW, cardH, corner).asImageBitmap() }
+        }
     }
     Pressable(onClick = { Wallpapers.select(wp.id) }, focusRequester = focusRequester, focusedScale = 1.08f) { state ->
         LaunchedEffect(state.focused) { if (state.focused) onFocused() }
@@ -475,16 +505,15 @@ private fun WallpaperCard(wp: Wallpaper, focusRequester: FocusRequester?, onFocu
             Box(
                 Modifier
                     .size(168.dp, 94.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Palette.Fill)
-                    .border(
+                    .smoothBackground(if (thumb == null) Palette.Fill else Color.Transparent, CardCorner)
+                    .smoothBorder(
                         if (state.focused || selected) 3.dp else 1.dp,
                         when {
                             state.focused -> Palette.Focus
                             selected -> Palette.Focus.copy(alpha = 0.55f)
                             else -> Palette.Hairline
                         },
-                        RoundedCornerShape(12.dp),
+                        CardCorner,
                     ),
             ) {
                 thumb?.let {
@@ -550,8 +579,7 @@ private fun Group(note: String? = null, rows: @Composable ColumnScope.(note: (St
         Column(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color.White.copy(alpha = 0.05f))
+                .smoothBackground(Color.White.copy(alpha = 0.05f), 16.dp)
                 .onFocusChanged { inside = it.hasFocus },
         ) { rows { focusedNote = it } }
         Box(Modifier.height(38.dp).padding(start = 16.dp, top = 7.dp)) {
@@ -651,7 +679,7 @@ private fun Chip(label: String, on: Boolean, onFocused: (() -> Unit)? = null, on
         )
         val fg = if (state.focused) Palette.OnFocus else Palette.Label
         Row(
-            Modifier.clip(RoundedCornerShape(50)).background(bg).height(40.dp).padding(horizontal = 20.dp),
+            Modifier.clip(RoundedCornerShape(50)).drawBehind { drawRect(bg) }.height(40.dp).padding(horizontal = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -668,7 +696,7 @@ private fun ActionChip(label: String, glyph: Glyph, onClick: () -> Unit) {
         val bg by animateColorAsState(if (state.focused) Palette.Focus else Palette.FillStrong, tween(140, easing = Motion.EaseOut), label = "action-bg")
         val fg = if (state.focused) Palette.OnFocus else Palette.Label
         Row(
-            Modifier.clip(RoundedCornerShape(50)).background(bg).height(40.dp).padding(start = 20.dp, end = 14.dp),
+            Modifier.clip(RoundedCornerShape(50)).drawBehind { drawRect(bg) }.height(40.dp).padding(start = 20.dp, end = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -696,7 +724,7 @@ private fun ScreensaverChoice(onStart: () -> Unit) {
             val bg by animateColorAsState(if (state.focused) Palette.Focus else Palette.FillStrong, tween(140, easing = Motion.EaseOut), label = "ss-start")
             val fg = if (state.focused) Palette.OnFocus else Palette.Label
             Row(
-                Modifier.clip(RoundedCornerShape(50)).background(bg).height(40.dp).padding(horizontal = 20.dp),
+                Modifier.clip(RoundedCornerShape(50)).drawBehind { drawRect(bg) }.height(40.dp).padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -711,7 +739,7 @@ private fun ScreensaverChoice(onStart: () -> Unit) {
 private fun PhoneCard(url: String?, qr: ImageBitmap?) {
     Column(Modifier.width(220.dp).padding(top = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
-            Modifier.size(176.dp).clip(RoundedCornerShape(18.dp)).background(Color.White).padding(14.dp),
+            Modifier.size(176.dp).smoothBackground(Color.White, 18.dp).padding(14.dp),
             contentAlignment = Alignment.Center,
         ) {
             if (qr != null) {

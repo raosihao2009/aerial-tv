@@ -36,3 +36,30 @@ Amlogic 平台、Android 6.0.x 的一批小米电视和盒子，问题基本相�
 - MiTV4-ANSM0、小米盒子 3S（MDZ-19-AA，queenchristina）：从 Aerial 打开 `com.xiaomi.mitv.settings/.entry.MainActivity`，它一出来就自己 finish（不是崩溃，`mLastPausedActivity ... f`）。它只是在 PatchWall 上弹设置浮层（`MitvSettingsPopup.showPopup`），桌面不是 PatchWall 就挂不上。原桌面打开正常；关掉守护也一样关。
 - 盒子 3S 的报告人验证了 `am broadcast -a com.xiaomi.intent.action.show.globalsetting` 能把浮层弹在 Aerial 上、遥控器能操作。main 上（未发版）：控制中心「设置」和设置磁贴打开小米设置后 0.8 秒内回到 Aerial、且 Aerial 有焦点，就改发这个广播（`SystemProbe.settingsFallbacks` + `LaunchFallback`）；Lite 同样（`SystemIntents.settingsBounced`）。MFTR0 也有这个接收器，但设置页正常打开，不会发。没有真机验证浮层这条路。
 - 报告人给的绕过：连按两次主页键进最近任务，从里面点「小米盒子设置」；或 `adb shell am start -n com.android.tv.settings/.MainSettings`。
+
+## 米家 App 的主页键要等 5 秒（#933，MiTV4 pulpfiction 6.0.1）
+
+米家 App 的遥控器按主页键不经过守护的按键过滤，系统自己打开 PatchWall，之后 5 秒内 App 的 `startActivity` 都被挂起（`stopAppSwitches`）。安卓 5–8.1 的 PendingIntent 由系统身份发出，不受这个限制（报告人在这台上实测 0.25 s）；1.75 之后守护拉回 Aerial 一律走 PendingIntent（安卓 8.0 模拟器对照 5.0 s → 0.05 s）。安卓 9 起系统按真实发送者算，不管用。
+
+## 从 HDMI 回来整机重启（#1072 #1079，MiTV4-ANSM0 22.10.20 等）
+
+用航拍等视频壁纸时，从 HDMI（IPTV 机顶盒）按返回回到 Aerial，电视死机、带一声噪音，约 10 秒后自动重启；静态壁纸不会。两位报告人的日志一致：Aerial `onResume` 后立刻起 ExoPlayer 的硬解码（OMX），小米播放器约 0.8 秒后才 `stopTvPlay` 拆 HDMI 会话，日志到此为止。没有 Java 崩溃、没有 watchdog，像是 Amlogic 内核或音频 HAL 在 vdin 还开着时被打断。
+
+2026-11-01 起（未发版时写）：安卓 6 及以下、装有 `com.xiaomi.mitv.tvplayer` 的电视上，Aerial 打开过信号源后回来，壁纸影片先停在画面上等 2.5 秒再开解码器（`ui/home/FilmAfterInput`）。没有真机验证。
+
+## 开机 3 分钟后被拉回 Aerial（#1024，MiTV-ANTL0 / 小米 EA43 2022，安卓 5.1.1）
+
+这台没开守护、Aerial 是默认桌面。系统在开机约 3 分钟后才发 `BOOT_COMPLETED`，`BootReceiver` 收到就打开 Aerial，正好盖住用户从 Aerial 打开的视频 App，每次开机一次。改为：Aerial 上一次是自己打开 App 才退到后面的，就不动（`MainActivity.leftForAnApp`）。没有真机验证。
+
+## keep_adb 把 TCP 模式的 adbd 停死（#1099，小米电视 3 MiTV3_48，安卓 5.0.1）
+
+开机窗口里 5555 不通时，`keep_adb` 会把 `adb_enabled` 切 0 再切 1 来重启 adbd（为本页的 MiTV4 安卓 6 写的，#454）。小米电视 3 上这一切让 TCP 模式的 adbd 停掉、再也起不来，报告人的 Agent 关掉 `keep_adb` 后恢复。改为只在安卓 6–10 做这一步。
+
+## 米家 App 里电视离线（#1071，MiTV4-ANSM0 22.4.15；#1071 评论里 EA75 安卓 9 也有）
+
+米家的局域网控制（MiIO，UDP 54321，属 uid 1000）只在 PatchWall 上过前台之后才启动；Aerial 接管开机后 PatchWall 一直不上前台，它就不起来，米家显示离线。起来之后被 Aerial 盖住也不会停。推送通道（`SmartHome-Push`）是好的。App 没法直接启动这个系统服务；可能的办法是开机先让 PatchWall 露一下（像 `bootStockMs`），代价是每次开机先看到几秒小米桌面。待报告人查清 54321 属于哪个进程再定。
+
+## 安卓 4.x 的小米（Lite）
+
+- **小米电视 3S 48（MiTV3S-48 / hancock，MStar，4.4.4，#1157）**：主页键直接回 PatchWall，不弹「使用哪个应用」；PatchWall 应用信息里「清除默认设置」是灰的。`pm disable-user` 会被系统杀掉，报告人用 `pm block com.mitv.tvhome` 冻结后 Lite 成了唯一桌面，但 PatchWall 进程里的原厂信号源弹窗也跟着没了。冻结系统桌面不推荐（AGENTS.md），不写进安装说明；不冻结时 Lite 只能当普通 App 用。重启后网络 ADB 约 3 分钟才连得上。
+- **小米电视 2 49 寸（MiTV2-49，4.3，#1094）**：播放器 `com.xiaomi.mitv.tvplayer.EXTSRC_PLAY` 的 `input`：HDMI 1–3 = 23–25、AV = 2、模拟电视 = 1、VGA = 0；地面波是 `com.xiaomi.mitv.tvplayer.DTMB_PLAY` 打开 `dtmb.DTMBActivity`。Lite 1.13 起列 HDMI 1–3，main 上（未发版）加了 AV、模拟电视和（有那个页面时的）DTMB；VGA 不加，这几年的小米不是都有 VGA，又看不出来。

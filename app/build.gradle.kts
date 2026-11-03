@@ -19,7 +19,6 @@ android {
         // Android 5.0. Compose 1.10 and later need 6.0, so the Compose BOM below stays on 1.9.
         minSdk = 21
         targetSdk = 34
-        // 二创版本号保持自有的 1000 / 3.0；upstream v1.75 自带 96 / 1.75 不覆盖
         versionCode = 1000
         versionName = "3.0"
         // `./gradlew -Pdiag ...`: a build for one reporter's TV whose logcat shows no app lines;
@@ -101,6 +100,8 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     // Compose 1.9.5, the last release that runs on Android 5.0 (1.10 raised minSdk to 23).
     val composeBom = platform("androidx.compose:compose-bom:2025.11.01")
+    testImplementation(composeBom)
+    testImplementation("androidx.compose.ui:ui-test-junit4")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")

@@ -19,8 +19,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import app.orchard.tv.ui.components.smoothBorder
 import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.State
@@ -48,6 +47,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TransformOrigin
@@ -514,8 +514,13 @@ private const val FILM_FROST = 0.55f
  */
 private val FILM_SMOKE = android.graphics.Color.argb(72, 0, 0, 0)
 
-/** The same with no frosted frame under it (Wallpapers.filmGlassless): deeper, as nothing calms the film. */
-private val FILM_SMOKE_ALONE = android.graphics.Color.argb(102, 0, 0, 0)
+/**
+ * With no frosted frame under it (Wallpapers.filmGlassless): a milky white veil, not smoke. Black
+ * (40%) made the plate a dark slab over the film, nothing like glass (the owner, TCL MT5879,
+ * 2026-11-01). White lifts it as glass lit from within, as Tigris and CleanTV do with no blur; the
+ * lit edge does the rest. The plate with a frosted frame (FILM_SMOKE) the owner keeps as it is.
+ */
+private val FILM_SMOKE_ALONE = android.graphics.Color.argb(38, 255, 255, 255)
 
 /** A new key frame fades in over the last: slow, as the glass is soft, and seldom (GLASS_EVERY_MS). */
 private const val FILM_SWAP_MS = 700
@@ -827,7 +832,7 @@ fun VpnBadge(color: Color, modifier: Modifier = Modifier, fontSize: TextUnit = 1
         stringResource(R.string.net_vpn),
         style = Type.Caption.copy(color = color, fontSize = fontSize, fontWeight = FontWeight.W700, letterSpacing = 0.04.em),
         modifier = modifier
-            .border(1.2.dp, color, RoundedCornerShape(4.dp))
+            .smoothBorder(1.2.dp, color, 4.dp)
             .padding(horizontal = 4.dp, vertical = 1.dp),
     )
 }
@@ -863,7 +868,7 @@ fun StatusPill(
         Row(
             Modifier
                 .clip(RoundedCornerShape(50))
-                .background(bg)
+                .drawBehind { drawRect(bg) }
                 .height(34.dp)
                 .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
