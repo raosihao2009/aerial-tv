@@ -280,10 +280,11 @@ fun LiveSourceMenu(
             }
             fun rowY(rowFromTop: Int): Dp {
                 val diff = rowFromTop - bottomRow
-                val twoRow = bottomRow >= 1
-                val peekOffset = if (peek && diff == 1) 12.dp else 0.dp
-                val baseY = if (twoRow) screenH - 50.dp - tileH else screenH - tileH - 70.dp
-                return baseY + pitchY * diff - peekOffset
+                // 有下一排可peek: 底行 = screenH - pitchY - 12 (peek排顶部距屏底12dp)
+                // 最后一排(无peek): 底行 = screenH - tileH - 20 (底行底部距屏底20dp)
+                val hasPeek = bottomRow < numRows - 1
+                val baseY = if (hasPeek) screenH - pitchY - 12.dp else screenH - tileH - 20.dp
+                return baseY + pitchY * diff
             }
             sources.forEachIndexed { index, source ->
                 val rowFromTop = index / columns
