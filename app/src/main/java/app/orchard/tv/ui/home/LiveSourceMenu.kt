@@ -272,7 +272,12 @@ fun LiveSourceMenu(
             // 焦点第0排: 第0排贴底, 第1排peek
             // 焦点第1排: 第0排上方, 第1排贴底, 第2排peek
             // 焦点第N>=2排: 偶数排N贴底, 奇数排N+1贴底(显示N/N+1/N+2)
-            val bottomRow = if (focusedRow >= numRows - 1) numRows - 1 else focusedRow
+            val bottomRow = when {
+                focusedRow >= numRows - 1 -> numRows - 1
+                focusedRow <= 1 -> focusedRow
+                focusedRow % 2 == 0 -> focusedRow + 1
+                else -> focusedRow
+            }
             fun rowY(rowFromTop: Int): Dp {
                 val diff = rowFromTop - bottomRow
                 val twoRow = bottomRow >= 1
