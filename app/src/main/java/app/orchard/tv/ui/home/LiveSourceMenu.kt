@@ -347,7 +347,7 @@ fun LiveSourceMenu(
                 )
                 Box(modifier = Modifier
                     .offset { animatedOffset }
-                    .graphicsLayer { alpha = if (shifted in -1..1) 1f else 0f }
+                    .alpha(if (shifted in -1..1) 1f else 0f)
                 ) {
                     AppTile(
                         app = app,
