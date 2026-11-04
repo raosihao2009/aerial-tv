@@ -30,22 +30,22 @@ data class ForecastDay(val kind: WeatherKind, val high: Int, val low: Int)
 data class WeatherNow(val celsius: Int, val kind: WeatherKind, val day: Boolean, val high: Int? = null, val low: Int? = null, val forecast: List<ForecastDay> = emptyList())
 
 /**
- * The weather beside the home clock, from Open-Meteo: no key, reachable from China. The place is
- * the one the owner names on the phone page, or else a guess from the network's public address.
- * The guess is often wrong behind a proxy (a whole home behind one shows another country), which
- * is why the phone page shows it and lets the owner correct it.
+ * The weather beside the home clock, from QWeather (和风天气): CMA official data, county-level
+ * precision in China. The place is the one the owner names on the phone page, or else a guess from
+ * the network's public address.
  *
- * Fetched when Home comes to the front, at most once an hour; nothing runs while the TV is idle.
+ * Fetched every 10 minutes; nothing runs while the TV is idle.
  * Compose state, written on the main thread only.
  */
 object Weather {
     private const val TAG = "AerialWeather"
     private const val PREFS = "weather"
-    private const val REFRESH_MS = 60 * 60 * 1000L
-    private const val RETRY_MS = 10 * 60 * 1000L
+    private const val QW_KEY = "2d9160494e2e4b1abdf23de36d9072b1"
+    private const val REFRESH_MS = 10 * 60 * 1000L
+    private const val RETRY_MS = 2 * 60 * 1000L
     private const val RELOCATE_MS = 24 * 60 * 60 * 1000L
     /** A reading older than this is not shown at all. */
-    private const val STALE_MS = 3 * 60 * 60 * 1000L
+    private const val STALE_MS = 60 * 60 * 1000L
     /** Stands for "no high or low" in the prefs. */
     private const val NONE = Int.MIN_VALUE
 
@@ -127,9 +127,6 @@ object Weather {
                 lat = guess.lat
                 lon = guess.lon
                 val city = guess.city
-                // The services name the city in English ("Foshan"); in China, say it as the owner would.
-                // A name the table spells otherwise, or a district's, stayed in pinyin among Chinese
-                // text (Hisense 43E3G, issue #1195): then the main listed place at that point names it.
                 val zh = city?.takeIf { guess.cn && Locale.getDefault().language == "zh" }
                     ?.let {
                         (Cities.near(app, it, lat.toDouble(), lon.toDouble(), km = 80.0, ascii = true)
@@ -142,29 +139,32 @@ object Weather {
                 }
             }
         }
-        val json = JSONObject(get("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min,weather_code&forecast_days=3&timezone=auto"))
-        val current = json.getJSONObject("current")
-        val daily = json.optJSONObject("daily")
-        fun today(key: String) = daily?.optJSONArray(key)?.optDouble(0)?.takeIf { !it.isNaN() }?.roundToInt()
+        // QWeather uses lon,lat order
+        val loc = "$lon,$lat"
+        val nowJson = JSONObject(get("https://devapi.qweather.com/v7/weather/now?location=$loc&key=$QW_KEY"))
+        val now = nowJson.getJSONObject("now")
+        val temp = now.getString("temp").toIntOrNull() ?: 0
+        val text = now.optString("text")
+        val isDay = now.optString("icon").toIntOrNull()?.let { it < 100 } ?: true
+
+        val forecastJson = JSONObject(get("https://devapi.qweather.com/v7/weather/3d?location=$loc&key=$QW_KEY"))
+        val daily = forecastJson.optJSONArray("daily")
         val forecast = buildList {
-            val codes = daily?.optJSONArray("weather_code")
-            val highs = daily?.optJSONArray("temperature_2m_max")
-            val lows = daily?.optJSONArray("temperature_2m_min")
-            if (codes != null && highs != null && lows != null) {
-                for (i in 0 until codes.length()) {
-                    val c = codes.optInt(i)
-                    val h = highs.optDouble(i).takeIf { !it.isNaN() }?.roundToInt() ?: continue
-                    val l = lows.optDouble(i).takeIf { !it.isNaN() }?.roundToInt() ?: continue
-                    add(ForecastDay(kindOf(c), h, l))
+            if (daily != null) {
+                for (i in 0 until daily.length()) {
+                    val d = daily.getJSONObject(i)
+                    val h = d.optString("tempMax").toIntOrNull() ?: continue
+                    val l = d.optString("tempMin").toIntOrNull() ?: continue
+                    add(ForecastDay(kindOfText(d.optString("textDay")), h, l))
                 }
             }
         }
         return WeatherNow(
-            celsius = current.getDouble("temperature_2m").roundToInt(),
-            kind = kindOf(current.getInt("weather_code")),
-            day = current.optInt("is_day", 1) == 1,
-            high = today("temperature_2m_max"),
-            low = today("temperature_2m_min"),
+            celsius = temp,
+            kind = kindOfText(text),
+            day = isDay,
+            high = forecast.firstOrNull()?.high,
+            low = forecast.firstOrNull()?.low,
             forecast = forecast,
         )
     }
@@ -236,12 +236,10 @@ object Weather {
                 ?.let { Triple(it.lat, it.lon, it.name) }
                 ?: runCatching {
                     val q = URLEncoder.encode(name.trim(), "UTF-8")
-                    val results = JSONObject(get("https://geocoding-api.open-meteo.com/v1/search?name=$q&count=10&language=zh&format=json"))
-                        .optJSONArray("results")
+                    val results = JSONObject(get("https://geoapi.qweather.com/v2/city/lookup?location=$q&key=$QW_KEY&range=cn"))
+                        .optJSONArray("location")
                     val all = (0 until (results?.length() ?: 0)).map { results!!.getJSONObject(it) }
-                    // Towns before villages of the same name.
-                    val best = all.firstOrNull { it.optString("feature_code").startsWith("PPLA") || it.optString("feature_code") == "PPLC" } ?: all.firstOrNull()
-                    best?.let { Triple(it.getDouble("latitude"), it.getDouble("longitude"), it.optString("name").ifBlank { name.trim() }) }
+                    all.firstOrNull()?.let { Triple(it.getDouble("lat"), it.getDouble("lon"), it.optString("name").ifBlank { name.trim() }) }
                 }.onFailure { Log.w(TAG, "could not look up $name", it) }.getOrNull()
         } ?: return false
         prefs.edit {
@@ -264,27 +262,23 @@ object Weather {
         refresh()
     }
 
-    /** WMO weather interpretation codes, as Open-Meteo reports them. */
-    private fun kindOf(code: Int): WeatherKind = when (code) {
-        0 -> WeatherKind.Clear
-        1, 2 -> WeatherKind.PartlyCloudy
-        3 -> WeatherKind.Cloudy
-        45, 48 -> WeatherKind.Fog
-        in 51..57 -> WeatherKind.LightRain
-        61 -> WeatherKind.LightRain
-        63 -> WeatherKind.ModerateRain
-        65 -> WeatherKind.HeavyRain
-        in 66..67 -> WeatherKind.ModerateRain
-        80 -> WeatherKind.LightRain
-        81 -> WeatherKind.ModerateRain
-        82 -> WeatherKind.HeavyRain
-        in 71..73 -> WeatherKind.LightSnow
-        in 74..75 -> WeatherKind.ModerateSnow
-        in 76..77 -> WeatherKind.HeavySnow
-        85 -> WeatherKind.LightSnow
-        86 -> WeatherKind.HeavySnow
-        in 95..99 -> WeatherKind.Thunder
-        else -> WeatherKind.ModerateRain
+    /** Map QWeather Chinese weather text to our WeatherKind. */
+    private fun kindOfText(text: String): WeatherKind = when {
+        text.contains("晴") -> WeatherKind.Clear
+        text.contains("多云") -> WeatherKind.PartlyCloudy
+        text.contains("阴") -> WeatherKind.Cloudy
+        text.contains("雾") || text.contains("霾") -> WeatherKind.Fog
+        text.contains("雷") -> WeatherKind.Thunder
+        text.contains("小雪") || text.contains("阵雪") -> WeatherKind.LightSnow
+        text.contains("中雪") -> WeatherKind.ModerateSnow
+        text.contains("大雪") || text.contains("暴雪") -> WeatherKind.HeavySnow
+        text.contains("雨夹雪") -> WeatherKind.LightSnow
+        text.contains("小雨") || text.contains("毛毛雨") || text.contains("阵雨") -> WeatherKind.LightRain
+        text.contains("中雨") -> WeatherKind.ModerateRain
+        text.contains("大雨") || text.contains("暴雨") || text.contains("大暴雨") -> WeatherKind.HeavyRain
+        text.contains("雪") -> WeatherKind.LightSnow
+        text.contains("雨") -> WeatherKind.ModerateRain
+        else -> WeatherKind.Cloudy
     }
 
     /**
