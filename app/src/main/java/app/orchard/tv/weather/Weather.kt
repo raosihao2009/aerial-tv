@@ -74,11 +74,23 @@ object Weather {
         chosen = prefs.getBoolean("chosen", false)
         if (System.currentTimeMillis() - prefs.getLong("fetched_at", 0) < STALE_MS) {
             val kind = runCatching { WeatherKind.valueOf(prefs.getString("kind", null) ?: "") }.getOrNull()
-            if (kind != null) now = WeatherNow(
-                prefs.getInt("celsius", 0), kind, prefs.getBoolean("day", true),
-                high = prefs.getInt("high", NONE).takeIf { it != NONE },
-                low = prefs.getInt("low", NONE).takeIf { it != NONE },
-            )
+            if (kind != null) {
+                val cachedHigh = prefs.getInt("high", NONE).takeIf { it != NONE }
+                val cachedLow = prefs.getInt("low", NONE).takeIf { it != NONE }
+                val fc = buildList {
+                    val fcKind = runCatching { WeatherKind.valueOf(prefs.getString("fc_kind", null) ?: "") }.getOrNull()
+                    val fcHigh = prefs.getInt("fc_high", NONE).takeIf { it != NONE }
+                    val fcLow = prefs.getInt("fc_low", NONE).takeIf { it != NONE }
+                    val fcDisplay = prefs.getString("fc_display", null)
+                    if (fcKind != null && fcHigh != null && fcLow != null) {
+                        add(ForecastDay(fcKind, fcHigh, fcLow, fcDisplay ?: ""))
+                    }
+                }
+                now = WeatherNow(
+                    prefs.getInt("celsius", 0), kind, prefs.getBoolean("day", true),
+                    high = cachedHigh, low = cachedLow, forecast = fc,
+                )
+            }
         }
     }
 
@@ -109,6 +121,13 @@ object Weather {
                     putBoolean("day", reading.day)
                     putInt("high", reading.high ?: NONE)
                     putInt("low", reading.low ?: NONE)
+                    // Cache today's forecast so it shows instantly on next boot
+                    reading.forecast.firstOrNull()?.let { fc ->
+                        putString("fc_kind", fc.kind.name)
+                        putInt("fc_high", fc.high)
+                        putInt("fc_low", fc.low)
+                        putString("fc_display", fc.display)
+                    }
                 }
             }
         }

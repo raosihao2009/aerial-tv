@@ -182,11 +182,14 @@ fun LiveSourceMenu(
         val tileH = tileW * 9f / 16f
         val pitchY = tileH + pitchYExtra
         val pillFocus = remember { FocusRequester() }
+        val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
         // CC关闭返回时聚焦右上角pill(和一级菜单一致)
         var wasCcOpen by remember { mutableStateOf(false) }
         LaunchedEffect(controlCenterOpen) {
             if (controlCenterOpen) {
                 wasCcOpen = true
+                // 清除焦点，避免焦点残留在disabled的pill上导致CC首次按键被吞
+                focusManager.clearFocus()
             } else if (wasCcOpen && visible) {
                 wasCcOpen = false
                 runCatching { pillFocus.requestFocus() }
