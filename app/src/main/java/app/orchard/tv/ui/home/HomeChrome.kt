@@ -907,41 +907,28 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                 modifier = Modifier.padding(top = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                BasicText(
-                    "「今天」",
-                    style = Type.Caption.copy(color = Color.White, shadow = shadow, fontSize = 16.sp, fontFamily = OutfitRegular),
+                val weatherStyle = Type.Caption.copy(
+                    color = Color.White, shadow = shadow, fontSize = 16.sp,
+                    fontFamily = OutfitRegular, letterSpacing = 0.em,
                 )
+                val sepStyle = weatherStyle.copy(color = Color.White.copy(alpha = 0.4f))
+                BasicText("「今天」", style = weatherStyle)
                 if (today != null) {
-                    WeatherIcon(today.dayKind, true, 18.dp, Modifier.padding(start = 6.dp, end = 2.dp))
+                    WeatherIcon(today.dayKind, true, 18.dp, Modifier.padding(start = 4.dp, end = 1.dp))
                     if (today.display.contains("转")) {
-                        WeatherIcon(today.nightKind, false, 18.dp, Modifier.padding(horizontal = 2.dp))
+                        WeatherIcon(today.nightKind, false, 18.dp, Modifier.padding(horizontal = 1.dp))
                     }
                 }
                 if (todayText != null) {
-                    BasicText(
-                        " $todayText",
-                        style = Type.Caption.copy(color = Color.White, shadow = shadow, fontSize = 16.sp, fontFamily = OutfitRegular),
-                    )
+                    BasicText(" $todayText", style = weatherStyle)
                 }
                 if (todayLow != null && todayHigh != null) {
-                    BasicText(
-                        " $todayLow°/$todayHigh°",
-                        style = Type.Caption.copy(color = Color.White, shadow = shadow, fontSize = 16.sp, fontFamily = OutfitRegular),
-                    )
+                    BasicText(" $todayLow°/$todayHigh°", style = weatherStyle)
                 }
-                BasicText(
-                    " ｜ ",
-                    style = Type.Caption.copy(color = Color.White.copy(alpha = 0.4f), shadow = shadow, fontSize = 16.sp, fontFamily = OutfitRegular),
-                )
-                BasicText(
-                    "「现在」",
-                    style = Type.Caption.copy(color = Color.White, shadow = shadow, fontSize = 16.sp, fontFamily = OutfitRegular),
-                )
-                WeatherIcon(w.kind, w.day, 18.dp, Modifier.padding(start = 6.dp, end = 2.dp))
-                BasicText(
-                    "$cond ${w.celsius}°",
-                    style = Type.Caption.copy(color = Color.White, shadow = shadow, fontSize = 16.sp, fontFamily = OutfitRegular),
-                )
+                BasicText(" ｜ ", style = sepStyle)
+                BasicText("「现在」", style = weatherStyle)
+                WeatherIcon(w.kind, w.day, 18.dp, Modifier.padding(start = 4.dp, end = 1.dp))
+                BasicText("$cond ${w.celsius}°", style = weatherStyle)
             }
         }
     }
