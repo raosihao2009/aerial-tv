@@ -631,7 +631,7 @@ fun ShelfClock(
     away: Boolean = false,
 ) {
     val drift = heldDrift(saving, now)
-    val shadow = Shadow(Color.Black.copy(alpha = 0.45f), Offset(0f, 1f), blurRadius = 10f)
+    val shadow = Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 1f), blurRadius = 10f)
     // 上游 v1.75 修复：副文案用更细字重（W500）而非半透明白，避免在无阴影影片上褪色
     // (Xiaomi MiTV-MFTR0)。保留二创的 detail.isNotEmpty() 判空。
     val second = SpanStyle(fontWeight = FontWeight.W500)
@@ -771,7 +771,7 @@ private fun conditionName(kind: WeatherKind): Int = when (kind) {
 fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -> Float = { 0f }, saving: Boolean = false) {
     val drift = heldDrift(saving, now)
     val dim = Color.White.copy(alpha = 0.92f)
-    val shadow = Shadow(Color.Black.copy(alpha = 0.5f), Offset(0f, 1f), blurRadius = 8f)
+    val shadow = Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 1f), blurRadius = 8f)
     val aside = Modifier.graphicsLayer {
         alpha = 1f - (toSaver() * 2.5f).coerceIn(0f, 1f)
         compositingStrategy = CompositingStrategy.ModulateAlpha
@@ -875,10 +875,10 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             }
         }
         Weather.now?.takeIf { AerialSettings.showWeather }?.let { w ->
-            val place = (Weather.place ?: "南昌") + "市"
+            val place = Weather.place ?: "南昌"
             val cond = stringResource(conditionName(w.kind))
             val fc = w.forecast
-            // 第一行: 城市 图标 实时天气 温度 + 今天预报(独立字号)
+            // 第一行: 城市 图标 实时天气 温度 + 今天预报(独立字号,白色,带天气图标)
             Row(
                 modifier = Modifier.padding(top = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -893,29 +893,46 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     style = Type.Headline.copy(color = Color.White, shadow = shadow, fontSize = 18.sp),
                 )
                 // 今天预报：优先用3天预报，没有时用实时天气的high/low兜底
-                val todayText = fc.firstOrNull()?.let { day ->
+                val today = fc.firstOrNull()
+                val todayText = today?.let { day ->
                     day.display.ifEmpty { stringResource(conditionName(day.kind)) }
                 }
-                val todayLow = fc.firstOrNull()?.low ?: w.low
-                val todayHigh = fc.firstOrNull()?.high ?: w.high
+                val todayLow = today?.low ?: w.low
+                val todayHigh = today?.high ?: w.high
                 if (todayText != null && todayLow != null && todayHigh != null) {
                     BasicText(
-                        "  今天 $todayText $todayLow~$todayHigh°",
-                        style = Type.Caption.copy(color = Color.White.copy(alpha = 0.8f), shadow = shadow, fontSize = 13.sp),
+                        "  今天",
+                        style = Type.Caption.copy(color = Color.White, shadow = shadow, fontSize = 13.sp),
+                    )
+                    // 今天天气图标：白天1个，有"转"则白天+夜间2个
+                    if (today != null) {
+                        val hasTransition = today.display.contains("转")
+                        GlyphIcon(glyphForKind(today.dayKind, true), Color.White, 13.dp,
+                            Modifier.padding(start = 4.dp, end = 2.dp))
+                        if (hasTransition) {
+                            GlyphIcon(glyphForKind(today.nightKind, false), Color.White, 13.dp,
+                                Modifier.padding(horizontal = 2.dp))
+                        }
+                    }
+                    BasicText(
+                        " $todayText $todayLow~$todayHigh°",
+                        style = Type.Caption.copy(color = Color.White, shadow = shadow, fontSize = 13.sp),
                     )
                 } else if (todayLow != null && todayHigh != null) {
                     BasicText(
                         "  今天 $todayLow~$todayHigh°",
-                        style = Type.Caption.copy(color = Color.White.copy(alpha = 0.8f), shadow = shadow, fontSize = 13.sp),
+                        style = Type.Caption.copy(color = Color.White, shadow = shadow, fontSize = 13.sp),
                     )
                 }
             }
         }
     }
 }
-private fun glyphFor(w: WeatherNow): Glyph = when (w.kind) {
-    WeatherKind.Clear -> if (w.day) Glyph.Sun else Glyph.Moon
-    WeatherKind.PartlyCloudy -> if (w.day) Glyph.CloudSun else Glyph.Cloud
+private fun glyphFor(w: WeatherNow): Glyph = glyphForKind(w.kind, w.day)
+
+private fun glyphForKind(kind: WeatherKind, day: Boolean): Glyph = when (kind) {
+    WeatherKind.Clear -> if (day) Glyph.Sun else Glyph.Moon
+    WeatherKind.PartlyCloudy -> if (day) Glyph.CloudSun else Glyph.Cloud
     WeatherKind.Cloudy -> Glyph.Cloud
     WeatherKind.Fog -> Glyph.CloudFog
     WeatherKind.Drizzle, WeatherKind.LightRain -> Glyph.CloudLightRain

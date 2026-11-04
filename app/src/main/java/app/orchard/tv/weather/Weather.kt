@@ -24,7 +24,8 @@ import kotlin.math.roundToInt
 enum class WeatherKind { Clear, PartlyCloudy, Cloudy, Fog, Drizzle, LightRain, ModerateRain, HeavyRain, ViolentRain, LightSnow, ModerateSnow, HeavySnow, Thunder }
 
 /** One day of the forecast. */
-data class ForecastDay(val kind: WeatherKind, val high: Int, val low: Int, val display: String = "")
+data class ForecastDay(val kind: WeatherKind, val high: Int, val low: Int, val display: String = "",
+                       val dayKind: WeatherKind = kind, val nightKind: WeatherKind = kind)
 
 /** [high] and [low] are today's, shown under the large clock; null in a reading saved by an older version. */
 data class WeatherNow(val celsius: Int, val kind: WeatherKind, val day: Boolean, val high: Int? = null, val low: Int? = null, val forecast: List<ForecastDay> = emptyList())
@@ -178,7 +179,8 @@ object Weather {
                     val dayText = d.optString("textDay")
                     val nightText = d.optString("textNight")
                     val display = if (dayText == nightText) dayText else "${dayText}转${nightText}"
-                    add(ForecastDay(kindOfText(dayText), h, l, display))
+                    add(ForecastDay(kindOfText(dayText), h, l, display,
+                        dayKind = kindOfText(dayText), nightKind = kindOfText(nightText)))
                 }
             }
         }
