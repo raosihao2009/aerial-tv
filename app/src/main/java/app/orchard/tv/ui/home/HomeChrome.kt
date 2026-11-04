@@ -775,43 +775,88 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
         modifier = modifier.then(aside),
         horizontalAlignment = Alignment.Start,
     ) {
+        // 问候语: 小字号大写
         BasicText(
-            greetingText(now.hour) + "！",
-            style = Type.Headline.copy(color = dim, shadow = shadow),
+            greetingText(now.hour).uppercase(),
+            style = Type.Caption.copy(
+                color = Color.White.copy(alpha = 0.55f),
+                shadow = shadow,
+                letterSpacing = 0.22.em,
+                fontSize = 12.sp,
+            ),
         )
-        BasicText(
-            timeText(now),
-            style = Type.SmallClock.copy(fontSize = 48.sp, color = dim, shadow = shadow),
-            modifier = Modifier
-                .padding(top = 2.dp)
-                .toSaverClock(toSaver, 48.sp, 48.sp.value.dp * CAP_TOP, drift),
-        )
-        BasicText(
-            buildString {
-                append(dateStr)
-                if (lunar != null) append(" $lunar")
-            },
-            style = Type.Headline.copy(color = dim, shadow = shadow),
-            modifier = Modifier.padding(top = 2.dp),
-        )
+        // 时间行: 大时间 + 上午/下午 | 日期+农历
+        Row(
+            modifier = Modifier.padding(top = 4.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            BasicText(
+                timeText(now),
+                style = Type.SmallClock.copy(
+                    fontSize = 52.sp,
+                    color = Color.White,
+                    shadow = shadow,
+                    letterSpacing = (-0.04).em,
+                ),
+                modifier = Modifier.toSaverClock(toSaver, 52.sp, 52.sp.value.dp * CAP_TOP, drift),
+            )
+            val ampm = if (now.hour < 12) "上午" else "下午"
+            BasicText(
+                ampm,
+                style = Type.Caption.copy(
+                    color = Color.White.copy(alpha = 0.7f),
+                    shadow = shadow,
+                    fontSize = 15.sp,
+                    letterSpacing = 0.08.em,
+                ),
+                modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
+            )
+            // 竖线分隔
+            Box(
+                modifier = Modifier
+                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
+                    .width(1.dp)
+                    .height(26.dp)
+                    .background(Color.White.copy(alpha = 0.2f)),
+            )
+            Column(
+                modifier = Modifier.padding(bottom = 7.dp),
+            ) {
+                BasicText(
+                    dateStr,
+                    style = Type.Caption.copy(
+                        color = Color.White.copy(alpha = 0.65f),
+                        shadow = shadow,
+                        fontSize = 14.sp,
+                        letterSpacing = 0.14.em,
+                    ),
+                )
+                if (lunar != null) {
+                    BasicText(
+                        lunar,
+                        style = Type.Caption.copy(
+                            color = Color.White.copy(alpha = 0.5f),
+                            shadow = shadow,
+                            fontSize = 14.sp,
+                            letterSpacing = 0.14.em,
+                        ),
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+            }
+        }
         Weather.now?.takeIf { AerialSettings.showWeather }?.let { w ->
             val place = Weather.place
             val cond = stringResource(conditionName(w.kind))
-            val range = if (w.high != null && w.low != null) "${w.low}° ~ ${w.high}°" else ""
-            Row(
-                modifier = Modifier.padding(top = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                GlyphIcon(glyphFor(w), dim, 16.dp, Modifier.padding(end = 6.dp))
-                BasicText(
-                    buildString {
-                        append("${w.celsius}°")
-                        val detail = listOfNotNull(place, cond, range).filter { it.isNotEmpty() }.joinToString(" · ")
-                        if (detail.isNotEmpty()) append("  $detail")
-                    },
-                    style = Type.Headline.copy(color = dim, shadow = shadow),
-                )
-            }
+            BasicText(
+                buildString {
+                    append("${w.celsius}°")
+                    val detail = listOfNotNull(place, cond).filter { !it.isNullOrEmpty() }.joinToString(" · ")
+                    if (detail.isNotEmpty()) append("  $detail")
+                },
+                style = Type.Headline.copy(color = dim, shadow = shadow),
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }
