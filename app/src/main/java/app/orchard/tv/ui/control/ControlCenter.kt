@@ -267,20 +267,15 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
             delay(3000)
         }
     }
+    var focusRequested by remember { mutableStateOf(false) }
     LaunchedEffect(takeFocus) {
-        if (!takeFocus) return@LaunchedEffect
-        DiagLog.i("CC-debug: takeFocus=true, requesting focus")
-        // 循环重试直到focus成功，覆盖首次组合619ms延迟期间pill仍持有焦点的窗口
-        repeat(20) { attempt ->
-            val result = runCatching { first.requestFocus() }
-            if (result.isSuccess) {
-                DiagLog.i("CC-debug: requestFocus succeeded on attempt #$attempt")
-                return@LaunchedEffect
-            }
-            if (attempt == 0) DiagLog.i("CC-debug: immediate requestFocus failed: ${result.exceptionOrNull()?.message}")
-            withFrameNanos { }
-        }
-        DiagLog.i("CC-debug: requestFocus failed after 20 attempts")
+        if (!takeFocus) { focusRequested = false; return@LaunchedEffect }
+        // 等两帧让节点完成布局，再请求焦点。在布局前requestFocus虽然不报错，
+        // 但焦点树尚未建立，第一个DPAD键会被吞掉而不触发焦点搜索。
+        repeat(2) { withFrameNanos { } }
+        runCatching { first.requestFocus() }
+            .onSuccess { focusRequested = true }
+            .onFailure { DiagLog.i("CC-debug: delayed requestFocus failed: ${it.message}") }
     }
 
     Column {
@@ -313,10 +308,17 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
             RoundButton(
                 Glyph.Input, stringResource(R.string.cc_inputs),
                 focusRequester = first,
-                modifier = Modifier.onFocusChanged {
-                    DiagLog.i("CC-debug: Input button focus changed: focused=${it.isFocused}")
-                    if (it.isFocused) cameFrom = first
-                },
+                modifier = Modifier
+                    .onFocusChanged {
+                        DiagLog.i("CC-debug: Input button focus changed: focused=${it.isFocused}")
+                        if (it.isFocused) cameFrom = first
+                    }
+                    .onKeyEvent { e ->
+                        if (e.type == KeyEventType.KeyDown) {
+                            DiagLog.i("CC-debug: Input button received key: ${e.nativeKeyEvent.keyCode}, focus=${e.nativeKeyEvent.action}")
+                        }
+                        false
+                    },
             ) {
                 // TCL lists no inputs to Android; its own input panel is the next best thing.
                 vm.overlay = if (vm.sources.isEmpty() && SystemProbe.openInputPicker(context)) Overlay.None
