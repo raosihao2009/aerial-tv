@@ -943,7 +943,7 @@ private fun glyphForKind(kind: WeatherKind, day: Boolean): Glyph = when (kind) {
 
 /** OPPO风格天气图标，直接用drawable渲染 */
 @Composable
-private fun WeatherIcon(kind: WeatherKind, day: Boolean, size: Dp, modifier: Modifier = Modifier) {
+private fun WeatherIcon(kind: WeatherKind, day: Boolean, iconSize: Dp, modifier: Modifier = Modifier) {
     val resId = when (kind) {
         WeatherKind.Clear -> if (day) R.drawable.weather_clear else R.drawable.weather_night
         WeatherKind.PartlyCloudy -> R.drawable.weather_cloudy
@@ -958,7 +958,7 @@ private fun WeatherIcon(kind: WeatherKind, day: Boolean, size: Dp, modifier: Mod
         painter = androidx.compose.ui.res.painterResource(resId),
         contentDescription = null,
         colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White),
-        modifier = modifier.then(androidx.compose.foundation.layout.size(size)),
+        modifier = modifier.then(androidx.compose.foundation.layout.size(iconSize)),
     )
 }
 
