@@ -1038,7 +1038,9 @@ fun HomeScreen(
             while (true) {
                 delay(CC_WARM_AFTER_MS)
                 val idle = SystemClock.uptimeMillis() - vm.lastInputAt > CC_WARM_AFTER_MS
-                if (idle && vm.overlay == Overlay.None && !vm.screensaverVisible && vm.resumed) break
+                // 允许在LiveSourceMenu打开时也预热CC：CC面板在右上角1%透明度，
+                // 不会干扰下半屏的卡片；从二级菜单打开CC时就不需要冷启动619ms了
+                if (idle && (vm.overlay == Overlay.None || vm.overlay is Overlay.LiveSourceMenu) && !vm.screensaverVisible && vm.resumed) break
             }
             ControlCenterWarmed.done = true
             ccWarm = true
