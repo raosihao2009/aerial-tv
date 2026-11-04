@@ -887,7 +887,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     "$place ",
                     style = Type.Headline.copy(color = Color.White, shadow = shadow, fontSize = 18.sp),
                 )
-                GlyphIcon(glyphFor(w), Color.White, 18.dp, Modifier.padding(horizontal = 4.dp))
+                WeatherIcon(w.kind, w.day, 18.dp, Modifier.padding(horizontal = 4.dp))
                 BasicText(
                     "$cond ${w.celsius}℃",
                     style = Type.Headline.copy(color = Color.White, shadow = shadow, fontSize = 18.sp),
@@ -907,11 +907,9 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     // 今天天气图标：白天1个，有"转"则白天+夜间2个
                     if (today != null) {
                         val hasTransition = today.display.contains("转")
-                        GlyphIcon(glyphForKind(today.dayKind, true), Color.White, 16.dp,
-                            Modifier.padding(start = 4.dp, end = 2.dp))
+                        WeatherIcon(today.dayKind, true, 16.dp, Modifier.padding(start = 4.dp, end = 2.dp))
                         if (hasTransition) {
-                            GlyphIcon(glyphForKind(today.nightKind, false), Color.White, 16.dp,
-                                Modifier.padding(horizontal = 2.dp))
+                            WeatherIcon(today.nightKind, false, 16.dp, Modifier.padding(horizontal = 2.dp))
                         }
                     }
                     BasicText(
@@ -941,6 +939,27 @@ private fun glyphForKind(kind: WeatherKind, day: Boolean): Glyph = when (kind) {
     WeatherKind.ViolentRain -> Glyph.CloudStorm
     WeatherKind.LightSnow, WeatherKind.ModerateSnow, WeatherKind.HeavySnow -> Glyph.CloudSnow
     WeatherKind.Thunder -> Glyph.CloudBolt
+}
+
+/** OPPO风格天气图标，直接用drawable渲染 */
+@Composable
+private fun WeatherIcon(kind: WeatherKind, day: Boolean, size: Dp, modifier: Modifier = Modifier) {
+    val resId = when (kind) {
+        WeatherKind.Clear -> if (day) R.drawable.weather_clear else R.drawable.weather_night
+        WeatherKind.PartlyCloudy -> R.drawable.weather_cloudy
+        WeatherKind.Cloudy -> R.drawable.weather_cloudy
+        WeatherKind.Fog -> R.drawable.weather_fog
+        WeatherKind.Drizzle, WeatherKind.LightRain,
+        WeatherKind.ModerateRain, WeatherKind.HeavyRain, WeatherKind.ViolentRain -> R.drawable.weather_rain
+        WeatherKind.Thunder -> R.drawable.weather_storm
+        WeatherKind.LightSnow, WeatherKind.ModerateSnow, WeatherKind.HeavySnow -> R.drawable.weather_snow
+    }
+    androidx.compose.material3.Icon(
+        painter = androidx.compose.ui.res.painterResource(resId),
+        contentDescription = null,
+        tint = Color.White,
+        modifier = modifier.size(size),
+    )
 }
 
 /** "VPN" in a thin frame beside the network glyph while a VPN is up, as iOS's status bar has it (issue #809). */
