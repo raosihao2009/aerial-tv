@@ -947,14 +947,15 @@ private fun glyphForKind(kind: WeatherKind, day: Boolean): Glyph = when (kind) {
 private fun WeatherIcon(kind: WeatherKind, day: Boolean, iconSize: Dp, modifier: Modifier = Modifier) {
     val resId = when (kind) {
         WeatherKind.Clear -> if (day) R.drawable.weather_clear else R.drawable.weather_night
-        WeatherKind.PartlyCloudy -> R.drawable.weather_partly_cloudy
+        WeatherKind.PartlyCloudy -> if (day) R.drawable.weather_partly_cloudy else R.drawable.weather_cloudy_night
         WeatherKind.Cloudy -> R.drawable.weather_cloudy
         WeatherKind.Fog -> R.drawable.weather_fog
         WeatherKind.Drizzle, WeatherKind.LightRain -> R.drawable.weather_light_rain
         WeatherKind.ModerateRain -> R.drawable.weather_rain
         WeatherKind.HeavyRain, WeatherKind.ViolentRain -> R.drawable.weather_heavy_rain
-        WeatherKind.Thunder -> R.drawable.weather_storm
-        WeatherKind.LightSnow, WeatherKind.ModerateSnow, WeatherKind.HeavySnow -> R.drawable.weather_snow
+        WeatherKind.Thunder -> R.drawable.weather_thunder
+        WeatherKind.LightSnow, WeatherKind.ModerateSnow -> R.drawable.weather_snow
+        WeatherKind.HeavySnow -> R.drawable.weather_snow_heavy
     }
     androidx.compose.foundation.Image(
         painter = androidx.compose.ui.res.painterResource(resId),
