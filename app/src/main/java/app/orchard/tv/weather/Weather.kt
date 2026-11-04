@@ -41,6 +41,7 @@ object Weather {
     private const val TAG = "AerialWeather"
     private const val PREFS = "weather"
     private const val QW_KEY = "2d9160494e2e4b1abdf23de36d9072b1"
+    private const val QW_HOST = "pa4gkmwbku.re.qweatherapi.com"
     private const val REFRESH_MS = 10 * 60 * 1000L
     private const val RETRY_MS = 2 * 60 * 1000L
     private const val RELOCATE_MS = 24 * 60 * 60 * 1000L
@@ -141,13 +142,13 @@ object Weather {
         }
         // QWeather uses lon,lat order; new accounts use api.qweatherapi.com
         val loc = "$lon,$lat"
-        val nowJson = JSONObject(get("https://api.qweatherapi.com/v7/weather/now?location=$loc&key=$QW_KEY"))
+        val nowJson = JSONObject(get("https://$QW_HOST/v7/weather/now?location=$loc&key=$QW_KEY"))
         val now = nowJson.getJSONObject("now")
         val temp = now.getString("temp").toIntOrNull() ?: 0
         val text = now.optString("text")
         val isDay = now.optString("icon").toIntOrNull()?.let { it < 100 } ?: true
 
-        val forecastJson = JSONObject(get("https://api.qweatherapi.com/v7/weather/3d?location=$loc&key=$QW_KEY"))
+        val forecastJson = JSONObject(get("https://$QW_HOST/v7/weather/3d?location=$loc&key=$QW_KEY"))
         val daily = forecastJson.optJSONArray("daily")
         val forecast = buildList {
             if (daily != null) {
@@ -239,7 +240,7 @@ object Weather {
                 ?.let { Triple(it.lat, it.lon, it.name) }
                 ?: runCatching {
                     val q = URLEncoder.encode(name.trim(), "UTF-8")
-                    val results = JSONObject(get("https://geoapi.qweatherapi.com/v2/city/lookup?location=$q&key=$QW_KEY&range=cn"))
+                    val results = JSONObject(get("https://geoapi.qweather.com/v2/city/lookup?location=$q&key=$QW_KEY&range=cn"))
                         .optJSONArray("location")
                     val all = (0 until (results?.length() ?: 0)).map { results!!.getJSONObject(it) }
                     all.firstOrNull()?.let { Triple(it.getDouble("lat"), it.getDouble("lon"), it.optString("name").ifBlank { name.trim() }) }
