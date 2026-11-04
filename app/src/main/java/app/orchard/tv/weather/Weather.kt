@@ -158,7 +158,7 @@ object Weather {
                     val l = d.optString("tempMin").toIntOrNull() ?: continue
                     val dayText = d.optString("textDay")
                     val nightText = d.optString("textNight")
-                    val display = if (dayText == nightText) dayText else "$dayText转$nightText"
+                    val display = if (dayText == nightText) dayText else "${dayText}转${nightText}"
                     add(ForecastDay(kindOfText(dayText), h, l, display))
                 }
             }
