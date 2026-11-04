@@ -631,7 +631,7 @@ fun ShelfClock(
     away: Boolean = false,
 ) {
     val drift = heldDrift(saving, now)
-    val shadow = Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 0f), blurRadius = 6f)
+    val shadow = Shadow(Color.Black.copy(alpha = 0.45f), Offset(0f, 1f), blurRadius = 10f)
     // 上游 v1.75 修复：副文案用更细字重（W500）而非半透明白，避免在无阴影影片上褪色
     // (Xiaomi MiTV-MFTR0)。保留二创的 detail.isNotEmpty() 判空。
     val second = SpanStyle(fontWeight = FontWeight.W500)
@@ -771,8 +771,7 @@ private fun conditionName(kind: WeatherKind): Int = when (kind) {
 fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -> Float = { 0f }, saving: Boolean = false) {
     val drift = heldDrift(saving, now)
     val dim = Color.White.copy(alpha = 0.92f)
-    // 黑色轮廓阴影：多层紧凑阴影模拟描边，保证不同壁纸下文字可读
-    val shadow = Shadow(Color.Black.copy(alpha = 0.85f), Offset(0f, 0f), blurRadius = 4f)
+    val shadow = Shadow(Color.Black.copy(alpha = 0.5f), Offset(0f, 1f), blurRadius = 8f)
     val aside = Modifier.graphicsLayer {
         alpha = 1f - (toSaver() * 2.5f).coerceIn(0f, 1f)
         compositingStrategy = CompositingStrategy.ModulateAlpha
