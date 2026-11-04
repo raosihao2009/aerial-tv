@@ -21,7 +21,7 @@ import java.util.Locale
 import javax.net.ssl.SSLException
 import kotlin.math.roundToInt
 
-enum class WeatherKind { Clear, PartlyCloudy, Cloudy, Fog, Drizzle, LightRain, ModerateRain, HeavyRain, LightSnow, ModerateSnow, HeavySnow, Thunder }
+enum class WeatherKind { Clear, PartlyCloudy, Cloudy, Fog, Drizzle, LightRain, ModerateRain, HeavyRain, ViolentRain, LightSnow, ModerateSnow, HeavySnow, Thunder }
 
 /** One day of the forecast. */
 data class ForecastDay(val kind: WeatherKind, val high: Int, val low: Int, val display: String = "")
@@ -277,9 +277,11 @@ object Weather {
         text.contains("中雪") -> WeatherKind.ModerateSnow
         text.contains("大雪") || text.contains("暴雪") -> WeatherKind.HeavySnow
         text.contains("雨夹雪") -> WeatherKind.LightSnow
-        text.contains("小雨") || text.contains("毛毛雨") || text.contains("阵雨") -> WeatherKind.LightRain
+        text.contains("小雨") || text.contains("毛毛雨") -> WeatherKind.LightRain
+        text.contains("阵雨") -> WeatherKind.ModerateRain
         text.contains("中雨") -> WeatherKind.ModerateRain
-        text.contains("大雨") || text.contains("暴雨") || text.contains("大暴雨") -> WeatherKind.HeavyRain
+        text.contains("大雨") -> WeatherKind.HeavyRain
+        text.contains("暴雨") || text.contains("大暴雨") -> WeatherKind.ViolentRain
         text.contains("雪") -> WeatherKind.LightSnow
         text.contains("雨") -> WeatherKind.ModerateRain
         else -> WeatherKind.Cloudy

@@ -931,6 +931,7 @@ private fun glyphFor(w: WeatherNow): Glyph = when (w.kind) {
     WeatherKind.Drizzle, WeatherKind.LightRain -> Glyph.CloudLightRain
     WeatherKind.ModerateRain -> Glyph.CloudRain
     WeatherKind.HeavyRain -> Glyph.CloudHeavyRain
+    WeatherKind.ViolentRain -> Glyph.CloudStorm
     WeatherKind.LightSnow, WeatherKind.ModerateSnow, WeatherKind.HeavySnow -> Glyph.CloudSnow
     WeatherKind.Thunder -> Glyph.CloudBolt
 }
