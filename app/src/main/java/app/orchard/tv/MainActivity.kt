@@ -267,18 +267,24 @@ class MainActivity : ComponentActivity() {
         // one, keep what the window already shows (the kept backdrop of a locked start).
         val baked = Wallpapers.backdrop
         if (baked != null) window.setBackgroundDrawable(BitmapDrawable(resources, baked.asAndroidBitmap()))
-        // Clear whatever the window showed until the first frame (the baked backdrop, or the kept
-        // one of a locked start): from then on Home paints every pixel itself. Keep black instead
-        // of null so a half-drawn Compose frame never reveals a transparent window flash.
-        window.decorView.viewTreeObserver.addOnDrawListener(object : ViewTreeObserver.OnDrawListener {
-            override fun onDraw() {
-                // Not from inside the draw itself.
-                idleHandler.post {
-                    window.setBackgroundDrawable(ColorDrawable(Color.BLACK))
-                    window.decorView.viewTreeObserver.removeOnDrawListener(this)
+        // Keep the baked backdrop as window background through the startup frames; only after
+        // Compose has drawn several frames do we let it go. This prevents the multiple black
+        // flashes seen on Dangbei H5 during boot when the window surface is recreated mid-startup.
+        val backdropBmp = baked
+        if (backdropBmp != null) {
+            var drawCount = 0
+            window.decorView.viewTreeObserver.addOnDrawListener(object : ViewTreeObserver.OnDrawListener {
+                override fun onDraw() {
+                    drawCount++
+                    if (drawCount >= 5) {
+                        idleHandler.post {
+                            window.setBackgroundDrawable(ColorDrawable(Color.BLACK))
+                            window.decorView.viewTreeObserver.removeOnDrawListener(this)
+                        }
+                    }
                 }
-            }
-        })
+            })
+        }
         if (DiagLog.modeSwitch(this)) preferSmoothestRefreshRate() else DiagLog.i("refresh rate left as it is (mode_switch off)")
         if (DiagLog.softLayer(this) && uhd == 1f) window.decorView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
         FrameStats.attach(window)
