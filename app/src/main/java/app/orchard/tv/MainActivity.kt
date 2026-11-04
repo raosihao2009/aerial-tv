@@ -268,12 +268,13 @@ class MainActivity : ComponentActivity() {
         val baked = Wallpapers.backdrop
         if (baked != null) window.setBackgroundDrawable(BitmapDrawable(resources, baked.asAndroidBitmap()))
         // Clear whatever the window showed until the first frame (the baked backdrop, or the kept
-        // one of a locked start): from then on Home paints every pixel itself.
+        // one of a locked start): from then on Home paints every pixel itself. Keep black instead
+        // of null so a half-drawn Compose frame never reveals a transparent window flash.
         window.decorView.viewTreeObserver.addOnDrawListener(object : ViewTreeObserver.OnDrawListener {
             override fun onDraw() {
                 // Not from inside the draw itself.
                 idleHandler.post {
-                    window.setBackgroundDrawable(null)
+                    window.setBackgroundDrawable(ColorDrawable(Color.BLACK))
                     window.decorView.viewTreeObserver.removeOnDrawListener(this)
                 }
             }
