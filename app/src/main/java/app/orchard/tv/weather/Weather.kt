@@ -44,7 +44,7 @@ object Weather {
     private const val QW_KEY = "2d9160494e2e4b1abdf23de36d9072b1"
     private const val QW_HOST = "pa4gkmwbku.re.qweatherapi.com"
     private const val REFRESH_MS = 10 * 60 * 1000L
-    private const val RETRY_MS = 2 * 60 * 1000L
+    private const val RETRY_MS = 1 * 60 * 1000L
     private const val RELOCATE_MS = 24 * 60 * 60 * 1000L
     /** A reading older than this is not shown at all. */
     private const val STALE_MS = 60 * 60 * 1000L
