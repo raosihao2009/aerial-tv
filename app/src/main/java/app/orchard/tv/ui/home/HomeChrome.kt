@@ -903,14 +903,10 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             }
             // 第二行: 明天/后天
             if (fc.size >= 2) {
-                val labels = listOf("明天", "后天")
-                val parts = fc.drop(1).take(2).mapIndexed { i, day ->
-                    val label = labels.getOrElse(i) { "第${i+2}天" }
-                    val weatherText = day.display.ifEmpty { stringResource(conditionName(day.kind)) }
-                    "$label $weatherText ${day.low}~${day.high}°"
-                }
+                val tomorrow = fc[1]
+                val tomorrowText = tomorrow.display.ifEmpty { stringResource(conditionName(tomorrow.kind)) }
                 BasicText(
-                    parts.joinToString("  ｜  "),
+                    "明天 $tomorrowText ${tomorrow.low}~${tomorrow.high}°",
                     style = Type.Caption.copy(color = Color.White.copy(alpha = 0.8f), shadow = shadow, fontSize = 13.sp),
                     modifier = Modifier.padding(top = 2.dp),
                 )
