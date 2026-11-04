@@ -266,7 +266,8 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
     }
     LaunchedEffect(takeFocus) {
         if (!takeFocus) return@LaunchedEffect
-        withFrameNanos { }
+        // 立即请求焦点，不等帧（当贝H5上延迟会导致首次DPAD丢失）
+        runCatching { first.requestFocus() }
         withFrameNanos { }
         runCatching { first.requestFocus() }
     }
