@@ -21,7 +21,7 @@ import java.util.Locale
 import javax.net.ssl.SSLException
 import kotlin.math.roundToInt
 
-enum class WeatherKind { Clear, PartlyCloudy, Cloudy, Fog, Drizzle, LightRain, ModerateRain, HeavyRain, ViolentRain, LightSnow, ModerateSnow, HeavySnow, Thunder }
+enum class WeatherKind { Clear, PartlyCloudy, Cloudy, Fog, Haze, Drizzle, LightRain, ModerateRain, HeavyRain, ViolentRain, LightSnow, ModerateSnow, HeavySnow, SnowStorm, Sleet, FreezingRain, Hail, Thunder, ThunderHail, Dust, Sand, SandStorm, Wind, Typhoon, Tornado }
 
 /** One day of the forecast. */
 data class ForecastDay(val kind: WeatherKind, val high: Int, val low: Int, val display: String = "",
@@ -306,17 +306,27 @@ object Weather {
         text.contains("晴") -> WeatherKind.Clear
         text.contains("多云") -> WeatherKind.PartlyCloudy
         text.contains("阴") -> WeatherKind.Cloudy
-        text.contains("雾") || text.contains("霾") -> WeatherKind.Fog
+        text.contains("雾") -> WeatherKind.Fog
+        text.contains("霾") -> WeatherKind.Haze
+        text.contains("雷阵雨伴冰雹") || text.contains("雷打冰雹") -> WeatherKind.ThunderHail
         text.contains("雷") -> WeatherKind.Thunder
+        text.contains("冻雨") -> WeatherKind.FreezingRain
+        text.contains("雨夹雪") || text.contains("雨夹雪") -> WeatherKind.Sleet
+        text.contains("冰雹") -> WeatherKind.Hail
         text.contains("小雪") || text.contains("阵雪") -> WeatherKind.LightSnow
         text.contains("中雪") -> WeatherKind.ModerateSnow
-        text.contains("大雪") || text.contains("暴雪") -> WeatherKind.HeavySnow
-        text.contains("雨夹雪") -> WeatherKind.LightSnow
-        text.contains("小雨") || text.contains("毛毛雨") -> WeatherKind.LightRain
-        text.contains("阵雨") -> WeatherKind.ModerateRain
-        text.contains("中雨") -> WeatherKind.ModerateRain
+        text.contains("大雪") -> WeatherKind.HeavySnow
+        text.contains("暴雪") -> WeatherKind.SnowStorm
+        text.contains("毛毛雨") || text.contains("小雨") -> WeatherKind.LightRain
+        text.contains("阵雨") || text.contains("中雨") -> WeatherKind.ModerateRain
         text.contains("大雨") -> WeatherKind.HeavyRain
-        text.contains("暴雨") || text.contains("大暴雨") -> WeatherKind.ViolentRain
+        text.contains("暴雨") || text.contains("大暴雨") || text.contains("特大暴雨") -> WeatherKind.ViolentRain
+        text.contains("浮尘") -> WeatherKind.Dust
+        text.contains("扬沙") -> WeatherKind.Sand
+        text.contains("沙尘暴") -> WeatherKind.SandStorm
+        text.contains("台风") || text.contains("热带风暴") -> WeatherKind.Typhoon
+        text.contains("龙卷风") -> WeatherKind.Tornado
+        text.contains("大风") || text.contains("风") -> WeatherKind.Wind
         text.contains("雪") -> WeatherKind.LightSnow
         text.contains("雨") -> WeatherKind.ModerateRain
         else -> WeatherKind.Cloudy

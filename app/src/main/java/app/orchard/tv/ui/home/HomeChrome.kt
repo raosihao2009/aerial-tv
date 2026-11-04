@@ -950,12 +950,24 @@ private fun WeatherIcon(kind: WeatherKind, day: Boolean, iconSize: Dp, modifier:
         WeatherKind.PartlyCloudy -> if (day) R.drawable.weather_partly_cloudy else R.drawable.weather_cloudy_night
         WeatherKind.Cloudy -> R.drawable.weather_cloudy
         WeatherKind.Fog -> R.drawable.weather_fog
+        WeatherKind.Haze -> R.drawable.weather_haze
         WeatherKind.Drizzle, WeatherKind.LightRain -> R.drawable.weather_light_rain
         WeatherKind.ModerateRain -> R.drawable.weather_rain
         WeatherKind.HeavyRain, WeatherKind.ViolentRain -> R.drawable.weather_heavy_rain
         WeatherKind.Thunder -> R.drawable.weather_thunder
+        WeatherKind.ThunderHail -> R.drawable.weather_thunder_hail
         WeatherKind.LightSnow, WeatherKind.ModerateSnow -> R.drawable.weather_snow
         WeatherKind.HeavySnow -> R.drawable.weather_snow_heavy
+        WeatherKind.SnowStorm -> R.drawable.weather_snow_storm
+        WeatherKind.Sleet -> R.drawable.weather_sleet
+        WeatherKind.FreezingRain -> R.drawable.weather_freezing_rain
+        WeatherKind.Hail -> R.drawable.weather_hail
+        WeatherKind.Dust -> R.drawable.weather_dust
+        WeatherKind.Sand -> R.drawable.weather_sand
+        WeatherKind.SandStorm -> R.drawable.weather_sandstorm
+        WeatherKind.Wind -> R.drawable.weather_wind
+        WeatherKind.Typhoon -> R.drawable.weather_typhoon
+        WeatherKind.Tornado -> R.drawable.weather_tornado
     }
     androidx.compose.foundation.Image(
         painter = androidx.compose.ui.res.painterResource(resId),
