@@ -200,6 +200,9 @@ fun LiveSourceMenu(
                 .fillMaxSize()
                 .onPreviewKeyEvent { e ->
                     if (!visible) return@onPreviewKeyEvent false
+                    if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.keyCode != NativeKeyEvent.KEYCODE_DPAD_UP) {
+                        DiagLog.i("CC-debug: LiveMenu preview key ${e.nativeKeyEvent.keyCode}, visible=$visible ccOpen=$controlCenterOpen")
+                    }
                     // 任何方向键/确认键后才允许菜单键呼出上下文菜单
                     if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_UP ||
                         e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_DOWN ||
