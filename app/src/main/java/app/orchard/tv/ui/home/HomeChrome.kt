@@ -898,28 +898,14 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
         Weather.now?.takeIf { AerialSettings.showWeather }?.let { w ->
             val cond = stringResource(conditionName(w.kind))
             val fc = w.forecast
-            // 第一行(18sp): 现在 [实时图标] [实时天气] [实时温度]°
-            Row(
-                modifier = Modifier.padding(top = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                BasicText(
-                    "现在",
-                    style = Type.Headline.copy(color = Color.White, shadow = shadow, fontSize = 18.sp),
-                )
-                WeatherIcon(w.kind, w.day, 18.dp, Modifier.padding(horizontal = 6.dp))
-                BasicText(
-                    "$cond ${w.celsius}°",
-                    style = Type.Headline.copy(color = Color.White, shadow = shadow, fontSize = 18.sp),
-                )
-            }
-            // 第二行(18sp): 今天 [白天图标][夜间图标] [低温]° / [高温]°
+            // 第一行(18sp): 今天 [白天图标][夜间图标] [今天天气] [低温]° / [高温]°
             val today = fc.firstOrNull()
             val todayLow = today?.low ?: w.low
             val todayHigh = today?.high ?: w.high
+            val todayText = today?.display?.ifEmpty { null }
             if (todayLow != null && todayHigh != null) {
                 Row(
-                    modifier = Modifier.padding(top = 2.dp),
+                    modifier = Modifier.padding(top = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     BasicText(
@@ -932,11 +918,32 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                             WeatherIcon(today.nightKind, false, 18.dp, Modifier.padding(horizontal = 2.dp))
                         }
                     }
+                    if (todayText != null) {
+                        BasicText(
+                            " $todayText",
+                            style = Type.Headline.copy(color = Color.White, shadow = shadow, fontSize = 18.sp),
+                        )
+                    }
                     BasicText(
                         " $todayLow° / $todayHigh°",
                         style = Type.Headline.copy(color = Color.White, shadow = shadow, fontSize = 18.sp),
                     )
                 }
+            }
+            // 第二行(18sp): 现在 [实时图标] [实时天气] [实时温度]°
+            Row(
+                modifier = Modifier.padding(top = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                BasicText(
+                    "现在",
+                    style = Type.Headline.copy(color = Color.White, shadow = shadow, fontSize = 18.sp),
+                )
+                WeatherIcon(w.kind, w.day, 18.dp, Modifier.padding(horizontal = 6.dp))
+                BasicText(
+                    "$cond ${w.celsius}°",
+                    style = Type.Headline.copy(color = Color.White, shadow = shadow, fontSize = 18.sp),
+                )
             }
         }
     }
