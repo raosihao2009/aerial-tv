@@ -76,6 +76,11 @@ private fun inter(opticalSize: Float) = if (Build.VERSION.SDK_INT < 26) FontFami
 val InterText = inter(14f)
 val InterDisplay = inter(32f)
 
+// Outfit font for the corner clock (from cleanyourtv)
+val OutfitLight = FontFamily(Font(R.font.outfit_light))
+val OutfitRegular = FontFamily(Font(R.font.outfit_regular))
+val OutfitMedium = FontFamily(Font(R.font.outfit_medium))
+
 object Type {
     val Clock = TextStyle(
         fontFamily = InterDisplay, fontWeight = FontWeight.W700,

@@ -783,6 +783,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                 shadow = shadow,
                 letterSpacing = 0.22.em,
                 fontSize = 12.sp,
+                fontFamily = OutfitMedium,
             ),
         )
         // 时间行: 大时间 + 上午/下午 | 日期+农历
@@ -797,6 +798,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     color = Color.White,
                     shadow = shadow,
                     letterSpacing = (-0.04).em,
+                    fontFamily = OutfitLight,
                 ),
                 modifier = Modifier.toSaverClock(toSaver, 52.sp, 52.sp.value.dp * CAP_TOP, drift),
             )
@@ -808,6 +810,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     shadow = shadow,
                     fontSize = 15.sp,
                     letterSpacing = 0.08.em,
+                    fontFamily = OutfitMedium,
                 ),
                 modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
             )
@@ -829,6 +832,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                         shadow = shadow,
                         fontSize = 14.sp,
                         letterSpacing = 0.14.em,
+                        fontFamily = OutfitRegular,
                     ),
                 )
                 if (lunar != null) {
@@ -839,6 +843,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                             shadow = shadow,
                             fontSize = 14.sp,
                             letterSpacing = 0.14.em,
+                            fontFamily = OutfitRegular,
                         ),
                         modifier = Modifier.padding(top = 4.dp),
                     )
