@@ -1698,6 +1698,13 @@ class HomeGuardService : AccessibilityService() {
             Log.i(TAG, "goHome skipped: Aerial already in front")
             return
         }
+        // Also check running tasks (frontByUsage filters out Aerial, so we need this separately)
+        val am = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager
+        val topPkg = am.getRunningTasks(1).firstOrNull()?.topActivity?.packageName
+        if (topPkg == packageName) {
+            Log.i(TAG, "goHome skipped: Aerial is top running task")
+            return
+        }
         broughtBackAt = SystemClock.uptimeMillis()
         runCatching {
             val intent = MainActivity.bringBackIntent(this).putExtra(MainActivity.EXTRA_WOKE, woke)
