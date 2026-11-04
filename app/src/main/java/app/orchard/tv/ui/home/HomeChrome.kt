@@ -897,7 +897,8 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                 val labels = listOf("今天", "明天", "后天")
                 val parts = fc.take(3).mapIndexed { i, day ->
                     val label = labels.getOrElse(i) { "第${i+1}天" }
-                    "$label ${stringResource(conditionName(day.kind))} ${day.low}~${day.high}°"
+                    val weatherText = day.display.ifEmpty { stringResource(conditionName(day.kind)) }
+                    "$label $weatherText ${day.low}~${day.high}°"
                 }
                 BasicText(
                     parts.joinToString("  ｜  "),

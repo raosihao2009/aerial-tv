@@ -24,7 +24,7 @@ import kotlin.math.roundToInt
 enum class WeatherKind { Clear, PartlyCloudy, Cloudy, Fog, Drizzle, LightRain, ModerateRain, HeavyRain, LightSnow, ModerateSnow, HeavySnow, Thunder }
 
 /** One day of the forecast. */
-data class ForecastDay(val kind: WeatherKind, val high: Int, val low: Int)
+data class ForecastDay(val kind: WeatherKind, val high: Int, val low: Int, val display: String = "")
 
 /** [high] and [low] are today's, shown under the large clock; null in a reading saved by an older version. */
 data class WeatherNow(val celsius: Int, val kind: WeatherKind, val day: Boolean, val high: Int? = null, val low: Int? = null, val forecast: List<ForecastDay> = emptyList())
@@ -139,15 +139,15 @@ object Weather {
                 }
             }
         }
-        // QWeather uses lon,lat order
+        // QWeather uses lon,lat order; new accounts use api.qweatherapi.com
         val loc = "$lon,$lat"
-        val nowJson = JSONObject(get("https://devapi.qweather.com/v7/weather/now?location=$loc&key=$QW_KEY"))
+        val nowJson = JSONObject(get("https://api.qweatherapi.com/v7/weather/now?location=$loc&key=$QW_KEY"))
         val now = nowJson.getJSONObject("now")
         val temp = now.getString("temp").toIntOrNull() ?: 0
         val text = now.optString("text")
         val isDay = now.optString("icon").toIntOrNull()?.let { it < 100 } ?: true
 
-        val forecastJson = JSONObject(get("https://devapi.qweather.com/v7/weather/3d?location=$loc&key=$QW_KEY"))
+        val forecastJson = JSONObject(get("https://api.qweatherapi.com/v7/weather/3d?location=$loc&key=$QW_KEY"))
         val daily = forecastJson.optJSONArray("daily")
         val forecast = buildList {
             if (daily != null) {
@@ -155,7 +155,10 @@ object Weather {
                     val d = daily.getJSONObject(i)
                     val h = d.optString("tempMax").toIntOrNull() ?: continue
                     val l = d.optString("tempMin").toIntOrNull() ?: continue
-                    add(ForecastDay(kindOfText(d.optString("textDay")), h, l))
+                    val dayText = d.optString("textDay")
+                    val nightText = d.optString("textNight")
+                    val display = if (dayText == nightText) dayText else "$dayText转$nightText"
+                    add(ForecastDay(kindOfText(dayText), h, l, display))
                 }
             }
         }
@@ -236,7 +239,7 @@ object Weather {
                 ?.let { Triple(it.lat, it.lon, it.name) }
                 ?: runCatching {
                     val q = URLEncoder.encode(name.trim(), "UTF-8")
-                    val results = JSONObject(get("https://geoapi.qweather.com/v2/city/lookup?location=$q&key=$QW_KEY&range=cn"))
+                    val results = JSONObject(get("https://geoapi.qweatherapi.com/v2/city/lookup?location=$q&key=$QW_KEY&range=cn"))
                         .optJSONArray("location")
                     val all = (0 until (results?.length() ?: 0)).map { results!!.getJSONObject(it) }
                     all.firstOrNull()?.let { Triple(it.getDouble("lat"), it.getDouble("lon"), it.optString("name").ifBlank { name.trim() }) }
