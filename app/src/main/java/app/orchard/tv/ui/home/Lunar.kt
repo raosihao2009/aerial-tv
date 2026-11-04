@@ -94,4 +94,83 @@ object Lunar {
         val info = YEARS[i]
         return LocalDate.of(FIRST_YEAR + i, (info shr 22 and 0x3) + 1, info shr 17 and 0x1f)
     }
+
+    /** 二十四节气 (21世纪C值公式), 返回当天节气名, 否则 null */
+    fun solarTerm(date: LocalDate): String? {
+        val y = date.year % 100
+        val leap = ((y - 1) / 4.0).toInt()
+        // name, month, C
+        val terms = arrayOf(
+            arrayOf("小寒", 1, 5.4055),
+            arrayOf("大寒", 1, 20.12),
+            arrayOf("立春", 2, 3.87),
+            arrayOf("雨水", 2, 18.73),
+            arrayOf("惊蛰", 3, 5.63),
+            arrayOf("春分", 3, 20.646),
+            arrayOf("清明", 4, 4.81),
+            arrayOf("谷雨", 4, 20.10),
+            arrayOf("立夏", 5, 5.52),
+            arrayOf("小满", 5, 21.04),
+            arrayOf("芒种", 6, 5.678),
+            arrayOf("夏至", 6, 21.37),
+            arrayOf("小暑", 7, 7.108),
+            arrayOf("大暑", 7, 22.83),
+            arrayOf("立秋", 8, 7.50),
+            arrayOf("处暑", 8, 23.13),
+            arrayOf("白露", 9, 7.646),
+            arrayOf("秋分", 9, 23.042),
+            arrayOf("寒露", 10, 8.318),
+            arrayOf("霜降", 10, 23.438),
+            arrayOf("立冬", 11, 7.438),
+            arrayOf("小雪", 11, 22.36),
+            arrayOf("大雪", 12, 7.18),
+            arrayOf("冬至", 12, 21.94),
+        )
+        for (t in terms) {
+            if ((t[1] as Int) != date.monthValue) continue
+            val day = Math.floor(y * 0.2422 + (t[2] as Double)).toInt() - leap
+            if (day == date.dayOfMonth) return t[0] as String
+        }
+        return null
+    }
+
+    /** 主要节日 (公历+农历传统节日), 优先级高于节气 */
+    fun festival(date: LocalDate): String? {
+        when (date.monthValue) {
+            1 -> if (date.dayOfMonth == 1) return "元旦"
+            3 -> if (date.dayOfMonth == 8) return "妇女节"
+            5 -> when (date.dayOfMonth) {
+                1 -> return "劳动节"
+                4 -> return "青年节"
+            }
+            6 -> if (date.dayOfMonth == 1) return "儿童节"
+            7 -> if (date.dayOfMonth == 1) return "建党节"
+            8 -> if (date.dayOfMonth == 1) return "建军节"
+            9 -> if (date.dayOfMonth == 10) return "教师节"
+            10 -> if (date.dayOfMonth == 1) return "国庆节"
+        }
+        val (m, d, leap) = of(date) ?: return null
+        if (leap) return null
+        when (m) {
+            1 -> when (d) {
+                1 -> return "春节"
+                15 -> return "元宵节"
+            }
+            5 -> if (d == 5) return "端午节"
+            7 -> when (d) {
+                7 -> return "七夕节"
+                15 -> return "中元节"
+            }
+            8 -> if (d == 15) return "中秋节"
+            9 -> if (d == 9) return "重阳节"
+            12 -> when (d) {
+                8 -> return "腊八节"
+                else -> {
+                    val tm = of(date.plusDays(1))
+                    if (tm != null && tm.first == 1 && tm.second == 1) return "除夕"
+                }
+            }
+        }
+        return null
+    }
 }
