@@ -816,7 +816,7 @@ fun HomeScreen(
                     .offset { IntOffset(0, -scroll.value.roundToInt()) }
                     .graphicsLayer {
                         // 二创：UI 隐藏时隐藏所有应用图标和时钟（带过渡动画）
-                        if (channelPreviewVisible) alpha = uiAlpha
+                        if (channelPreviewVisible) alpha = if (uiHidden) 0f else uiAlpha
                         // 二级菜单/控制中心/个性化打开时隐藏一级网格
                         if (overlay is Overlay.LiveSourceMenu || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper) alpha = 0f
                     },
