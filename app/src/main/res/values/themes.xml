@@ -8,8 +8,8 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowShowWallpaper">false</item>
-        <!-- 当贝H5: 保留windowDisablePreview=false让系统用windowBackground(黑色)作为启动窗口，
-             避免窗口重建时闪现纯黑表面。onCreate中立即设为烘焙背景图。 -->
-        <item name="android:windowDisablePreview">false</item>
+        <!-- 不显示启动预览窗：预览窗是纯黑的，每次进程启动/重建都会闪黑。
+             设为true后屏幕保持上一帧（开机画面或上次烘焙壁纸），直到onCreate设好烘焙背景。 -->
+        <item name="android:windowDisablePreview">true</item>
     </style>
 </resources>
