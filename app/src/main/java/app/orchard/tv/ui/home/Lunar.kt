@@ -10,6 +10,19 @@ import java.time.LocalDate
 object Lunar {
     private const val FIRST_YEAR = 1901
 
+    private val GAN = listOf("甲","乙","丙","丁","戊","己","庚","辛","壬","癸")
+    private val ZHI = listOf("子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥")
+
+    /** 天干地支年, 如 "丙午年" */
+    fun yearText(date: LocalDate): String? {
+        var i = date.year - FIRST_YEAR
+        if (i < 0 || i >= 200) return null
+        val newYear = newYear(i)
+        if (date.isBefore(newYear)) i--
+        if (i < 0) return null
+        return GAN[i % 10] + ZHI[i % 12] + "年"
+    }
+
     /**
      * One lunar year per Gregorian year it begins in, from 1901 to 2100, generated from macOS's
      * Chinese calendar and checked against it day by day (LunarTest). Bits 0-3: after which month

@@ -779,18 +779,18 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
         modifier = modifier.then(aside),
         horizontalAlignment = Alignment.Start,
     ) {
-        // 问候语: 小字号大写
+        // 问候语
         BasicText(
-            greetingText(now.hour).uppercase(),
+            greetingText(now.hour) + "！",
             style = Type.Caption.copy(
-                color = Color.White.copy(alpha = 0.55f),
+                color = Color.White,
                 shadow = shadow,
                 letterSpacing = 0.22.em,
                 fontSize = 12.sp,
                 fontFamily = OutfitMedium,
             ),
         )
-        // 时间行: 大时间 + 上午/下午 | 日期+农历
+        // 时间行: 大时间 + 时段 | 日期+农历
         Row(
             modifier = Modifier.padding(top = 4.dp),
             verticalAlignment = Alignment.Bottom,
@@ -806,11 +806,21 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                 ),
                 modifier = Modifier.toSaverClock(toSaver, 52.sp, 52.sp.value.dp * CAP_TOP, drift),
             )
-            val ampm = if (now.hour < 12) "上午" else "下午"
+            val period = when (now.hour) {
+                in 6..8 -> "早上"
+                in 9..11 -> "上午"
+                12 -> "中午"
+                in 13..17 -> "下午"
+                in 18..23 -> "晚上"
+                0 -> "午夜"
+                in 1..4 -> "凌晨"
+                5 -> "清晨"
+                else -> ""
+            }
             BasicText(
-                ampm,
+                period,
                 style = Type.Caption.copy(
-                    color = Color.White.copy(alpha = 0.7f),
+                    color = Color.White,
                     shadow = shadow,
                     fontSize = 15.sp,
                     letterSpacing = 0.08.em,
@@ -824,7 +834,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     .padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
                     .width(1.dp)
                     .height(26.dp)
-                    .background(Color.White.copy(alpha = 0.2f)),
+                    .background(Color.White.copy(alpha = 0.3f)),
             )
             Column(
                 modifier = Modifier.padding(bottom = 7.dp),
@@ -832,7 +842,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                 BasicText(
                     dateStr,
                     style = Type.Caption.copy(
-                        color = Color.White.copy(alpha = 0.65f),
+                        color = Color.White,
                         shadow = shadow,
                         fontSize = 14.sp,
                         letterSpacing = 0.14.em,
@@ -840,10 +850,14 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     ),
                 )
                 if (lunar != null) {
+                    val lunarYear = Lunar.yearText(now.toLocalDate())
                     BasicText(
-                        lunar,
+                        buildString {
+                            if (lunarYear != null) append("$lunarYear ")
+                            append(lunar)
+                        },
                         style = Type.Caption.copy(
-                            color = Color.White.copy(alpha = 0.5f),
+                            color = Color.White,
                             shadow = shadow,
                             fontSize = 14.sp,
                             letterSpacing = 0.14.em,
@@ -855,17 +869,31 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             }
         }
         Weather.now?.takeIf { AerialSettings.showWeather }?.let { w ->
-            val place = Weather.place
+            val place = Weather.place ?: "南昌"
             val cond = stringResource(conditionName(w.kind))
-            BasicText(
-                buildString {
-                    append("${w.celsius}°")
-                    val detail = listOfNotNull(place, cond).filter { !it.isNullOrEmpty() }.joinToString(" · ")
-                    if (detail.isNotEmpty()) append("  $detail")
-                },
-                style = Type.Headline.copy(color = dim, shadow = shadow),
-                modifier = Modifier.padding(top = 4.dp),
-            )
+            // 第一行: 城市 图标 天气 温度
+            Row(
+                modifier = Modifier.padding(top = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                BasicText(
+                    "$place ",
+                    style = Type.Headline.copy(color = Color.White, shadow = shadow, fontSize = 18.sp),
+                )
+                GlyphIcon(glyphFor(w), Color.White, 18.dp, Modifier.padding(horizontal = 4.dp))
+                BasicText(
+                    "$cond ${w.celsius}℃",
+                    style = Type.Headline.copy(color = Color.White, shadow = shadow, fontSize = 18.sp),
+                )
+            }
+            // 第二行: 温度范围
+            if (w.high != null && w.low != null) {
+                BasicText(
+                    "今天 ${w.low}° ~ ${w.high}°",
+                    style = Type.Caption.copy(color = Color.White.copy(alpha = 0.8f), shadow = shadow, fontSize = 13.sp),
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
         }
     }
 }
