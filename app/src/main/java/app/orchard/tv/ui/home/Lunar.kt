@@ -134,37 +134,35 @@ object Lunar {
         return null
     }
 
-    /** 主要节日 (公历+农历传统节日+母亲节/父亲节), 优先级高于节气 */
-    fun festival(date: LocalDate): String? {
-        // 清明既是节气也是重要传统节日, 按节日显示
-        val term = solarTerm(date)
-        if (term == "清明") return "清明节"
+    /** 当天所有节日 (可能多个, 如中秋+国庆), 无则返回空列表 */
+    fun festivals(date: LocalDate): List<String> {
+        val out = mutableListOf<String>()
+        // 清明既是节气也是重要传统节日
+        if (solarTerm(date) == "清明") out += "清明节"
 
         when (date.monthValue) {
-            1 -> if (date.dayOfMonth == 1) return "元旦"
-            2 -> when (date.dayOfMonth) {
-                14 -> return "情人节"
-            }
+            1 -> if (date.dayOfMonth == 1) out += "元旦"
+            2 -> if (date.dayOfMonth == 14) out += "情人节"
             3 -> when (date.dayOfMonth) {
-                8 -> return "妇女节"
-                12 -> return "植树节"
+                8 -> out += "妇女节"
+                12 -> out += "植树节"
             }
-            4 -> if (date.dayOfMonth == 1) return "愚人节"
+            4 -> if (date.dayOfMonth == 1) out += "愚人节"
             5 -> when (date.dayOfMonth) {
-                1 -> return "劳动节"
-                4 -> return "青年节"
+                1 -> out += "劳动节"
+                4 -> out += "青年节"
             }
-            6 -> if (date.dayOfMonth == 1) return "儿童节"
-            7 -> if (date.dayOfMonth == 1) return "建党节"
-            8 -> if (date.dayOfMonth == 1) return "建军节"
-            9 -> if (date.dayOfMonth == 10) return "教师节"
+            6 -> if (date.dayOfMonth == 1) out += "儿童节"
+            7 -> if (date.dayOfMonth == 1) out += "建党节"
+            8 -> if (date.dayOfMonth == 1) out += "建军节"
+            9 -> if (date.dayOfMonth == 10) out += "教师节"
             10 -> when (date.dayOfMonth) {
-                1 -> return "国庆节"
-                31 -> return "万圣节"
+                1 -> out += "国庆节"
+                31 -> out += "万圣节"
             }
             12 -> when (date.dayOfMonth) {
-                24 -> return "平安夜"
-                25 -> return "圣诞节"
+                24 -> out += "平安夜"
+                25 -> out += "圣诞节"
             }
         }
         // 母亲节: 5月第二个周日; 父亲节: 6月第三个周日
@@ -172,41 +170,44 @@ object Lunar {
             val first = date.withDayOfMonth(1)
             val firstSunday = if (first.dayOfWeek == java.time.DayOfWeek.SUNDAY) 1
                 else 8 - first.dayOfWeek.value
-            if (date.dayOfMonth == firstSunday + 7) return "母亲节"
+            if (date.dayOfMonth == firstSunday + 7) out += "母亲节"
         }
         if (date.monthValue == 6 && date.dayOfWeek == java.time.DayOfWeek.SUNDAY) {
             val first = date.withDayOfMonth(1)
             val firstSunday = if (first.dayOfWeek == java.time.DayOfWeek.SUNDAY) 1
                 else 8 - first.dayOfWeek.value
-            if (date.dayOfMonth == firstSunday + 14) return "父亲节"
+            if (date.dayOfMonth == firstSunday + 14) out += "父亲节"
         }
-        val (m, d, leap) = of(date) ?: return null
-        if (leap) return null
-        when (m) {
-            1 -> when (d) {
-                1 -> return "春节"
-                15 -> return "元宵节"
-            }
-            2 -> if (d == 2) return "龙抬头"
-            3 -> if (d == 3) return "上巳节"
-            5 -> if (d == 5) return "端午节"
-            7 -> when (d) {
-                7 -> return "七夕节"
-                15 -> return "中元节"
-            }
-            8 -> if (d == 15) return "中秋节"
-            9 -> if (d == 9) return "重阳节"
-            10 -> if (d == 1) return "寒衣节"
-            12 -> when (d) {
-                23 -> return "北方小年"
-                24 -> return "南方小年"
-                8 -> return "腊八节"
-                else -> {
-                    val tm = of(date.plusDays(1))
-                    if (tm != null && tm.first == 1 && tm.second == 1) return "除夕"
+        // 农历节日
+        val lunar = of(date)
+        if (lunar != null && !lunar.third) {
+            val (m, d) = lunar
+            when (m) {
+                1 -> when (d) {
+                    1 -> out += "春节"
+                    15 -> out += "元宵节"
+                }
+                2 -> if (d == 2) out += "龙抬头"
+                3 -> if (d == 3) out += "上巳节"
+                5 -> if (d == 5) out += "端午节"
+                7 -> when (d) {
+                    7 -> out += "七夕节"
+                    15 -> out += "中元节"
+                }
+                8 -> if (d == 15) out += "中秋节"
+                9 -> if (d == 9) out += "重阳节"
+                10 -> if (d == 1) out += "寒衣节"
+                12 -> when (d) {
+                    23 -> out += "北方小年"
+                    24 -> out += "南方小年"
+                    8 -> out += "腊八节"
+                    else -> {
+                        val tm = of(date.plusDays(1))
+                        if (tm != null && tm.first == 1 && tm.second == 1) out += "除夕"
+                    }
                 }
             }
         }
-        return null
+        return out
     }
 }

@@ -800,10 +800,10 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
     ) {
         // 问候语: "城市，xx好！" + 节日/节气后缀
         val place = Weather.place?.takeIf { AerialSettings.showWeather } ?: "南昌"
-        val fest = Lunar.festival(now.toLocalDate())
-        val term = if (fest == null) Lunar.solarTerm(now.toLocalDate()) else null
+        val fests = Lunar.festivals(now.toLocalDate())
+        val term = if (fests.isEmpty()) Lunar.solarTerm(now.toLocalDate()) else null
         val suffix = when {
-            fest != null -> "，今天是$fest"
+            fests.isNotEmpty() -> "，今天是${fests.joinToString("和")}"
             term != null -> "，今天是二十四节气——$term"
             else -> ""
         }
