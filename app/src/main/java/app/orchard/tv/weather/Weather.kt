@@ -270,7 +270,7 @@ object Weather {
         1, 2 -> WeatherKind.PartlyCloudy
         3 -> WeatherKind.Cloudy
         45, 48 -> WeatherKind.Fog
-        in 51..57 -> WeatherKind.Drizzle
+        in 51..57 -> WeatherKind.LightRain
         61 -> WeatherKind.LightRain
         63 -> WeatherKind.ModerateRain
         65 -> WeatherKind.HeavyRain

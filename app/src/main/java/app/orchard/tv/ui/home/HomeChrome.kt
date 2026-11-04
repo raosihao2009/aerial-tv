@@ -838,7 +838,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                 modifier = Modifier
                     .padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
                     .width(1.dp)
-                    .height(26.dp)
+                    .height(40.dp)
                     .background(Color.White.copy(alpha = 0.3f)),
             )
             Column(

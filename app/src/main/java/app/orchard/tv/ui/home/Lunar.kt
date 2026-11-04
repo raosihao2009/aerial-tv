@@ -20,7 +20,7 @@ object Lunar {
         val newYear = newYear(i - 1)
         if (date.isBefore(newYear)) i--
         if (i < 0) return null
-        return GAN[i % 10] + ZHI[i % 12] + "年"
+        return GAN[(i + 6) % 10] + ZHI[i % 12] + "年"
     }
 
     /**
