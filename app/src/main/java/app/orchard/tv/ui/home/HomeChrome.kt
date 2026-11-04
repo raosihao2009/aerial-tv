@@ -752,8 +752,13 @@ private fun conditionName(kind: WeatherKind): Int = when (kind) {
     WeatherKind.PartlyCloudy -> R.string.weather_partly_cloudy
     WeatherKind.Cloudy -> R.string.weather_cloudy
     WeatherKind.Fog -> R.string.weather_fog
-    WeatherKind.Rain -> R.string.weather_rain
-    WeatherKind.Snow -> R.string.weather_snow
+    WeatherKind.Drizzle -> R.string.weather_drizzle
+    WeatherKind.LightRain -> R.string.weather_light_rain
+    WeatherKind.ModerateRain -> R.string.weather_moderate_rain
+    WeatherKind.HeavyRain -> R.string.weather_heavy_rain
+    WeatherKind.LightSnow -> R.string.weather_light_snow
+    WeatherKind.ModerateSnow -> R.string.weather_moderate_snow
+    WeatherKind.HeavySnow -> R.string.weather_heavy_snow
     WeatherKind.Thunder -> R.string.weather_thunder
 }
 
@@ -914,8 +919,8 @@ private fun glyphFor(w: WeatherNow): Glyph = when (w.kind) {
     WeatherKind.PartlyCloudy -> if (w.day) Glyph.CloudSun else Glyph.Cloud
     WeatherKind.Cloudy -> Glyph.Cloud
     WeatherKind.Fog -> Glyph.CloudFog
-    WeatherKind.Rain -> Glyph.CloudRain
-    WeatherKind.Snow -> Glyph.CloudSnow
+    WeatherKind.Drizzle, WeatherKind.LightRain, WeatherKind.ModerateRain, WeatherKind.HeavyRain -> Glyph.CloudRain
+    WeatherKind.LightSnow, WeatherKind.ModerateSnow, WeatherKind.HeavySnow -> Glyph.CloudSnow
     WeatherKind.Thunder -> Glyph.CloudBolt
 }
 

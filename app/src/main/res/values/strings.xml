@@ -224,6 +224,13 @@
     <string name="weather_rain">Rain</string>
     <string name="weather_snow">Snow</string>
     <string name="weather_thunder">Thunderstorms</string>
+    <string name="weather_drizzle">Drizzle</string>
+    <string name="weather_light_rain">Light Rain</string>
+    <string name="weather_moderate_rain">Rain</string>
+    <string name="weather_heavy_rain">Heavy Rain</string>
+    <string name="weather_light_snow">Light Snow</string>
+    <string name="weather_moderate_snow">Snow</string>
+    <string name="weather_heavy_snow">Heavy Snow</string>
     <string name="weather_high_low">H:%1$d°  L:%2$d°</string>
     <string name="st_columns">Apps per Row</string>
     <string name="st_columns_hint">How many apps fit across Home, and in folders. Six shows more at a glance; four makes them larger, easier to see from across the room.</string>

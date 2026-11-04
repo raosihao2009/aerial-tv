@@ -21,7 +21,7 @@ import java.util.Locale
 import javax.net.ssl.SSLException
 import kotlin.math.roundToInt
 
-enum class WeatherKind { Clear, PartlyCloudy, Cloudy, Fog, Rain, Snow, Thunder }
+enum class WeatherKind { Clear, PartlyCloudy, Cloudy, Fog, Drizzle, LightRain, ModerateRain, HeavyRain, LightSnow, ModerateSnow, HeavySnow, Thunder }
 
 /** One day of the forecast. */
 data class ForecastDay(val kind: WeatherKind, val high: Int, val low: Int)
@@ -270,9 +270,21 @@ object Weather {
         1, 2 -> WeatherKind.PartlyCloudy
         3 -> WeatherKind.Cloudy
         45, 48 -> WeatherKind.Fog
-        in 71..77, 85, 86 -> WeatherKind.Snow
+        in 51..57 -> WeatherKind.Drizzle
+        61 -> WeatherKind.LightRain
+        63 -> WeatherKind.ModerateRain
+        65 -> WeatherKind.HeavyRain
+        in 66..67 -> WeatherKind.ModerateRain
+        80 -> WeatherKind.LightRain
+        81 -> WeatherKind.ModerateRain
+        82 -> WeatherKind.HeavyRain
+        in 71..73 -> WeatherKind.LightSnow
+        in 74..75 -> WeatherKind.ModerateSnow
+        in 76..77 -> WeatherKind.HeavySnow
+        85 -> WeatherKind.LightSnow
+        86 -> WeatherKind.HeavySnow
         in 95..99 -> WeatherKind.Thunder
-        else -> WeatherKind.Rain // drizzle, rain and showers: 51..67, 80..82
+        else -> WeatherKind.ModerateRain
     }
 
     /**
