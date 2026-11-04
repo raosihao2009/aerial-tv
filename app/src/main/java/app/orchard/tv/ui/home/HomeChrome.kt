@@ -817,11 +817,11 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             )
         }
         Weather.now?.takeIf { AerialSettings.showWeather }?.let { w ->
-            val place = Weather.place
             val cond = stringResource(conditionName(w.kind))
             BasicText(
                 buildString {
-                    if (place.isNotEmpty()) append("$place ")
+                    val p = Weather.place ?: ""
+                    if (p.isNotEmpty()) append("$p ")
                     append("$cond ${w.celsius}°C")
                 },
                 style = Type.Headline.copy(fontSize = 22.sp, color = dim, shadow = shadow),
