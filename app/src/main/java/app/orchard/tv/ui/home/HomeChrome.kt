@@ -810,7 +810,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             BasicText(
                 buildString {
                     if (lunarYear != null) append("$lunarYear ")
-                    append(lunar)
+                    append(lunar ?: "")
                 },
                 style = Type.Headline.copy(fontSize = 20.sp, color = dim.copy(alpha = 0.7f), shadow = shadow),
                 modifier = Modifier.padding(top = 2.dp),
