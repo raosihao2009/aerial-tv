@@ -221,10 +221,12 @@ fun ControlCenter(
 @Composable
 private fun KidsPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean) {
     val first = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(takeFocus) {
         if (!takeFocus) return@LaunchedEffect
-        withFrameNanos { }
-        runCatching { first.requestFocus() }
+        repeat(20) {
+            if (runCatching { first.requestFocus() }.isSuccess) return@LaunchedEffect
+            withFrameNanos { }
+        }
     }
     Column {
         BasicText(timeText(now), style = Type.SmallClock.copy(fontSize = Type.LargeTitle.fontSize * 1.05f))
@@ -267,15 +269,18 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
     }
     LaunchedEffect(takeFocus) {
         if (!takeFocus) return@LaunchedEffect
-        DiagLog.i("CC-debug: takeFocus=true, requesting focus immediately")
-        // 立即尝试请求焦点
-        runCatching { first.requestFocus() }.onSuccess { DiagLog.i("CC-debug: immediate requestFocus OK") }
-            .onFailure { DiagLog.i("CC-debug: immediate requestFocus failed: ${it.message}") }
-        // 等一帧再试一次（AnimatedVisibility首次布局后）
-        withFrameNanos { }
-        DiagLog.i("CC-debug: retrying requestFocus after one frame")
-        runCatching { first.requestFocus() }.onSuccess { DiagLog.i("CC-debug: frame-retry requestFocus OK") }
-            .onFailure { DiagLog.i("CC-debug: frame-retry requestFocus failed: ${it.message}") }
+        DiagLog.i("CC-debug: takeFocus=true, requesting focus")
+        // 循环重试直到focus成功，覆盖首次组合619ms延迟期间pill仍持有焦点的窗口
+        repeat(20) { attempt ->
+            val result = runCatching { first.requestFocus() }
+            if (result.isSuccess) {
+                DiagLog.i("CC-debug: requestFocus succeeded on attempt #$attempt")
+                return@LaunchedEffect
+            }
+            if (attempt == 0) DiagLog.i("CC-debug: immediate requestFocus failed: ${result.exceptionOrNull()?.message}")
+            withFrameNanos { }
+        }
+        DiagLog.i("CC-debug: requestFocus failed after 20 attempts")
     }
 
     Column {
@@ -418,9 +423,10 @@ private fun UpdatePage(vm: HomeViewModel, takeFocus: Boolean) {
     val first = remember { FocusRequester() }
     LaunchedEffect(takeFocus) {
         if (!takeFocus) return@LaunchedEffect
-        withFrameNanos { }
-        withFrameNanos { }
-        runCatching { first.requestFocus() }
+        repeat(20) {
+            if (runCatching { first.requestFocus() }.isSuccess) return@LaunchedEffect
+            withFrameNanos { }
+        }
     }
     DisposableEffect(Unit) { onDispose { Updates.resetInstall() } }
     val canInstall = remember { Updates.canInstall(context) }
@@ -570,9 +576,10 @@ private fun SetupPage(vm: HomeViewModel, takeFocus: Boolean, onOpen: (android.co
     val first = remember { FocusRequester() }
     LaunchedEffect(takeFocus) {
         if (!takeFocus) return@LaunchedEffect
-        withFrameNanos { }
-        withFrameNanos { }
-        runCatching { first.requestFocus() }
+        repeat(20) {
+            if (runCatching { first.requestFocus() }.isSuccess) return@LaunchedEffect
+            withFrameNanos { }
+        }
     }
     val guard = remember { SystemProbe.guardSettingsIntent(context) }
     val home = remember { SystemProbe.homeSettingsIntent(context) }
@@ -759,9 +766,10 @@ private fun InputsPage(vm: HomeViewModel, takeFocus: Boolean, onOpen: (android.c
     val first = remember { FocusRequester() }
     LaunchedEffect(takeFocus) {
         if (!takeFocus) return@LaunchedEffect
-        withFrameNanos { }
-        withFrameNanos { }
-        runCatching { first.requestFocus() }
+        repeat(20) {
+            if (runCatching { first.requestFocus() }.isSuccess) return@LaunchedEffect
+            withFrameNanos { }
+        }
     }
     Column(Modifier.heightIn(max = 470.dp).verticalScroll(rememberScrollState())) {
         MenuRow(Glyph.ChevronLeft, stringResource(R.string.cc_inputs), onClick = { vm.overlay = Overlay.ControlCenter(CcPage.Main) })
@@ -804,9 +812,10 @@ private fun InputSettingsPage(vm: HomeViewModel, takeFocus: Boolean) {
     val first = remember { FocusRequester() }
     LaunchedEffect(takeFocus) {
         if (!takeFocus) return@LaunchedEffect
-        withFrameNanos { }
-        withFrameNanos { }
-        runCatching { first.requestFocus() }
+        repeat(20) {
+            if (runCatching { first.requestFocus() }.isSuccess) return@LaunchedEffect
+            withFrameNanos { }
+        }
     }
     fun name(source: app.orchard.tv.system.TvSource) = source.deviceName?.let { "${source.label} · $it" } ?: source.label
     Column(Modifier.heightIn(max = 470.dp).verticalScroll(rememberScrollState())) {

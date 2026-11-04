@@ -150,9 +150,9 @@ class MainActivity : ComponentActivity() {
 
     private fun showLocked() {
         locked = true
-        DiagLog.i("boot-debug: showLocked at +${SystemClock.elapsedRealtime()}ms; ${if (picture != null) "locked backdrop" else "BLACK (no backdrop)"}")
         val picture = Wallpapers.lockedBootBackdrop(this)?.takeIf { it.exists() }
             ?.let { runCatching { BitmapFactory.decodeFile(it.path) }.getOrNull() }
+        DiagLog.i("boot-debug: showLocked at +${SystemClock.elapsedRealtime()}ms; ${if (picture != null) "locked backdrop" else "BLACK (no backdrop)"}")
         window.setBackgroundDrawable(picture?.let { BitmapDrawable(resources, it) } ?: ColorDrawable(Color.BLACK))
         ContextCompat.registerReceiver(this, unlocked, IntentFilter(Intent.ACTION_USER_UNLOCKED), ContextCompat.RECEIVER_EXPORTED)
         // Unlocked between the check and the registration.
