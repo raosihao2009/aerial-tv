@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -342,14 +343,13 @@ fun LiveSourceMenu(
                 val rowFromTop = index / columns
                 val xPx = with(density) { (gridMargin + (tileW + gridGap) * colIndex).roundToPx() }
                 val yPx = with(density) { rowY(rowFromTop).roundToPx() }
-                val targetOffset = IntOffset(xPx, yPx)
-                val animatedOffset by animateIntOffsetAsState(
-                    targetOffset,
-                    spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessHigh),
-                    label = "slot",
-                )
+                // 用graphicsLayer做位移动画，避免每帧触发布局(relayout)，当贝H5低GPU友好
+                val animX by androidx.compose.animation.core.animateIntAsState(
+                    xPx, spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessHigh), label = "slotX")
+                val animY by androidx.compose.animation.core.animateIntAsState(
+                    yPx, spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessHigh), label = "slotY")
                 Box(modifier = Modifier
-                    .offset { animatedOffset }
+                    .graphicsLayer { translationX = animX.toFloat(); translationY = animY.toFloat() }
                     .alpha(if (shifted in -1..1) 1f else 0f)
                 ) {
                     AppTile(
