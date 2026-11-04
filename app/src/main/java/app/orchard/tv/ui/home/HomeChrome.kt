@@ -879,7 +879,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             val place = Weather.place ?: "南昌"
             val cond = stringResource(conditionName(w.kind))
             val fc = w.forecast
-            // 第一行: 城市 图标 实时天气 温度 + 今天预报(独立字号,白色,带天气图标)
+            // 第一行: 城市 实时图标 实时天气 温度
             Row(
                 modifier = Modifier.padding(top = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -893,34 +893,43 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     "$cond ${w.celsius}℃",
                     style = Type.Headline.copy(color = Color.White, shadow = shadow, fontSize = 18.sp),
                 )
-                // 今天预报：优先用3天预报，没有时用实时天气的high/low兜底
-                val today = fc.firstOrNull()
-                val todayText = today?.let { day ->
-                    day.display.ifEmpty { stringResource(conditionName(day.kind)) }
-                }
-                val todayLow = today?.low ?: w.low
-                val todayHigh = today?.high ?: w.high
-                if (todayText != null && todayLow != null && todayHigh != null) {
+            }
+            // 第二行: 今天预报
+            val today = fc.firstOrNull()
+            val todayText = today?.let { day ->
+                day.display.ifEmpty { stringResource(conditionName(day.kind)) }
+            }
+            val todayLow = today?.low ?: w.low
+            val todayHigh = today?.high ?: w.high
+            if (todayText != null && todayLow != null && todayHigh != null) {
+                Row(
+                    modifier = Modifier.padding(top = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     BasicText(
-                        "  今天",
-                        style = Type.Caption.copy(color = Color.White, shadow = shadow, fontSize = 13.sp),
+                        "今天",
+                        style = Type.Caption.copy(color = Color.White, shadow = shadow, fontSize = 15.sp),
                     )
-                    // 今天天气图标：白天1个，有"转"则白天+夜间2个
                     if (today != null) {
                         val hasTransition = today.display.contains("转")
-                        WeatherIcon(today.dayKind, true, 16.dp, Modifier.padding(start = 4.dp, end = 2.dp))
+                        WeatherIcon(today.dayKind, true, 15.dp, Modifier.padding(start = 6.dp, end = 2.dp))
                         if (hasTransition) {
-                            WeatherIcon(today.nightKind, false, 16.dp, Modifier.padding(horizontal = 2.dp))
+                            WeatherIcon(today.nightKind, false, 15.dp, Modifier.padding(horizontal = 2.dp))
                         }
                     }
                     BasicText(
                         " $todayText $todayLow~$todayHigh°",
-                        style = Type.Caption.copy(color = Color.White, shadow = shadow, fontSize = 13.sp),
+                        style = Type.Caption.copy(color = Color.White, shadow = shadow, fontSize = 15.sp),
                     )
-                } else if (todayLow != null && todayHigh != null) {
+                }
+            } else if (todayLow != null && todayHigh != null) {
+                Row(
+                    modifier = Modifier.padding(top = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     BasicText(
-                        "  今天 $todayLow~$todayHigh°",
-                        style = Type.Caption.copy(color = Color.White, shadow = shadow, fontSize = 13.sp),
+                        "今天 $todayLow~$todayHigh°",
+                        style = Type.Caption.copy(color = Color.White, shadow = shadow, fontSize = 15.sp),
                     )
                 }
             }
