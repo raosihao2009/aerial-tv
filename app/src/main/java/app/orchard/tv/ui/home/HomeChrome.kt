@@ -800,11 +800,20 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                 style = Type.Headline.copy(fontSize = 40.sp, color = dim.copy(alpha = 0.5f), shadow = shadow),
             )
             BasicText(
-                buildString {
-                    append(dateStr)
-                    if (lunar != null) append(" $lunar")
-                },
+                dateStr,
                 style = Type.Headline.copy(fontSize = 28.sp, color = dim, shadow = shadow),
+            )
+        }
+        // 农历行: 丙午马年 九月廿六
+        if (lunar != null) {
+            val lunarYear = Lunar.yearText(now.toLocalDate())
+            BasicText(
+                buildString {
+                    if (lunarYear != null) append("$lunarYear ")
+                    append(lunar)
+                },
+                style = Type.Headline.copy(fontSize = 20.sp, color = dim.copy(alpha = 0.7f), shadow = shadow),
+                modifier = Modifier.padding(top = 2.dp),
             )
         }
         Weather.now?.takeIf { AerialSettings.showWeather }?.let { w ->
