@@ -649,11 +649,15 @@ private fun WeatherValue() {
             when (it.kind) {
                 WeatherKind.Clear -> R.string.wx_clear
                 WeatherKind.PartlyCloudy -> R.string.wx_partly_cloudy
-                WeatherKind.Cloudy -> R.string.wx_cloudy
-                WeatherKind.Fog -> R.string.wx_fog
-                WeatherKind.Drizzle, WeatherKind.LightRain, WeatherKind.ModerateRain, WeatherKind.HeavyRain, WeatherKind.ViolentRain -> R.string.wx_rain
-                WeatherKind.LightSnow, WeatherKind.ModerateSnow, WeatherKind.HeavySnow -> R.string.wx_snow
-                WeatherKind.Thunder -> R.string.wx_thunder
+                WeatherKind.Cloudy, WeatherKind.Wind -> R.string.wx_cloudy
+                WeatherKind.Fog, WeatherKind.Haze, WeatherKind.Dust, WeatherKind.Sand -> R.string.wx_fog
+                WeatherKind.Drizzle, WeatherKind.LightRain, WeatherKind.ModerateRain,
+                WeatherKind.HeavyRain, WeatherKind.ViolentRain, WeatherKind.FreezingRain,
+                WeatherKind.Typhoon -> R.string.wx_rain
+                WeatherKind.LightSnow, WeatherKind.ModerateSnow, WeatherKind.HeavySnow,
+                WeatherKind.SnowStorm, WeatherKind.Sleet -> R.string.wx_snow
+                WeatherKind.Thunder, WeatherKind.ThunderHail, WeatherKind.Hail,
+                WeatherKind.SandStorm, WeatherKind.Tornado -> R.string.wx_thunder
             },
         )
     }

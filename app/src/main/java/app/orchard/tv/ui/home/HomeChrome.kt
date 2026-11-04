@@ -753,6 +753,7 @@ private fun conditionName(kind: WeatherKind): Int = when (kind) {
     WeatherKind.PartlyCloudy -> R.string.weather_partly_cloudy
     WeatherKind.Cloudy -> R.string.weather_cloudy
     WeatherKind.Fog -> R.string.weather_fog
+    WeatherKind.Haze -> R.string.weather_haze
     WeatherKind.Drizzle -> R.string.weather_drizzle
     WeatherKind.LightRain -> R.string.weather_light_rain
     WeatherKind.ModerateRain -> R.string.weather_moderate_rain
@@ -761,7 +762,18 @@ private fun conditionName(kind: WeatherKind): Int = when (kind) {
     WeatherKind.LightSnow -> R.string.weather_light_snow
     WeatherKind.ModerateSnow -> R.string.weather_moderate_snow
     WeatherKind.HeavySnow -> R.string.weather_heavy_snow
+    WeatherKind.SnowStorm -> R.string.weather_heavy_snow
+    WeatherKind.Sleet -> R.string.weather_light_snow
+    WeatherKind.FreezingRain -> R.string.weather_moderate_rain
+    WeatherKind.Hail -> R.string.weather_thunder
     WeatherKind.Thunder -> R.string.weather_thunder
+    WeatherKind.ThunderHail -> R.string.weather_thunder
+    WeatherKind.Dust -> R.string.weather_fog
+    WeatherKind.Sand -> R.string.weather_fog
+    WeatherKind.SandStorm -> R.string.weather_thunder
+    WeatherKind.Wind -> R.string.weather_cloudy
+    WeatherKind.Typhoon -> R.string.weather_heavy_rain
+    WeatherKind.Tornado -> R.string.weather_thunder
 }
 
 /**
@@ -942,13 +954,13 @@ private fun glyphForKind(kind: WeatherKind, day: Boolean): Glyph = when (kind) {
     WeatherKind.Clear -> if (day) Glyph.Sun else Glyph.Moon
     WeatherKind.PartlyCloudy -> if (day) Glyph.CloudSun else Glyph.Cloud
     WeatherKind.Cloudy -> Glyph.Cloud
-    WeatherKind.Fog -> Glyph.CloudFog
-    WeatherKind.Drizzle, WeatherKind.LightRain -> Glyph.CloudLightRain
-    WeatherKind.ModerateRain -> Glyph.CloudRain
-    WeatherKind.HeavyRain -> Glyph.CloudHeavyRain
-    WeatherKind.ViolentRain -> Glyph.CloudStorm
-    WeatherKind.LightSnow, WeatherKind.ModerateSnow, WeatherKind.HeavySnow -> Glyph.CloudSnow
-    WeatherKind.Thunder -> Glyph.CloudBolt
+    WeatherKind.Fog, WeatherKind.Haze, WeatherKind.Dust, WeatherKind.Sand -> Glyph.CloudFog
+    WeatherKind.Drizzle, WeatherKind.LightRain, WeatherKind.FreezingRain -> Glyph.CloudLightRain
+    WeatherKind.ModerateRain, WeatherKind.Sleet -> Glyph.CloudRain
+    WeatherKind.HeavyRain, WeatherKind.ViolentRain, WeatherKind.Typhoon -> Glyph.CloudHeavyRain
+    WeatherKind.LightSnow, WeatherKind.ModerateSnow, WeatherKind.HeavySnow, WeatherKind.SnowStorm -> Glyph.CloudSnow
+    WeatherKind.Thunder, WeatherKind.ThunderHail, WeatherKind.Hail, WeatherKind.SandStorm, WeatherKind.Tornado -> Glyph.CloudBolt
+    WeatherKind.Wind -> Glyph.Cloud
 }
 
 /** OPPO风格天气图标，直接用drawable渲染 */
