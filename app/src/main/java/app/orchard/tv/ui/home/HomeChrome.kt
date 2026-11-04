@@ -772,7 +772,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
     }
     val lunar = if (Locale.getDefault().language == "zh") Lunar.text(now.toLocalDate()) else null
     val dateStr = remember(now) {
-        SimpleDateFormat("M月d日 EEE", Locale.CHINA).format(Date(
+        SimpleDateFormat("M月d日 EEEE", Locale.CHINA).format(Date(
             now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()))
     }
     Column(
@@ -869,7 +869,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             }
         }
         Weather.now?.takeIf { AerialSettings.showWeather }?.let { w ->
-            val place = Weather.place ?: "南昌"
+            val place = (Weather.place ?: "南昌") + "市"
             val cond = stringResource(conditionName(w.kind))
             // 第一行: 城市 图标 天气 温度
             Row(
@@ -886,10 +886,22 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     style = Type.Headline.copy(color = Color.White, shadow = shadow, fontSize = 18.sp),
                 )
             }
-            // 第二行: 温度范围
-            if (w.high != null && w.low != null) {
+            // 第二行: 今天/明天/后天 天气+温度
+            val fc = w.forecast
+            if (fc.isNotEmpty()) {
+                val labels = listOf("今天", "明天", "后天")
+                val parts = fc.take(3).mapIndexed { i, day ->
+                    val label = labels.getOrElse(i) { "第${i+1}天" }
+                    "$label ${stringResource(conditionName(day.kind))} ${day.low}~${day.high}°"
+                }
                 BasicText(
-                    "今天 ${w.low}° ~ ${w.high}°",
+                    parts.joinToString("  ｜  "),
+                    style = Type.Caption.copy(color = Color.White.copy(alpha = 0.8f), shadow = shadow, fontSize = 13.sp),
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            } else if (w.high != null && w.low != null) {
+                BasicText(
+                    "今天 ${w.low}~${w.high}°",
                     style = Type.Caption.copy(color = Color.White.copy(alpha = 0.8f), shadow = shadow, fontSize = 13.sp),
                     modifier = Modifier.padding(top = 2.dp),
                 )

@@ -13,11 +13,11 @@ object Lunar {
     private val GAN = listOf("甲","乙","丙","丁","戊","己","庚","辛","壬","癸")
     private val ZHI = listOf("子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥")
 
-    /** 天干地支年, 如 "丙午年" */
+    /** 天干地支年, 如 "丙午年" (1900年为庚子年基准) */
     fun yearText(date: LocalDate): String? {
-        var i = date.year - FIRST_YEAR
+        var i = date.year - 1900
         if (i < 0 || i >= 200) return null
-        val newYear = newYear(i)
+        val newYear = newYear(i - 1)
         if (date.isBefore(newYear)) i--
         if (i < 0) return null
         return GAN[i % 10] + ZHI[i % 12] + "年"

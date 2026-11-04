@@ -23,8 +23,11 @@ import kotlin.math.roundToInt
 
 enum class WeatherKind { Clear, PartlyCloudy, Cloudy, Fog, Rain, Snow, Thunder }
 
+/** One day of the forecast. */
+data class ForecastDay(val kind: WeatherKind, val high: Int, val low: Int)
+
 /** [high] and [low] are today's, shown under the large clock; null in a reading saved by an older version. */
-data class WeatherNow(val celsius: Int, val kind: WeatherKind, val day: Boolean, val high: Int? = null, val low: Int? = null)
+data class WeatherNow(val celsius: Int, val kind: WeatherKind, val day: Boolean, val high: Int? = null, val low: Int? = null, val forecast: List<ForecastDay> = emptyList())
 
 /**
  * The weather beside the home clock, from Open-Meteo: no key, reachable from China. The place is
@@ -139,16 +142,30 @@ object Weather {
                 }
             }
         }
-        val json = JSONObject(get("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=auto"))
+        val json = JSONObject(get("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min,weather_code&forecast_days=3&timezone=auto"))
         val current = json.getJSONObject("current")
         val daily = json.optJSONObject("daily")
         fun today(key: String) = daily?.optJSONArray(key)?.optDouble(0)?.takeIf { !it.isNaN() }?.roundToInt()
+        val forecast = buildList {
+            val codes = daily?.optJSONArray("weather_code")
+            val highs = daily?.optJSONArray("temperature_2m_max")
+            val lows = daily?.optJSONArray("temperature_2m_min")
+            if (codes != null && highs != null && lows != null) {
+                for (i in 0 until codes.length()) {
+                    val c = codes.optInt(i)
+                    val h = highs.optDouble(i).takeIf { !it.isNaN() }?.roundToInt() ?: continue
+                    val l = lows.optDouble(i).takeIf { !it.isNaN() }?.roundToInt() ?: continue
+                    add(ForecastDay(kindOf(c), h, l))
+                }
+            }
+        }
         return WeatherNow(
             celsius = current.getDouble("temperature_2m").roundToInt(),
             kind = kindOf(current.getInt("weather_code")),
             day = current.optInt("is_day", 1) == 1,
             high = today("temperature_2m_max"),
             low = today("temperature_2m_min"),
+            forecast = forecast,
         )
     }
 
