@@ -907,10 +907,10 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     // 今天天气图标：白天1个，有"转"则白天+夜间2个
                     if (today != null) {
                         val hasTransition = today.display.contains("转")
-                        GlyphIcon(glyphForKind(today.dayKind, true), Color.White, 13.dp,
+                        GlyphIcon(glyphForKind(today.dayKind, true), Color.White, 16.dp,
                             Modifier.padding(start = 4.dp, end = 2.dp))
                         if (hasTransition) {
-                            GlyphIcon(glyphForKind(today.nightKind, false), Color.White, 13.dp,
+                            GlyphIcon(glyphForKind(today.nightKind, false), Color.White, 16.dp,
                                 Modifier.padding(horizontal = 2.dp))
                         }
                     }
