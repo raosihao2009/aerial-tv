@@ -273,24 +273,9 @@ class MainActivity : ComponentActivity() {
         // one, keep what the window already shows (the kept backdrop of a locked start).
         val baked = Wallpapers.backdrop
         if (baked != null) window.setBackgroundDrawable(BitmapDrawable(resources, baked.asAndroidBitmap()))
-        // Keep the baked backdrop as window background through the startup frames; only after
-        // Compose has drawn several frames do we let it go. This prevents the multiple black
-        // flashes seen on Dangbei H5 during boot when the window surface is recreated mid-startup.
-        val backdropBmp = baked
-        if (backdropBmp != null) {
-            var drawCount = 0
-            window.decorView.viewTreeObserver.addOnDrawListener(object : ViewTreeObserver.OnDrawListener {
-                override fun onDraw() {
-                    drawCount++
-                    if (drawCount >= 5) {
-                        idleHandler.post {
-                            window.setBackgroundDrawable(ColorDrawable(Color.BLACK))
-                            window.decorView.viewTreeObserver.removeOnDrawListener(this)
-                        }
-                    }
-                }
-            })
-        }
+        // Dangbei H5: keeping the baked backdrop permanently (instead of switching to black after
+        // 5 frames) prevents the 3 black flashes during boot when the window surface is recreated.
+        // The extra fill cost is negligible on TV hardware.
         if (DiagLog.modeSwitch(this)) preferSmoothestRefreshRate() else DiagLog.i("refresh rate left as it is (mode_switch off)")
         if (DiagLog.softLayer(this) && uhd == 1f) window.decorView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
         FrameStats.attach(window)
