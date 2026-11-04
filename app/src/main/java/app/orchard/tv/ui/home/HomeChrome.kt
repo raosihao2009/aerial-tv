@@ -876,7 +876,8 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
         Weather.now?.takeIf { AerialSettings.showWeather }?.let { w ->
             val place = (Weather.place ?: "南昌") + "市"
             val cond = stringResource(conditionName(w.kind))
-            // 第一行: 城市 图标 天气 温度
+            val fc = w.forecast
+            // 第一行: 城市 图标 实时天气 温度 + 今天预报
             Row(
                 modifier = Modifier.padding(top = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -890,13 +891,20 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     "$cond ${w.celsius}℃",
                     style = Type.Headline.copy(color = Color.White, shadow = shadow, fontSize = 18.sp),
                 )
+                if (fc.isNotEmpty()) {
+                    val today = fc[0]
+                    val todayText = today.display.ifEmpty { stringResource(conditionName(today.kind)) }
+                    BasicText(
+                        "  今天 $todayText ${today.low}~${today.high}°",
+                        style = Type.Headline.copy(color = Color.White.copy(alpha = 0.8f), shadow = shadow, fontSize = 14.sp),
+                    )
+                }
             }
-            // 第二行: 今天/明天/后天 天气+温度
-            val fc = w.forecast
-            if (fc.isNotEmpty()) {
-                val labels = listOf("今天", "明天", "后天")
-                val parts = fc.take(3).mapIndexed { i, day ->
-                    val label = labels.getOrElse(i) { "第${i+1}天" }
+            // 第二行: 明天/后天
+            if (fc.size >= 2) {
+                val labels = listOf("明天", "后天")
+                val parts = fc.drop(1).take(2).mapIndexed { i, day ->
+                    val label = labels.getOrElse(i) { "第${i+2}天" }
                     val weatherText = day.display.ifEmpty { stringResource(conditionName(day.kind)) }
                     "$label $weatherText ${day.low}~${day.high}°"
                 }
