@@ -1691,6 +1691,13 @@ class HomeGuardService : AccessibilityService() {
             Log.i(TAG, "quick standby; leaving Home alone")
             return
         }
+        // Dangbei H5: if Aerial is already in front, don't start it again—each startActivity
+        // causes a visible black flash as the window goes through onPause/onResume.
+        val front = frontByUsage()
+        if (front?.first == packageName) {
+            Log.i(TAG, "goHome skipped: Aerial already in front")
+            return
+        }
         broughtBackAt = SystemClock.uptimeMillis()
         runCatching {
             val intent = MainActivity.bringBackIntent(this).putExtra(MainActivity.EXTRA_WOKE, woke)
