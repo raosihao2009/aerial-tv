@@ -954,11 +954,11 @@ private fun WeatherIcon(kind: WeatherKind, day: Boolean, size: Dp, modifier: Mod
         WeatherKind.Thunder -> R.drawable.weather_storm
         WeatherKind.LightSnow, WeatherKind.ModerateSnow, WeatherKind.HeavySnow -> R.drawable.weather_snow
     }
-    androidx.compose.material3.Icon(
+    androidx.compose.foundation.Image(
         painter = androidx.compose.ui.res.painterResource(resId),
         contentDescription = null,
-        tint = Color.White,
-        modifier = modifier.size(size),
+        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White),
+        modifier = modifier.then(androidx.compose.foundation.layout.size(size)),
     )
 }
 
