@@ -928,7 +928,9 @@ private fun glyphFor(w: WeatherNow): Glyph = when (w.kind) {
     WeatherKind.PartlyCloudy -> if (w.day) Glyph.CloudSun else Glyph.Cloud
     WeatherKind.Cloudy -> Glyph.Cloud
     WeatherKind.Fog -> Glyph.CloudFog
-    WeatherKind.Drizzle, WeatherKind.LightRain, WeatherKind.ModerateRain, WeatherKind.HeavyRain -> Glyph.CloudRain
+    WeatherKind.Drizzle, WeatherKind.LightRain -> Glyph.CloudLightRain
+    WeatherKind.ModerateRain -> Glyph.CloudRain
+    WeatherKind.HeavyRain -> Glyph.CloudHeavyRain
     WeatherKind.LightSnow, WeatherKind.ModerateSnow, WeatherKind.HeavySnow -> Glyph.CloudSnow
     WeatherKind.Thunder -> Glyph.CloudBolt
 }
