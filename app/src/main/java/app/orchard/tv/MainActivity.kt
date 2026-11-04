@@ -150,7 +150,7 @@ class MainActivity : ComponentActivity() {
 
     private fun showLocked() {
         locked = true
-        DiagLog.i("onCreate before the user is unlocked; showing the kept backdrop")
+        DiagLog.i("boot-debug: showLocked at +${SystemClock.elapsedRealtime()}ms; ${if (picture != null) "locked backdrop" else "BLACK (no backdrop)"}")
         val picture = Wallpapers.lockedBootBackdrop(this)?.takeIf { it.exists() }
             ?.let { runCatching { BitmapFactory.decodeFile(it.path) }.getOrNull() }
         window.setBackgroundDrawable(picture?.let { BitmapDrawable(resources, it) } ?: ColorDrawable(Color.BLACK))
@@ -191,6 +191,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         DiagLog.catchCrashes()
+        DiagLog.i("boot-debug: onCreate ENTER at +${SystemClock.elapsedRealtime()}ms, savedInstanceState=${savedInstanceState != null}, intent=${intent.action}")
         if (!GuardSetup.isUserUnlocked(this)) {
             super.onCreate(null)
             if (handOverToFirmwareFallbackHome()) return
@@ -199,7 +200,11 @@ class MainActivity : ComponentActivity() {
             return
         }
         super.onCreate(savedInstanceState)
-        if (savedInstanceState == null && reopenAsHome()) return
+        DiagLog.i("boot-debug: super.onCreate done, savedInstanceState==null=${savedInstanceState == null}")
+        if (savedInstanceState == null && reopenAsHome()) {
+            DiagLog.i("boot-debug: reopenAsHome returned true, finishing early")
+            return
+        }
         startReal(savedInstanceState)
     }
 
@@ -370,6 +375,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        DiagLog.i("boot-debug: onDestroy at +${SystemClock.elapsedRealtime()}ms, locked=$locked")
         if (locked) runCatching { unregisterReceiver(unlocked) }
         runCatching { unregisterReceiver(screenOnReceiver) }
         super.onDestroy()
@@ -996,7 +1002,7 @@ class MainActivity : ComponentActivity() {
         vm.resumed = false
         KidsWatch.homeInFront = false
         Updates.onHomePaused()
-        DiagLog.i("onPause")
+        DiagLog.i("boot-debug: onPause at +${SystemClock.elapsedRealtime()}ms")
         leftForAnApp = openedAppSinceHome
         GuardSetup.setHomeInFront(this, false)
         if (HomeGuardService.onAerialPaused()) {
@@ -1017,7 +1023,7 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         if (locked) return
-        DiagLog.i("onStop")
+        DiagLog.i("boot-debug: onStop at +${SystemClock.elapsedRealtime()}ms")
         SelfCompile.onHomeStopped()
         // Out of sight after all: no bounce to wait out (homeBounce).
         idleHandler.removeCallbacks(endHomeBounce)
