@@ -912,7 +912,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     fontFamily = OutfitRegular, letterSpacing = 0.em,
                 )
                 val sepStyle = weatherStyle.copy(color = Color.White.copy(alpha = 0.4f))
-                BasicText("「今天」", style = weatherStyle)
+                BasicText("[今天]", style = weatherStyle)
                 if (today != null) {
                     WeatherIcon(today.dayKind, true, 18.dp, Modifier.padding(start = 4.dp, end = 1.dp))
                     if (today.display.contains("转")) {
@@ -926,7 +926,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     BasicText(" $todayLow°/$todayHigh°", style = weatherStyle)
                 }
                 BasicText(" ｜ ", style = sepStyle)
-                BasicText("「现在」", style = weatherStyle)
+                BasicText("[现在]", style = weatherStyle)
                 WeatherIcon(w.kind, w.day, 18.dp, Modifier.padding(start = 4.dp, end = 1.dp))
                 BasicText("$cond ${w.celsius}°", style = weatherStyle)
             }
