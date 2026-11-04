@@ -8,9 +8,8 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowShowWallpaper">false</item>
-        <!-- No starting window: it is this theme's black, shown while the process starts (TCL MT5879:
-             0.55 s of black, then a fade). Without it the screen stays on what was there until Home's
-             first frame, which is the wallpaper baked at the last start. -->
-        <item name="android:windowDisablePreview">true</item>
+        <!-- 当贝H5: 保留windowDisablePreview=false让系统用windowBackground(黑色)作为启动窗口，
+             避免窗口重建时闪现纯黑表面。onCreate中立即设为烘焙背景图。 -->
+        <item name="android:windowDisablePreview">false</item>
     </style>
 </resources>
