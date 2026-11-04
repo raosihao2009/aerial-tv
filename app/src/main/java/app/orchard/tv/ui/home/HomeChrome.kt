@@ -792,7 +792,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                 color = Color.White,
                 shadow = shadow,
                 letterSpacing = 0.22.em,
-                fontSize = 12.sp,
+                fontSize = 13.sp,
                 fontFamily = OutfitMedium,
             ),
         )
