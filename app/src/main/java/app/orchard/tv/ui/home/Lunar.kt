@@ -136,6 +136,11 @@ object Lunar {
 
     /** 主要节日 (公历+农历传统节日+母亲节/父亲节), 优先级高于节气 */
     fun festival(date: LocalDate): String? {
+        // 清明/冬至既是节气也是重要传统节日, 按节日显示
+        val term = solarTerm(date)
+        if (term == "清明") return "清明节"
+        if (term == "冬至") return "冬至"
+
         when (date.monthValue) {
             1 -> if (date.dayOfMonth == 1) return "元旦"
             2 -> when (date.dayOfMonth) {
@@ -184,6 +189,7 @@ object Lunar {
                 15 -> return "元宵节"
             }
             2 -> if (d == 2) return "龙抬头"
+            3 -> if (d == 3) return "上巳节"
             5 -> if (d == 5) return "端午节"
             7 -> when (d) {
                 7 -> return "七夕节"
@@ -191,7 +197,9 @@ object Lunar {
             }
             8 -> if (d == 15) return "中秋节"
             9 -> if (d == 9) return "重阳节"
+            10 -> if (d == 1) return "寒衣节"
             12 -> when (d) {
+                23 -> return "小年"
                 8 -> return "腊八节"
                 else -> {
                     val tm = of(date.plusDays(1))
