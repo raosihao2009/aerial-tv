@@ -95,6 +95,7 @@ import app.orchard.tv.settings.AerialSettings
 import app.orchard.tv.settings.Restricted
 import app.orchard.tv.settings.RestrictedKind
 import app.orchard.tv.ui.home.kidsTimeLine
+import app.orchard.tv.system.DiagLog
 import app.orchard.tv.system.HomeStatus
 import app.orchard.tv.system.LaunchFallback
 import app.orchard.tv.system.NetKind
@@ -266,11 +267,15 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
     }
     LaunchedEffect(takeFocus) {
         if (!takeFocus) return@LaunchedEffect
+        DiagLog.i("CC-debug: takeFocus=true, requesting focus immediately")
         // 立即尝试请求焦点
-        runCatching { first.requestFocus() }
+        runCatching { first.requestFocus() }.onSuccess { DiagLog.i("CC-debug: immediate requestFocus OK") }
+            .onFailure { DiagLog.i("CC-debug: immediate requestFocus failed: ${it.message}") }
         // 等一帧再试一次（AnimatedVisibility首次布局后）
         withFrameNanos { }
-        runCatching { first.requestFocus() }
+        DiagLog.i("CC-debug: retrying requestFocus after one frame")
+        runCatching { first.requestFocus() }.onSuccess { DiagLog.i("CC-debug: frame-retry requestFocus OK") }
+            .onFailure { DiagLog.i("CC-debug: frame-retry requestFocus failed: ${it.message}") }
     }
 
     Column {
@@ -303,7 +308,10 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
             RoundButton(
                 Glyph.Input, stringResource(R.string.cc_inputs),
                 focusRequester = first,
-                modifier = Modifier.onFocusChanged { if (it.isFocused) cameFrom = first },
+                modifier = Modifier.onFocusChanged {
+                    DiagLog.i("CC-debug: Input button focus changed: focused=${it.isFocused}")
+                    if (it.isFocused) cameFrom = first
+                },
             ) {
                 // TCL lists no inputs to Android; its own input panel is the next best thing.
                 vm.overlay = if (vm.sources.isEmpty() && SystemProbe.openInputPicker(context)) Overlay.None

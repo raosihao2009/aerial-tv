@@ -272,7 +272,12 @@ class MainActivity : ComponentActivity() {
         // baked at the last start, so the window never shows black while Compose sets up. Without
         // one, keep what the window already shows (the kept backdrop of a locked start).
         val baked = Wallpapers.backdrop
-        if (baked != null) window.setBackgroundDrawable(BitmapDrawable(resources, baked.asAndroidBitmap()))
+        if (baked != null) {
+            window.setBackgroundDrawable(BitmapDrawable(resources, baked.asAndroidBitmap()))
+            DiagLog.i("boot-debug: window background set to baked backdrop at +${SystemClock.elapsedRealtime()}ms")
+        } else {
+            DiagLog.i("boot-debug: no baked backdrop, window stays default")
+        }
         // Dangbei H5: keeping the baked backdrop permanently (instead of switching to black after
         // 5 frames) prevents the 3 black flashes during boot when the window surface is recreated.
         // The extra fill cost is negligible on TV hardware.
@@ -301,11 +306,13 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+        DiagLog.i("boot-debug: calling setContent at +${SystemClock.elapsedRealtime()}ms")
         if (Build.VERSION.SDK_INT >= 29 && uhd > 1f) {
             setContentView(UhdCanvas.host(this, ComposeView(this).apply { setContent(home) }, uhd))
         } else {
             setContent(content = home)
         }
+        DiagLog.i("boot-debug: setContent returned at +${SystemClock.elapsedRealtime()}ms")
 
         ContextCompat.registerReceiver(
             this, screenOnReceiver,
@@ -593,7 +600,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        DiagLog.i("window focus $hasFocus")
+        DiagLog.i("boot-debug: window focus $hasFocus at +${SystemClock.elapsedRealtime()}ms")
         if (!hasFocus) SystemScreensaver.noteHomeHidden()
         // A window of the TV's over Aerial's screensaver, still resumed beneath it: a key of the
         // firmware's own was pressed. Coocaa C10's hotkey popup sometimes took focus before the

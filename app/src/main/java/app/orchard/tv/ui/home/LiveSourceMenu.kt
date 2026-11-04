@@ -46,6 +46,7 @@ import app.orchard.tv.LiveSource
 import app.orchard.tv.apps.AppEntry
 import app.orchard.tv.apps.TileArtFactory
 import app.orchard.tv.settings.AerialSettings
+import app.orchard.tv.system.DiagLog
 import app.orchard.tv.system.Sounds
 import app.orchard.tv.ui.components.liquidGlass
 import app.orchard.tv.ui.theme.Glyph
@@ -278,7 +279,7 @@ fun LiveSourceMenu(
                 enabled = menuForId == null && movingId == null && !controlCenterOpen,
                 focusRequester = pillFocus,
                 onFocused = {},
-                onClick = { onOpenControlCenter() },
+                onClick = { DiagLog.i("CC-debug: pill clicked, opening CC from LiveMenu"); onOpenControlCenter() },
                 modifier = Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = 42.dp).focusProperties {
                     right = FocusRequester.Cancel
                     down = requester(focusedId)

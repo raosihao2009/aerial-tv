@@ -58,9 +58,10 @@ class BootReceiver : BroadcastReceiver() {
             DiagLog.i("boot: Aerial already in foreground; not starting again")
             return
         }
+        DiagLog.i("boot-debug: BootReceiver calling bringBackIntent startActivity at +${SystemClock.elapsedRealtime()}ms")
         runCatching {
             context.startActivity(MainActivity.bringBackIntent(context))
-        }
+        }.onFailure { DiagLog.e("boot-debug: BootReceiver startActivity failed", it) }
     }
 
     private fun isAerialForeground(context: Context): Boolean {
