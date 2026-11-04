@@ -972,7 +972,6 @@ private fun WeatherIcon(kind: WeatherKind, day: Boolean, iconSize: Dp, modifier:
     androidx.compose.foundation.Image(
         painter = androidx.compose.ui.res.painterResource(resId),
         contentDescription = null,
-        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White),
         modifier = modifier.size(iconSize),
     )
 }
