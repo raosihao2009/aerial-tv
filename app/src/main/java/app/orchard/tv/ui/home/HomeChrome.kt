@@ -878,7 +878,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             val place = (Weather.place ?: "南昌") + "市"
             val cond = stringResource(conditionName(w.kind))
             val fc = w.forecast
-            // 第一行: 城市 图标 实时天气 温度
+            // 第一行: 城市 图标 实时天气 温度 + 今天预报(独立字号)
             Row(
                 modifier = Modifier.padding(top = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -892,22 +892,23 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     "$cond ${w.celsius}℃",
                     style = Type.Headline.copy(color = Color.White, shadow = shadow, fontSize = 18.sp),
                 )
-            }
-            // 第二行: 今天预报
-            if (fc.isNotEmpty()) {
-                val today = fc[0]
-                val todayText = today.display.ifEmpty { stringResource(conditionName(today.kind)) }
-                BasicText(
-                    "今天 $todayText ${today.low}~${today.high}°",
-                    style = Type.Caption.copy(color = Color.White.copy(alpha = 0.8f), shadow = shadow, fontSize = 13.sp),
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            } else if (w.high != null && w.low != null) {
-                BasicText(
-                    "今天 ${w.low}~${w.high}°",
-                    style = Type.Caption.copy(color = Color.White.copy(alpha = 0.8f), shadow = shadow, fontSize = 13.sp),
-                    modifier = Modifier.padding(top = 2.dp),
-                )
+                // 今天预报：优先用3天预报，没有时用实时天气的high/low兜底
+                val todayText = fc.firstOrNull()?.let { day ->
+                    day.display.ifEmpty { stringResource(conditionName(day.kind)) }
+                }
+                val todayLow = fc.firstOrNull()?.low ?: w.low
+                val todayHigh = fc.firstOrNull()?.high ?: w.high
+                if (todayText != null && todayLow != null && todayHigh != null) {
+                    BasicText(
+                        "  今天 $todayText $todayLow~$todayHigh°",
+                        style = Type.Caption.copy(color = Color.White.copy(alpha = 0.8f), shadow = shadow, fontSize = 13.sp),
+                    )
+                } else if (todayLow != null && todayHigh != null) {
+                    BasicText(
+                        "  今天 $todayLow~$todayHigh°",
+                        style = Type.Caption.copy(color = Color.White.copy(alpha = 0.8f), shadow = shadow, fontSize = 13.sp),
+                    )
+                }
             }
         }
     }
