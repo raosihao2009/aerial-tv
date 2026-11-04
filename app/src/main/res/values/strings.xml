@@ -221,6 +221,7 @@
     <string name="weather_partly_cloudy">Partly Cloudy</string>
     <string name="weather_cloudy">Cloudy</string>
     <string name="weather_fog">Fog</string>
+    <string name="weather_haze">Haze</string>
     <string name="weather_rain">Rain</string>
     <string name="weather_snow">Snow</string>
     <string name="weather_thunder">Thunderstorms</string>
