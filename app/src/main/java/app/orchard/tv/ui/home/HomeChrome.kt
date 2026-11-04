@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -958,7 +959,7 @@ private fun WeatherIcon(kind: WeatherKind, day: Boolean, iconSize: Dp, modifier:
         painter = androidx.compose.ui.res.painterResource(resId),
         contentDescription = null,
         colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White),
-        modifier = modifier.then(androidx.compose.foundation.layout.size(iconSize)),
+        modifier = modifier.size(iconSize),
     )
 }
 
