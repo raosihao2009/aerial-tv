@@ -19,6 +19,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -107,6 +108,9 @@ import app.orchard.tv.ui.theme.Motion
 import app.orchard.tv.wallpaper.Wallpapers
 import app.orchard.tv.ui.theme.Palette
 import app.orchard.tv.ui.theme.Type
+import app.orchard.tv.ui.theme.OutfitLight
+import app.orchard.tv.ui.theme.OutfitRegular
+import app.orchard.tv.ui.theme.OutfitMedium
 import app.orchard.tv.ui.components.diagLayer
 import app.orchard.tv.weather.Weather
 import app.orchard.tv.weather.WeatherKind
