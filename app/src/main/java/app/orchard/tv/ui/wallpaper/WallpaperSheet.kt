@@ -651,8 +651,8 @@ private fun WeatherValue() {
                 WeatherKind.PartlyCloudy -> R.string.wx_partly_cloudy
                 WeatherKind.Cloudy -> R.string.wx_cloudy
                 WeatherKind.Fog -> R.string.wx_fog
-                WeatherKind.Rain -> R.string.wx_rain
-                WeatherKind.Snow -> R.string.wx_snow
+                WeatherKind.Drizzle, WeatherKind.LightRain, WeatherKind.ModerateRain, WeatherKind.HeavyRain -> R.string.wx_rain
+                WeatherKind.LightSnow, WeatherKind.ModerateSnow, WeatherKind.HeavySnow -> R.string.wx_snow
                 WeatherKind.Thunder -> R.string.wx_thunder
             },
         )
