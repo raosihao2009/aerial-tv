@@ -1,5 +1,6 @@
 package app.orchard.tv.guard
 
+import android.app.ActivityManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -51,8 +52,20 @@ class BootReceiver : BroadcastReceiver() {
             DiagLog.i("boot: an app opened from Aerial is in front; leaving it")
             return
         }
+        // Dangbei H5: don't start Aerial again if it's already running in foreground—each
+        // startActivity causes a visible black flash during boot.
+        if (isAerialForeground(context)) {
+            DiagLog.i("boot: Aerial already in foreground; not starting again")
+            return
+        }
         runCatching {
             context.startActivity(MainActivity.bringBackIntent(context))
         }
+    }
+
+    private fun isAerialForeground(context: Context): Boolean {
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val tasks = am.getRunningTasks(1)
+        return tasks.firstOrNull()?.topActivity?.packageName == context.packageName
     }
 }

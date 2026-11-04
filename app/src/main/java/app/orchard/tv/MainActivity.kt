@@ -216,6 +216,12 @@ class MainActivity : ComponentActivity() {
         if (started.hasCategory(Intent.CATEGORY_HOME) || !isTaskRoot) return false
         val again = bringBackIntent(this)
         if (!again.hasCategory(Intent.CATEGORY_HOME)) return false
+        // Dangbei H5: if Aerial is already the system default Home, the restart causes a black
+        // flash. Only reopen when the system actually handed us a non-HOME intent.
+        if (isSystemHome(this)) {
+            DiagLog.i("started without HOME category but Aerial is system Home; skipping reopen")
+            return false
+        }
         DiagLog.i("started as ${started.categories} in task $taskId; reopening as Home")
         return runCatching {
             startActivity(again)
