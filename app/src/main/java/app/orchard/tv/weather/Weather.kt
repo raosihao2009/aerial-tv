@@ -97,11 +97,25 @@ object Weather {
 
     private var failed = false
 
-    /** Like the daily photos: a failed reading is retried when the network connects (issue #129). */
+    /** 每10分钟整点对齐更新（:00 :10 :20 :30 :40 :50） */
     fun refreshIfStale(networkCameUp: Boolean = false) {
         if (!started) return
-        val since = System.currentTimeMillis() - lastAttempt
-        if (since >= REFRESH_MS || (failed && (networkCameUp || since >= RETRY_MS))) refresh()
+        val now = System.currentTimeMillis()
+        val since = now - lastAttempt
+        // 失败时2分钟重试
+        if (failed && (networkCameUp || since >= RETRY_MS)) { refresh(); return }
+        // 距离上次更新超过10分钟，且已到最近的10分钟整点
+        if (since >= REFRESH_MS) {
+            val cal = java.util.Calendar.getInstance()
+            cal.timeInMillis = now
+            val minute = cal.get(java.util.Calendar.MINUTE)
+            val second = cal.get(java.util.Calendar.SECOND)
+            // 已过最近的10分钟整点
+            val lastTick = (minute / 10) * 10
+            if (minute > lastTick || (minute == lastTick && second >= 0)) {
+                refresh()
+            }
+        }
     }
 
     private fun refresh() {
