@@ -756,6 +756,7 @@ private fun conditionName(kind: WeatherKind): Int = when (kind) {
     WeatherKind.LightRain -> R.string.weather_light_rain
     WeatherKind.ModerateRain -> R.string.weather_moderate_rain
     WeatherKind.HeavyRain -> R.string.weather_heavy_rain
+    WeatherKind.ViolentRain -> R.string.weather_heavy_rain
     WeatherKind.LightSnow -> R.string.weather_light_snow
     WeatherKind.ModerateSnow -> R.string.weather_moderate_snow
     WeatherKind.HeavySnow -> R.string.weather_heavy_snow
