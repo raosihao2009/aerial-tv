@@ -134,11 +134,18 @@ object Lunar {
         return null
     }
 
-    /** 主要节日 (公历+农历传统节日), 优先级高于节气 */
+    /** 主要节日 (公历+农历传统节日+母亲节/父亲节), 优先级高于节气 */
     fun festival(date: LocalDate): String? {
         when (date.monthValue) {
             1 -> if (date.dayOfMonth == 1) return "元旦"
-            3 -> if (date.dayOfMonth == 8) return "妇女节"
+            2 -> when (date.dayOfMonth) {
+                14 -> return "情人节"
+            }
+            3 -> when (date.dayOfMonth) {
+                8 -> return "妇女节"
+                12 -> return "植树节"
+            }
+            4 -> if (date.dayOfMonth == 1) return "愚人节"
             5 -> when (date.dayOfMonth) {
                 1 -> return "劳动节"
                 4 -> return "青年节"
@@ -147,7 +154,27 @@ object Lunar {
             7 -> if (date.dayOfMonth == 1) return "建党节"
             8 -> if (date.dayOfMonth == 1) return "建军节"
             9 -> if (date.dayOfMonth == 10) return "教师节"
-            10 -> if (date.dayOfMonth == 1) return "国庆节"
+            10 -> when (date.dayOfMonth) {
+                1 -> return "国庆节"
+                31 -> return "万圣节"
+            }
+            12 -> when (date.dayOfMonth) {
+                24 -> return "平安夜"
+                25 -> return "圣诞节"
+            }
+        }
+        // 母亲节: 5月第二个周日; 父亲节: 6月第三个周日
+        if (date.monthValue == 5 && date.dayOfWeek == java.time.DayOfWeek.SUNDAY) {
+            val first = date.withDayOfMonth(1)
+            val firstSunday = if (first.dayOfWeek == java.time.DayOfWeek.SUNDAY) 1
+                else 8 - first.dayOfWeek.value
+            if (date.dayOfMonth == firstSunday + 7) return "母亲节"
+        }
+        if (date.monthValue == 6 && date.dayOfWeek == java.time.DayOfWeek.SUNDAY) {
+            val first = date.withDayOfMonth(1)
+            val firstSunday = if (first.dayOfWeek == java.time.DayOfWeek.SUNDAY) 1
+                else 8 - first.dayOfWeek.value
+            if (date.dayOfMonth == firstSunday + 14) return "父亲节"
         }
         val (m, d, leap) = of(date) ?: return null
         if (leap) return null
@@ -156,6 +183,7 @@ object Lunar {
                 1 -> return "春节"
                 15 -> return "元宵节"
             }
+            2 -> if (d == 2) return "龙抬头"
             5 -> if (d == 5) return "端午节"
             7 -> when (d) {
                 7 -> return "七夕节"
