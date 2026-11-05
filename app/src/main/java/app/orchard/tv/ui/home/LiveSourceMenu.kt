@@ -181,6 +181,7 @@ fun LiveSourceMenu(
             .onPreviewKeyEvent { e ->
                 if (!visible || controlCenterOpen) return@onPreviewKeyEvent false
                 if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_HOME && e.type == KeyEventType.KeyDown) {
+                    DiagLog.i("CC-debug: LiveMenu HOME key -> onDismiss")
                     if (menuForId != null) menuForId = null
                     if (movingId != null) movingId = null
                     onDismiss()

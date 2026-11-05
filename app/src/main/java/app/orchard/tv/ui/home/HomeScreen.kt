@@ -513,6 +513,7 @@ fun HomeScreen(
 
     // 二级菜单返回键关闭，回到纯直播画面（不显示一级UI）
     BackHandler(enabled = overlay is Overlay.LiveSourceMenu) {
+        DiagLog.i("CC-debug: LiveMenu BackHandler closing to None")
         vm.overlay = Overlay.None
         uiHidden = true // 关闭二级菜单后保持UI隐藏
     }
@@ -1203,11 +1204,11 @@ fun HomeScreen(
             visible = overlay is Overlay.LiveSourceMenu,
             sources = vm.getAllLiveSources(),
             currentId = vm.currentLiveSourceId,
-            onSelect = { vm.selectLiveSource(it); vm.overlay = Overlay.None },
+            onSelect = { DiagLog.i("CC-debug: LiveMenu onSelect source=$it"); vm.selectLiveSource(it); vm.overlay = Overlay.None },
             onMove = { from, to -> vm.moveLiveSource(from, to) },
             onHide = { vm.hideLiveSource(it) },
             onDelete = { vm.removeLiveSource(it) },
-            onDismiss = { vm.overlay = Overlay.None },
+            onDismiss = { DiagLog.i("CC-debug: LiveMenu onDismiss"); vm.overlay = Overlay.None },
             onMenuOpenChange = { liveMenuOpen = it },
             onMovingChange = { liveMoving = it },
             onOpenControlCenter = { ccFromLiveMenu = true; vm.overlay = Overlay.ControlCenter() },
