@@ -137,13 +137,28 @@ fun ChannelFocusPreview(
         }
         val hls = HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(Uri.parse(streamUrl)))
 
-        // 等待新流 READY
+        // 等待新流READY且缓冲足够(至少3秒)再切换，避免开播后卡缓冲
         var ready = false
         val readyListener = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_READY) {
-                    ready = true
                     retryCount = 0
+                    // 等缓冲够再标记ready
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            val deadline = System.currentTimeMillis() + 10_000
+                            while (System.currentTimeMillis() < deadline) {
+                                // playWhenReady=false时currentPosition不动，bufferedPosition-currentPosition就是缓冲量
+                                if (exo.bufferedPosition - exo.currentPosition >= 3000L) {
+                                    ready = true
+                                    break
+                                }
+                                kotlinx.coroutines.delay(200)
+                            }
+                            // 超时也放行(已经READY了只是缓冲少)
+                            if (!ready) ready = true
+                        }
+                    }
                 }
             }
             override fun onPlayerError(error: PlaybackException) {
