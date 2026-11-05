@@ -310,9 +310,19 @@ fun HomeScreen(
     var indexAfterOverlay by remember { mutableStateOf(0) }
     var pillFocused by remember { mutableStateOf(false) }
     var lastFocusedIndex by remember { mutableStateOf(0) }
-    val focusedIndex = apps.indexOfFirst { it.key == focusedKey }
     val columns = AerialSettings.homeColumns
-    val focusedRow = if (pillFocused || focusedIndex < 0) 0 else focusedIndex / columns
+    // 用derivedStateOf避免每次重组都遍历apps列表
+    val focusedIndex by remember(apps, focusedKey) {
+        derivedStateOf { apps.indexOfFirst { it.key == focusedKey } }
+    }
+    val focusedRow by remember(apps, focusedKey, pillFocused, columns) {
+        derivedStateOf {
+            if (pillFocused || focusedIndex < 0) 0 else focusedIndex / columns
+        }
+    }
+    val focusedPkg by remember(apps, focusedIndex) {
+        derivedStateOf { apps.getOrNull(focusedIndex)?.packageName ?: "" }
+    }
     // Kids mode's lock covers Home: nothing under it takes focus.
     val kidsLock = if (Restricted.active) Restricted.lock else null
     val gridEnabled = overlay == Overlay.None && kidsLock == null
@@ -323,7 +333,6 @@ fun HomeScreen(
     var liveMoving by remember { mutableStateOf(false) }
     var ccFromLiveMenu by remember { mutableStateOf(false) }
     var lastKeyTime by remember { mutableStateOf(0L) }
-    val focusedPkg = apps.getOrNull(focusedIndex)?.packageName ?: ""
     val channelPreviewVisible = AerialSettings.livePreviewEnabled &&
         focusedPkg == "com.jxiptv.softconsole" &&
         focusedRow == 0 &&
