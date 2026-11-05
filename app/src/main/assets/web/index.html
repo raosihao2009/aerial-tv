@@ -1366,7 +1366,7 @@ function renderLive() {
   hidden.forEach(s => {
     const row = el('div', 'item'); row.style.alignItems = 'center'; row.style.gap = '14px';
     const thumb = el('div', 'thumb'); thumb.style.overflow = 'hidden';
-    if (s.preset) { const img = el('img'); img.src = `${base}live-icon/${encodeURIComponent(s.id)}?v=${Date.now()}`; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; thumb.appendChild(img); }
+    if (s.preset || s.id.startsWith('custom_')) { const img = el('img'); img.src = `${base}live-icon/${encodeURIComponent(s.id)}?v=${Date.now()}`; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; img.onerror = () => { thumb.style.background='linear-gradient(135deg,#667eea,#764ba2)'; thumb.style.display='grid'; thumb.style.placeItems='center'; thumb.style.color='#fff'; thumb.style.fontSize='18px'; thumb.textContent=(s.name||'?').charAt(0); img.remove(); }; thumb.appendChild(img); }
     else { thumb.style.background = 'linear-gradient(135deg,#667eea,#764ba2)'; thumb.style.display='grid'; thumb.style.placeItems='center'; thumb.style.color='#fff'; thumb.style.fontSize='18px'; thumb.textContent = (s.name||'?').charAt(0); }
     row.appendChild(thumb);
     row.appendChild(el('span', 'txt', s.name));

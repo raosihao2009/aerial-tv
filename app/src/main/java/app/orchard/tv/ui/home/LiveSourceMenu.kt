@@ -121,6 +121,7 @@ fun LiveSourceMenu(
     fun requester(id: String) = requesters.getOrPut(id) { FocusRequester() }
     // 上下文菜单关闭后焦点行为对齐一级菜单
     var lastMenuId by remember { mutableStateOf<String?>(null) }
+    var hiddenIndex by remember { mutableStateOf(-1) }
     LaunchedEffect(menuForId) {
         if (menuForId != null) {
             lastMenuId = menuForId
@@ -129,8 +130,9 @@ fun LiveSourceMenu(
             if (gone) {
                 // 被隐藏了: 等一帧让列表更新, 然后聚焦相邻可见源
                 androidx.compose.runtime.withFrameNanos { }
-                val idx = sources.indexOfFirst { it.id == lastMenuId }
-                val fallbackId = sources.getOrNull(idx.coerceAtLeast(0))?.id
+                // 用隐藏前记录的索引找相邻项: 被隐藏项移除后, 它的位置由后面的项补位
+                val fallbackId = sources.getOrNull(hiddenIndex)?.id
+                    ?: sources.getOrNull(hiddenIndex - 1)?.id
                     ?: sources.firstOrNull()?.id
                 if (fallbackId != null) {
                     focusedId = fallbackId
@@ -145,6 +147,7 @@ fun LiveSourceMenu(
                 }
             }
             lastMenuId = null
+            hiddenIndex = -1
         }
     }
     val density = LocalDensity.current
@@ -449,7 +452,11 @@ fun LiveSourceMenu(
                         modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 6.dp))
                     MenuRow(Glyph.Move, "移动", { movingId = source.id; menuForId = null }, focusRequester = first)
                     if (source.id != "preset_2") {
-                        MenuRow(Glyph.EyeSlash, "从直播预览隐藏", { onHide(source.id); menuForId = null })
+                        MenuRow(Glyph.EyeSlash, "从直播预览隐藏", {
+                            // 记录被隐藏项在旧列表中的索引, 用于隐藏后转移焦点到相邻项
+                            hiddenIndex = sources.indexOf(source)
+                            onHide(source.id); menuForId = null
+                        })
                         MenuRow(Glyph.Trash, "删除", { onDelete(source.id); menuForId = null }, destructive = true)
                     }
                 }
