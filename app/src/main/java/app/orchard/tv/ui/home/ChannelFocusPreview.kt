@@ -61,8 +61,6 @@ fun ChannelFocusPreview(
     val streamCache = remember { mutableMapOf<String, String?>() }
     val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main + kotlinx.coroutines.SupervisorJob())
     var retryCount by remember { mutableStateOf(0) }
-    // fallback 重试次数(防止 preset_2 也挂时死循环)
-    var fallbackAttempt by remember { mutableStateOf(0) }
     // 加载遮罩：切换直播源时渐入，新流就绪或失败后渐出
     var loading by remember { mutableStateOf(false) }
     // 回退提示
@@ -103,27 +101,22 @@ fun ChannelFocusPreview(
         DiagLog.i("channel preview: url = $streamUrl")
 
         if (streamUrl == null) {
-            // 解析失败(可能已下播)
+            // 解析失败(可能已下播或网络未就绪)
             DiagLog.i("channel preview: stream resolve failed")
             loading = false
             if (player != null) {
                 // 切换源失败：继续播当前源，焦点回退到旧源
                 toastMessage = "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
                 playingSourceId?.let { onRevert(it) }
-            } else if (fallbackAttempt < 2) {
-                // 开机首次加载失败：回退央视网快看
-                fallbackAttempt++
-                toastMessage = "「${source.name}」暂时无法观看，已切换至「央视网快看」"
-                onFallback()
-                // 如果 onFallback 没有改变 source(已经是 preset_2)，用 restartSignal 强制重载
-                restartSignal++
             } else {
-                toastMessage = "暂时无法加载直播，请检查网络后重试"
+                // 开机首次加载失败：持续重试直到网络恢复，不放弃
+                loading = true
+                toastMessage = "正在加载直播…"
+                kotlinx.coroutines.delay(5000)
+                restartSignal++
             }
             return@LaunchedEffect
         }
-        // 成功加载，重置 fallback 计数
-        fallbackAttempt = 0
 
         // 准备新流
         val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(context).apply {
@@ -177,14 +170,16 @@ fun ChannelFocusPreview(
                     val hasOld = player != null && player !== exo
                     if (offline || retryCount >= 3) {
                         // 下播或重试耗尽
-                        loading = false
                         if (hasOld) {
                             // 切换源失败: 继续播旧源
+                            loading = false
                             toastMessage = "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
                         } else {
-                            // 当前源挂了: 回退央视网快看
-                            toastMessage = "「${source.name}」暂时无法观看，已切换至「央视网快看」"
-                            onFallback()
+                            // 首次加载/当前源挂了: 持续重试直到成功
+                            loading = true
+                            toastMessage = "正在加载直播…"
+                            kotlinx.coroutines.delay(5000)
+                            restartSignal++
                         }
                         return@launch
                     }
@@ -231,19 +226,17 @@ fun ChannelFocusPreview(
             // 新流超时未就绪
             DiagLog.i("channel preview: new stream not ready")
             exo.release()
-            loading = false
             if (player != null) {
                 // 切换源失败：继续播当前源，焦点回退
+                loading = false
                 toastMessage = "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
                 playingSourceId?.let { onRevert(it) }
-            } else if (fallbackAttempt < 2) {
-                // 开机首次加载超时：回退央视网快看
-                fallbackAttempt++
-                toastMessage = "「${source.name}」暂时无法观看，已切换至「央视网快看」"
-                onFallback()
-                restartSignal++
             } else {
-                toastMessage = "暂时无法加载直播，请检查网络后重试"
+                // 开机首次加载超时：持续重试直到成功
+                loading = true
+                toastMessage = "正在加载直播…"
+                kotlinx.coroutines.delay(5000)
+                restartSignal++
             }
             return@LaunchedEffect
         }
