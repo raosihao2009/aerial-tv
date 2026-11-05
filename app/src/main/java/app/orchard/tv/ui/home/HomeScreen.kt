@@ -310,6 +310,8 @@ fun HomeScreen(
     var indexAfterOverlay by remember { mutableStateOf(0) }
     var pillFocused by remember { mutableStateOf(false) }
     var lastFocusedIndex by remember { mutableStateOf(0) }
+    // 刚从上下文菜单隐藏了卡片: 强制焦点回首个, 覆盖Compose自动转移到相邻项的行为
+    var justHid by remember { mutableStateOf(false) }
     val columns = AerialSettings.homeColumns
     // 用derivedStateOf避免每次重组都遍历apps列表
     val focusedIndex by remember(apps, focusedKey) {
@@ -468,6 +470,13 @@ fun HomeScreen(
     LaunchedEffect(vm.loaded, overlay) {
         if (!vm.loaded || overlay != Overlay.None) return@LaunchedEffect
         withFrameNanos { }
+        // 刚从上下文菜单隐藏了卡片: 强制焦点回首个, 覆盖Compose自动转移到相邻项
+        if (justHid) {
+            justHid = false
+            focusAfterOverlay = null
+            focusApp(0)
+            return@LaunchedEffect
+        }
         val wanted = focusAfterOverlay
         focusAfterOverlay = null
         if (wanted != null) { focusedKey = wanted; pillFocused = false }
@@ -1104,9 +1113,8 @@ fun HomeScreen(
             folders = vm.folders(),
             onMove = { vm.startMove(it) },
             onHide = { key ->
-                // 隐藏后焦点回到首个卡片，而不是同位置
-                focusAfterOverlay = null
-                lastFocusedIndex = 0
+                // 隐藏后焦点回到首个卡片，覆盖Compose自动转移到相邻项的行为
+                justHid = true
                 closeMenu()
                 vm.hide(key)
             },
