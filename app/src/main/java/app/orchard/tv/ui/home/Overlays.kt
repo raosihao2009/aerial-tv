@@ -490,7 +490,6 @@ fun HiddenLiveSourcesSheet(
             Modifier
                 .fillMaxSize()
                 .dismissOnTap(onDismiss)
-                .background(Color.Black.copy(alpha = 0.55f))
                 .focusProperties {
                     up = FocusRequester.Cancel
                     down = FocusRequester.Cancel
@@ -499,6 +498,10 @@ fun HiddenLiveSourcesSheet(
                 },
             contentAlignment = Alignment.Center,
         ) {
+            // 黑色遮罩作为第一个子元素，确保铺满全屏
+            androidx.compose.foundation.layout.Spacer(
+                Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.55f))
+            )
             Column(
                 Modifier
                     .width(660.dp)
