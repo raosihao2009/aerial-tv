@@ -195,9 +195,19 @@ fun WallpaperSheet(
                 // What is on Home and where; then the clock; then how the remote feels.
                 Group { note ->
                     Choices(
+                        R.string.st_columns, stringResource(R.string.st_columns_hint), note,
+                        AerialSettings.HOME_COLUMNS.map { it to it.toString() },
+                        AerialSettings.homeColumns, AerialSettings::chooseHomeColumns, first = true,
+                    )
+                    Choices(
+                        R.string.st_names, stringResource(R.string.st_names_hint), note,
+                        listOf(false to R.string.st_names_focused, true to R.string.st_names_all),
+                        AerialSettings.showAllNames, AerialSettings::chooseShowAllNames,
+                    )
+                    Choices(
                         R.string.st_layout, stringResource(R.string.st_home_layout_hint), note,
                         listOf(true to R.string.st_home_one_row, false to R.string.st_home_standard),
-                        AerialSettings.oneRowHome, AerialSettings::chooseOneRowHome, first = true,
+                        AerialSettings.oneRowHome, AerialSettings::chooseOneRowHome,
                     )
                     // Two rows show the second row whole; only one row has a peek to hide.
                     if (AerialSettings.oneRowHome) Choices(
@@ -206,19 +216,9 @@ fun WallpaperSheet(
                         AerialSettings.peekNextRow, AerialSettings::choosePeekNextRow,
                     )
                     Choices(
-                        R.string.st_columns, stringResource(R.string.st_columns_hint), note,
-                        AerialSettings.HOME_COLUMNS.map { it to it.toString() },
-                        AerialSettings.homeColumns, AerialSettings::chooseHomeColumns,
-                    )
-                    Choices(
                         R.string.st_plate, stringResource(R.string.st_plate_hint), note,
                         listOf(true to R.string.st_plate_glass, false to R.string.st_plate_none),
                         AerialSettings.homePlate, AerialSettings::chooseHomePlate,
-                    )
-                    Choices(
-                        R.string.st_names, stringResource(R.string.st_names_hint), note,
-                        listOf(false to R.string.st_names_focused, true to R.string.st_names_all),
-                        AerialSettings.showAllNames, AerialSettings::chooseShowAllNames,
                     )
                     // Apps taken off Home are kept with the rest of how Home looks.
                     SettingRow(R.string.st_hidden_apps, stringResource(R.string.st_hidden_apps_hint), note) {

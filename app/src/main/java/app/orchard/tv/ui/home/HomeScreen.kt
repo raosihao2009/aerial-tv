@@ -998,8 +998,13 @@ fun HomeScreen(
                     // Down goes back to the top-row tile Up came from, not to the nearest one,
                     // which under the pill is the last of the row (issue #703).
                     .focusProperties {
-                        val key = focusedKey
-                        if (key != null && apps.indexOfFirst { it.key == key } in 0 until columns) down = requester(key)
+                        // 浮层打开时pill不可见，阻止焦点向上导航到这里
+                        if (overlay != Overlay.None) {
+                            up = FocusRequester.Cancel
+                        } else {
+                            val key = focusedKey
+                            if (key != null && apps.indexOfFirst { it.key == key } in 0 until columns) down = requester(key)
+                        }
                     }
                     .graphicsLayer {
                         alpha = (1f - (toSaver.value * 2f).coerceIn(0f, 1f)) * uiAlpha
