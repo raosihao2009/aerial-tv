@@ -456,9 +456,9 @@ fun HiddenLiveSourcesSheet(
         visible = visible,
         enter = fadeIn(tween(200, easing = Motion.EaseOut)) + scaleIn(tween(300, easing = Motion.Drawer), initialScale = 0.94f),
         exit = fadeOut(tween(150, easing = Motion.EaseOut)) + scaleOut(tween(150, easing = Motion.EaseOut), targetScale = 0.97f),
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)),
     ) {
-        Box(Modifier.fillMaxSize().dismissOnTap(onDismiss).background(Color.Black.copy(alpha = 0.55f)), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize().dismissOnTap(onDismiss), contentAlignment = Alignment.Center) {
             Column(
                 Modifier
                     .width(660.dp)
