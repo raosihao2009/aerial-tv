@@ -194,8 +194,7 @@ fun ChannelFocusPreview(
         }
 
         if (ready) {
-            // 新流就绪：回到直播边缘，释放旧player，绑定新player后开播
-            exo.seekToDefaultPosition()
+            // 新流已缓冲到音视频对齐：释放旧player，绑定新player后直接开播
             val old = player
             val oldName = currentPlayingName
             old?.release()
