@@ -61,6 +61,8 @@ fun ChannelFocusPreview(
     val streamCache = remember { mutableMapOf<String, String?>() }
     val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main + kotlinx.coroutines.SupervisorJob())
     var retryCount by remember { mutableStateOf(0) }
+    // fallback 重试次数(防止 preset_2 也挂时死循环)
+    var fallbackAttempt by remember { mutableStateOf(0) }
     // 加载遮罩：切换直播源时渐入，新流就绪或失败后渐出
     var loading by remember { mutableStateOf(false) }
     // 回退提示
@@ -108,13 +110,20 @@ fun ChannelFocusPreview(
                 // 切换源失败：继续播当前源，焦点回退到旧源
                 toastMessage = "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
                 playingSourceId?.let { onRevert(it) }
-            } else {
+            } else if (fallbackAttempt < 2) {
                 // 开机首次加载失败：回退央视网快看
+                fallbackAttempt++
                 toastMessage = "「${source.name}」暂时无法观看，已切换至「央视网快看」"
                 onFallback()
+                // 如果 onFallback 没有改变 source(已经是 preset_2)，用 restartSignal 强制重载
+                restartSignal++
+            } else {
+                toastMessage = "暂时无法加载直播，请检查网络后重试"
             }
             return@LaunchedEffect
         }
+        // 成功加载，重置 fallback 计数
+        fallbackAttempt = 0
 
         // 准备新流
         val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(context).apply {
@@ -206,9 +215,10 @@ fun ChannelFocusPreview(
         }
 
         if (ready) {
-            // 新流已对齐：释放旧player，绑定新player后开播
+            // 新流已对齐：先绑定 surface 再释放旧 player，避免画面空帧导致音画错位
             val old = player
             val oldName = currentPlayingName
+            surface?.let { runCatching { exo.setVideoTextureView(it) } }
             old?.release()
             player = exo
             exo.playWhenReady = true
@@ -227,10 +237,14 @@ fun ChannelFocusPreview(
                 // 切换源失败：继续播当前源，焦点回退
                 toastMessage = "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
                 playingSourceId?.let { onRevert(it) }
-            } else {
+            } else if (fallbackAttempt < 2) {
                 // 开机首次加载超时：回退央视网快看
+                fallbackAttempt++
                 toastMessage = "「${source.name}」暂时无法观看，已切换至「央视网快看」"
                 onFallback()
+                restartSignal++
+            } else {
+                toastMessage = "暂时无法加载直播，请检查网络后重试"
             }
             return@LaunchedEffect
         }

@@ -1100,6 +1100,9 @@ fun HomeScreen(
             folders = vm.folders(),
             onMove = { vm.startMove(it) },
             onHide = { key ->
+                // 隐藏后焦点回到首个卡片，而不是同位置
+                focusAfterOverlay = null
+                lastFocusedIndex = 0
                 closeMenu()
                 vm.hide(key)
             },

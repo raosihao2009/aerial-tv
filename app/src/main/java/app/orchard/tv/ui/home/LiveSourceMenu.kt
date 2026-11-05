@@ -140,8 +140,7 @@ fun LiveSourceMenu(
     var wasCcOpen by remember { mutableStateOf(false) }
     val pillFocus = remember { FocusRequester() }
 
-    // 菜单显示时立即聚焦初始卡片(不等动画)
-    // 从CC返回时等两帧再聚焦pill，避免CC退出动画期间焦点竞争
+    // 菜单显示时等3帧再聚焦初始卡片(节点未布局时requestFocus会失败, 焦点落到pill)
     LaunchedEffect(visible) {
         if (visible) {
             if (wasCcOpen) {
@@ -150,6 +149,7 @@ fun LiveSourceMenu(
                 runCatching { pillFocus.requestFocus() }
             } else {
                 focusedId = currentId
+                repeat(3) { androidx.compose.runtime.withFrameNanos { } }
                 runCatching { requester(currentId).requestFocus() }
             }
         }
