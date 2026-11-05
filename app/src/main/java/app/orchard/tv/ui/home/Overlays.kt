@@ -443,6 +443,13 @@ fun HiddenLiveSourcesSheet(
             runCatching { first.requestFocus() }
         }
     }
+    val liveColors = listOf(
+        Color(0xFFE91E63) to Color(0xFF9C27B0),
+        Color(0xFF00BCD4) to Color(0xFF009688),
+        Color(0xFFFF9800) to Color(0xFFFF5722),
+        Color(0xFF3F51B5) to Color(0xFF2196F3),
+        Color(0xFF4CAF50) to Color(0xFF8BC34A),
+    )
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(tween(200, easing = Motion.EaseOut)) + scaleIn(tween(300, easing = Motion.Drawer), initialScale = 0.94f),
@@ -452,7 +459,7 @@ fun HiddenLiveSourcesSheet(
         Box(Modifier.fillMaxSize().dismissOnTap(onDismiss).background(Color.Black.copy(alpha = 0.35f)), contentAlignment = Alignment.Center) {
             Column(
                 Modifier
-                    .width(560.dp)
+                    .width(660.dp)
                     .consumeTaps()
                     .heightIn(max = 480.dp)
                     .liquidGlass(28.dp)
@@ -469,22 +476,35 @@ fun HiddenLiveSourcesSheet(
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 8.dp, vertical = 8.dp),
                 ) {
-                    sources.forEachIndexed { i, source ->
-                        Pressable(
-                            onClick = { onUnhide(source.id) },
-                            focusRequester = if (i == 0) first else null,
-                            focusedScale = 1.05f,
-                        ) { state ->
-                            Row(
-                                Modifier.fillMaxWidth().padding(vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            ) {
-                                GlyphIcon(Glyph.ChevronRight, Palette.Label, 18.dp)
-                                BasicText(
-                                    source.name, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                    style = Type.Callout.copy(color = if (state.focused) Palette.Label else Palette.SecondaryLabel),
-                                )
+                    sources.chunked(4).forEachIndexed { r, row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.padding(bottom = 18.dp)) {
+                            row.forEachIndexed { c, source ->
+                                val (top, bottom) = liveColors[source.colorIndex % liveColors.size]
+                                Pressable(
+                                    onClick = { onUnhide(source.id) },
+                                    focusRequester = if (r == 0 && c == 0) first else null,
+                                    focusedScale = 1.1f,
+                                ) { state ->
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Box(
+                                            Modifier.size(132.dp, 74.dp)
+                                                .clip(RoundedCornerShape(14.dp))
+                                                .background(brush = androidx.compose.ui.graphics.Brush.verticalGradient(listOf(top, bottom))),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            BasicText(
+                                                source.name.take(2), maxLines = 1,
+                                                style = Type.Callout.copy(color = Color.White),
+                                            )
+                                        }
+                                        Spacer(Modifier.height(8.dp))
+                                        BasicText(
+                                            source.name, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                            style = Type.Caption.copy(color = if (state.focused) Palette.Label else Palette.SecondaryLabel),
+                                            modifier = Modifier.width(132.dp),
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
