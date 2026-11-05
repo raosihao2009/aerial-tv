@@ -674,7 +674,7 @@ fun HomeScreen(
         }
 // The folder open, or under its app's menu.
         val openFolder = (overlay as? Overlay.Folder)?.id ?: (overlay as? Overlay.AppMenu)?.inFolder
-        val folderOpen = overlay is Overlay.HiddenApps || openFolder != null
+        val folderOpen = overlay is Overlay.HiddenApps || overlay is Overlay.HiddenLiveSources || openFolder != null
         val ccOpen = overlay is Overlay.ControlCenter
         var sheetIn by remember { mutableStateOf(false) }
         var sheetWarm by remember { mutableStateOf(false) }
