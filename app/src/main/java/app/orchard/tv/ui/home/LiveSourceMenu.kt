@@ -126,7 +126,11 @@ fun LiveSourceMenu(
             lastMenuId = menuForId
         } else if (lastMenuId != null) {
             focusedId = lastMenuId!!
-            runCatching { requester(lastMenuId!!).requestFocus() }
+            val ok = runCatching { requester(lastMenuId!!).requestFocus() }.isSuccess
+            // 被隐藏的源已不在树中，requestFocus失败时移到第一个可见源
+            if (!ok || !sources.any { it.id == lastMenuId }) {
+                sources.firstOrNull()?.let { focusedId = it.id; runCatching { requester(it.id).requestFocus() } }
+            }
             lastMenuId = null
         }
     }
