@@ -540,6 +540,11 @@ fun HomeScreen(
             .fillMaxSize()
             .onPreviewKeyEvent { e ->
                 lastKeyTime = System.currentTimeMillis()
+                // 个性化/隐藏卡片界面: 拦截UP键, 阻止焦点逃逸到右上角pill
+                if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_UP &&
+                    e.type == KeyEventType.KeyDown &&
+                    (overlay is Overlay.Wallpaper || overlay is Overlay.HiddenApps || overlay is Overlay.HiddenLiveSources)
+                ) return@onPreviewKeyEvent true
                 // ===== UI隐藏时按键逻辑 =====
                 if (channelPreviewVisible && uiHidden && focusedPkg == "com.jxiptv.softconsole") {
                     // 任何浮层(CC/个性化/隐藏应用等)都透传，不能被"恢复UI"逻辑吞掉第一个键
