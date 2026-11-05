@@ -180,7 +180,8 @@ object Weather {
         val now = nowJson.getJSONObject("now")
         val temp = now.getString("temp").toIntOrNull() ?: 0
         val text = now.optString("text")
-        val isDay = now.optString("icon").toIntOrNull()?.let { it < 100 } ?: true
+        // 和风天气icon: 100-149白天, 150-199夜间
+        val isDay = now.optString("icon").toIntOrNull()?.let { it < 150 } ?: true
 
         val forecastJson = JSONObject(get("https://$QW_HOST/v7/weather/3d?location=$loc&key=$QW_KEY"))
         val daily = forecastJson.optJSONArray("daily")
