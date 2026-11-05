@@ -509,6 +509,7 @@ fun HiddenLiveSourcesSheet(
                                         Box(
                                             Modifier.size(132.dp, 74.dp)
                                                 .clip(RoundedCornerShape(14.dp))
+                                                .smoothBorder(if (state.focused) 2.dp else 1.dp, if (state.focused) Palette.Focus else Palette.Hairline, 14.dp)
                                                 .background(brush = androidx.compose.ui.graphics.Brush.verticalGradient(listOf(top, bottom))),
                                             contentAlignment = Alignment.Center,
                                         ) {
