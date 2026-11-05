@@ -197,19 +197,20 @@ fun ChannelFocusPreview(
         exo.addListener(readyListener)
         exo.setMediaSource(hls)
         exo.prepare()
-        // 新流先缓冲不播放，避免音频提前泄露；READY后再切画面开播
-        exo.playWhenReady = false
+        // 首次加载(无旧player)直接播放；切换源时静音缓冲避免音频泄露
+        val hasOldPlayer = player != null
+        exo.playWhenReady = !hasOldPlayer
 
-        // 等待最多 15 秒让新流就绪
+        // 等待最多 15 秒让新流就绪；首次加载不等缓冲直接绑定
         withContext(Dispatchers.Main) {
             val deadline = System.currentTimeMillis() + 15_000
-            while (!ready && System.currentTimeMillis() < deadline) {
+            while (!ready && hasOldPlayer && System.currentTimeMillis() < deadline) {
                 kotlinx.coroutines.delay(200)
             }
         }
 
-        if (ready) {
-            // 新流已缓冲到音视频对齐：释放旧player，绑定新player后直接开播
+        if (ready || !hasOldPlayer) {
+            // 切换源：新流已缓冲好再切画面；首次加载：直接绑定开播
             val old = player
             val oldName = currentPlayingName
             old?.release()
