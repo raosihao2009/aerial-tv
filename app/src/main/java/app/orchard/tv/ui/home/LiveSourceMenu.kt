@@ -12,6 +12,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -405,6 +406,17 @@ fun LiveSourceMenu(
                         rowEnd = index % columns == columns - 1 || index == sources.size - 1,
                         showName = showAllNames || focusedId == source.id,
                     )
+                    // 直播状态标记: 绿点=直播中, 灰点=下播
+                    if (source.liveStatus == 1 || source.liveStatus == 2) {
+                        val dotColor = if (source.liveStatus == 1) Color(0xFF30D158) else Color(0x808E8E93)
+                        Box(
+                            Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(6.dp)
+                                .size(10.dp)
+                                .background(dotColor, androidx.compose.foundation.shape.CircleShape)
+                        )
+                    }
                 }
                 }
             }
