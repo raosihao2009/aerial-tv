@@ -320,7 +320,12 @@ fun HomeScreen(
 // ===== 直播预览和UI隐藏状态 =====
     var uiHidden by remember { mutableStateOf(false) }
     val uiAlpha by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (uiHidden) 0f else 1f,
+        targetValue = when {
+            uiHidden -> 0f
+            overlay is Overlay.LiveSourceMenu || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper -> 0f
+            channelPreviewVisible -> 1f
+            else -> 1f
+        },
         animationSpec = androidx.compose.animation.core.tween(250), label = "uiAlpha")
     var liveMenuOpen by remember { mutableStateOf(false) }
     var liveMoving by remember { mutableStateOf(false) }
@@ -818,10 +823,10 @@ fun HomeScreen(
                     .fillMaxSize()
                     .offset { IntOffset(0, -scroll.value.roundToInt()) }
                     .graphicsLayer {
-                        // 二创：UI 隐藏时隐藏所有应用图标和时钟（带过渡动画）
-                        if (channelPreviewVisible) alpha = if (uiHidden) 0f else uiAlpha
-                        // 二级菜单/控制中心/个性化打开时隐藏一级网格
-                        if (overlay is Overlay.LiveSourceMenu || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper) alpha = 0f
+                        // 一级网格透明度(含ui隐藏和浮层覆盖，都带250ms过渡)
+                        if (channelPreviewVisible || overlay is Overlay.LiveSourceMenu || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper) {
+                            alpha = uiAlpha
+                        }
                     },
             ) {
                 val clockRight = AerialSettings.clockRight
