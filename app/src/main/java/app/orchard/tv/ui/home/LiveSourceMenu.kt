@@ -119,14 +119,26 @@ fun LiveSourceMenu(
     }
     val requesters = remember { HashMap<String, FocusRequester>() }
     fun requester(id: String) = requesters.getOrPut(id) { FocusRequester() }
-    // 上下文菜单关闭后焦点行为对齐一级菜单: Compose自动转移到相邻项,
-    // 不需要手动requestFocus; 只有被隐藏且sources为空时才兜底
+    // 上下文菜单关闭后焦点行为对齐一级菜单: 被隐藏的源已不在列表时, 手动转移到相邻可见源
     var lastMenuId by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(menuForId) {
         if (menuForId != null) {
             lastMenuId = menuForId
         } else if (lastMenuId != null) {
-            // 被隐藏了: sources已更新, Compose自动把焦点移到相邻项
+            val gone = !sources.any { it.id == lastMenuId }
+            if (gone) {
+                // 被隐藏了: 等一帧让列表更新, 然后聚焦相邻可见源(对齐一级菜单自动转移)
+                androidx.compose.runtime.withFrameNanos { }
+                val idx = sources.indexOfFirst { it.id == lastMenuId }
+                // lastMenuId 已不在列表, idx=-1; 取它原来位置的相邻项
+                // 用 lastMenuId 在隐藏前列表中的位置, 需要从 sources 找最近的
+                val fallbackId = sources.getOrNull(idx.coerceAtLeast(0))?.id
+                    ?: sources.firstOrNull()?.id
+                if (fallbackId != null) {
+                    focusedId = fallbackId
+                    runCatching { requester(fallbackId).requestFocus() }
+                }
+            }
             lastMenuId = null
         }
     }
@@ -135,6 +147,8 @@ fun LiveSourceMenu(
     // CC关闭返回时聚焦pill(和一级菜单一致)
     var wasCcOpen by remember { mutableStateOf(false) }
     val pillFocus = remember { FocusRequester() }
+    // 刚打开时pill临时不可聚焦, 让焦点自然落到直播卡片上, 避免从右上角跳转的动画
+    var justOpened by remember { mutableStateOf(false) }
 
     // 菜单显示时等3帧再聚焦初始卡片(节点未布局时requestFocus会失败, 焦点落到pill)
     LaunchedEffect(visible) {
@@ -144,9 +158,11 @@ fun LiveSourceMenu(
                 repeat(3) { androidx.compose.runtime.withFrameNanos { } }
                 runCatching { pillFocus.requestFocus() }
             } else {
+                justOpened = true
                 focusedId = currentId
                 repeat(3) { androidx.compose.runtime.withFrameNanos { } }
                 runCatching { requester(currentId).requestFocus() }
+                justOpened = false
             }
         }
     }
@@ -283,7 +299,7 @@ fun LiveSourceMenu(
                 now = java.time.LocalDateTime.now(),
                 network = pillNetwork,
                 showTime = false,
-                enabled = menuForId == null && movingId == null && !controlCenterOpen,
+                enabled = menuForId == null && movingId == null && !controlCenterOpen && !justOpened,
                 focusRequester = pillFocus,
                 onFocused = {},
                 onClick = { DiagLog.i("CC-debug: pill clicked, opening CC from LiveMenu"); onOpenControlCenter() },
