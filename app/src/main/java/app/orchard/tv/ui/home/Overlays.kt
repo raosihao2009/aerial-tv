@@ -437,8 +437,10 @@ fun HiddenLiveSourcesSheet(
 ) {
     val first = remember { FocusRequester() }
     BackHandler(enabled = visible, onBack = onDismiss)
-    LaunchedEffect(visible, sources.size) {
+    LaunchedEffect(visible) {
         if (visible) {
+            withFrameNanos { }
+            withFrameNanos { }
             withFrameNanos { }
             runCatching { first.requestFocus() }
         }
