@@ -409,7 +409,7 @@ fun HiddenAppsSheet(
                     .liquidGlass(28.dp)
                     .padding(28.dp),
             ) {
-                BasicText(stringResource(R.string.hidden_title), style = Type.LargeTitle)
+                BasicText(stringResource(R.string.st_hidden_apps), style = Type.LargeTitle)
                 BasicText(
                     stringResource(if (apps.isEmpty()) R.string.hidden_empty else R.string.hidden_hint),
                     style = Type.Callout, modifier = Modifier.padding(top = 4.dp, bottom = 20.dp),

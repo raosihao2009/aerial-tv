@@ -452,7 +452,7 @@ fun LiveSourceMenu(
                         modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 6.dp))
                     MenuRow(Glyph.Move, "移动", { movingId = source.id; menuForId = null }, focusRequester = first)
                     if (source.id != "preset_2") {
-                        MenuRow(Glyph.EyeSlash, "从直播预览隐藏", {
+                        MenuRow(Glyph.EyeSlash, "从直播菜单隐藏", {
                             // 记录被隐藏项在旧列表中的索引, 用于隐藏后转移焦点到相邻项
                             hiddenIndex = sources.indexOf(source)
                             onHide(source.id); menuForId = null

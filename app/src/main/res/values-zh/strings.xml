@@ -64,7 +64,7 @@
     <string name="move_hint_touch">用方向键移动，或点一下要放的位置 · 按确定键或点这个卡片完成</string>
 
     <string name="hidden_title">隐藏的卡片</string>
-    <string name="hidden_hint">选择一张卡片放回主屏幕</string>
+    <string name="hidden_hint">选择一张卡片放回应用菜单</string>
     <string name="hidden_empty">没有隐藏的卡片</string>
 
     <string name="launch_failed">无法打开%1$s</string>
@@ -154,7 +154,7 @@
     <string name="st_hidden_live">【直播菜单】隐藏的卡片</string>
     <string name="st_live_preview">直播预览</string>
     <string name="st_hidden_apps_hint">从应用菜单隐藏的卡片在这里，可以放回应用菜单。设了家长密码时要先输入密码。</string>
-    <string name="st_hidden_live_hint">从直播菜单隐藏的卡片在这里，可以放回直播菜单。设了家长密码时要先输入密码。</string>
+    <string name="st_hidden_live_hint">选择一张卡片放回直播菜单</string>
     <string name="st_hidden_none">没有</string>
     <string name="st_hidden_count">%d 个</string>
     <string name="st_focus_high">高对比度</string>
