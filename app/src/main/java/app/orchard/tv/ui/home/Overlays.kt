@@ -42,6 +42,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.focusable
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.focus.focusProperties
 import app.orchard.tv.system.DiagLog
@@ -365,11 +367,13 @@ fun HiddenAppsSheet(
     onDismiss: () -> Unit,
 ) {
     val first = remember { FocusRequester() }
+    val rootFocus = remember { FocusRequester() }
     BackHandler(enabled = visible, onBack = onDismiss)
     LaunchedEffect(visible, apps.size) {
         if (visible) {
             withFrameNanos { }
-            runCatching { first.requestFocus() }
+            runCatching { rootFocus.requestFocus() }
+            if (apps.isNotEmpty()) runCatching { first.requestFocus() }
         }
     }
     AnimatedVisibility(
@@ -383,6 +387,8 @@ fun HiddenAppsSheet(
                 .fillMaxSize()
                 .dismissOnTap(onDismiss)
                 .background(Color.Black.copy(alpha = 0.35f))
+                .focusRequester(rootFocus)
+                .focusable(true)
                 .onPreviewKeyEvent { e ->
                     if (e.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) true else false
                 }
@@ -455,13 +461,18 @@ fun HiddenLiveSourcesSheet(
     onDismiss: () -> Unit,
 ) {
     val first = remember { FocusRequester() }
+    val rootFocus = remember { FocusRequester() }
     BackHandler(enabled = visible, onBack = onDismiss)
     LaunchedEffect(visible) {
         if (visible) {
             DiagLog.i("LiveHidden-debug: visible=true, sources=${sources.size}")
             repeat(3) { withFrameNanos { } }
-            val ok = runCatching { first.requestFocus() }
-            DiagLog.i("LiveHidden-debug: requestFocus first ok=$ok")
+            // 先把焦点拉到弹层根节点, 确保pill不会先获得焦点
+            runCatching { rootFocus.requestFocus() }
+            if (sources.isNotEmpty()) {
+                val ok = runCatching { first.requestFocus() }
+                DiagLog.i("LiveHidden-debug: requestFocus first ok=$ok")
+            }
         }
     }
     val context = LocalContext.current
@@ -491,6 +502,8 @@ fun HiddenLiveSourcesSheet(
             Modifier
                 .fillMaxSize()
                 .dismissOnTap(onDismiss)
+                .focusRequester(rootFocus)
+                .focusable(true)
                 .onPreviewKeyEvent { e ->
                     // 弹层内拦截UP键, 阻止焦点逃逸到右上角pill
                     if (e.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) true else false
