@@ -401,7 +401,16 @@ fun LiveSourceMenu(
                         enabled = menuForId == null && visible && !controlCenterOpen && !justOpened,
                         moving = movingId == source.id,
                         onFocused = { focusedId = source.id; Sounds.focusMoved() },
-                        onClick = { if (movingId == null) { if (source.url.isBlank()) { bannerMsg = "「${source.name}」暂未设置直播地址" } else { onSelect(source.id); onDismiss() } } },
+                        onClick = { if (movingId == null) {
+                            if (source.url.isBlank()) {
+                                bannerMsg = "「${source.name}」暂未设置直播地址"
+                            } else if (source.liveStatus == 2) {
+                                val oldName = sources.find { it.id == currentId }?.name ?: "央视网快看"
+                                bannerMsg = "「${source.name}」无法观看，请继续观看「$oldName」"
+                            } else {
+                                onSelect(source.id); onDismiss()
+                            }
+                        } },
                         onLongPress = { if (movingId == null) menuForId = source.id },
                         rowEnd = index % columns == columns - 1 || index == sources.size - 1,
                         showName = showAllNames || focusedId == source.id,

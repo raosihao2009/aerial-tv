@@ -277,6 +277,16 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                 }.getOrDefault(0)
                 liveSources = liveSources.map { if (it.id == src.id) it.copy(liveStatus = status) else it }
             }
+            // 检查当前源是否下播
+            val cur = liveSources.find { it.id == currentLiveSourceId }
+            if (cur != null && cur.liveStatus == 2) {
+                val fallback = liveSources.find { it.id == "preset_2" } ?: liveSources.firstOrNull()
+                if (fallback != null && fallback.id != currentLiveSourceId) {
+                    val oldName = cur.name
+                    currentLiveSourceId = fallback.id
+                    notify("「$oldName」无法观看，请继续观看「${fallback.name}」")
+                }
+            }
         }
     }
 
