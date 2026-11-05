@@ -136,11 +136,16 @@ fun LiveSourceMenu(
     var wasCcOpen by remember { mutableStateOf(false) }
 
     // 菜单显示时立即聚焦初始卡片(不等动画)
-    // 从CC返回时不重置focusedId，保持之前选中的直播源
+    // 从CC返回时保持之前的focusedId，否则聚焦当前直播源
     LaunchedEffect(visible) {
-        if (visible && !wasCcOpen) {
-            focusedId = currentId
-            runCatching { requester(currentId).requestFocus() }
+        if (visible) {
+            if (wasCcOpen) {
+                wasCcOpen = false
+                runCatching { requester(focusedId).requestFocus() }
+            } else {
+                focusedId = currentId
+                runCatching { requester(currentId).requestFocus() }
+            }
         }
     }
     // 移动时焦点跟随
@@ -189,12 +194,7 @@ fun LiveSourceMenu(
         val pitchY = tileH + pitchYExtra
         val pillFocus = remember { FocusRequester() }
         LaunchedEffect(controlCenterOpen) {
-            if (controlCenterOpen) {
-                wasCcOpen = true
-            } else if (wasCcOpen && visible) {
-                wasCcOpen = false
-                runCatching { requester(focusedId).requestFocus() }
-            }
+            if (controlCenterOpen) wasCcOpen = true
         }
 
         Box(
