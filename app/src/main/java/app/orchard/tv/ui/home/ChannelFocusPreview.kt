@@ -81,8 +81,9 @@ fun ChannelFocusPreview(
             return@LaunchedEffect
         }
 
-        // 加载遮罩：任何加载(开机首次/切换源)都显示
-        loading = true
+        // 加载遮罩：切换源时显示(有旧画面兜底)；首次加载不显示，露出壁纸
+        val isFirstLoad = player == null
+        loading = !isFirstLoad
 
         var streamUrl: String? = streamCache[source.url ?: ""]
         if (streamUrl == null) {
@@ -193,20 +194,19 @@ fun ChannelFocusPreview(
         exo.addListener(readyListener)
         exo.setMediaSource(hls)
         exo.prepare()
-        // 首次加载(无旧player)直接播放；切换源时静音缓冲避免音频泄露
-        val hasOldPlayer = player != null
-        exo.playWhenReady = !hasOldPlayer
+        // 所有情况都静音缓冲，READY且对齐后再绑定surface开播
+        exo.playWhenReady = false
 
-        // 等待最多 15 秒让新流就绪；首次加载不等缓冲直接绑定
+        // 等待新流READY且缓冲够(至少3秒)
         withContext(Dispatchers.Main) {
             val deadline = System.currentTimeMillis() + 15_000
-            while (!ready && hasOldPlayer && System.currentTimeMillis() < deadline) {
+            while (!ready && System.currentTimeMillis() < deadline) {
                 kotlinx.coroutines.delay(200)
             }
         }
 
-        if (ready || !hasOldPlayer) {
-            // 切换源：新流已缓冲好再切画面；首次加载：直接绑定开播
+        if (ready) {
+            // 新流已对齐：释放旧player，绑定新player后开播
             val old = player
             val oldName = currentPlayingName
             old?.release()
