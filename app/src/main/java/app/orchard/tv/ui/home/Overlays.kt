@@ -11,6 +11,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -445,6 +446,16 @@ fun HiddenLiveSourcesSheet(
             runCatching { first.requestFocus() }
         }
     }
+    val context = LocalContext.current
+    fun iconResId(id: String): Int? = when (id) {
+        "preset_0" -> R.drawable.live_cctv
+        "preset_1" -> R.drawable.live_yangshipin
+        "preset_2" -> R.drawable.live_cctvkuikan
+        "preset_3" -> R.drawable.live_kuikan
+        "preset_4" -> R.drawable.live_dongfangmingzhu
+        "preset_5" -> R.drawable.live_dengzi
+        else -> null
+    }
     val liveColors = listOf(
         Color(0xFFE91E63) to Color(0xFF9C27B0),
         Color(0xFF00BCD4) to Color(0xFF009688),
@@ -494,10 +505,19 @@ fun HiddenLiveSourcesSheet(
                                                 .background(brush = androidx.compose.ui.graphics.Brush.verticalGradient(listOf(top, bottom))),
                                             contentAlignment = Alignment.Center,
                                         ) {
-                                            BasicText(
-                                                source.name.take(2), maxLines = 1,
-                                                style = Type.Callout.copy(color = Color.White),
-                                            )
+                                            val resId = iconResId(source.id)
+                                            if (resId != null) {
+                                                Image(
+                                                    painter = androidx.compose.ui.res.painterResource(resId),
+                                                    contentDescription = source.name,
+                                                    modifier = Modifier.size(48.dp),
+                                                )
+                                            } else {
+                                                BasicText(
+                                                    source.name.take(2), maxLines = 1,
+                                                    style = Type.Callout.copy(color = Color.White),
+                                                )
+                                            }
                                         }
                                         Spacer(Modifier.height(8.dp))
                                         BasicText(
