@@ -137,7 +137,8 @@ fun LiveSourceMenu(
                     runCatching { requester(fallbackId).requestFocus() }
                 }
             } else {
-                // 菜单关闭但没隐藏: 焦点回到之前长按的卡片
+                // 菜单关闭但没隐藏: 立即把焦点拉回卡片, 抢在Compose自动落焦点到pill之前
+                focusedId = lastMenuId
                 runCatching { requester(lastMenuId).requestFocus() }
             }
             lastMenuId = null
@@ -151,7 +152,7 @@ fun LiveSourceMenu(
     // 刚打开时pill临时不可聚焦, 让焦点自然落到直播卡片上, 避免从右上角跳转的动画
     var justOpened by remember { mutableStateOf(false) }
 
-    // 菜单显示时等3帧再聚焦初始卡片(节点未布局时requestFocus会失败, 焦点落到pill)
+    // 菜单显示时立即聚焦当前直播卡片, 避免焦点先落到第一个卡片再跳过来
     LaunchedEffect(visible) {
         if (visible) {
             DiagLog.i("LiveMenu-debug: visible=true, wasCcOpen=$wasCcOpen, currentId=$currentId")
@@ -163,9 +164,13 @@ fun LiveSourceMenu(
             } else {
                 justOpened = true
                 focusedId = currentId
-                repeat(3) { androidx.compose.runtime.withFrameNanos { } }
+                // 立即requestFocus, 抢在Compose默认焦点落到第一个卡片之前
                 val ok = runCatching { requester(currentId).requestFocus() }
-                DiagLog.i("LiveMenu-debug: requested $currentId, ok=$ok")
+                DiagLog.i("LiveMenu-debug: immediate request $currentId, ok=$ok")
+                if (ok.isFailure) {
+                    repeat(3) { androidx.compose.runtime.withFrameNanos { } }
+                    runCatching { requester(currentId).requestFocus() }
+                }
                 justOpened = false
             }
         }
