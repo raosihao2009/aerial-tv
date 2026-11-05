@@ -319,14 +319,6 @@ fun HomeScreen(
 
 // ===== 直播预览和UI隐藏状态 =====
     var uiHidden by remember { mutableStateOf(false) }
-    val uiAlpha by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = when {
-            uiHidden -> 0f
-            overlay is Overlay.LiveSourceMenu || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper -> 0f
-            channelPreviewVisible -> 1f
-            else -> 1f
-        },
-        animationSpec = androidx.compose.animation.core.tween(250), label = "uiAlpha")
     var liveMenuOpen by remember { mutableStateOf(false) }
     var liveMoving by remember { mutableStateOf(false) }
     var ccFromLiveMenu by remember { mutableStateOf(false) }
@@ -336,6 +328,13 @@ fun HomeScreen(
         focusedPkg == "com.jxiptv.softconsole" &&
         focusedRow == 0 &&
         !vm.screensaverVisible && moving == null
+    val uiAlpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = when {
+            overlay is Overlay.LiveSourceMenu || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper -> 0f
+            channelPreviewVisible && uiHidden -> 0f
+            else -> 1f
+        },
+        animationSpec = androidx.compose.animation.core.tween(250), label = "uiAlpha")
     LaunchedEffect(channelPreviewVisible) { vm.livePlaying = channelPreviewVisible }
     // 10秒无操作自动隐藏UI（一级和二级菜单都生效）
     LaunchedEffect(focusedPkg, overlay, uiHidden, lastKeyTime, channelPreviewVisible, liveMenuOpen, liveMoving) {
@@ -824,9 +823,7 @@ fun HomeScreen(
                     .offset { IntOffset(0, -scroll.value.roundToInt()) }
                     .graphicsLayer {
                         // 一级网格透明度(含ui隐藏和浮层覆盖，都带250ms过渡)
-                        if (channelPreviewVisible || overlay is Overlay.LiveSourceMenu || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper) {
-                            alpha = uiAlpha
-                        }
+                        alpha = uiAlpha
                     },
             ) {
                 val clockRight = AerialSettings.clockRight
