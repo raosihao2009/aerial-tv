@@ -215,10 +215,9 @@ fun ChannelFocusPreview(
         }
 
         if (ready) {
-            // 新流已对齐：先绑定 surface 再释放旧 player，避免画面空帧导致音画错位
+            // 新流已对齐：释放旧player，绑定新player后开播
             val old = player
             val oldName = currentPlayingName
-            surface?.let { runCatching { exo.setVideoTextureView(it) } }
             old?.release()
             player = exo
             exo.playWhenReady = true
