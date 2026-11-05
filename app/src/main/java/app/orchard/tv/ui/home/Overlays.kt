@@ -42,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.focus.focusProperties
 import app.orchard.tv.system.DiagLog
 import androidx.compose.ui.geometry.Rect
@@ -382,6 +383,9 @@ fun HiddenAppsSheet(
                 .fillMaxSize()
                 .dismissOnTap(onDismiss)
                 .background(Color.Black.copy(alpha = 0.35f))
+                .onPreviewKeyEvent { e ->
+                    if (e.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) true else false
+                }
                 .focusProperties {
                     up = FocusRequester.Cancel
                     down = FocusRequester.Cancel
@@ -487,6 +491,10 @@ fun HiddenLiveSourcesSheet(
             Modifier
                 .fillMaxSize()
                 .dismissOnTap(onDismiss)
+                .onPreviewKeyEvent { e ->
+                    // 弹层内拦截UP键, 阻止焦点逃逸到右上角pill
+                    if (e.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) true else false
+                }
                 .focusProperties {
                     up = FocusRequester.Cancel
                     down = FocusRequester.Cancel

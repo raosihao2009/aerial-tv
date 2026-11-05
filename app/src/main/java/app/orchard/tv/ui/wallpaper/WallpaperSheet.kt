@@ -55,6 +55,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -157,6 +158,8 @@ fun WallpaperSheet(
             Modifier.fillMaxSize().dismissOnTap(onDismiss).drawBehind {
                 val h = if (settled) size.height - SheetCovers.toPx() else size.height
                 drawRect(Color.Black.copy(alpha = 0.25f), size = Size(size.width, h))
+            }.onPreviewKeyEvent { e ->
+                if (e.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) true else false
             }.focusProperties {
                 up = FocusRequester.Cancel
                 down = FocusRequester.Cancel
