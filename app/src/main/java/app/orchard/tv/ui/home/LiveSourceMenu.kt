@@ -287,6 +287,7 @@ fun LiveSourceMenu(
                 onClick = { DiagLog.i("CC-debug: pill clicked, opening CC from LiveMenu"); onOpenControlCenter() },
                 modifier = Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = 42.dp).focusProperties {
                     right = FocusRequester.Cancel
+                    left = requester(focusedId)
                     down = requester(focusedId)
                 }
             )
