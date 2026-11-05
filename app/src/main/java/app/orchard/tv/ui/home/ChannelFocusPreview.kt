@@ -112,7 +112,7 @@ fun ChannelFocusPreview(
                 // 开机首次加载失败：持续重试直到网络恢复，不放弃
                 loading = true
                 toastMessage = "正在加载直播…"
-                kotlinx.coroutines.delay(5000)
+                kotlinx.coroutines.delay(2000)
                 restartSignal++
             }
             return@LaunchedEffect
@@ -178,7 +178,7 @@ fun ChannelFocusPreview(
                             // 首次加载/当前源挂了: 持续重试直到成功
                             loading = true
                             toastMessage = "正在加载直播…"
-                            kotlinx.coroutines.delay(5000)
+                            kotlinx.coroutines.delay(2000)
                             restartSignal++
                         }
                         return@launch
@@ -235,7 +235,7 @@ fun ChannelFocusPreview(
                 // 开机首次加载超时：持续重试直到成功
                 loading = true
                 toastMessage = "正在加载直播…"
-                kotlinx.coroutines.delay(5000)
+                kotlinx.coroutines.delay(2000)
                 restartSignal++
             }
             return@LaunchedEffect
