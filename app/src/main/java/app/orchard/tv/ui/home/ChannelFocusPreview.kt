@@ -174,7 +174,7 @@ fun ChannelFocusPreview(
                     runCatching {
                         p.setMediaSource(hls)
                         p.prepare()
-                        p.playWhenReady = true
+                        p.playWhenReady = false
                     }
                 }
             }
@@ -182,8 +182,8 @@ fun ChannelFocusPreview(
         exo.addListener(readyListener)
         exo.setMediaSource(hls)
         exo.prepare()
-        exo.playWhenReady = true
-        exo.seekToDefaultPosition()
+        // 新流先缓冲不播放，避免音频提前泄露；READY后再切画面开播
+        exo.playWhenReady = false
 
         // 等待最多 15 秒让新流就绪
         withContext(Dispatchers.Main) {
@@ -194,11 +194,13 @@ fun ChannelFocusPreview(
         }
 
         if (ready) {
-            // 新流就绪：释放旧 player，切换到新 player（LaunchedEffect 会自动绑定 surface）
+            // 新流就绪：回到直播边缘，释放旧player，绑定新player后开播
+            exo.seekToDefaultPosition()
             val old = player
             val oldName = currentPlayingName
-            player = exo
             old?.release()
+            player = exo
+            exo.playWhenReady = true
             currentPlayingName = source.name
             playingSourceId = source.id
             // 切换成功提示(有旧源才提示)
