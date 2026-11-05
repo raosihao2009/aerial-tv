@@ -132,9 +132,13 @@ fun LiveSourceMenu(
     }
     val density = LocalDensity.current
 
+    // CC关闭返回时聚焦之前的卡片(不是pill)，否则左右键不切换直播源
+    var wasCcOpen by remember { mutableStateOf(false) }
+
     // 菜单显示时立即聚焦初始卡片(不等动画)
+    // 从CC返回时不重置focusedId，保持之前选中的直播源
     LaunchedEffect(visible) {
-        if (visible) {
+        if (visible && !wasCcOpen) {
             focusedId = currentId
             runCatching { requester(currentId).requestFocus() }
         }
@@ -184,14 +188,12 @@ fun LiveSourceMenu(
         val tileH = tileW * 9f / 16f
         val pitchY = tileH + pitchYExtra
         val pillFocus = remember { FocusRequester() }
-        // CC关闭返回时聚焦右上角pill(和一级菜单一致)
-        var wasCcOpen by remember { mutableStateOf(false) }
         LaunchedEffect(controlCenterOpen) {
             if (controlCenterOpen) {
                 wasCcOpen = true
             } else if (wasCcOpen && visible) {
                 wasCcOpen = false
-                runCatching { pillFocus.requestFocus() }
+                runCatching { requester(focusedId).requestFocus() }
             }
         }
 
