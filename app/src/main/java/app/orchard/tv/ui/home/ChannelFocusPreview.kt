@@ -143,21 +143,17 @@ fun ChannelFocusPreview(
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_READY) {
                     retryCount = 0
-                    // 等缓冲够再标记ready
+                    // 等缓冲够再标记ready(主线程轮询, ExoPlayer非线程安全)
                     scope.launch {
-                        withContext(Dispatchers.IO) {
-                            val deadline = System.currentTimeMillis() + 10_000
-                            while (System.currentTimeMillis() < deadline) {
-                                // playWhenReady=false时currentPosition不动，bufferedPosition-currentPosition就是缓冲量
-                                if (exo.bufferedPosition - exo.currentPosition >= 3000L) {
-                                    ready = true
-                                    break
-                                }
-                                kotlinx.coroutines.delay(200)
+                        val deadline = System.currentTimeMillis() + 10_000
+                        while (System.currentTimeMillis() < deadline) {
+                            if (exo.bufferedPosition - exo.currentPosition >= 3000L) {
+                                ready = true
+                                break
                             }
-                            // 超时也放行(已经READY了只是缓冲少)
-                            if (!ready) ready = true
+                            kotlinx.coroutines.delay(200)
                         }
+                        if (!ready) ready = true
                     }
                 }
             }
