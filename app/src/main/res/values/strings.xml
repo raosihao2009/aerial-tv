@@ -154,6 +154,8 @@
     <string name="st_live_preview">Live preview</string>
     <string name="st_hidden_apps">Hidden Apps</string>
     <string name="st_hidden_apps_hint">Apps hidden from Home are kept here, to put back. With a parental PIN set, it asks for the PIN first.</string>
+    <string name="st_hidden_live">Hidden Live Cards</string>
+    <string name="st_hidden_live_hint">Live sources hidden from the live menu are kept here, to put back. With a parental PIN set, it asks for the PIN first.</string>
     <string name="st_hidden_none">None</string>
     <string name="st_hidden_count">%d</string>
     <string name="st_focus_high">High Contrast</string>

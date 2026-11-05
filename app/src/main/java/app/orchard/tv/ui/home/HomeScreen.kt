@@ -1198,7 +1198,6 @@ fun HomeScreen(
             onHiddenApps = { vm.whenUnlocked { vm.overlay = Overlay.HiddenApps } },
             hiddenLiveCount = vm.hiddenLiveSources.size,
             onHiddenLiveSources = { vm.whenUnlocked { vm.overlay = Overlay.HiddenLiveSources } },
-            onHiddenApps = { vm.whenUnlocked { vm.overlay = Overlay.HiddenApps } },
             onKids = vm::setUpKidsMode,
             onStartScreensaver = {
                 vm.overlay = Overlay.None

@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import app.orchard.tv.R
+import app.orchard.tv.HomeViewModel
 import app.orchard.tv.apps.AppEntry
 import app.orchard.tv.apps.CustomIcons
 import app.orchard.tv.apps.SourceDevice
@@ -430,7 +431,7 @@ fun HiddenAppsSheet(
 @Composable
 fun HiddenLiveSourcesSheet(
     visible: Boolean,
-    sources: List<app.orchard.tv.HomeViewModel.LiveSource>,
+    sources: List<HomeViewModel.LiveSource>,
     onUnhide: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
