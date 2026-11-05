@@ -1019,6 +1019,7 @@ fun HomeScreen(
                         compositingStrategy = CompositingStrategy.ModulateAlpha
                     },
                 onFocused = { gained ->
+                    DiagLog.i("LiveMenu-debug: home pill onFocused gained=$gained focusedKey=$focusedKey overlay=$overlay")
                     // The window hands its first focus to the top-most control; the top row is where Home starts.
                     if (gained) {
                         if (focusedKey == null) {

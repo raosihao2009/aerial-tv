@@ -153,15 +153,18 @@ fun LiveSourceMenu(
     // 菜单显示时等3帧再聚焦初始卡片(节点未布局时requestFocus会失败, 焦点落到pill)
     LaunchedEffect(visible) {
         if (visible) {
+            DiagLog.i("LiveMenu-debug: visible=true, wasCcOpen=$wasCcOpen, currentId=$currentId")
             if (wasCcOpen) {
                 wasCcOpen = false
                 repeat(3) { androidx.compose.runtime.withFrameNanos { } }
                 runCatching { pillFocus.requestFocus() }
+                DiagLog.i("LiveMenu-debug: requested pillFocus")
             } else {
                 justOpened = true
                 focusedId = currentId
                 repeat(3) { androidx.compose.runtime.withFrameNanos { } }
-                runCatching { requester(currentId).requestFocus() }
+                val ok = runCatching { requester(currentId).requestFocus() }
+                DiagLog.i("LiveMenu-debug: requested $currentId, ok=$ok")
                 justOpened = false
             }
         }
@@ -301,7 +304,7 @@ fun LiveSourceMenu(
                 showTime = false,
                 enabled = menuForId == null && movingId == null && !controlCenterOpen && !justOpened,
                 focusRequester = pillFocus,
-                onFocused = {},
+                onFocused = { DiagLog.i("LiveMenu-debug: pill onFocused gained=$it") },
                 onClick = { DiagLog.i("CC-debug: pill clicked, opening CC from LiveMenu"); onOpenControlCenter() },
                 modifier = Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = 42.dp).focusProperties {
                     right = FocusRequester.Cancel

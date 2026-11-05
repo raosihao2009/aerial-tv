@@ -453,14 +453,10 @@ fun HiddenLiveSourcesSheet(
     BackHandler(enabled = visible, onBack = onDismiss)
     LaunchedEffect(visible) {
         if (visible) {
-            android.util.Log.d("LiveHidden", "visible=true, sources=${sources.size}")
-            withFrameNanos { }
-            withFrameNanos { }
-            withFrameNanos { }
-            runCatching {
-                first.requestFocus()
-                android.util.Log.d("LiveHidden", "requestFocus ok")
-            }.onFailure { android.util.Log.e("LiveHidden", "requestFocus failed", it) }
+            DiagLog.i("LiveHidden-debug: visible=true, sources=${sources.size}")
+            repeat(3) { withFrameNanos { } }
+            val ok = runCatching { first.requestFocus() }
+            DiagLog.i("LiveHidden-debug: requestFocus first ok=$ok")
         }
     }
     val context = LocalContext.current
@@ -531,7 +527,7 @@ fun HiddenLiveSourcesSheet(
                                     focusedScale = 1.1f,
                                 ) { state ->
                                     androidx.compose.runtime.LaunchedEffect(state.focused) {
-                                        android.util.Log.d("LiveHidden", "focused=${state.focused} name=${source.name}")
+                                        DiagLog.i("LiveHidden-debug: card focused=${state.focused} name=${source.name}")
                                     }
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Box(
