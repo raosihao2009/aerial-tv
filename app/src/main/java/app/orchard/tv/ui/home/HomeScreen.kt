@@ -822,7 +822,11 @@ fun HomeScreen(
             if (channelPreviewVisible) {
                 ChannelFocusPreview(
                     source = vm.getAllLiveSources().firstOrNull { it.id == vm.currentLiveSourceId },
-                    onFallback = { vm.selectLiveSource("preset_2") },
+                    onFallback = {
+                        // fallback 优先 preset_2，找不到就用第一个可用源，避免 preset_2 被隐藏时切不过去
+                        val fb = vm.liveSources.find { it.id == "preset_2" } ?: vm.liveSources.firstOrNull()
+                        fb?.let { vm.selectLiveSource(it.id) }
+                    },
                     onRevert = { vm.selectLiveSource(it) },
                 )
             }

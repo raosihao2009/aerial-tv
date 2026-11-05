@@ -232,6 +232,12 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         all.forEach { if (it.id !in savedOrder) ordered.add(it) }
         liveSources = ordered.filter { it.id !in hidden }
         hiddenLiveSources = ordered.filter { it.id in hidden }
+        // 开机时上次选择的源可能已被删除/隐藏，回退到第一个可用源，避免直播永不加载
+        if (liveSources.none { it.id == currentLiveSourceId }) {
+            currentLiveSourceId = liveSources.firstOrNull()?.id ?: "preset_0"
+            context.getSharedPreferences("live_sources", android.content.Context.MODE_PRIVATE)
+                .edit().putString("selected_id", currentLiveSourceId).apply()
+        }
         checkLiveStatuses()
     }
 

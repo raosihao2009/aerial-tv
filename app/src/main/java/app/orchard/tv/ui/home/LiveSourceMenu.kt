@@ -119,17 +119,17 @@ fun LiveSourceMenu(
     }
     val requesters = remember { HashMap<String, FocusRequester>() }
     fun requester(id: String) = requesters.getOrPut(id) { FocusRequester() }
-    // 上下文菜单关闭后焦点直接回到原卡片(不延迟, 不闪烁)
+    // 上下文菜单关闭后焦点回第一个可见源(对齐一级菜单隐藏后回首个的逻辑)
     var lastMenuId by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(menuForId) {
         if (menuForId != null) {
             lastMenuId = menuForId
         } else if (lastMenuId != null) {
-            focusedId = lastMenuId!!
-            val ok = runCatching { requester(lastMenuId!!).requestFocus() }.isSuccess
-            // 被隐藏的源已不在树中，requestFocus失败时移到第一个可见源
-            if (!ok || !sources.any { it.id == lastMenuId }) {
-                sources.firstOrNull()?.let { focusedId = it.id; runCatching { requester(it.id).requestFocus() } }
+            // 等一帧确保被隐藏源的节点已从树中移除、新节点已布局
+            androidx.compose.runtime.withFrameNanos { }
+            sources.firstOrNull()?.let {
+                focusedId = it.id
+                runCatching { requester(it.id).requestFocus() }
             }
             lastMenuId = null
         }
