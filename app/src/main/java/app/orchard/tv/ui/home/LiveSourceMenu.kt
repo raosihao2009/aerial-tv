@@ -171,12 +171,15 @@ fun LiveSourceMenu(
                 justOpened = true
                 focusedId = currentId
                 // 立即requestFocus, 抢在Compose默认焦点落到第一个卡片之前
-                val ok = runCatching { requester(currentId).requestFocus() }
+                var ok = runCatching { requester(currentId).requestFocus() }
                 DiagLog.i("LiveMenu-debug: immediate request $currentId, ok=$ok")
-                if (ok.isFailure) {
-                    repeat(3) { androidx.compose.runtime.withFrameNanos { } }
-                    runCatching { requester(currentId).requestFocus() }
+                // 最多重试5帧, 直到成功才解除pill禁用
+                repeat(5) {
+                    if (ok.isSuccess) return@repeat
+                    androidx.compose.runtime.withFrameNanos { }
+                    ok = runCatching { requester(currentId).requestFocus() }
                 }
+                DiagLog.i("LiveMenu-debug: final request ok=$ok")
                 justOpened = false
             }
         }
