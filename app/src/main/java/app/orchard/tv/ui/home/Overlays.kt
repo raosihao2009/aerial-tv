@@ -526,7 +526,8 @@ fun HiddenLiveSourcesSheet(
                                                 Image(
                                                     painter = androidx.compose.ui.res.painterResource(resId),
                                                     contentDescription = source.name,
-                                                    modifier = Modifier.size(48.dp),
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                                                 )
                                             } else {
                                                 BasicText(
