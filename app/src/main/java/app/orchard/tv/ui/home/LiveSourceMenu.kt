@@ -119,7 +119,7 @@ fun LiveSourceMenu(
     }
     val requesters = remember { HashMap<String, FocusRequester>() }
     fun requester(id: String) = requesters.getOrPut(id) { FocusRequester() }
-    // 上下文菜单关闭后焦点行为对齐一级菜单: 被隐藏的源已不在列表时, 手动转移到相邻可见源
+    // 上下文菜单关闭后焦点行为对齐一级菜单
     var lastMenuId by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(menuForId) {
         if (menuForId != null) {
@@ -127,17 +127,18 @@ fun LiveSourceMenu(
         } else if (lastMenuId != null) {
             val gone = !sources.any { it.id == lastMenuId }
             if (gone) {
-                // 被隐藏了: 等一帧让列表更新, 然后聚焦相邻可见源(对齐一级菜单自动转移)
+                // 被隐藏了: 等一帧让列表更新, 然后聚焦相邻可见源
                 androidx.compose.runtime.withFrameNanos { }
                 val idx = sources.indexOfFirst { it.id == lastMenuId }
-                // lastMenuId 已不在列表, idx=-1; 取它原来位置的相邻项
-                // 用 lastMenuId 在隐藏前列表中的位置, 需要从 sources 找最近的
                 val fallbackId = sources.getOrNull(idx.coerceAtLeast(0))?.id
                     ?: sources.firstOrNull()?.id
                 if (fallbackId != null) {
                     focusedId = fallbackId
                     runCatching { requester(fallbackId).requestFocus() }
                 }
+            } else {
+                // 菜单关闭但没隐藏: 焦点回到之前长按的卡片
+                runCatching { requester(lastMenuId).requestFocus() }
             }
             lastMenuId = null
         }
@@ -382,7 +383,7 @@ fun LiveSourceMenu(
                         width = tileW,
                         height = tileH,
                         focusRequester = requester(source.id),
-                        enabled = menuForId == null && visible && !controlCenterOpen,
+                        enabled = menuForId == null && visible && !controlCenterOpen && !justOpened,
                         moving = movingId == source.id,
                         onFocused = { focusedId = source.id; Sounds.focusMoved() },
                         onClick = { if (movingId == null) { if (source.url.isBlank()) { bannerMsg = "「${source.name}」暂未设置直播地址" } else { onSelect(source.id); onDismiss() } } },
