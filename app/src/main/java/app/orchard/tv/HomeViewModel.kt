@@ -231,6 +231,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         savedOrder.forEach { id -> all.find { it.id == id }?.let { ordered.add(it) } }
         all.forEach { if (it.id !in savedOrder) ordered.add(it) }
         liveSources = ordered.filter { it.id !in hidden }
+        hiddenLiveSources = ordered.filter { it.id in hidden }
         checkLiveStatuses()
     }
 
@@ -317,6 +318,10 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         hiddenLiveSources = hiddenLiveSources + source
         liveSources = liveSources.filter { it.id != id }
         if (currentLiveSourceId == id) currentLiveSourceId = "preset_2"
+        val prefs = context.getSharedPreferences("live_sources", android.content.Context.MODE_PRIVATE)
+        val hidden = (prefs.getStringSet("hidden", emptySet()) ?: emptySet()).toMutableSet()
+        hidden.add(id)
+        prefs.edit().putStringSet("hidden", hidden).commit()
         notifyLiveSourcesChanged()
     }
 
@@ -324,6 +329,10 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         val source = hiddenLiveSources.find { it.id == id } ?: return
         hiddenLiveSources = hiddenLiveSources - source
         liveSources = liveSources + source
+        val prefs = context.getSharedPreferences("live_sources", android.content.Context.MODE_PRIVATE)
+        val hidden = (prefs.getStringSet("hidden", emptySet()) ?: emptySet()).toMutableSet()
+        hidden.remove(id)
+        prefs.edit().putStringSet("hidden", hidden).commit()
         notifyLiveSourcesChanged()
     }
 
