@@ -996,7 +996,7 @@ fun HomeScreen(
                         if (key != null && apps.indexOfFirst { it.key == key } in 0 until columns) down = requester(key)
                     }
                     .graphicsLayer {
-                        alpha = 1f - (toSaver.value * 2f).coerceIn(0f, 1f)
+                        alpha = (1f - (toSaver.value * 2f).coerceIn(0f, 1f)) * uiAlpha
                         // No offscreen buffer: it would cut the focused pill's 8% growth to a box.
                         compositingStrategy = CompositingStrategy.ModulateAlpha
                     },
