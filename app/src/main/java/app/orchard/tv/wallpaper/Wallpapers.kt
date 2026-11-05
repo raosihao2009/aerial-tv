@@ -198,8 +198,10 @@ object Wallpapers {
         // Home drawn at the panel's size (UhdCanvas) gets pictures of that size.
         val scale = UhdCanvas.scale(context)
         context.resources.displayMetrics.let {
-            screenW = (maxOf(it.widthPixels, it.heightPixels) * scale).roundToInt()
-            screenH = (minOf(it.widthPixels, it.heightPixels) * scale).roundToInt()
+            // Lite模式下降壁纸到720p省GPU，远看无差别
+            val downscale = if (AerialSettings.lite) 0.5f else 1f
+            screenW = (maxOf(it.widthPixels, it.heightPixels) * scale * downscale).roundToInt()
+            screenH = (minOf(it.widthPixels, it.heightPixels) * scale * downscale).roundToInt()
         }
         selectedId = (prefs.getString("selected", LATEST_DAILY) ?: LATEST_DAILY)
             // A built-in wallpaper from before the Mac-style set: its nearest one now.
