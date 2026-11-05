@@ -49,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusable
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -999,6 +1000,8 @@ fun HomeScreen(
                 focusRequester = pillRequester,
                 modifier = Modifier
                     .diagLayer("pill")
+                    // 浮层打开时pill完全不可聚焦(enabled=false只禁用点击不禁用聚焦)
+                    .then(if (overlay != Overlay.None) Modifier.focusable(false) else Modifier)
                     // Down goes back to the top-row tile Up came from, not to the nearest one,
                     // which under the pill is the last of the row (issue #703).
                     .focusProperties {
