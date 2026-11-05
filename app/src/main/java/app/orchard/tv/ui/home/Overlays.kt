@@ -428,7 +428,73 @@ fun HiddenAppsSheet(
  * .notify): glass, like the menus, falling in from the top edge.
  */
 @Composable
-fun NoticeBanner(text: String?, modifier: Modifier = Modifier, glyph: Glyph = Glyph.Power) {
+fun HiddenLiveSourcesSheet(
+    visible: Boolean,
+    sources: List<app.orchard.tv.HomeViewModel.LiveSource>,
+    onUnhide: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val first = remember { FocusRequester() }
+    BackHandler(enabled = visible, onBack = onDismiss)
+    LaunchedEffect(visible, sources.size) {
+        if (visible) {
+            withFrameNanos { }
+            runCatching { first.requestFocus() }
+        }
+    }
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(200, easing = Motion.EaseOut)) + scaleIn(tween(300, easing = Motion.Drawer), initialScale = 0.94f),
+        exit = fadeOut(tween(150, easing = Motion.EaseOut)) + scaleOut(tween(150, easing = Motion.EaseOut), targetScale = 0.97f),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        Box(Modifier.fillMaxSize().dismissOnTap(onDismiss).background(Color.Black.copy(alpha = 0.35f)), contentAlignment = Alignment.Center) {
+            Column(
+                Modifier
+                    .width(560.dp)
+                    .consumeTaps()
+                    .heightIn(max = 480.dp)
+                    .liquidGlass(28.dp)
+                    .padding(28.dp),
+            ) {
+                BasicText(stringResource(R.string.st_hidden_live), style = Type.LargeTitle)
+                BasicText(
+                    stringResource(if (sources.isEmpty()) R.string.st_hidden_none else R.string.st_hidden_live_hint),
+                    style = Type.Callout, modifier = Modifier.padding(top = 4.dp, bottom = 20.dp),
+                )
+                Column(
+                    Modifier
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                ) {
+                    sources.forEachIndexed { i, source ->
+                        Pressable(
+                            onClick = { onUnhide(source.id) },
+                            focusRequester = if (i == 0) first else null,
+                            focusedScale = 1.05f,
+                        ) { state ->
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                GlyphIcon(Glyph.ChevronRight, Palette.Label, 18.dp)
+                                BasicText(
+                                    source.name, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    style = Type.Callout.copy(color = if (state.focused) Palette.Label else Palette.SecondaryLabel),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun NoticeBanner(text: String?, modifier: Modifier, glyph: Glyph = Glyph.Power) {
     val shown = rememberLatest(text) ?: return
     AnimatedVisibility(
         visible = text != null,

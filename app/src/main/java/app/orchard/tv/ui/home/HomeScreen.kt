@@ -1179,12 +1179,25 @@ fun HomeScreen(
             onDismiss = { vm.overlay = Overlay.Wallpaper },
         )
 
+        HiddenLiveSourcesSheet(
+            visible = overlay is Overlay.HiddenLiveSources,
+            sources = vm.hiddenLiveSources,
+            onUnhide = { id ->
+                vm.unhideLiveSource(id)
+                if (vm.hiddenLiveSources.isEmpty()) vm.overlay = Overlay.Wallpaper
+            },
+            onDismiss = { vm.overlay = Overlay.Wallpaper },
+        )
+
         WallpaperSheet(
             visible = overlay is Overlay.Wallpaper,
             onSettled = { sheetIn = it },
             warm = sheetWarm,
             onDismiss = { vm.overlay = Overlay.ControlCenter() },
             hiddenCount = vm.hiddenApps.size,
+            onHiddenApps = { vm.whenUnlocked { vm.overlay = Overlay.HiddenApps } },
+            hiddenLiveCount = vm.hiddenLiveSources.size,
+            onHiddenLiveSources = { vm.whenUnlocked { vm.overlay = Overlay.HiddenLiveSources } },
             onHiddenApps = { vm.whenUnlocked { vm.overlay = Overlay.HiddenApps } },
             onKids = vm::setUpKidsMode,
             onStartScreensaver = {

@@ -151,8 +151,10 @@
     <string name="st_on">开</string>
     <string name="st_off">关</string>
     <string name="st_hidden_apps">【应用菜单】隐藏的卡片</string>
+    <string name="st_hidden_live">【直播菜单】隐藏的卡片</string>
     <string name="st_live_preview">直播预览</string>
-    <string name="st_hidden_apps_hint">从主屏幕隐藏的卡片在这里，可以放回主屏幕。设了家长密码时要先输入密码。</string>
+    <string name="st_hidden_apps_hint">从应用菜单隐藏的卡片在这里，可以放回应用菜单。设了家长密码时要先输入密码。</string>
+    <string name="st_hidden_live_hint">从直播菜单隐藏的卡片在这里，可以放回直播菜单。设了家长密码时要先输入密码。</string>
     <string name="st_hidden_none">没有</string>
     <string name="st_hidden_count">%d 个</string>
     <string name="st_focus_high">高对比度</string>

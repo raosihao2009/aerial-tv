@@ -74,6 +74,7 @@ sealed interface Overlay {
     data class AppMenu(val key: String, val anchor: Rect, val inFolder: String? = null) : Overlay
     data class Folder(val id: String) : Overlay
     data object HiddenApps : Overlay
+    data object HiddenLiveSources : Overlay
     data object Wallpaper : Overlay
     data class Pin(val mode: PinMode, val onDone: () -> Unit) : Overlay
     /** Setting up Kids and Elders mode (Restricted), from Personalize. */
@@ -189,6 +190,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     )
     var currentLiveSourceId by mutableStateOf("preset_0"); private set
     var liveSources by mutableStateOf<List<LiveSource>>(emptyList()); private set
+    var hiddenLiveSources by mutableStateOf<List<LiveSource>>(emptyList()); private set
 
     init {
         reloadLiveSources()
@@ -311,12 +313,17 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun hideLiveSource(id: String) {
         if (id == "preset_2") return
+        val source = liveSources.find { it.id == id } ?: return
+        hiddenLiveSources = hiddenLiveSources + source
         liveSources = liveSources.filter { it.id != id }
         if (currentLiveSourceId == id) currentLiveSourceId = "preset_2"
-        val prefs = context.getSharedPreferences("live_sources", android.content.Context.MODE_PRIVATE)
-        val hidden = (prefs.getStringSet("hidden", emptySet()) ?: emptySet()).toMutableSet()
-        hidden.add(id)
-        prefs.edit().putStringSet("hidden", hidden).commit()
+        notifyLiveSourcesChanged()
+    }
+
+    fun unhideLiveSource(id: String) {
+        val source = hiddenLiveSources.find { it.id == id } ?: return
+        hiddenLiveSources = hiddenLiveSources - source
+        liveSources = liveSources + source
         notifyLiveSourcesChanged()
     }
 

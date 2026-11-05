@@ -118,6 +118,8 @@ fun WallpaperSheet(
     onDismiss: () -> Unit,
     hiddenCount: Int,
     onHiddenApps: () -> Unit,
+    hiddenLiveCount: Int = 0,
+    onHiddenLiveSources: () -> Unit = {},
     onStartScreensaver: () -> Unit,
     onPin: (on: Boolean) -> Unit,
     /** Kids and Elders mode's setup (behind the PIN). */
@@ -226,6 +228,13 @@ fun WallpaperSheet(
                             if (hiddenCount == 0) stringResource(R.string.st_hidden_none) else stringResource(R.string.st_hidden_count, hiddenCount),
                             Glyph.ChevronRight,
                             onHiddenApps,
+                        )
+                    }
+                    SettingRow(R.string.st_hidden_live, stringResource(R.string.st_hidden_live_hint), note) {
+                        ActionChip(
+                            if (hiddenLiveCount == 0) stringResource(R.string.st_hidden_none) else stringResource(R.string.st_hidden_count, hiddenLiveCount),
+                            Glyph.ChevronRight,
+                            onHiddenLiveSources,
                         )
                     }
                 }
