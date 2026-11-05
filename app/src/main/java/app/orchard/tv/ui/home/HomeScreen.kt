@@ -527,6 +527,8 @@ fun HomeScreen(
                 lastKeyTime = System.currentTimeMillis()
                 // ===== UI隐藏时按键逻辑 =====
                 if (channelPreviewVisible && uiHidden && focusedPkg == "com.jxiptv.softconsole") {
+                    // CC打开时所有键透传给CC，不能被"恢复UI"逻辑吞掉
+                    if (overlay is Overlay.ControlCenter) return@onPreviewKeyEvent false
                     if (e.type == KeyEventType.KeyDown) {
                         when (e.nativeKeyEvent.keyCode) {
                             // 菜单键：二级菜单没开就开，开了就透传给卡片呼出上下文菜单

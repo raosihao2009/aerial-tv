@@ -30,7 +30,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.LocalFocusManager
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.KeyEventType
@@ -187,12 +186,9 @@ fun LiveSourceMenu(
         val pillFocus = remember { FocusRequester() }
         // CC关闭返回时聚焦右上角pill(和一级菜单一致)
         var wasCcOpen by remember { mutableStateOf(false) }
-    val focusManager = LocalFocusManager.current
         LaunchedEffect(controlCenterOpen) {
             if (controlCenterOpen) {
                 wasCcOpen = true
-                // CC打开时主动释放卡片焦点，否则第一个DPAD键被disabled的卡片吞掉
-                focusManager.clearFocus()
             } else if (wasCcOpen && visible) {
                 wasCcOpen = false
                 runCatching { pillFocus.requestFocus() }
