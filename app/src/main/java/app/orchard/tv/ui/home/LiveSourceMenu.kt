@@ -138,8 +138,11 @@ fun LiveSourceMenu(
                 }
             } else {
                 // 菜单关闭但没隐藏: 立即把焦点拉回卡片, 抢在Compose自动落焦点到pill之前
-                focusedId = lastMenuId
-                runCatching { requester(lastMenuId).requestFocus() }
+                val id = lastMenuId
+                if (id != null) {
+                    focusedId = id
+                    runCatching { requester(id).requestFocus() }
+                }
             }
             lastMenuId = null
         }
