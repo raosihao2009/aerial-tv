@@ -346,6 +346,16 @@ fun HomeScreen(
         },
         animationSpec = androidx.compose.animation.core.tween(250), label = "uiAlpha")
     LaunchedEffect(channelPreviewVisible) { vm.livePlaying = channelPreviewVisible }
+    // 焦点在IPTV卡片时立即检测一次直播状态, 然后每2分钟刷新; 焦点移开时停止
+    LaunchedEffect(channelPreviewVisible) {
+        if (channelPreviewVisible) {
+            vm.checkLiveStatuses()
+            while (true) {
+                delay(120_000)
+                vm.checkLiveStatuses()
+            }
+        }
+    }
     // 10秒无操作自动隐藏UI（一级和二级菜单都生效）
     LaunchedEffect(focusedPkg, overlay, uiHidden, lastKeyTime, channelPreviewVisible, liveMenuOpen, liveMoving) {
         if (channelPreviewVisible && focusedPkg == "com.jxiptv.softconsole" && overlay == Overlay.None && !uiHidden) {

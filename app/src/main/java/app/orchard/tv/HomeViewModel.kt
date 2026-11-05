@@ -239,16 +239,9 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                 .edit().putString("selected_id", currentLiveSourceId).apply()
         }
         checkLiveStatuses()
-        // 每2分钟刷新一次直播间状态
-        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            while (true) {
-                kotlinx.coroutines.delay(120_000)
-                runCatching { checkLiveStatuses() }
-            }
-        }
     }
 
-    private fun checkLiveStatuses() {
+    fun checkLiveStatuses() {
         kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             liveSources.forEach { src ->
                 if (src.url.isBlank()) return@forEach
