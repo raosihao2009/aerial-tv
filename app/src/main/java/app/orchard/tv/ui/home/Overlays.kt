@@ -440,10 +440,14 @@ fun HiddenLiveSourcesSheet(
     BackHandler(enabled = visible, onBack = onDismiss)
     LaunchedEffect(visible) {
         if (visible) {
+            android.util.Log.d("LiveHidden", "visible=true, sources=${sources.size}")
             withFrameNanos { }
             withFrameNanos { }
             withFrameNanos { }
-            runCatching { first.requestFocus() }
+            runCatching {
+                first.requestFocus()
+                android.util.Log.d("LiveHidden", "requestFocus ok")
+            }.onFailure { android.util.Log.e("LiveHidden", "requestFocus failed", it) }
         }
     }
     val context = LocalContext.current
@@ -498,6 +502,9 @@ fun HiddenLiveSourcesSheet(
                                     focusRequester = if (r == 0 && c == 0) first else null,
                                     focusedScale = 1.1f,
                                 ) { state ->
+                                    androidx.compose.runtime.LaunchedEffect(state.focused) {
+                                        android.util.Log.d("LiveHidden", "focused=${state.focused} name=${source.name}")
+                                    }
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Box(
                                             Modifier.size(132.dp, 74.dp)
