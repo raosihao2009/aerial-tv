@@ -119,18 +119,24 @@ fun LiveSourceMenu(
     }
     val requesters = remember { HashMap<String, FocusRequester>() }
     fun requester(id: String) = requesters.getOrPut(id) { FocusRequester() }
-    // 上下文菜单关闭后焦点回第一个可见源(对齐一级菜单隐藏后回首个的逻辑)
+    // 上下文菜单关闭后焦点行为对齐一级菜单: 让Compose自动转移到相邻项,
+    // 只有被隐藏的源已不在列表时才手动回退到前一个可见源
     var lastMenuId by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(menuForId) {
         if (menuForId != null) {
             lastMenuId = menuForId
         } else if (lastMenuId != null) {
-            // 等一帧确保被隐藏源的节点已从树中移除、新节点已布局
-            androidx.compose.runtime.withFrameNanos { }
-            sources.firstOrNull()?.let {
-                focusedId = it.id
-                runCatching { requester(it.id).requestFocus() }
+            val gone = !sources.any { it.id == lastMenuId }
+            if (gone) {
+                // 被隐藏了: 回退到前一个可见源(对齐一级菜单lastFocusedIndex的兜底逻辑)
+                val idx = sources.indexOfFirst { it.id == lastMenuId }
+                val fallbackIdx = idx.coerceAtLeast(0).coerceAtMost(sources.lastIndex)
+                sources.getOrNull(fallbackIdx)?.let {
+                    focusedId = it.id
+                    runCatching { requester(it.id).requestFocus() }
+                }
             }
+            // 没被隐藏(只是取消菜单): 不做任何事, 焦点留在原地
             lastMenuId = null
         }
     }
