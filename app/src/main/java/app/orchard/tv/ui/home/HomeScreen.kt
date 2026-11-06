@@ -860,16 +860,9 @@ fun HomeScreen(
                         fb?.name
                     },
                     onRevert = { oldId ->
-                        // 旧源还在直播就切回去, 否则切到央视网快看
-                        val old = vm.getAllLiveSources().find { it.id == oldId }
-                        if (old != null && old.liveStatus == 1) {
-                            vm.selectLiveSource(oldId)
-                            null  // 继续看旧源, 不用"已切换"提示
-                        } else {
-                            val fb = vm.liveSources.find { it.id == "preset_2" } ?: vm.liveSources.firstOrNull()
-                            fb?.let { vm.selectLiveSource(it.id) }
-                            fb?.name
-                        }
+                        // player还在播旧源就说明旧源在直播, 直接切回去
+                        vm.selectLiveSource(oldId)
+                        null
                     },
                     onReadyChange = { liveReady = it },
                     onStatusRefresh = { vm.checkLiveStatuses() },
