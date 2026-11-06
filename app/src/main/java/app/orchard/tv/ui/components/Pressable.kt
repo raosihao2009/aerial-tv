@@ -116,6 +116,7 @@ fun Pressable(
                 )
             }
             .onKeyEvent { e ->
+                if (!enabled) return@onKeyEvent false
                 if (onKey?.invoke(e) == true) return@onKeyEvent true
                 if (!e.isSelect()) return@onKeyEvent false
                 when (e.type) {
