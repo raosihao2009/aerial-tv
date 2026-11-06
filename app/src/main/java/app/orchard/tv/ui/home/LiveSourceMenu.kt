@@ -180,10 +180,11 @@ fun LiveSourceMenu(
                 repeat(3) { androidx.compose.runtime.withFrameNanos { } }
                 runCatching { pillFocus.requestFocus() }
             } else {
-                // justOpened=true时只有currentId可聚焦, Compose自动聚焦它, 1帧后解除限制
+                // justOpened=true时只有currentId可聚焦, 1帧后requestFocus确保焦点在currentId上
                 focusedId = currentId
                 justOpened = true
                 androidx.compose.runtime.withFrameNanos { }
+                runCatching { requester(currentId).requestFocus() }
                 justOpened = false
             }
         } else {
