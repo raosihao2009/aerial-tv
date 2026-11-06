@@ -79,6 +79,10 @@ fun ChannelFocusPreview(
             player?.release(); player = null
             return@LaunchedEffect
         }
+        // 切回当前正在播放的源(onRevert): 不重新加载, 继续用现有player, 避免画面声音回溯
+        if (source.id == playingSourceId && player != null) {
+            return@LaunchedEffect
+        }
 
         // 加载遮罩：始终显示加载图, 直到新流就绪
         loading = true
