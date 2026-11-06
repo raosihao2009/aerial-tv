@@ -48,7 +48,6 @@ import app.orchard.tv.R
 import app.orchard.tv.apps.AppEntry
 import app.orchard.tv.apps.TileArtFactory
 import app.orchard.tv.settings.AerialSettings
-import app.orchard.tv.system.DiagLog
 import app.orchard.tv.system.Sounds
 import app.orchard.tv.ui.components.liquidGlass
 import app.orchard.tv.ui.theme.Glyph
@@ -175,25 +174,21 @@ fun LiveSourceMenu(
     // 菜单显示时立即聚焦上次焦点位置(默认当前直播源), 避免焦点先落到第一个卡片再跳过来
     LaunchedEffect(visible) {
         if (visible) {
-            DiagLog.i("LiveMenu-debug: visible=true, wasCcOpen=$wasCcOpen, currentId=$currentId")
             if (wasCcOpen) {
                 wasCcOpen = false
                 justOpened = false
                 repeat(3) { androidx.compose.runtime.withFrameNanos { } }
                 runCatching { pillFocus.requestFocus() }
-                DiagLog.i("LiveMenu-debug: requested pillFocus")
             } else {
                 justOpened = true
                 focusedId = currentId
                 var ok = runCatching { requester(currentId).requestFocus() }
-                DiagLog.i("LiveMenu-debug: immediate request $currentId, ok=$ok")
                 // 最多重试5帧, 直到成功才解除pill禁用
                 repeat(5) {
                     if (ok.isSuccess) return@repeat
                     androidx.compose.runtime.withFrameNanos { }
                     ok = runCatching { requester(currentId).requestFocus() }
                 }
-                DiagLog.i("LiveMenu-debug: final request ok=$ok")
                 justOpened = false
             }
         } else {
@@ -232,7 +227,6 @@ fun LiveSourceMenu(
             .onPreviewKeyEvent { e ->
                 if (!visible || controlCenterOpen) return@onPreviewKeyEvent false
                 if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_HOME && e.type == KeyEventType.KeyDown) {
-                    DiagLog.i("CC-debug: LiveMenu HOME key -> onDismiss")
                     if (menuForId != null) menuForId = null
                     if (movingId != null) movingId = null
                     onDismiss()
@@ -256,7 +250,6 @@ fun LiveSourceMenu(
                 .onPreviewKeyEvent { e ->
                     if (!visible) return@onPreviewKeyEvent false
                     if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.keyCode != NativeKeyEvent.KEYCODE_DPAD_UP) {
-                        DiagLog.i("CC-debug: LiveMenu preview key ${e.nativeKeyEvent.keyCode}, visible=$visible ccOpen=$controlCenterOpen")
                     }
                     // 任何方向键/确认键后才允许菜单键呼出上下文菜单
                     if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_UP ||
@@ -336,8 +329,6 @@ fun LiveSourceMenu(
                 showTime = false,
                 enabled = menuForId == null && movingId == null && !controlCenterOpen && !justOpened,
                 focusRequester = pillFocus,
-                onFocused = { DiagLog.i("LiveMenu-debug: pill onFocused gained=$it") },
-                onClick = { DiagLog.i("CC-debug: pill clicked, opening CC from LiveMenu"); onOpenControlCenter() },
                 modifier = Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = 42.dp).focusProperties {
                     up = FocusRequester.Cancel
                     right = FocusRequester.Cancel

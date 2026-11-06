@@ -46,7 +46,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.focusable
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.focus.focusProperties
-import app.orchard.tv.system.DiagLog
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
@@ -465,13 +464,11 @@ fun HiddenLiveSourcesSheet(
     BackHandler(enabled = visible, onBack = onDismiss)
     LaunchedEffect(visible) {
         if (visible) {
-            DiagLog.i("LiveHidden-debug: visible=true, sources=${sources.size}")
             repeat(3) { withFrameNanos { } }
             // 先把焦点拉到弹层根节点, 确保pill不会先获得焦点
             runCatching { rootFocus.requestFocus() }
             if (sources.isNotEmpty()) {
                 val ok = runCatching { first.requestFocus() }
-                DiagLog.i("LiveHidden-debug: requestFocus first ok=$ok")
             }
         }
     }
@@ -545,7 +542,6 @@ fun HiddenLiveSourcesSheet(
                                     focusedScale = 1.1f,
                                 ) { state ->
                                     androidx.compose.runtime.LaunchedEffect(state.focused) {
-                                        DiagLog.i("LiveHidden-debug: card focused=${state.focused} name=${source.name}")
                                     }
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Box(
