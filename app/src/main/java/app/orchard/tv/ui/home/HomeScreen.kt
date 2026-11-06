@@ -358,6 +358,16 @@ fun HomeScreen(
             }
         }
     }
+    // 二级菜单打开时如果有未知状态的源, 也触发一次检测
+    LaunchedEffect(overlay is Overlay.LiveSourceMenu) {
+        if (overlay is Overlay.LiveSourceMenu) {
+            val unknown = vm.getAllLiveSources().any { it.liveStatus == 0 }
+            if (unknown) {
+                DiagLog.i("LiveStatus: LiveSourceMenu opened, refreshing unknown sources")
+                vm.checkLiveStatuses()
+            }
+        }
+    }
     // 10秒无操作自动隐藏UI（一级和二级菜单都生效）
     LaunchedEffect(focusedPkg, overlay, uiHidden, lastKeyTime, channelPreviewVisible, liveMenuOpen, liveMoving) {
         if (channelPreviewVisible && focusedPkg == "com.jxiptv.softconsole" && overlay == Overlay.None && !uiHidden) {
