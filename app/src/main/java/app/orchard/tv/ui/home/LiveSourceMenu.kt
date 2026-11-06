@@ -262,6 +262,20 @@ fun LiveSourceMenu(
                             return@onPreviewKeyEvent true
                         }
                     }
+                    // 撞边按键直接消费, 不让Compose焦点搜索遍历整个组件树(第一次会卡)
+                    if (e.type == KeyEventType.KeyDown && menuForId == null && movingId == null) {
+                        val fi = sources.indexOfFirst { it.id == focusedId }
+                        if (fi >= 0) {
+                            val col = fi % columns
+                            val row = fi / columns
+                            val lastRow = (sources.size - 1) / columns
+                            when (e.nativeKeyEvent.keyCode) {
+                                NativeKeyEvent.KEYCODE_DPAD_LEFT -> if (col == 0) return@onPreviewKeyEvent true
+                                NativeKeyEvent.KEYCODE_DPAD_RIGHT -> if (col == columns - 1 || fi == sources.size - 1) return@onPreviewKeyEvent true
+                                NativeKeyEvent.KEYCODE_DPAD_DOWN -> if (row == lastRow && fi >= sources.size - 1 - columns) return@onPreviewKeyEvent true
+                            }
+                        }
+                    }
                     if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_MENU && e.type == KeyEventType.KeyUp && menuForId == null && movingId == null && !ignoreMenuKeyUp) {
                         requester(focusedId).requestFocus()
                         sources.find { it.id == focusedId }?.let { menuForId = it.id }
