@@ -855,13 +855,9 @@ fun HomeScreen(
                 ChannelFocusPreview(
                     source = vm.getAllLiveSources().firstOrNull { it.id == vm.currentLiveSourceId },
                     onFallback = {
-                        // 优先切换到任意已开播的源, 都没有再用央视网快看
-                        val alive = vm.getAllLiveSources().firstOrNull { it.liveStatus == 1 && it.id != vm.currentLiveSourceId }
-                        val fb = alive ?: vm.liveSources.find { it.id == "preset_2" } ?: vm.liveSources.firstOrNull()
-                        fb?.let {
-                            vm.selectLiveSource(it.id)
-                            it.name
-                        }
+                        val fb = vm.liveSources.find { it.id == "preset_2" } ?: vm.liveSources.firstOrNull()
+                        fb?.let { vm.selectLiveSource(it.id) }
+                        fb?.name
                     },
                     onRevert = { oldId ->
                         // 旧源还在直播就切回去, 否则切到央视网快看
