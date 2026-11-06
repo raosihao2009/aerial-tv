@@ -367,7 +367,8 @@ fun LiveSourceMenu(
                             runCatching { android.graphics.BitmapFactory.decodeFile(uploadFile.absolutePath) }.getOrNull()
                         } else {
                             val resId = liveSourceIconResId(source)
-                            if (resId != null) android.graphics.BitmapFactory.decodeResource(context.resources, resId) else null
+                            if (resId != null) android.graphics.BitmapFactory.decodeResource(context.resources, resId)
+                            else android.graphics.BitmapFactory.decodeResource(context.resources, R.drawable.live_default)
                         }
                     }
                 }
