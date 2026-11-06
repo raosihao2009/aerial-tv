@@ -522,19 +522,21 @@ fun HomeScreen(
         runCatching { requester(key).requestFocus() }
     }
     val windowFocused = LocalWindowInfo.current.isWindowFocused
+    var initialFocusDone by remember { mutableStateOf(false) }
     LaunchedEffect(windowFocused, vm.homeResetPending, vm.loaded) {
         if (windowFocused && vm.homeResetPending && vm.loaded) {
             withFrameNanos { }
             dragged = false
-            // HOME键：优先focus到jxiptv，没有就第一个
             val jxIndex = apps.indexOfFirst { it.packageName == "com.jxiptv.softconsole" }
             focusApp(if (jxIndex >= 0) jxIndex else 0)
             vm.homeResetPending = false
-        } else if (windowFocused && vm.loaded && focusedKey == null && apps.isNotEmpty()) {
+            initialFocusDone = true
+        } else if (windowFocused && vm.loaded && apps.isNotEmpty() && !initialFocusDone) {
             // 启动时直接聚焦第一个卡片, 不要先聚焦右上角pill再跳过去
             withFrameNanos { }
             val jxIndex = apps.indexOfFirst { it.packageName == "com.jxiptv.softconsole" }
             focusApp(if (jxIndex >= 0) jxIndex else 0)
+            initialFocusDone = true
         }
     }
 

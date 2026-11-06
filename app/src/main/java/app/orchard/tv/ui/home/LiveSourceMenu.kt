@@ -76,9 +76,14 @@ private fun liveSourceIconResId(source: LiveSource): Int? = when (source.id) {
 
 private fun liveSourceAppEntry(source: LiveSource, ctx: android.content.Context): AppEntry {
     val (top, bottom) = liveColors[source.colorIndex % liveColors.size]
-    val bmp = android.graphics.BitmapFactory.decodeResource(ctx.resources, R.drawable.live_default)
-    val art = runCatching { TileArtFactory.bitmapTileFromBitmap(ctx, bmp, top, bottom, null, 0) }.getOrNull()
-        ?: TileArtFactory.glyphTile(top, bottom, Glyph.Play)
+    // 预设源用播放图标, 自定义源用默认图片
+    val art = if (liveSourceIconResId(source) != null) {
+        TileArtFactory.glyphTile(top, bottom, Glyph.Play)
+    } else {
+        val bmp = android.graphics.BitmapFactory.decodeResource(ctx.resources, R.drawable.live_default)
+        runCatching { TileArtFactory.bitmapTileFromBitmap(ctx, bmp, top, bottom, null, 0) }.getOrNull()
+            ?: TileArtFactory.glyphTile(top, bottom, Glyph.Play)
+    }
     return AppEntry(
         packageName = "live_${source.id}",
         label = source.name,
