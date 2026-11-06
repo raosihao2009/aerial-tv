@@ -255,28 +255,13 @@ fun LiveSourceMenu(
                         e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_CENTER) {
                         ignoreMenuKeyUp = false
                     }
+                    // UP键在第一行时聚焦pill
                     if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_DPAD_UP && e.type == KeyEventType.KeyDown) {
                         val fi = sources.indexOfFirst { it.id == focusedId }
                         val isTopRow = fi >= 0 && fi < columns
                         if (isTopRow && menuForId == null && movingId == null) {
                             runCatching { pillFocus.requestFocus() }
                             return@onPreviewKeyEvent true
-                        }
-                    }
-                    // 撞边按键直接消费, 不让Compose焦点搜索遍历整个组件树(第一次会卡)
-                    if (e.type == KeyEventType.KeyDown && menuForId == null && movingId == null) {
-                        val fi = sources.indexOfFirst { it.id == focusedId }
-                        if (fi >= 0) {
-                            val col = fi % columns
-                            val row = fi / columns
-                            val lastRow = (sources.size - 1) / columns
-                            val edge = when (e.nativeKeyEvent.keyCode) {
-                                NativeKeyEvent.KEYCODE_DPAD_LEFT -> col == 0
-                                NativeKeyEvent.KEYCODE_DPAD_RIGHT -> col == columns - 1 || fi == sources.size - 1
-                                NativeKeyEvent.KEYCODE_DPAD_DOWN -> row == lastRow && fi >= sources.size - 1 - columns
-                                else -> false
-                            }
-                            if (edge) { Sounds.limit(); return@onPreviewKeyEvent true }
                         }
                     }
                     if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_MENU && e.type == KeyEventType.KeyUp && menuForId == null && movingId == null && !ignoreMenuKeyUp) {
@@ -418,9 +403,17 @@ fun LiveSourceMenu(
                     xPx, spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessHigh), label = "slotX")
                 val animY by androidx.compose.animation.core.animateIntAsState(
                     yPx, spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessHigh), label = "slotY")
+                val isFirstCol = colIndex == 0
+                val isLastCol = colIndex == columns - 1 || index == sources.size - 1
+                val isLastRow = rowFromTop == (sources.size - 1) / columns && index >= sources.size - 1 - columns
                 Box(modifier = Modifier
                     .graphicsLayer { translationX = animX.toFloat(); translationY = animY.toFloat() }
                     .alpha(if (shifted in -1..1) 1f else 0f)
+                    .focusProperties {
+                        if (isFirstCol) left = FocusRequester.Cancel
+                        if (isLastCol) right = FocusRequester.Cancel
+                        if (isLastRow) down = FocusRequester.Cancel
+                    }
                 ) {
                     AppTile(
                         app = app,
