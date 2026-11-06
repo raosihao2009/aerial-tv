@@ -270,11 +270,13 @@ fun LiveSourceMenu(
                             val col = fi % columns
                             val row = fi / columns
                             val lastRow = (sources.size - 1) / columns
-                            when (e.nativeKeyEvent.keyCode) {
-                                NativeKeyEvent.KEYCODE_DPAD_LEFT -> if (col == 0) return@onPreviewKeyEvent true
-                                NativeKeyEvent.KEYCODE_DPAD_RIGHT -> if (col == columns - 1 || fi == sources.size - 1) return@onPreviewKeyEvent true
-                                NativeKeyEvent.KEYCODE_DPAD_DOWN -> if (row == lastRow && fi >= sources.size - 1 - columns) return@onPreviewKeyEvent true
+                            val edge = when (e.nativeKeyEvent.keyCode) {
+                                NativeKeyEvent.KEYCODE_DPAD_LEFT -> col == 0
+                                NativeKeyEvent.KEYCODE_DPAD_RIGHT -> col == columns - 1 || fi == sources.size - 1
+                                NativeKeyEvent.KEYCODE_DPAD_DOWN -> row == lastRow && fi >= sources.size - 1 - columns
+                                else -> false
                             }
+                            if (edge) { Sounds.limit(); return@onPreviewKeyEvent true }
                         }
                     }
                     if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_MENU && e.type == KeyEventType.KeyUp && menuForId == null && movingId == null && !ignoreMenuKeyUp) {
