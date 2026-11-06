@@ -76,9 +76,13 @@ private fun liveSourceIconResId(source: LiveSource): Int? = when (source.id) {
 
 private fun liveSourceAppEntry(source: LiveSource, ctx: android.content.Context): AppEntry {
     val (top, bottom) = liveColors[source.colorIndex % liveColors.size]
-    // 预设源用播放图标, 自定义源用默认图片
-    val art = if (liveSourceIconResId(source) != null) {
-        TileArtFactory.glyphTile(top, bottom, Glyph.Play)
+    val resId = liveSourceIconResId(source)
+    val art = if (resId != null) {
+        // 预设源直接用图标(压缩采样避免OOM)
+        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
+        val bmp = android.graphics.BitmapFactory.decodeResource(ctx.resources, resId, opts)
+        runCatching { TileArtFactory.bitmapTileFromBitmap(ctx, bmp, top, bottom, null, 0) }.getOrNull()
+            ?: TileArtFactory.glyphTile(top, bottom, Glyph.Play)
     } else {
         val bmp = android.graphics.BitmapFactory.decodeResource(ctx.resources, R.drawable.live_default)
         runCatching { TileArtFactory.bitmapTileFromBitmap(ctx, bmp, top, bottom, null, 0) }.getOrNull()
@@ -369,8 +373,11 @@ fun LiveSourceMenu(
                             runCatching { android.graphics.BitmapFactory.decodeFile(uploadFile.absolutePath) }.getOrNull()
                         } else {
                             val resId = liveSourceIconResId(source)
-                            if (resId != null) android.graphics.BitmapFactory.decodeResource(context.resources, resId)
-                            else android.graphics.BitmapFactory.decodeResource(context.resources, R.drawable.live_default)
+                            val opts = android.graphics.BitmapFactory.Options().apply {
+                                inSampleSize = if (resId != null) 4 else 1
+                            }
+                            val targetId = resId ?: R.drawable.live_default
+                            runCatching { android.graphics.BitmapFactory.decodeResource(context.resources, targetId, opts) }.getOrNull()
                         }
                     }
                 }
