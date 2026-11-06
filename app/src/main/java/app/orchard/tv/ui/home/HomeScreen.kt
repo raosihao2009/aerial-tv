@@ -1026,7 +1026,7 @@ fun HomeScreen(
                 now = now,
                 network = vm.network,
                 showTime = if (dragged) pastShelf else inGrid,
-                enabled = gridEnabled && moving == null,
+                enabled = gridEnabled && moving == null && initialFocusDone,
                 focusRequester = pillRequester,
                 modifier = Modifier
                     .diagLayer("pill")
