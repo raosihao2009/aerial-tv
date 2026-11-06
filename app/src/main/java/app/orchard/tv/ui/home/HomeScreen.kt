@@ -742,7 +742,6 @@ fun HomeScreen(
         // 上游 v1.75：移动壁纸的影片渲染（从 Box 内挪到 Box 外，在最底层绘制）
         val filmMoves = vm.filmFront && (overlay == Overlay.None || overlay is Overlay.ControlCenter) && !vm.screensaverVisible && !pastShelf &&
             !inGrid && moving == null
-        val sourceInput = Wallpapers.sourceInput
         // Nothing over Home blurs it: a paused film stays.
         val filmStandsIn = overlay == Overlay.None || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper ||
             (overlay is Overlay.AppMenu && overlay.inFolder == null)
