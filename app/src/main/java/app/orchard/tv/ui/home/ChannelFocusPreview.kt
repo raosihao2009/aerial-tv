@@ -414,7 +414,10 @@ private fun fetchBilibiliHlsUrl(roomId: Long, context: android.content.Context):
             }
         }
     }
-    candidates.maxByOrNull { it.qn }?.url
+    val maxQn = bilibiliQn()
+    // 原画模式选所有流中最高画质; 1080p模式选不超过800的最高画质
+    val filtered = if (maxQn == 0) candidates else candidates.filter { it.qn <= maxQn }
+    (filtered.ifEmpty { candidates }).maxByOrNull { it.qn }?.url
 }.getOrNull()
 
 /** 检测B站直播间是否已下播 */
