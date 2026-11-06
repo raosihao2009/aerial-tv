@@ -51,6 +51,8 @@ import app.orchard.tv.system.DiagLog
 import app.orchard.tv.system.Sounds
 import app.orchard.tv.ui.components.liquidGlass
 import app.orchard.tv.ui.theme.Glyph
+import app.orchard.tv.ui.theme.Type
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 private val liveColors = listOf(
     Pair(0xFFD32F2F.toInt(), 0xFF8E0000.toInt()),
@@ -348,32 +350,21 @@ fun LiveSourceMenu(
                 val shifted = rowFromTop - bottomRow
                 androidx.compose.runtime.key(source.id) {
                 val fallback = remember(source.id, source.name) { liveSourceAppEntry(source, context) }
-                val artState = androidx.compose.runtime.produceState<app.orchard.tv.apps.TileArt?>(initialValue = fallback.art, source.id, source.name, source.liveStatus, source.id == currentId, source.iconTs) {
-                    val statusText = when {
-                        source.id == currentId -> "直播中"
-                        source.liveStatus == 2 -> "未开播"
-                        source.liveStatus == 1 -> "已开播"
-                        else -> null
-                    }
-                    val statusColor = when {
-                        source.id == currentId -> 0xFF007AFF.toInt()
-                        source.liveStatus == 2 -> 0xFFFF3B30.toInt()
-                        source.liveStatus == 1 -> 0xFF34C759.toInt()
-                        else -> 0
-                    }
+                // 位图只在图片变化时生成, 不依赖liveStatus(避免状态更新时重新解码图片导致掉帧)
+                val artState = androidx.compose.runtime.produceState<app.orchard.tv.apps.TileArt?>(initialValue = fallback.art, source.id, source.name, source.iconTs) {
                     value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                         val uploadFile = java.io.File(context.filesDir, "live_icon_${source.id}.jpg")
                         if (uploadFile.exists()) {
                             runCatching {
                                 val bmp = android.graphics.BitmapFactory.decodeFile(uploadFile.absolutePath)
                                 val (top, bottom) = liveColors[source.colorIndex % liveColors.size]
-                                TileArtFactory.bitmapTileFromBitmap(context, bmp, top, bottom, statusText, statusColor)
+                                TileArtFactory.bitmapTileFromBitmap(context, bmp, top, bottom, null, 0)
                             }.getOrNull() ?: fallback.art
                         } else {
                             val resId = liveSourceIconResId(source)
                             val (top, bottom) = liveColors[source.colorIndex % liveColors.size]
                             val bmp = if (resId != null) android.graphics.BitmapFactory.decodeResource(context.resources, resId) else null
-                            runCatching { TileArtFactory.bitmapTileFromBitmap(context, bmp, top, bottom, statusText, statusColor) }.getOrNull() ?: fallback.art
+                            runCatching { TileArtFactory.bitmapTileFromBitmap(context, bmp, top, bottom, null, 0) }.getOrNull() ?: fallback.art
                         }
                     }
                 }
@@ -414,6 +405,36 @@ fun LiveSourceMenu(
                         rowEnd = index % columns == columns - 1 || index == sources.size - 1,
                         showName = showAllNames || focusedId == source.id,
                     )
+                    // 状态标签作为Compose overlay, 不画在位图上(避免liveStatus更新时重新生成位图)
+                    val statusText = when {
+                        source.id == currentId -> "直播中"
+                        source.liveStatus == 2 -> "未开播"
+                        source.liveStatus == 1 -> "已开播"
+                        else -> null
+                    }
+                    val statusColor = when {
+                        source.id == currentId -> 0xFF007AFF.toInt()
+                        source.liveStatus == 2 -> 0xFFFF3B30.toInt()
+                        source.liveStatus == 1 -> 0xFF34C759.toInt()
+                        else -> 0
+                    }
+                    if (statusText != null && statusColor != 0) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 6.dp, end = 6.dp)
+                                .background(
+                                    color = statusColor,
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(percent = 50),
+                                )
+                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                        ) {
+                            BasicText(
+                                statusText,
+                                style = Type.Caption.copy(color = Color.White, fontSize = 12.sp),
+                            )
+                        }
+                    }
                 }
                 }
             }
