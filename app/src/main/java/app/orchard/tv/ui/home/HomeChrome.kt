@@ -813,8 +813,9 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             term != null -> "，今天是二十四节气——$term"
             else -> ""
         }
+        // suffix自带逗号, 拼在感叹号前
         BasicText(
-            "$place，${greetingText(now.hour)}！$suffix",
+            "$place，${greetingText(now.hour)}$suffix！",
             style = Type.Caption.copy(
                 color = Color.White,
                 shadow = shadow,
