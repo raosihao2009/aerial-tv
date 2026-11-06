@@ -86,7 +86,7 @@ fun ChannelFocusPreview(
         if (streamUrl == null) {
             // 解析新流地址，最多重试 5 次(网络刚恢复/待机回来可能需要等)
             for (attempt in 1..5) {
-                streamUrl = withContext(Dispatchers.IO) { resolveStreamUrl(source) }
+                streamUrl = withContext(Dispatchers.IO) { resolveStreamUrl(source, context) }
                 if (streamUrl != null) break
                 kotlinx.coroutines.delay(2000)
             }
@@ -168,7 +168,7 @@ fun ChannelFocusPreview(
                 val p = exo
                 // 先快速检测是否B站下播(下播就不重试)
                 scope.launch {
-                    val offline = withContext(Dispatchers.IO) { checkIfOffline(source) }
+                    val offline = withContext(Dispatchers.IO) { checkIfOffline(source, context) }
                     // 是否有旧源在播(player 还不是当前 exo)
                     val hasOld = player != null && player !== exo
                     if (offline || retryCount >= 3) {
@@ -347,12 +347,12 @@ fun ChannelFocusPreview(
     }
 }
 
-private suspend fun resolveStreamUrl(source: LiveSource): String? = withContext(Dispatchers.IO) {
+private suspend fun resolveStreamUrl(source: LiveSource, context: android.content.Context): String? = withContext(Dispatchers.IO) {
     try {
         when {
             source.url.endsWith(".m3u8") -> source.url
             source.isBilibili || source.url.contains("b23.tv") || source.url.contains("live.bilibili.com") ->
-                extractBilibiliRoomId(source.url)?.let { fetchBilibiliHlsUrl(it) }
+                extractBilibiliRoomId(source.url)?.let { fetchBilibiliHlsUrl(it, context) }
             else -> source.url
         }
     } catch (e: Exception) { null }
@@ -385,16 +385,19 @@ private fun extractBilibiliRoomId(url: String): Long? = runCatching {
 private fun extractRoomIdFromUrl(url: String): Long? =
     Regex("live\\.bilibili\\.com/(\\d+)").find(url)?.groupValues?.getOrNull(1)?.toLongOrNull()
 
-private fun bilibiliQn(): Int {
-    // 根据设备RAM自适应清晰度: 低端盒子(2GB)用1080p, 高端盒子(4GB+)用原画
-    val runtimeMax = Runtime.getRuntime().maxMemory() / (1024 * 1024) // MB
-    return if (runtimeMax < 256) 800 else 10000 // 256MB以下是低端设备
+private fun bilibiliQn(context: android.content.Context): Int {
+    // 根据设备总内存自适应清晰度: 2.5GB以下用1080p, 以上用原画
+    val am = context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+    val info = android.app.ActivityManager.MemoryInfo()
+    am.getMemoryInfo(info)
+    val totalMb = info.totalMem / (1024 * 1024)
+    return if (totalMb < 2500) 800 else 10000
 }
 
-private fun fetchBilibiliHlsUrl(roomId: Long): String? = runCatching {
+private fun fetchBilibiliHlsUrl(roomId: Long, context: android.content.Context): String? = runCatching {
     val buvid3 = fetchBuvid3()
-    val qn = bilibiliQn()
-    val api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1,2&codec=0,1&qn=$qn&platform=web"
+    val qn = bilibiliQn(context)
+    val api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1&codec=0,1&qn=$qn&platform=web"
     val c = java.net.URL(api).openConnection() as java.net.HttpURLConnection
     c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36")
     c.setRequestProperty("Referer", "https://live.bilibili.com/")
@@ -429,13 +432,13 @@ private fun fetchBilibiliHlsUrl(roomId: Long): String? = runCatching {
 }.getOrNull()
 
 /** 检测B站直播间是否已下播 */
-private fun checkIfOffline(source: LiveSource): Boolean = runCatching {
+private fun checkIfOffline(source: LiveSource, context: android.content.Context): Boolean = runCatching {
     if (!source.isBilibili && !source.url.contains("b23.tv") && !source.url.contains("live.bilibili.com")) {
         return@runCatching false
     }
     val roomId = extractBilibiliRoomId(source.url) ?: return@runCatching false
     val buvid3 = fetchBuvid3()
-    val qn = bilibiliQn()
+    val qn = bilibiliQn(context)
     val api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1,2&codec=0,1&qn=$qn&platform=web"
     val c = java.net.URL(api).openConnection() as java.net.HttpURLConnection
     c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36")
