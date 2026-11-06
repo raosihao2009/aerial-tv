@@ -171,7 +171,7 @@ fun LiveSourceMenu(
     // 刚打开时pill临时不可聚焦, 让焦点自然落到直播卡片上, 避免从右上角跳转的动画
     var justOpened by remember { mutableStateOf(false) }
 
-    // 菜单显示时立即聚焦当前直播卡片, 避免焦点先落到第一个卡片再跳过来
+    // 菜单显示时立即聚焦上次焦点位置(默认当前直播源), 避免焦点先落到第一个卡片再跳过来
     LaunchedEffect(visible) {
         if (visible) {
             DiagLog.i("LiveMenu-debug: visible=true, wasCcOpen=$wasCcOpen, currentId=$currentId")
@@ -182,9 +182,10 @@ fun LiveSourceMenu(
                 DiagLog.i("LiveMenu-debug: requested pillFocus")
             } else {
                 justOpened = true
-                focusedId = currentId
-                // 立即requestFocus, 抢在Compose默认焦点落到第一个卡片之前
-                var ok = runCatching { requester(currentId).requestFocus() }
+                // 优先聚焦上次关闭时的焦点位置, 否则聚焦当前直播源
+                val targetId = focusedId?.takeIf { id -> sources.any { it.id == id } } ?: currentId
+                focusedId = targetId
+                var ok = runCatching { requester(targetId).requestFocus() }
                 DiagLog.i("LiveMenu-debug: immediate request $currentId, ok=$ok")
                 // 最多重试5帧, 直到成功才解除pill禁用
                 repeat(5) {
