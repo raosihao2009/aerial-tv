@@ -177,7 +177,7 @@ fun timeText(now: LocalDateTime): String {
     // 24-hour unless the owner chose 12-hour. With the setting unset, Android falls back to the
     // locale, and zh_CN means 12-hour, which TV clocks here never show (TCL 65S515D, issue #15).
     val twelve = runCatching { android.provider.Settings.System.getString(context.contentResolver, android.provider.Settings.System.TIME_12_24) }.getOrNull() == "12"
-    val pattern = if (twelve) "h:mm" else "H:mm"
+    val pattern = if (twelve) "h:mm" else "HH:mm"
     return now.format(DateTimeFormatter.ofPattern(pattern)).replace(":", " : ")
 }
 
