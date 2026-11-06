@@ -248,34 +248,35 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                 it.url.isNotBlank() && (it.url.contains("b23.tv") || it.url.contains("bilibili.com"))
             }
             // 每批最多并行6个
-            biliSources.chunked(6).forEach { batch ->
-                val results = batch.map { src ->
-                    kotlinx.coroutines.async {
-                        src.id to runCatching {
-                            // 跟随短链跳转
-                            val conn = (java.net.URL(src.url).openConnection() as java.net.HttpURLConnection).apply {
-                                instanceFollowRedirects = true; connectTimeout = 5000; readTimeout = 5000
-                                setRequestProperty("User-Agent", "Mozilla/5.0")
-                            }
-                            val finalUrl = conn.url.toString()
-                            conn.disconnect()
-                            val roomId = Regex("live\\.bilibili\\.com/(\\d+)").find(finalUrl)?.groupValues?.get(1)
-                                ?: Regex("/(\\d{5,})").find(finalUrl)?.groupValues?.get(1)
-                            if (roomId.isNullOrBlank()) return@runCatching 0
-                            val apiUrl = "https://api.live.bilibili.com/room/v1/Room/get_info?room_id=$roomId"
-                            val apiConn = (java.net.URL(apiUrl).openConnection() as java.net.HttpURLConnection).apply {
-                                connectTimeout = 5000; readTimeout = 5000
-                                setRequestProperty("User-Agent", "Mozilla/5.0")
-                            }
-                            val json = apiConn.inputStream.bufferedReader().readText()
-                            apiConn.disconnect()
-                            val obj = org.json.JSONObject(json).getJSONObject("data")
-                            if (obj.getInt("live_status") == 1) 1 else 2
-                        }.getOrDefault(0)
+            kotlinx.coroutines.coroutineScope {
+                biliSources.chunked(6).forEach { batch: List<LiveSource> ->
+                    val results = batch.map { src: LiveSource ->
+                        async<Pair<String, Int>> {
+                            src.id to runCatching {
+                                val conn = (java.net.URL(src.url).openConnection() as java.net.HttpURLConnection).apply {
+                                    instanceFollowRedirects = true; connectTimeout = 5000; readTimeout = 5000
+                                    setRequestProperty("User-Agent", "Mozilla/5.0")
+                                }
+                                val finalUrl = conn.url.toString()
+                                conn.disconnect()
+                                val roomId = Regex("live\\.bilibili\\.com/(\\d+)").find(finalUrl)?.groupValues?.get(1)
+                                    ?: Regex("/(\\d{5,})").find(finalUrl)?.groupValues?.get(1)
+                                if (roomId.isNullOrBlank()) return@runCatching 0
+                                val apiUrl = "https://api.live.bilibili.com/room/v1/Room/get_info?room_id=$roomId"
+                                val apiConn = (java.net.URL(apiUrl).openConnection() as java.net.HttpURLConnection).apply {
+                                    connectTimeout = 5000; readTimeout = 5000
+                                    setRequestProperty("User-Agent", "Mozilla/5.0")
+                                }
+                                val json = apiConn.inputStream.bufferedReader().readText()
+                                apiConn.disconnect()
+                                val obj = org.json.JSONObject(json).getJSONObject("data")
+                                if (obj.getInt("live_status") == 1) 1 else 2
+                            }.getOrDefault(0)
+                        }
+                    }.awaitAll()
+                    results.forEach { (id, status) ->
+                        liveSources = liveSources.map { if (it.id == id) it.copy(liveStatus = status) else it }
                     }
-                }.awaitAll()
-                results.forEach { (id, status) ->
-                    liveSources = liveSources.map { if (it.id == id) it.copy(liveStatus = status) else it }
                 }
             }
             // 检查当前源是否下播
