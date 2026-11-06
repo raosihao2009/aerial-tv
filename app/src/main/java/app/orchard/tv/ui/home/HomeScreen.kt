@@ -523,7 +523,7 @@ fun HomeScreen(
     }
     val windowFocused = LocalWindowInfo.current.isWindowFocused
     var initialFocusDone by remember { mutableStateOf(false) }
-    LaunchedEffect(windowFocused, vm.homeResetPending, vm.loaded) {
+    LaunchedEffect(windowFocused, vm.homeResetPending, vm.loaded, apps.size) {
         if (windowFocused && vm.homeResetPending && vm.loaded) {
             withFrameNanos { }
             dragged = false
