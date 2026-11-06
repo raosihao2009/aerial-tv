@@ -117,8 +117,8 @@ fun ChannelFocusPreview(
         val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(context).apply {
             setParameters(
                 buildUponParameters()
-                    .setMaxVideoSize(Int.MAX_VALUE, Int.MAX_VALUE)
-                    .setForceHighestSupportedBitrate(true)
+                    .setMaxVideoSize(1920, 1080)
+                    // 不强制最高码率, 让ExoPlayer自适应网络/CPU, 低端设备更流畅
             )
         }
         val exo = ExoPlayer.Builder(context)
