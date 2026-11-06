@@ -385,9 +385,16 @@ private fun extractBilibiliRoomId(url: String): Long? = runCatching {
 private fun extractRoomIdFromUrl(url: String): Long? =
     Regex("live\\.bilibili\\.com/(\\d+)").find(url)?.groupValues?.getOrNull(1)?.toLongOrNull()
 
+private fun bilibiliQn(): Int {
+    // 根据设备RAM自适应清晰度: 低端盒子(2GB)用1080p, 高端盒子(4GB+)用原画
+    val runtimeMax = Runtime.getRuntime().maxMemory() / (1024 * 1024) // MB
+    return if (runtimeMax < 256) 800 else 10000 // 256MB以下是低端设备
+}
+
 private fun fetchBilibiliHlsUrl(roomId: Long): String? = runCatching {
     val buvid3 = fetchBuvid3()
-    val api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1,2&codec=0,1&qn=800&platform=web"
+    val qn = bilibiliQn()
+    val api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1,2&codec=0,1&qn=$qn&platform=web"
     val c = java.net.URL(api).openConnection() as java.net.HttpURLConnection
     c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36")
     c.setRequestProperty("Referer", "https://live.bilibili.com/")
@@ -428,7 +435,8 @@ private fun checkIfOffline(source: LiveSource): Boolean = runCatching {
     }
     val roomId = extractBilibiliRoomId(source.url) ?: return@runCatching false
     val buvid3 = fetchBuvid3()
-    val api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1,2&codec=0,1&qn=800&platform=web"
+    val qn = bilibiliQn()
+    val api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1,2&codec=0,1&qn=$qn&platform=web"
     val c = java.net.URL(api).openConnection() as java.net.HttpURLConnection
     c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36")
     c.setRequestProperty("Referer", "https://live.bilibili.com/")
