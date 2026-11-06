@@ -296,7 +296,7 @@ object TileArtFactory {
                 drawText(statusText, cx - tw / 2, textY, textPaint)
             }
         }
-        bmp?.recycle()
+        // 不recycle传入的bmp, 它可能被baseBmpState缓存复用
         return finish(back, null)
     }
 

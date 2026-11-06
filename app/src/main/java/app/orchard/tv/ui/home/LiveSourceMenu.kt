@@ -78,7 +78,7 @@ private fun liveSourceAppEntry(source: LiveSource, ctx: android.content.Context)
     val (top, bottom) = liveColors[source.colorIndex % liveColors.size]
     val resId = liveSourceIconResId(source)
     val art = if (resId != null) {
-        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
+        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 2 }
         val bmp = android.graphics.BitmapFactory.decodeResource(ctx.resources, resId, opts)
         runCatching { TileArtFactory.bitmapTileFromBitmap(ctx, bmp, top, bottom, null, 0) }.getOrNull()
             ?: TileArtFactory.glyphTile(top, bottom, Glyph.Play)
@@ -371,7 +371,8 @@ fun LiveSourceMenu(
                         } else {
                             val resId = liveSourceIconResId(source)
                             if (resId != null) {
-                                val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
+                                // 预设源图标较大, 压缩到合适尺寸避免OOM但保持清晰
+                                val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 2 }
                                 runCatching { android.graphics.BitmapFactory.decodeResource(context.resources, resId, opts) }.getOrNull()
                             } else null
                         }
