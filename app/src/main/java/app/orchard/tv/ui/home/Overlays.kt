@@ -556,15 +556,22 @@ fun HiddenLiveSourcesSheet(
                                             contentAlignment = Alignment.Center,
                                         ) {
                                             val resId = iconResId(source.id)
-                                            if (resId != null) {
-                                                Image(
+                                            val ctx = LocalContext.current
+                                            val uploadFile = java.io.File(ctx.filesDir, "live_icon_${source.id}.jpg")
+                                            when {
+                                                resId != null -> Image(
                                                     painter = androidx.compose.ui.res.painterResource(resId),
                                                     contentDescription = source.name,
                                                     modifier = Modifier.fillMaxSize(),
                                                     contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                                                 )
-                                            } else {
-                                                BasicText(
+                                                uploadFile.exists() -> Image(
+                                                    bitmap = android.graphics.BitmapFactory.decodeFile(uploadFile.absolutePath).asImageBitmap(),
+                                                    contentDescription = source.name,
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                )
+                                                else -> BasicText(
                                                     source.name.take(2), maxLines = 1,
                                                     style = Type.Callout.copy(color = Color.White),
                                                 )
