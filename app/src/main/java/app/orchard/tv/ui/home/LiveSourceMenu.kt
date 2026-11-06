@@ -182,10 +182,8 @@ fun LiveSourceMenu(
                 DiagLog.i("LiveMenu-debug: requested pillFocus")
             } else {
                 justOpened = true
-                // 优先聚焦上次关闭时的焦点位置, 否则聚焦当前直播源
-                val targetId = focusedId?.takeIf { id -> sources.any { it.id == id } } ?: currentId
-                focusedId = targetId
-                var ok = runCatching { requester(targetId).requestFocus() }
+                focusedId = currentId
+                var ok = runCatching { requester(currentId).requestFocus() }
                 DiagLog.i("LiveMenu-debug: immediate request $currentId, ok=$ok")
                 // 最多重试5帧, 直到成功才解除pill禁用
                 repeat(5) {
