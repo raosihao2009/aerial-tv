@@ -253,12 +253,25 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                     val results = batch.map { src: LiveSource ->
                         async<Pair<String, Int>> {
                             src.id to runCatching {
-                                val conn = (java.net.URL(src.url).openConnection() as java.net.HttpURLConnection).apply {
-                                    instanceFollowRedirects = true; connectTimeout = 5000; readTimeout = 5000
-                                    setRequestProperty("User-Agent", "Mozilla/5.0")
+                                // 手动跟随重定向, HttpURLConnection的instanceFollowRedirects不可靠
+                                var redirectUrl = src.url
+                                var conn: java.net.HttpURLConnection? = null
+                                repeat(5) {
+                                    conn = (java.net.URL(redirectUrl).openConnection() as java.net.HttpURLConnection).apply {
+                                        instanceFollowRedirects = false
+                                        connectTimeout = 5000; readTimeout = 5000
+                                        setRequestProperty("User-Agent", "Mozilla/5.0")
+                                    }
+                                    val code = conn!!.responseCode
+                                    val loc = conn!!.getHeaderField("Location")
+                                    conn!!.disconnect()
+                                    if ((code == 301 || code == 302 || code == 303 || code == 307 || code == 308) && !loc.isNullOrBlank()) {
+                                        redirectUrl = if (loc.startsWith("http")) loc else java.net.URL(java.net.URL(redirectUrl), loc).toString()
+                                    } else {
+                                        return@repeat
+                                    }
                                 }
-                                val finalUrl = conn.url.toString()
-                                conn.disconnect()
+                                val finalUrl = redirectUrl
                                 app.orchard.tv.system.DiagLog.i("LiveStatus: ${src.id} finalUrl=$finalUrl")
                                 val roomId = Regex("live\\.bilibili\\.com/(\\d+)").find(finalUrl)?.groupValues?.get(1)
                                     ?: Regex("/(\\d{5,})").find(finalUrl)?.groupValues?.get(1)
