@@ -417,7 +417,8 @@ fun LiveSourceMenu(
                         width = tileW,
                         height = tileH,
                         focusRequester = requester(source.id),
-                        enabled = menuForId == null && visible && !controlCenterOpen && !justOpened,
+                        // justOpened期间只有当前直播卡片可聚焦, 其他卡片disabled, 让Compose自动聚焦到它
+                        enabled = menuForId == null && visible && !controlCenterOpen && (!justOpened || source.id == currentId),
                         moving = movingId == source.id,
                         onFocused = { focusedId = source.id; Sounds.focusMoved() },
                         onClick = { if (movingId == null) {
