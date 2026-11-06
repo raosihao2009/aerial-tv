@@ -91,6 +91,7 @@ fun Pressable(
     Box(
         modifier
             .focusRequester(requester)
+            .focusable(enabled)
             .onFocusChanged {
                 if (it.isFocused && !state.focused) Sounds.focusMoved()
                 state.focused = it.isFocused
