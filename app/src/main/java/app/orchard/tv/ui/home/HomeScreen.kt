@@ -742,15 +742,18 @@ fun HomeScreen(
         // 上游 v1.75：移动壁纸的影片渲染（从 Box 内挪到 Box 外，在最底层绘制）
         val filmMoves = vm.filmFront && (overlay == Overlay.None || overlay is Overlay.ControlCenter) && !vm.screensaverVisible && !pastShelf &&
             !inGrid && moving == null
+        val sourceInput = Wallpapers.sourceInput
+        // Nothing over Home blurs it: a paused film stays.
+        val filmStandsIn = overlay == Overlay.None || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper ||
+            (overlay is Overlay.AppMenu && overlay.inFolder == null)
         when {
             Wallpapers.selectedId == Wallpapers.LIVE -> LiveWallpaper(
                 moving = filmMoves,
                 keep = vm.filmFront && (!vm.screensaverVisible || filmSaver),
                 cover = filmCover,
                 hold = filmSaver && vm.filmFront,
-                standIn = overlay == Overlay.None || overlay is Overlay.Wallpaper ||
-                    (overlay is Overlay.AppMenu && overlay.inFolder == null),
-                panel = overlay != Overlay.None && overlay !is Overlay.ControlCenter,
+                standIn = filmStandsIn,
+                panel = overlay != Overlay.None,
                 otherFormatSaver = vm.screensaverVisible && !filmSaver && Wallpapers.screensaver == ScreensaverMode.Aerial &&
                     !AerialFormats.screensaverCarriesWallpaper(appContext),
                 lastInputAt = { vm.lastInputAt },
@@ -760,6 +763,7 @@ fun HomeScreen(
                 VideoWallpaper(
                     moving = filmMoves,
                     keep = vm.filmFront && !vm.screensaverVisible,
+                    standIn = filmStandsIn,
                     lastInputAt = vm.lastInputAt,
                     cover = filmCover,
                 )
