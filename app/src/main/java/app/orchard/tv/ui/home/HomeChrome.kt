@@ -809,8 +809,8 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
         val fests = Lunar.festivals(now.toLocalDate())
         val term = if (fests.isEmpty()) Lunar.solarTerm(now.toLocalDate()) else null
         val suffix = when {
-            fests.isNotEmpty() -> "今天是${fests.joinToString("和")}"
-            term != null -> "今天是二十四节气——$term"
+            fests.isNotEmpty() -> "今天是节日「${fests.joinToString("和")}」"
+            term != null -> "今天是二十四节气「$term」"
             else -> ""
         }
         BasicText(
