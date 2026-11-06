@@ -178,6 +178,7 @@ fun LiveSourceMenu(
             DiagLog.i("LiveMenu-debug: visible=true, wasCcOpen=$wasCcOpen, currentId=$currentId")
             if (wasCcOpen) {
                 wasCcOpen = false
+                justOpened = false
                 repeat(3) { androidx.compose.runtime.withFrameNanos { } }
                 runCatching { pillFocus.requestFocus() }
                 DiagLog.i("LiveMenu-debug: requested pillFocus")
