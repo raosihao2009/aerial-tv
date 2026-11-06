@@ -338,6 +338,8 @@ fun LiveSourceMenu(
                 showTime = false,
                 enabled = menuForId == null && movingId == null && !controlCenterOpen && !justOpened,
                 focusRequester = pillFocus,
+                onFocused = {},
+                onClick = { onOpenControlCenter() },
                 modifier = Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = 42.dp).focusProperties {
                     up = FocusRequester.Cancel
                     right = FocusRequester.Cancel
