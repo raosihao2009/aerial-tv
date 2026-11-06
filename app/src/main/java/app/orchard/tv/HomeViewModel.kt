@@ -302,9 +302,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             if (cur != null && cur.liveStatus == 2) {
                 val fallback = liveSources.find { it.id == "preset_2" } ?: liveSources.firstOrNull()
                 if (fallback != null && fallback.id != currentLiveSourceId) {
-                    val oldName = cur.name
                     currentLiveSourceId = fallback.id
-                    notify("「$oldName」未开播，请继续观看「${fallback.name}」")
                 }
             }
         }
