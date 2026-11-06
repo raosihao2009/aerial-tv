@@ -82,9 +82,8 @@ fun ChannelFocusPreview(
             return@LaunchedEffect
         }
 
-        // 加载遮罩：从其他卡片移回IPTV时显示(首次加载), 切换直播源时不显示(有旧画面兜底)
-        val isFirstLoad = player == null
-        loading = isFirstLoad
+        // 加载遮罩：始终显示加载图, 直到新流就绪
+        loading = true
 
         var streamUrl: String? = streamCache[source.url ?: ""]
         if (streamUrl == null) {
