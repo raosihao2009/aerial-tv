@@ -151,6 +151,7 @@ fun ChannelFocusPreview(
             if (!ready) {
                 DiagLog.i("channel preview: load timeout 15s, switching to fallback")
                 loading = false
+                toastMessage = "「${source?.name ?: ""}」加载超时，已切换到备用源"
                 onFallback()
             }
         }
