@@ -424,8 +424,8 @@ fun LiveSourceMenu(
                                 .align(Alignment.TopEnd)
                                 .padding(top = 6.dp, end = 6.dp)
                                 .background(
-                                    color = statusColor,
-                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(percent = 50),
+                                    color = androidx.compose.ui.graphics.Color(statusColor),
+                                    shape = RoundedCornerShape(percent = 50),
                                 )
                                 .padding(horizontal = 8.dp, vertical = 3.dp),
                         ) {
