@@ -304,7 +304,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                 if (fallback != null && fallback.id != currentLiveSourceId) {
                     val oldName = cur.name
                     currentLiveSourceId = fallback.id
-                    notify("「$oldName」无法观看，请继续观看「${fallback.name}」")
+                    notify("「$oldName」未开播，请继续观看「${fallback.name}」")
                 }
             }
         }

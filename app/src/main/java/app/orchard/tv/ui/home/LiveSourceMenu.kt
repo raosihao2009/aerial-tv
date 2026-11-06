@@ -323,6 +323,7 @@ fun LiveSourceMenu(
                 onFocused = { DiagLog.i("LiveMenu-debug: pill onFocused gained=$it") },
                 onClick = { DiagLog.i("CC-debug: pill clicked, opening CC from LiveMenu"); onOpenControlCenter() },
                 modifier = Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = 42.dp).focusProperties {
+                    up = FocusRequester.Cancel
                     right = FocusRequester.Cancel
                     left = requester(focusedId)
                     down = requester(focusedId)
@@ -406,7 +407,7 @@ fun LiveSourceMenu(
                                 bannerMsg = "「${source.name}」暂未设置直播地址"
                             } else if (source.liveStatus == 2) {
                                 val oldName = sources.find { it.id == currentId }?.name ?: "央视网快看"
-                                bannerMsg = "「${source.name}」无法观看，请继续观看「$oldName」"
+                                bannerMsg = "「${source.name}」未开播，请继续观看「$oldName」"
                             } else {
                                 onSelect(source.id); onDismiss()
                             }
@@ -415,17 +416,6 @@ fun LiveSourceMenu(
                         rowEnd = index % columns == columns - 1 || index == sources.size - 1,
                         showName = showAllNames || focusedId == source.id,
                     )
-                    // 直播状态标记: 绿点=直播中, 灰点=下播
-                    if (source.liveStatus == 1 || source.liveStatus == 2) {
-                        val dotColor = if (source.liveStatus == 1) Color(0xFF30D158) else Color(0x808E8E93)
-                        Box(
-                            Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(6.dp)
-                                .size(10.dp)
-                                .background(dotColor, androidx.compose.foundation.shape.CircleShape)
-                        )
-                    }
                 }
                 }
             }
