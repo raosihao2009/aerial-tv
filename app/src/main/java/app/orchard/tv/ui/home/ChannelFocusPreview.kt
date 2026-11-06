@@ -385,19 +385,11 @@ private fun extractBilibiliRoomId(url: String): Long? = runCatching {
 private fun extractRoomIdFromUrl(url: String): Long? =
     Regex("live\\.bilibili\\.com/(\\d+)").find(url)?.groupValues?.getOrNull(1)?.toLongOrNull()
 
-private fun bilibiliQn(context: android.content.Context): Int {
-    // 根据设备总内存自适应清晰度: 2.5GB以下用1080p, 以上用原画
-    val am = context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
-    val info = android.app.ActivityManager.MemoryInfo()
-    am.getMemoryInfo(info)
-    val totalMb = info.totalMem / (1024 * 1024)
-    return if (totalMb < 2500) 800 else 10000
-}
+private const val BILIBILI_QN = 800 // 1080p, 所有盒子通用
 
 private fun fetchBilibiliHlsUrl(roomId: Long, context: android.content.Context): String? = runCatching {
     val buvid3 = fetchBuvid3()
-    val qn = bilibiliQn(context)
-    val api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1&codec=0,1&qn=$qn&platform=web"
+    val api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1&codec=0,1&qn=$BILIBILI_QN&platform=web"
     val c = java.net.URL(api).openConnection() as java.net.HttpURLConnection
     c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36")
     c.setRequestProperty("Referer", "https://live.bilibili.com/")
@@ -438,8 +430,7 @@ private fun checkIfOffline(source: LiveSource, context: android.content.Context)
     }
     val roomId = extractBilibiliRoomId(source.url) ?: return@runCatching false
     val buvid3 = fetchBuvid3()
-    val qn = bilibiliQn(context)
-    val api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1,2&codec=0,1&qn=$qn&platform=web"
+    val api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1,2&codec=0,1&qn=$BILIBILI_QN&platform=web"
     val c = java.net.URL(api).openConnection() as java.net.HttpURLConnection
     c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36")
     c.setRequestProperty("Referer", "https://live.bilibili.com/")
