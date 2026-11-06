@@ -379,7 +379,7 @@ private fun extractRoomIdFromUrl(url: String): Long? =
     Regex("live\\.bilibili\\.com/(\\d+)").find(url)?.groupValues?.getOrNull(1)?.toLongOrNull()
 
 private fun bilibiliQn(): Int =
-    if (app.orchard.tv.settings.AerialSettings.liveQuality == app.orchard.tv.settings.AerialSettings.LiveQuality.Original) 10000 else 800
+    if (app.orchard.tv.settings.AerialSettings.liveQuality == app.orchard.tv.settings.AerialSettings.LiveQuality.Original) 0 else 800
 
 private fun fetchBilibiliHlsUrl(roomId: Long, context: android.content.Context): String? = runCatching {
     val buvid3 = fetchBuvid3()
