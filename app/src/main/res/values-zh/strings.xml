@@ -153,6 +153,9 @@
     <string name="st_hidden_apps">【应用菜单】隐藏的卡片</string>
     <string name="st_hidden_live">【直播菜单】隐藏的卡片</string>
     <string name="st_live_preview">直播预览</string>
+    <string name="st_live_quality">直播画质</string>
+    <string name="st_live_1080">1080p</string>
+    <string name="st_live_original">原画</string>
     <string name="st_hidden_apps_hint">从应用菜单隐藏的卡片在这里，可以放回应用菜单。设了家长密码时要先输入密码。</string>
     <string name="st_hidden_live_hint">选择一张卡片放回直播菜单</string>
     <string name="st_hidden_none">没有</string>
