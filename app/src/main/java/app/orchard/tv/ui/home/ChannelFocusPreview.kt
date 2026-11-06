@@ -144,6 +144,15 @@ fun ChannelFocusPreview(
 
         // 等待新流READY且缓冲足够(至少3秒)再切换，避免开播后卡缓冲
         var ready = false
+        // 15秒超时, 避免永远卡住
+        scope.launch {
+            kotlinx.coroutines.delay(15_000)
+            if (!ready) {
+                DiagLog.i("channel preview: load timeout 15s, switching to fallback")
+                loading = false
+                onFallback()
+            }
+        }
         val readyListener = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_READY) {
@@ -264,6 +273,15 @@ fun ChannelFocusPreview(
                         loading = true
                         p.volume = 1f
                         surface?.let { s -> p.setVideoTextureView(s) }
+                        // 如果播放器进入ERROR或IDLE(进入其他app太久直播流断开), 重新加载
+                        if (p.playbackState == Player.STATE_IDLE || p.playbackState == Player.STATE_ENDED) {
+                            loading = false
+                            restartSignal++
+                            return@let
+                        }
+                        if (p.playbackState == Player.STATE_READY) {
+                            loading = false
+                        }
                         if (p.playbackState == Player.STATE_IDLE) {
                             p.prepare()
                         }
@@ -277,6 +295,11 @@ fun ChannelFocusPreview(
                                 if (state == Player.STATE_READY) {
                                     loading = false
                                     p.removeListener(this)
+                                }
+                                if (state == Player.STATE_ERROR) {
+                                    loading = false
+                                    p.removeListener(this)
+                                    restartSignal++
                                 }
                             }
                         }
