@@ -571,11 +571,9 @@ fun HiddenLiveSourcesSheet(
                                                     modifier = Modifier.fillMaxSize(),
                                                     contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                                                 )
-                                                else -> Image(
-                                                    painter = androidx.compose.ui.res.painterResource(app.orchard.tv.R.drawable.live_default),
-                                                    contentDescription = source.name,
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                else -> BasicText(
+                                                    source.name.take(2), maxLines = 1,
+                                                    style = Type.Callout.copy(color = Color.White),
                                                 )
                                             }
                                         }

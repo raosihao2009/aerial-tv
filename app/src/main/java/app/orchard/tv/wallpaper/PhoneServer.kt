@@ -569,22 +569,7 @@ class PhoneServer private constructor(private val context: Context, private val 
             "preset_3" -> "live_kuikan"
             "preset_4" -> "live_dongfangmingzhu"
             "preset_5" -> "live_dengzi"
-            else -> {
-                // 自定义源没有预设图标, 返回默认直播图标
-                val defId = context.resources.getIdentifier("live_default", "drawable", context.packageName)
-                if (defId == 0) return text(Response.Status.NOT_FOUND, "")
-                val opts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                android.graphics.BitmapFactory.decodeResource(context.resources, defId, opts)
-                opts.inSampleSize = (opts.outWidth / 480).coerceAtLeast(1)
-                opts.inJustDecodeBounds = false
-                val bmp = android.graphics.BitmapFactory.decodeResource(context.resources, defId, opts)
-                val out = ByteArrayOutputStream()
-                bmp.compress(Bitmap.CompressFormat.JPEG, 80, out)
-                val bytes = out.toByteArray()
-                return newFixedLengthResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(bytes), bytes.size.toLong()).apply {
-                    addHeader("Cache-Control", "public, max-age=86400")
-                }
-            }
+            else -> return text(Response.Status.NOT_FOUND, "")
         }
         val resId = context.resources.getIdentifier(resName, "drawable", context.packageName)
         if (resId == 0) return text(Response.Status.NOT_FOUND, "")

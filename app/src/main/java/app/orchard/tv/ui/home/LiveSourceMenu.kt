@@ -78,15 +78,12 @@ private fun liveSourceAppEntry(source: LiveSource, ctx: android.content.Context)
     val (top, bottom) = liveColors[source.colorIndex % liveColors.size]
     val resId = liveSourceIconResId(source)
     val art = if (resId != null) {
-        // 预设源直接用图标(压缩采样避免OOM)
         val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
         val bmp = android.graphics.BitmapFactory.decodeResource(ctx.resources, resId, opts)
         runCatching { TileArtFactory.bitmapTileFromBitmap(ctx, bmp, top, bottom, null, 0) }.getOrNull()
             ?: TileArtFactory.glyphTile(top, bottom, Glyph.Play)
     } else {
-        val bmp = android.graphics.BitmapFactory.decodeResource(ctx.resources, R.drawable.live_default)
-        runCatching { TileArtFactory.bitmapTileFromBitmap(ctx, bmp, top, bottom, null, 0) }.getOrNull()
-            ?: TileArtFactory.glyphTile(top, bottom, Glyph.Play)
+        TileArtFactory.glyphTile(top, bottom, Glyph.Play)
     }
     return AppEntry(
         packageName = "live_${source.id}",
@@ -373,11 +370,10 @@ fun LiveSourceMenu(
                             runCatching { android.graphics.BitmapFactory.decodeFile(uploadFile.absolutePath) }.getOrNull()
                         } else {
                             val resId = liveSourceIconResId(source)
-                            val opts = android.graphics.BitmapFactory.Options().apply {
-                                inSampleSize = if (resId != null) 4 else 1
-                            }
-                            val targetId = resId ?: R.drawable.live_default
-                            runCatching { android.graphics.BitmapFactory.decodeResource(context.resources, targetId, opts) }.getOrNull()
+                            if (resId != null) {
+                                val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
+                                runCatching { android.graphics.BitmapFactory.decodeResource(context.resources, resId, opts) }.getOrNull()
+                            } else null
                         }
                     }
                 }
@@ -399,8 +395,9 @@ fun LiveSourceMenu(
                     value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                         val (top, bottom) = liveColors[source.colorIndex % liveColors.size]
                         val bmp = baseBmpState.value
-                            ?: android.graphics.BitmapFactory.decodeResource(context.resources, R.drawable.live_default)
-                        runCatching { TileArtFactory.bitmapTileFromBitmap(context, bmp, top, bottom, statusText, statusColor) }.getOrNull() ?: fallback.art
+                        if (bmp != null) {
+                            runCatching { TileArtFactory.bitmapTileFromBitmap(context, bmp, top, bottom, statusText, statusColor) }.getOrNull() ?: fallback.art
+                        } else fallback.art
                     }
                 }
                 val app = remember(fallback, artState.value) { fallback.copy(art = artState.value ?: fallback.art) }
