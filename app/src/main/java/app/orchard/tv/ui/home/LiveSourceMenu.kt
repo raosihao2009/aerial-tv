@@ -169,7 +169,8 @@ fun LiveSourceMenu(
     var wasCcOpen by remember { mutableStateOf(false) }
     val pillFocus = remember { FocusRequester() }
     // 刚打开时pill临时不可聚焦, 让焦点自然落到直播卡片上, 避免从右上角跳转的动画
-    var justOpened by remember { mutableStateOf(false) }
+    // 初始值true: 组件首次组合时justOpened就为true, 只有当前直播卡片可聚焦
+    var justOpened by remember { mutableStateOf(true) }
 
     // 菜单显示时立即聚焦上次焦点位置(默认当前直播源), 避免焦点先落到第一个卡片再跳过来
     LaunchedEffect(visible) {
@@ -194,6 +195,9 @@ fun LiveSourceMenu(
                 DiagLog.i("LiveMenu-debug: final request ok=$ok")
                 justOpened = false
             }
+        } else {
+            // 关闭时重置justOpened=true, 下次打开组件首次组合就只有currentId可聚焦
+            justOpened = true
         }
     }
     // 移动时焦点跟随
