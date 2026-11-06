@@ -124,7 +124,14 @@ fun ChannelFocusPreview(
                     .setForceHighestSupportedBitrate(true)
             )
         }
-        val exo = ExoPlayer.Builder(context).setTrackSelector(trackSelector).build()
+        val exo = ExoPlayer.Builder(context)
+            .setTrackSelector(trackSelector)
+            .setLoadControl(
+                androidx.media3.exoplayer.DefaultLoadControl.Builder()
+                    .setBufferDurationsMs(5000, 15000, 2000, 3000)
+                    .build()
+            )
+            .build()
         try {
         val factory = DefaultHttpDataSource.Factory()
             .setUserAgent("Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
@@ -213,6 +220,8 @@ fun ChannelFocusPreview(
             val oldName = currentPlayingName
             old?.release()
             player = exo
+            // 跳到直播边缘(缓冲末尾), 避免音视频从不同位置开始导致画面超前声音
+            exo.seekTo(exo.bufferedPosition.coerceAtLeast(exo.currentPosition))
             exo.playWhenReady = true
             currentPlayingName = source.name
             playingSourceId = source.id
