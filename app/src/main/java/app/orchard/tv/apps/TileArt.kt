@@ -255,13 +255,27 @@ object TileArtFactory {
     fun bitmapTileFromBitmap(ctx: android.content.Context, bmp: android.graphics.Bitmap?, top: Int, bottom: Int, statusText: String? = null, statusColor: Int = 0): TileArt {
         val back = createBitmap(W, H)
         Canvas(back).apply {
-            drawColor(0xFF111111.toInt())
             if (bmp != null) {
+                drawColor(0xFF111111.toInt())
                 val scale = max(W.toFloat() / bmp.width, H.toFloat() / bmp.height)
                 val dw = (bmp.width * scale).roundToInt()
                 val dh = (bmp.height * scale).roundToInt()
                 drawBitmap(bmp, null, android.graphics.Rect((W - dw) / 2, (H - dh) / 2, (W + dw) / 2, (H + dh) / 2),
                     Paint(Paint.FILTER_BITMAP_FLAG))
+            } else {
+                // 无图时画渐变背景
+                val shader = android.graphics.LinearGradient(0f, 0f, 0f, H.toFloat(), top, bottom, android.graphics.Shader.TileMode.CLAMP)
+                drawRect(android.graphics.Rect(0, 0, W, H), Paint().apply { setShader(shader) })
+                // 画白色播放三角
+                val g = W * 0.3f
+                val cx = W / 2f; val cy = H / 2f
+                val path = android.graphics.Path().apply {
+                    moveTo(cx - g * 0.4f, cy - g * 0.5f)
+                    lineTo(cx - g * 0.4f, cy + g * 0.5f)
+                    lineTo(cx + g * 0.6f, cy)
+                    close()
+                }
+                drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE })
             }
             // 把状态标签直接画到位图上
             if (statusText != null && statusColor != 0) {

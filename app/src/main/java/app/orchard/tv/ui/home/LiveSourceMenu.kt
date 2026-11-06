@@ -394,10 +394,7 @@ fun LiveSourceMenu(
                     }
                     value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                         val (top, bottom) = liveColors[source.colorIndex % liveColors.size]
-                        val bmp = baseBmpState.value
-                        if (bmp != null) {
-                            runCatching { TileArtFactory.bitmapTileFromBitmap(context, bmp, top, bottom, statusText, statusColor) }.getOrNull() ?: fallback.art
-                        } else fallback.art
+                        runCatching { TileArtFactory.bitmapTileFromBitmap(context, baseBmpState.value, top, bottom, statusText, statusColor) }.getOrNull() ?: fallback.art
                     }
                 }
                 val app = remember(fallback, artState.value) { fallback.copy(art = artState.value ?: fallback.art) }
