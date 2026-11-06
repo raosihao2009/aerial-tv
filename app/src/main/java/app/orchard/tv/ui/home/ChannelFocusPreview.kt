@@ -50,7 +50,7 @@ fun ChannelFocusPreview(
     source: LiveSource?,
     modifier: Modifier = Modifier,
     onFallback: () -> String? = { null },
-    onRevert: (String) -> Unit = {},
+    onRevert: (String) -> String? = { null },
     onReadyChange: (Boolean) -> Unit = {},
     onStatusRefresh: () -> Unit = {},
 ) {
@@ -107,9 +107,13 @@ fun ChannelFocusPreview(
             DiagLog.i("channel preview: stream resolve failed")
             loading = false
             if (player != null) {
-                // 切换源失败：继续播当前源
-                toastMessage = "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
-                playingSourceId?.let { onRevert(it) }
+                // 切换源失败：看旧源是否还在直播
+                val target = playingSourceId?.let { onRevert(it) }
+                toastMessage = if (target != null) {
+                    "「${source.name}」暂时无法观看，已切换至「$target」"
+                } else {
+                    "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
+                }
             } else {
                 // 首次加载失败: 切换到备用源
                 DiagLog.i("channel preview: first load failed, switching to fallback")
@@ -190,9 +194,14 @@ fun ChannelFocusPreview(
                     if (offline || retryCount >= 3) {
                         // 下播或重试耗尽
                         if (hasOld) {
-                            // 切换源失败: 继续播旧源
+                            // 切换源失败: 看旧源是否还在直播
                             loading = false
-                            toastMessage = "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
+                            val target = playingSourceId?.let { onRevert(it) }
+                            toastMessage = if (target != null) {
+                                "「${source.name}」暂时无法观看，已切换至「$target」"
+                            } else {
+                                "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
+                            }
                             onStatusRefresh()
                         } else {
                             // 当前源下播: 切换到备用源
@@ -249,10 +258,14 @@ fun ChannelFocusPreview(
             DiagLog.i("channel preview: new stream not ready")
             exo.release()
             if (player != null) {
-                // 切换源失败：继续播当前源，焦点回退
+                // 切换源失败：看旧源是否还在直播
                 loading = false
-                toastMessage = "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
-                playingSourceId?.let { onRevert(it) }
+                val target = playingSourceId?.let { onRevert(it) }
+                toastMessage = if (target != null) {
+                    "「${source.name}」暂时无法观看，已切换至「$target」"
+                } else {
+                    "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
+                }
             } else {
                 // 开机首次加载超时：持续重试直到成功
                 loading = true
