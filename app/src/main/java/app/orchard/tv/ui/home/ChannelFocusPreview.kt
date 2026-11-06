@@ -51,6 +51,7 @@ fun ChannelFocusPreview(
     modifier: Modifier = Modifier,
     onFallback: () -> Unit = {},
     onRevert: (String) -> Unit = {},
+    onReadyChange: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -81,9 +82,8 @@ fun ChannelFocusPreview(
             return@LaunchedEffect
         }
 
-        // 加载遮罩：切换源时显示(有旧画面兜底)；首次加载不显示，露出壁纸
-        val isFirstLoad = player == null
-        loading = !isFirstLoad
+        // 加载遮罩：切换直播源时不显示加载图, 露出旧画面或壁纸
+        loading = false
 
         var streamUrl: String? = streamCache[source.url ?: ""]
         if (streamUrl == null) {
@@ -157,6 +157,7 @@ fun ChannelFocusPreview(
                             kotlinx.coroutines.delay(200)
                         }
                         if (!ready) ready = true
+                        onReadyChange(true)
                     }
                 }
             }

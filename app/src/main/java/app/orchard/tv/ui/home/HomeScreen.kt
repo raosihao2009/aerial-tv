@@ -330,6 +330,7 @@ fun HomeScreen(
 
 // ===== 直播预览和UI隐藏状态 =====
     var uiHidden by remember { mutableStateOf(false) }
+    var liveReady by remember { mutableStateOf(false) }
     var liveMenuOpen by remember { mutableStateOf(false) }
     var liveMoving by remember { mutableStateOf(false) }
     var ccFromLiveMenu by remember { mutableStateOf(false) }
@@ -345,7 +346,7 @@ fun HomeScreen(
             else -> 1f
         },
         animationSpec = androidx.compose.animation.core.tween(250), label = "uiAlpha")
-    LaunchedEffect(channelPreviewVisible) { vm.livePlaying = channelPreviewVisible }
+    LaunchedEffect(channelPreviewVisible) { vm.livePlaying = channelPreviewVisible; liveReady = false }
     // 焦点在IPTV卡片时立即检测一次直播状态, 然后每2分钟刷新; 焦点移开时停止
     LaunchedEffect(channelPreviewVisible) {
         if (channelPreviewVisible) {
@@ -368,9 +369,9 @@ fun HomeScreen(
             }
         }
     }
-    // 10秒无操作自动隐藏UI（一级和二级菜单都生效）
-    LaunchedEffect(focusedPkg, overlay, uiHidden, lastKeyTime, channelPreviewVisible, liveMenuOpen, liveMoving) {
-        if (channelPreviewVisible && focusedPkg == "com.jxiptv.softconsole" && overlay == Overlay.None && !uiHidden) {
+    // 10秒无操作自动隐藏UI（直播加载成功后才开始计时）
+    LaunchedEffect(focusedPkg, overlay, uiHidden, lastKeyTime, channelPreviewVisible, liveMenuOpen, liveMoving, liveReady) {
+        if (channelPreviewVisible && focusedPkg == "com.jxiptv.softconsole" && overlay == Overlay.None && !uiHidden && liveReady) {
             delay(10_000)
             uiHidden = true
         }
@@ -851,11 +852,11 @@ fun HomeScreen(
                 ChannelFocusPreview(
                     source = vm.getAllLiveSources().firstOrNull { it.id == vm.currentLiveSourceId },
                     onFallback = {
-                        // fallback 优先 preset_2，找不到就用第一个可用源，避免 preset_2 被隐藏时切不过去
                         val fb = vm.liveSources.find { it.id == "preset_2" } ?: vm.liveSources.firstOrNull()
                         fb?.let { vm.selectLiveSource(it.id) }
                     },
                     onRevert = { vm.selectLiveSource(it) },
+                    onReadyChange = { liveReady = it },
                 )
             }
             Box(
