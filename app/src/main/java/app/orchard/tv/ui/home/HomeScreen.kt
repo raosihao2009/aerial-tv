@@ -860,8 +860,7 @@ fun HomeScreen(
                         fb?.name
                     },
                     onRevert = { oldId ->
-                        // player还在播旧源就说明旧源在直播, 直接切回去
-                        vm.selectLiveSource(oldId)
+                        // 旧源本来就在播, 不用切换, 直接提示
                         null
                     },
                     onReadyChange = { liveReady = it },
