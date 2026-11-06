@@ -1012,21 +1012,11 @@ fun HomeScreen(
                 focusRequester = pillRequester,
                 modifier = Modifier
                     .diagLayer("pill")
-                    // 浮层打开时pill完全不可聚焦(enabled=false只禁用点击不禁用聚焦)
-                    .then(if (overlay != Overlay.None) Modifier.focusable(false) else Modifier)
                     // Down goes back to the top-row tile Up came from, not to the nearest one,
                     // which under the pill is the last of the row (issue #703).
                     .focusProperties {
-                        // 浮层打开时pill不可见，完全阻止焦点导航到这里
-                        if (overlay != Overlay.None) {
-                            up = FocusRequester.Cancel
-                            down = FocusRequester.Cancel
-                            left = FocusRequester.Cancel
-                            right = FocusRequester.Cancel
-                        } else {
-                            val key = focusedKey
-                            if (key != null && apps.indexOfFirst { it.key == key } in 0 until columns) down = requester(key)
-                        }
+                        val key = focusedKey
+                        if (key != null && apps.indexOfFirst { it.key == key } in 0 until columns) down = requester(key)
                     }
                     .graphicsLayer {
                         alpha = (1f - (toSaver.value * 2f).coerceIn(0f, 1f)) * uiAlpha
