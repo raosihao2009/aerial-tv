@@ -359,9 +359,11 @@ fun LiveSourceMenu(
                 val shifted = rowFromTop - bottomRow
                 androidx.compose.runtime.key(source.id) {
                 val fallback = remember(source.id, source.name) { liveSourceAppEntry(source, context) }
-                // 缓存解码后的bitmap(只在图片变化时解码, 不依赖liveStatus)
-                val baseBmp = remember(source.id, source.iconTs) {
-                    kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.Default) {
+                // 异步解码bitmap, 状态标签变化时只重画标签不重新解码
+                val baseBmpState = androidx.compose.runtime.produceState<android.graphics.Bitmap?>(
+                    initialValue = null, source.id, source.iconTs
+                ) {
+                    value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         val uploadFile = java.io.File(context.filesDir, "live_icon_${source.id}.jpg")
                         if (uploadFile.exists()) {
                             runCatching { android.graphics.BitmapFactory.decodeFile(uploadFile.absolutePath) }.getOrNull()
@@ -372,7 +374,9 @@ fun LiveSourceMenu(
                         }
                     }
                 }
-                val artState = androidx.compose.runtime.produceState<app.orchard.tv.apps.TileArt?>(initialValue = fallback.art, source.id, source.liveStatus, source.id == currentId) {
+                val artState = androidx.compose.runtime.produceState<app.orchard.tv.apps.TileArt?>(
+                    initialValue = fallback.art, baseBmpState.value, source.liveStatus, source.id == currentId
+                ) {
                     val statusText = when {
                         source.id == currentId -> "直播中"
                         source.liveStatus == 2 -> "未开播"
@@ -387,7 +391,9 @@ fun LiveSourceMenu(
                     }
                     value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                         val (top, bottom) = liveColors[source.colorIndex % liveColors.size]
-                        runCatching { TileArtFactory.bitmapTileFromBitmap(context, baseBmp, top, bottom, statusText, statusColor) }.getOrNull() ?: fallback.art
+                        val bmp = baseBmpState.value
+                            ?: android.graphics.BitmapFactory.decodeResource(context.resources, R.drawable.live_default)
+                        runCatching { TileArtFactory.bitmapTileFromBitmap(context, bmp, top, bottom, statusText, statusColor) }.getOrNull() ?: fallback.art
                     }
                 }
                 val app = remember(fallback, artState.value) { fallback.copy(art = artState.value ?: fallback.art) }
