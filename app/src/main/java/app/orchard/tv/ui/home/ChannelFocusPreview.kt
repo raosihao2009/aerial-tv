@@ -52,6 +52,7 @@ fun ChannelFocusPreview(
     onFallback: () -> Unit = {},
     onRevert: (String) -> Unit = {},
     onReadyChange: (Boolean) -> Unit = {},
+    onStatusRefresh: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -186,6 +187,7 @@ fun ChannelFocusPreview(
                             // 切换源失败: 继续播旧源
                             loading = false
                             toastMessage = "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
+                            onStatusRefresh()
                         } else {
                             // 当前源下播: 自动切换到央视网快看(preset_2)
                             loading = false

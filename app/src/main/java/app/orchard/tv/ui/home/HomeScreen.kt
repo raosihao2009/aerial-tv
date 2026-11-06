@@ -347,14 +347,12 @@ fun HomeScreen(
         },
         animationSpec = androidx.compose.animation.core.tween(250), label = "uiAlpha")
     LaunchedEffect(channelPreviewVisible) { vm.livePlaying = channelPreviewVisible; liveReady = false }
-    // 焦点在IPTV卡片时立即检测一次直播状态, 然后每2分钟刷新; 焦点移开时停止
+    // 焦点在IPTV卡片时立即检测一次直播状态, 然后每30秒刷新; 焦点移开时停止
     LaunchedEffect(channelPreviewVisible) {
         if (channelPreviewVisible) {
-            DiagLog.i("LiveStatus: focus on IPTV, checking live statuses")
             vm.checkLiveStatuses()
             while (true) {
-                delay(120_000)
-                DiagLog.i("LiveStatus: periodic refresh")
+                delay(30_000)
                 vm.checkLiveStatuses()
             }
         }
@@ -859,6 +857,7 @@ fun HomeScreen(
                     },
                     onRevert = { vm.selectLiveSource(it) },
                     onReadyChange = { liveReady = it },
+                    onStatusRefresh = { vm.checkLiveStatuses() },
                 )
             }
             Box(
