@@ -277,6 +277,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                     results.forEach { (id, status) ->
                         liveSources = liveSources.map { if (it.id == id) it.copy(liveStatus = status) else it }
                     }
+                    app.orchard.tv.system.DiagLog.i("LiveStatus: batch done $results")
                 }
             }
             // 检查当前源是否下播
