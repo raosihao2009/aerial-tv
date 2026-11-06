@@ -350,7 +350,19 @@ fun LiveSourceMenu(
                 val shifted = rowFromTop - bottomRow
                 androidx.compose.runtime.key(source.id) {
                 val fallback = remember(source.id, source.name) { liveSourceAppEntry(source, context) }
-                val artState = androidx.compose.runtime.produceState<app.orchard.tv.apps.TileArt?>(initialValue = fallback.art, source.id, source.name, source.liveStatus, source.id == currentId, source.iconTs) {
+                // 缓存解码后的bitmap(只在图片变化时解码, 不依赖liveStatus)
+                val baseBmp = remember(source.id, source.iconTs) {
+                    kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.Default) {
+                        val uploadFile = java.io.File(context.filesDir, "live_icon_${source.id}.jpg")
+                        if (uploadFile.exists()) {
+                            runCatching { android.graphics.BitmapFactory.decodeFile(uploadFile.absolutePath) }.getOrNull()
+                        } else {
+                            val resId = liveSourceIconResId(source)
+                            if (resId != null) android.graphics.BitmapFactory.decodeResource(context.resources, resId) else null
+                        }
+                    }
+                }
+                val artState = androidx.compose.runtime.produceState<app.orchard.tv.apps.TileArt?>(initialValue = fallback.art, source.id, source.liveStatus, source.id == currentId) {
                     val statusText = when {
                         source.id == currentId -> "直播中"
                         source.liveStatus == 2 -> "未开播"
@@ -364,19 +376,8 @@ fun LiveSourceMenu(
                         else -> 0
                     }
                     value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                        val uploadFile = java.io.File(context.filesDir, "live_icon_${source.id}.jpg")
-                        if (uploadFile.exists()) {
-                            runCatching {
-                                val bmp = android.graphics.BitmapFactory.decodeFile(uploadFile.absolutePath)
-                                val (top, bottom) = liveColors[source.colorIndex % liveColors.size]
-                                TileArtFactory.bitmapTileFromBitmap(context, bmp, top, bottom, statusText, statusColor)
-                            }.getOrNull() ?: fallback.art
-                        } else {
-                            val resId = liveSourceIconResId(source)
-                            val (top, bottom) = liveColors[source.colorIndex % liveColors.size]
-                            val bmp = if (resId != null) android.graphics.BitmapFactory.decodeResource(context.resources, resId) else null
-                            runCatching { TileArtFactory.bitmapTileFromBitmap(context, bmp, top, bottom, statusText, statusColor) }.getOrNull() ?: fallback.art
-                        }
+                        val (top, bottom) = liveColors[source.colorIndex % liveColors.size]
+                        runCatching { TileArtFactory.bitmapTileFromBitmap(context, baseBmp, top, bottom, statusText, statusColor) }.getOrNull() ?: fallback.art
                     }
                 }
                 val app = remember(fallback, artState.value) { fallback.copy(art = artState.value ?: fallback.art) }

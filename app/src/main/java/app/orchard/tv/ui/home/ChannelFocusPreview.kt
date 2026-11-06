@@ -70,11 +70,8 @@ fun ChannelFocusPreview(
     var currentPlayingName by remember { mutableStateOf<String?>(null) }
     // 上一个正在播放的源 id(切换失败时回退焦点)
     var playingSourceId by remember { mutableStateOf<String?>(null) }
-    val loadingAlpha by animateFloatAsState(
-        targetValue = if (loading) 1f else 0f,
-        animationSpec = tween(if (loading) 300 else 500),
-        label = "loadingAlpha",
-    )
+    // 加载遮罩：直接显示/隐藏，不用alpha渐变动画(低端GPU fill rate优化)
+    val loadingAlpha = if (loading) 1f else 0f
 
     LaunchedEffect(source?.url, restartSignal) {
         if (source == null) {
