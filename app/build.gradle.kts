@@ -21,6 +21,8 @@ android {
         targetSdk = 34
         versionCode = 1000
         versionName = "3.0"
+        // 只保留中文和英文, 删掉其他语言资源减小包体
+        resourceConfigurations += setOf("zh", "en")
         // `./gradlew -Pdiag ...`: a build for one reporter's TV whose logcat shows no app lines;
         // see system/DiagLog.kt.
         val diag = project.hasProperty("diag")
