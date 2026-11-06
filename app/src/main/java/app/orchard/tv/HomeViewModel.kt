@@ -259,6 +259,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                                 }
                                 val finalUrl = conn.url.toString()
                                 conn.disconnect()
+                                app.orchard.tv.system.DiagLog.i("LiveStatus: ${src.id} finalUrl=$finalUrl")
                                 val roomId = Regex("live\\.bilibili\\.com/(\\d+)").find(finalUrl)?.groupValues?.get(1)
                                     ?: Regex("/(\\d{5,})").find(finalUrl)?.groupValues?.get(1)
                                 if (roomId.isNullOrBlank()) return@runCatching 0
@@ -271,7 +272,10 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                                 apiConn.disconnect()
                                 val obj = org.json.JSONObject(json).getJSONObject("data")
                                 if (obj.getInt("live_status") == 1) 1 else 2
-                            }.getOrDefault(0)
+                            }.getOrElse {
+                                app.orchard.tv.system.DiagLog.i("LiveStatus: ${src.id} error: ${it.message}")
+                                0
+                            }
                         }
                     }.awaitAll()
                     results.forEach { (id, status) ->
