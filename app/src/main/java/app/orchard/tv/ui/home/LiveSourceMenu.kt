@@ -371,11 +371,9 @@ fun LiveSourceMenu(
                             }.getOrNull() ?: fallback.art
                         } else {
                             val resId = liveSourceIconResId(source)
-                            if (resId != null) {
-                                val (top, bottom) = liveColors[source.colorIndex % liveColors.size]
-                                val bmp = android.graphics.BitmapFactory.decodeResource(context.resources, resId)
-                                runCatching { TileArtFactory.bitmapTileFromBitmap(context, bmp, top, bottom, statusText, statusColor) }.getOrNull() ?: fallback.art
-                            } else fallback.art
+                            val (top, bottom) = liveColors[source.colorIndex % liveColors.size]
+                            val bmp = if (resId != null) android.graphics.BitmapFactory.decodeResource(context.resources, resId) else null
+                            runCatching { TileArtFactory.bitmapTileFromBitmap(context, bmp, top, bottom, statusText, statusColor) }.getOrNull() ?: fallback.art
                         }
                     }
                 }
