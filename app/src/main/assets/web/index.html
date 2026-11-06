@@ -1321,7 +1321,7 @@ function renderLive() {
     {
       const img = el('img'); img.alt = ''; img.draggable = false; img.loading = 'lazy';
       img.src = `${base}live-icon/${encodeURIComponent(s.id)}?v=${Date.now()}`;
-      img.onerror = () => { pic.style.background='linear-gradient(135deg,#667eea,#764ba2)'; pic.style.display='grid'; pic.style.placeItems='center'; pic.style.color='#fff'; pic.style.fontSize='32px'; pic.style.fontWeight='700'; pic.textContent=(s.name||'?').charAt(0); img.remove(); };
+      img.onerror = () => { pic.style.background='linear-gradient(135deg,#667eea,#764ba2)'; pic.style.display='grid'; pic.style.placeItems='center'; pic.style.color='#fff'; pic.innerHTML='<svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>'; img.remove(); };
       pic.appendChild(img);
     }
     if (s.id === selectedId) {
@@ -1383,7 +1383,7 @@ function liveSheet(s) {
     const pic = el('div', 'pic');
     {
       const img = el('img'); img.src = `${base}live-icon/${encodeURIComponent(s.id)}?v=${Date.now()}`;
-      img.onerror = () => { pic.style.background='linear-gradient(135deg,#667eea,#764ba2)'; pic.style.display='grid'; pic.style.placeItems='center'; pic.style.color='#fff'; pic.style.fontSize='48px'; pic.style.fontWeight='700'; pic.textContent=(s.name||'?').charAt(0); img.remove(); };
+      img.onerror = () => { pic.style.background='linear-gradient(135deg,#667eea,#764ba2)'; pic.style.display='grid'; pic.style.placeItems='center'; pic.style.color='#fff'; pic.innerHTML='<svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>'; img.remove(); };
       pic.appendChild(img);
     }
     body.appendChild(pic);
