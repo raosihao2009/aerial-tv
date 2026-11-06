@@ -49,7 +49,7 @@ import org.json.JSONObject
 fun ChannelFocusPreview(
     source: LiveSource?,
     modifier: Modifier = Modifier,
-    onFallback: () -> Unit = {},
+    onFallback: () -> String? = { null },
     onRevert: (String) -> Unit = {},
     onReadyChange: (Boolean) -> Unit = {},
     onStatusRefresh: () -> Unit = {},
@@ -113,8 +113,8 @@ fun ChannelFocusPreview(
             } else {
                 // 首次加载失败: 切换到备用源
                 DiagLog.i("channel preview: first load failed, switching to fallback")
-                toastMessage = "「${source?.name ?: ""}」暂时无法观看，已切换到备用源"
-                onFallback()
+                val target = onFallback()
+                toastMessage = "「${source?.name ?: ""}」暂时无法观看，已切换至「${target ?: "备用源"}」"
             }
             return@LaunchedEffect
         }
@@ -156,8 +156,8 @@ fun ChannelFocusPreview(
             if (!ready) {
                 DiagLog.i("channel preview: load timeout 15s, switching to fallback")
                 loading = false
-                toastMessage = "「${source?.name ?: ""}」暂时无法观看，已切换到备用源"
-                onFallback()
+                val target = onFallback()
+                toastMessage = "「${source?.name ?: ""}」暂时无法观看，已切换至「${target ?: "备用源"}」"
             }
         }
         val readyListener = object : Player.Listener {
@@ -198,8 +198,8 @@ fun ChannelFocusPreview(
                             // 当前源下播: 切换到备用源
                             loading = false
                             DiagLog.i("player err: current source offline, switching to fallback")
-                            toastMessage = "「${source.name}」暂时无法观看，已切换到备用源"
-                            onFallback()
+                            val target = onFallback()
+                            toastMessage = "「${source.name}」暂时无法观看，已切换至「${target ?: "备用源"}」"
                         }
                         return@launch
                     }

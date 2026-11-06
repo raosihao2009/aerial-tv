@@ -858,7 +858,10 @@ fun HomeScreen(
                         // 优先切换到任意已开播的源, 都没有再用央视网快看
                         val alive = vm.getAllLiveSources().firstOrNull { it.liveStatus == 1 && it.id != vm.currentLiveSourceId }
                         val fb = alive ?: vm.liveSources.find { it.id == "preset_2" } ?: vm.liveSources.firstOrNull()
-                        fb?.let { vm.selectLiveSource(it.id) }
+                        fb?.let {
+                            vm.selectLiveSource(it.id)
+                            it.name
+                        }
                     },
                     onRevert = { vm.selectLiveSource(it) },
                     onReadyChange = { liveReady = it },
