@@ -318,8 +318,7 @@ fun LiveSourceMenu(
                 now = java.time.LocalDateTime.now(),
                 network = pillNetwork,
                 showTime = false,
-                // pill永远不被方向键聚焦, 只在从CC返回时由LaunchedEffect手动requestFocus
-                enabled = false,
+                enabled = menuForId == null && movingId == null && !controlCenterOpen && !justOpened,
                 focusRequester = pillFocus,
                 onFocused = { DiagLog.i("LiveMenu-debug: pill onFocused gained=$it") },
                 onClick = { DiagLog.i("CC-debug: pill clicked, opening CC from LiveMenu"); onOpenControlCenter() },
