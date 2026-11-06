@@ -264,47 +264,15 @@ fun ChannelFocusPreview(
         val obs = LifecycleEventObserver { _, e ->
             when (e) {
                 Lifecycle.Event.ON_STOP -> {
-                    player?.pause()
-                    player?.volume = 0f
+                    // 进入其他app时直接销毁播放器, 回到桌面时重新加载(和开机一样)
+                    player?.release()
+                    player = null
+                    loading = false
                 }
                 Lifecycle.Event.ON_START -> {
-                    player?.let { p ->
-                        // 待机回来: 显示加载图直到流重新就绪
-                        loading = true
-                        p.volume = 1f
-                        surface?.let { s -> p.setVideoTextureView(s) }
-                        // 如果播放器进入ERROR或IDLE(进入其他app太久直播流断开), 重新加载
-                        if (p.playbackState == Player.STATE_IDLE || p.playbackState == Player.STATE_ENDED) {
-                            loading = false
-                            restartSignal++
-                            return@let
-                        }
-                        if (p.playbackState == Player.STATE_READY) {
-                            loading = false
-                        }
-                        if (p.playbackState == Player.STATE_IDLE) {
-                            p.prepare()
-                        }
-                        p.playWhenReady = true
-                        if (p.isCurrentMediaItemLive) {
-                            p.seekToDefaultPosition()
-                        }
-                        // 等 ready 后再撤掉加载图
-                        val listener = object : Player.Listener {
-                            override fun onPlaybackStateChanged(state: Int) {
-                                if (state == Player.STATE_READY) {
-                                    loading = false
-                                    p.removeListener(this)
-                                }
-                                if (state == Player.STATE_ERROR) {
-                                    loading = false
-                                    p.removeListener(this)
-                                    restartSignal++
-                                }
-                            }
-                        }
-                        p.addListener(listener)
-                    } ?: run { restartSignal++ }
+                    // 回到桌面: 播放器已销毁, 重新加载当前源
+                    loading = true
+                    restartSignal++
                 }
                 else -> {}
             }
