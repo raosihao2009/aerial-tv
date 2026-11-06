@@ -103,12 +103,13 @@ fun ChannelFocusPreview(
             DiagLog.i("channel preview: stream resolve failed")
             loading = false
             if (player != null) {
-                // 切换源失败：继续播当前源，焦点回退到旧源
+                // 切换源失败：继续播当前源
                 toastMessage = "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
                 playingSourceId?.let { onRevert(it) }
             } else {
-                // 首次加载失败: 直接切换到央视网快看
+                // 首次加载失败: 切换到备用源
                 DiagLog.i("channel preview: first load failed, switching to fallback")
+                toastMessage = "「${source?.name ?: ""}」暂时无法观看，已切换到备用源"
                 onFallback()
             }
             return@LaunchedEffect
@@ -151,7 +152,7 @@ fun ChannelFocusPreview(
             if (!ready) {
                 DiagLog.i("channel preview: load timeout 15s, switching to fallback")
                 loading = false
-                toastMessage = "「${source?.name ?: ""}」加载超时，已切换到备用源"
+                toastMessage = "「${source?.name ?: ""}」暂时无法观看，已切换到备用源"
                 onFallback()
             }
         }
@@ -190,9 +191,10 @@ fun ChannelFocusPreview(
                             toastMessage = "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
                             onStatusRefresh()
                         } else {
-                            // 当前源下播: 自动切换到央视网快看(preset_2)
+                            // 当前源下播: 切换到备用源
                             loading = false
                             DiagLog.i("player err: current source offline, switching to fallback")
+                            toastMessage = "「${source.name}」暂时无法观看，已切换到备用源"
                             onFallback()
                         }
                         return@launch
