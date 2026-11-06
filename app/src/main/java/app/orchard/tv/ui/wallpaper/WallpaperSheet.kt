@@ -279,6 +279,13 @@ fun WallpaperSheet(
                         AerialSettings.livePreviewEnabled, AerialSettings::chooseLivePreview, first = true,
                     )
                     Choices(
+                        R.string.st_live_quality,
+                        "直播画质: 1080p流畅, 原画清晰但低端设备可能卡",
+                        note,
+                        listOf(AerialSettings.LiveQuality.P1080 to R.string.st_live_1080, AerialSettings.LiveQuality.Original to R.string.st_live_original),
+                        AerialSettings.liveQuality, AerialSettings::chooseLiveQuality,
+                    )
+                    Choices(
                         R.string.st_focus_style,
                         stringResource(if (AerialSettings.focusStyle == FocusStyle.HighContrast) R.string.st_focus_high_hint else R.string.st_focus_standard_hint),
                         note,

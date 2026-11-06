@@ -67,6 +67,8 @@ object AerialSettings {
     /** The style chosen; always the white frame in Elders mode (Restricted), where it is easiest to see (#969). */
     val focusStyle: FocusStyle get() = if (Restricted.active && Restricted.kind == RestrictedKind.Elders) FocusStyle.HighContrast else chosenFocusStyle
     var livePreviewEnabled by mutableStateOf(true); private set
+    enum class LiveQuality { P1080, Original }
+    var liveQuality by mutableStateOf(LiveQuality.P1080); private set
 
 
     /** TV inputs pinned to Home as tiles, by TvInputInfo id. */
@@ -210,6 +212,7 @@ object AerialSettings {
         wallpaperAlwaysMoves = prefs.getBoolean("wallpaper_always_moves", false)
         showWeather = prefs.getBoolean("show_weather", true)
         livePreviewEnabled = prefs.getBoolean("live_preview", true)
+        liveQuality = runCatching { LiveQuality.valueOf(prefs.getString("live_quality", null) ?: "P1080") }.getOrDefault(LiveQuality.P1080)
         screensaverClock = prefs.getBoolean("screensaver_clock", true)
         // Before 1.28 this was on or off; on meant whichever sounds Aerial played.
         uiSounds = UiSounds.of(prefs.getString("ui_sounds_kind", null)) ?: when {
@@ -324,6 +327,11 @@ object AerialSettings {
     fun chooseLivePreview(on: Boolean) {
     livePreviewEnabled = on
     app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean("live_preview", on) }
+    }
+
+    fun chooseLiveQuality(q: LiveQuality) {
+        liveQuality = q
+        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putString("live_quality", q.name) }
     }
 
     fun chooseScreensaverClock(on: Boolean) {
