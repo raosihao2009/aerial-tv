@@ -109,11 +109,9 @@ fun ChannelFocusPreview(
                 toastMessage = "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
                 playingSourceId?.let { onRevert(it) }
             } else {
-                // 开机首次加载失败：持续重试直到网络恢复，不放弃
-                loading = true
-                toastMessage = "正在加载直播…"
-                kotlinx.coroutines.delay(2000)
-                restartSignal++
+                // 首次加载失败: 直接切换到央视网快看
+                DiagLog.i("channel preview: first load failed, switching to fallback")
+                onFallback()
             }
             return@LaunchedEffect
         }
@@ -176,11 +174,10 @@ fun ChannelFocusPreview(
                             loading = false
                             toastMessage = "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
                         } else {
-                            // 首次加载/当前源挂了: 持续重试直到成功
-                            loading = true
-                            toastMessage = "正在加载直播…"
-                            kotlinx.coroutines.delay(2000)
-                            restartSignal++
+                            // 当前源下播: 自动切换到央视网快看(preset_2)
+                            loading = false
+                            DiagLog.i("player err: current source offline, switching to fallback")
+                            onFallback()
                         }
                         return@launch
                     }
