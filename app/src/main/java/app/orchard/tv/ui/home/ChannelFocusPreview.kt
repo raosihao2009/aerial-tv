@@ -80,6 +80,8 @@ fun ChannelFocusPreview(
     var playingSourceId by remember { mutableStateOf<String?>(null) }
     // 加载遮罩：直接显示/隐藏，不用alpha渐变动画(低端GPU fill rate优化)
     val loadingAlpha = if (loading) 1f else 0f
+    // 组合离开时释放player会触发onPlayerError, 这个flag用来区分"真错误"和"dispose释放"
+    var disposed by remember { mutableStateOf(false) }
 
     LaunchedEffect(source?.url, restartSignal, reloadTick) {
         if (source == null) {
@@ -193,6 +195,7 @@ fun ChannelFocusPreview(
                 }
             }
             override fun onPlayerError(error: PlaybackException) {
+                if (disposed) return  // 组合离开释放player触发的错误, 不处理
                 DiagLog.i("player err: ${error.errorCodeName}, retry $retryCount")
                 val p = exo
                 // 先快速检测是否B站下播(下播就不重试)
@@ -366,6 +369,7 @@ fun ChannelFocusPreview(
         }
         lifecycleOwner.lifecycle.addObserver(obs)
         onDispose {
+            disposed = true
             lifecycleOwner.lifecycle.removeObserver(obs)
             scope.cancel()
             val p = player; player = null
