@@ -280,6 +280,7 @@ fun ChannelFocusPreview(
                 while (true) {
                     kotlinx.coroutines.delay(2000)
                     if (disposed) break
+                    if (loading) break  // 正在切源加载新流, 旧看门狗不判断
                     if (playingSourceId != watchId) break
                     age += 2000
                     if (age < 8000) continue  // 头 8 秒是正常起播缓冲, 不判
