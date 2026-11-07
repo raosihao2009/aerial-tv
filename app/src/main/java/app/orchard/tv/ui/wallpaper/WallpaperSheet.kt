@@ -286,11 +286,11 @@ fun WallpaperSheet(
                         AerialSettings.liveQuality, AerialSettings::chooseLiveQuality,
                     )
                     Choices(
-                        R.string.st_live_quality,
-                        "直播卡顿自动切换: 高灵敏及早切备用源, 低灵敏减少误切, 关闭则不自动切换",
+                        R.string.st_live_jank,
+                        "高灵敏及早切备用源, 低灵敏减少误切, 关则不自动切换",
                         note,
                         listOf(
-                            AerialSettings.JankSensitivity.Off to "关闭",
+                            AerialSettings.JankSensitivity.Off to "关",
                             AerialSettings.JankSensitivity.Low to "低",
                             AerialSettings.JankSensitivity.Medium to "中",
                             AerialSettings.JankSensitivity.High to "高",
