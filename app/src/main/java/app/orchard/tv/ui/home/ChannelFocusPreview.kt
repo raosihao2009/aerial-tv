@@ -38,6 +38,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import app.orchard.tv.LiveSource
 import app.orchard.tv.R
+import app.orchard.tv.settings.AerialSettings
 import app.orchard.tv.system.DiagLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -269,7 +270,15 @@ fun ChannelFocusPreview(
                 toastMessage = "已经从「$oldName」切换至「${source.name}」"
             }
             suppressSwitchToast = false
-            // 卡顿看门狗: 开播后持续监测, 三种坏情况任一连续2轮就切备用源
+            // 卡顿看门狗: 根据设置的灵敏度调整阈值
+            val sens = AerialSettings.jankSensitivity
+            if (sens != AerialSettings.JankSensitivity.Off) {
+            val warmupMs: Long; val dropThreshold: Long; val renderedThreshold: Long; val streakNeeded: Int
+            when (sens) {
+                AerialSettings.JankSensitivity.Low -> { warmupMs = 12000L; dropThreshold = 80L; renderedThreshold = 12L; streakNeeded = 3 }
+                AerialSettings.JankSensitivity.High -> { warmupMs = 4000L; dropThreshold = 20L; renderedThreshold = 28L; streakNeeded = 2 }
+                else -> { warmupMs = 8000L; dropThreshold = 40L; renderedThreshold = 20L; streakNeeded = 2 }  // Medium
+            }
             scope.launch {
                 var lastDropped = 0L
                 var lastRendered = 0L
@@ -283,7 +292,7 @@ fun ChannelFocusPreview(
                     if (loading) break  // 正在切源加载新流, 旧看门狗不判断
                     if (playingSourceId != watchId) break
                     age += 2000
-                    if (age < 8000) continue  // 头 8 秒是正常起播缓冲, 不判
+                    if (age < warmupMs) continue
                     // 一次读完解码器计数
                     var droppedNow = 0L
                     var renderedNow = 0L
@@ -305,11 +314,11 @@ fun ChannelFocusPreview(
                     //   2) 掉帧爆发: 2s 丢 >40 帧
                     //   3) 低帧率PPT: 2s 实际只渲染 <20 帧 (=10fps; 15~20fps 低帧率直播不触发)
                     val frozen = !exo.isPlaying || posDelta < 300L
-                    val dropBurst = droppedDelta > 40L
-                    val lowFps = renderedDelta > 0L && renderedDelta < 20L
+                    val dropBurst = droppedDelta > dropThreshold
+                    val lowFps = renderedDelta > 0L && renderedDelta < renderedThreshold
                     val bad = frozen || dropBurst || lowFps
                     stuckStreak = if (bad) stuckStreak + 1 else 0
-                    if (stuckStreak >= 2) {
+                    if (stuckStreak >= streakNeeded) {
                         DiagLog.i("channel preview: source $watchId jank (frozen=$frozen dropped=$droppedDelta rendered=$renderedDelta), handle")
                         if (watchId == "preset_2") {
                             toastMessage = "「央视网快看」也卡了，正在重新加载…"
@@ -323,6 +332,7 @@ fun ChannelFocusPreview(
                     }
                 }
             }
+            }  // sens != Off
         } else {
             // 新流超时未就绪
             DiagLog.i("channel preview: new stream not ready")

@@ -70,6 +70,10 @@ object AerialSettings {
     enum class LiveQuality { P1080, Original }
     var liveQuality by mutableStateOf(LiveQuality.P1080); private set
 
+    /** 直播卡顿自动切换灵敏度: 关闭/低/中/高. 中为默认值. */
+    enum class JankSensitivity { Off, Low, Medium, High }
+    var jankSensitivity by mutableStateOf(JankSensitivity.Medium); private set
+
 
     /** TV inputs pinned to Home as tiles, by TvInputInfo id. */
     var pinnedSources by mutableStateOf<Set<String>>(emptySet()); private set
@@ -213,6 +217,7 @@ object AerialSettings {
         showWeather = prefs.getBoolean("show_weather", true)
         livePreviewEnabled = prefs.getBoolean("live_preview", true)
         liveQuality = runCatching { LiveQuality.valueOf(prefs.getString("live_quality", null) ?: "P1080") }.getOrDefault(LiveQuality.P1080)
+        jankSensitivity = runCatching { JankSensitivity.valueOf(prefs.getString("jank_sensitivity", null) ?: "Medium") }.getOrDefault(JankSensitivity.Medium)
         screensaverClock = prefs.getBoolean("screensaver_clock", true)
         // Before 1.28 this was on or off; on meant whichever sounds Aerial played.
         uiSounds = UiSounds.of(prefs.getString("ui_sounds_kind", null)) ?: when {
@@ -332,6 +337,11 @@ object AerialSettings {
     fun chooseLiveQuality(q: LiveQuality) {
         liveQuality = q
         app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putString("live_quality", q.name) }
+    }
+
+    fun chooseJankSensitivity(s: JankSensitivity) {
+        jankSensitivity = s
+        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putString("jank_sensitivity", s.name) }
     }
 
     fun chooseScreensaverClock(on: Boolean) {
