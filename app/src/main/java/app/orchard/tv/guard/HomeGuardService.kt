@@ -1254,7 +1254,17 @@ class HomeGuardService : AccessibilityService() {
                 // Over Aerial's screensaver, Home closes it. Not counted toward a double press: an IR
                 // remote's press can come twice (TCL MT5879), and the second opened the recent apps.
                 lastHomeUpAt = if (AerialDream.endForHome()) Long.MIN_VALUE / 2 else event.eventTime
-                goHome()
+                if (aerialResumed) {
+                    // Aerial 已在前台: 不重新启动 Activity (避免黑闪), 而是发 HOME intent
+                    // 让 onNewIntent 触发 onHomePressed: 焦点回到首排第一个卡片并显示一级菜单.
+                    runCatching {
+                        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+                            .setPackage(packageName).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                        startActivity(intent)
+                    }
+                } else {
+                    goHome()
+                }
                 closeSystemDialogs()
             }
         }
