@@ -109,9 +109,9 @@ import app.orchard.tv.ui.theme.Motion
 import app.orchard.tv.wallpaper.Wallpapers
 import app.orchard.tv.ui.theme.Palette
 import app.orchard.tv.ui.theme.Type
-import app.orchard.tv.ui.theme.OutfitLight
 import app.orchard.tv.ui.theme.OutfitRegular
 import app.orchard.tv.ui.theme.OutfitMedium
+import app.orchard.tv.ui.theme.OppoSans
 import app.orchard.tv.ui.components.diagLayer
 import app.orchard.tv.weather.Weather
 import app.orchard.tv.weather.WeatherKind
@@ -835,7 +835,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     color = Color.White,
                     shadow = shadow,
                     letterSpacing = (-0.04).em,
-                    fontFamily = OutfitLight,
+                    fontFamily = OppoSans,
                 ),
                 modifier = Modifier.toSaverClock(toSaver, 52.sp, 52.sp.value.dp * CAP_TOP, drift),
             )

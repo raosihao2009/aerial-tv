@@ -81,6 +81,9 @@ val OutfitLight = FontFamily(Font(R.font.outfit_light))
 val OutfitRegular = FontFamily(Font(R.font.outfit_regular))
 val OutfitMedium = FontFamily(Font(R.font.outfit_medium))
 
+// OPPO Sans (ColorOS 17, oppo_sans_design_2_0_7_no) for the home clock digits
+val OppoSans = FontFamily(Font(R.font.opposans))
+
 object Type {
     val Clock = TextStyle(
         fontFamily = InterDisplay, fontWeight = FontWeight.W700,
