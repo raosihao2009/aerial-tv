@@ -20,12 +20,17 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.rememberSplineBasedDecay
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -1087,21 +1092,37 @@ fun HomeScreen(
             )
         }
 
-        // 音量临时提示: 和直播切源 toast 同款玻璃底, 1.6 秒自动消失
+        // 音量临时提示: 和直播切源 toast 同款玻璃底, 带滑块进度条, 1.6 秒自动消失
         vm.volumeToast?.let { msg ->
             LaunchedEffect(msg) {
                 delay(1600)
                 vm.volumeToast = null
             }
-            BasicText(
-                msg,
-                style = Type.Body,
+            Row(
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 28.dp)
                     .liquidGlass(20.dp)
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-            )
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+            ) {
+                BasicText(msg, style = Type.Body)
+                Spacer(Modifier.width(14.dp))
+                Box(
+                    Modifier
+                        .width(120.dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color.White.copy(alpha = 0.3f)),
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(vm.volume.fraction.coerceIn(0f, 1f))
+                            .background(Color.White),
+                    )
+                }
+            }
         }
 
         // Once per process, while Home is idle: Control Center, then Personalize, drawn for a few
