@@ -275,16 +275,18 @@ fun ChannelFocusPreview(
                     if (playingSourceId != watchId) break
                     age += 2000
                     if (age < 8000) continue  // 头 8 秒是正常缓冲, 不判
-                    val dc = runCatching {
-                        exo.videoDecoderCounters?.ensureUpdated()
-                        exo.videoDecoderCounters?.droppedBufferCount ?: 0L
-                    }.getOrDefault(0L)
-                    val droppedDelta = dc - lastDropped; lastDropped = dc
+                    val dc: Long = try {
+                        val c = exo.videoDecoderCounters
+                        c?.ensureUpdated()
+                        (c?.droppedBufferCount ?: 0L) as Long
+                    } catch (t: Throwable) { 0L }
+                    val droppedDelta = dc - lastDropped
+                    lastDropped = dc
                     val pos = exo.currentPosition
-                    val posDelta = if (lastPos < 0) 1000L else pos - lastPos; lastPos = pos
-                    // 在播但位置不动(解码器挤不出来帧), 或两秒内掉了 40+ 帧(=PPT)
-                    val frozen = !exo.isPlaying || posDelta < 300
-                    val dropBurst = droppedDelta > 40
+                    val posDelta: Long = if (lastPos < 0) 1000L else pos - lastPos
+                    lastPos = pos
+                    val frozen = !exo.isPlaying || posDelta < 300L
+                    val dropBurst = droppedDelta > 40L
                     stuckStreak = if (frozen || dropBurst) stuckStreak + 1 else 0
                     if (stuckStreak >= 2) {
                         DiagLog.i("channel preview: source $watchId jank (frozen=$frozen dropped=$droppedDelta), fallback")
