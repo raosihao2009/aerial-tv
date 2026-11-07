@@ -54,6 +54,7 @@ fun ChannelFocusPreview(
     onRevert: (String) -> String? = { null },
     onReadyChange: (Boolean) -> Unit = {},
     onStatusRefresh: () -> Unit = {},
+    onRevertFail: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -115,6 +116,7 @@ fun ChannelFocusPreview(
                 } else {
                     "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
                 }
+                if (target == null) onRevertFail()
             } else {
                 // 首次加载失败: 切换到备用源
                 DiagLog.i("channel preview: first load failed, switching to fallback")
@@ -205,6 +207,7 @@ fun ChannelFocusPreview(
                             } else {
                                 "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
                             }
+                            if (target == null) onRevertFail()
                             onStatusRefresh()
                         } else {
                             // 当前源下播: 切换到备用源
@@ -269,6 +272,7 @@ fun ChannelFocusPreview(
                 } else {
                     "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
                 }
+                if (target == null) onRevertFail()
             } else {
                 // 开机首次加载超时：持续重试直到成功
                 loading = true

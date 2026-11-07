@@ -872,6 +872,11 @@ fun HomeScreen(
                     },
                     onReadyChange = { liveReady = it },
                     onStatusRefresh = { vm.checkLiveStatuses(); liveStatusTick++ },
+                    onRevertFail = {
+                        // 新源失败回退到旧源时, 自动隐藏的 UI 可能还躲着, 把高亮拉回来
+                        uiHidden = false
+                        focusApp(lastFocusedIndex)
+                    },
                 )
             }
             Box(
