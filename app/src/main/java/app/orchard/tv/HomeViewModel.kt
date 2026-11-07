@@ -197,6 +197,9 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         LiveSource("preset_5", "我就是邓子", "https://b23.tv/7HCyKBv", isBilibili = true, isPreset = true, colorIndex = 5),
     )
     var currentLiveSourceId by mutableStateOf("preset_0"); private set
+
+    /** 刚选中、还在等新流加载的源; 成功开播才提交为 currentLiveSourceId, 失败则丢弃 */
+    var pendingLiveSourceId by mutableStateOf<String?>(null); private set
     var liveSources by mutableStateOf<List<LiveSource>>(emptyList()); private set
     var hiddenLiveSources by mutableStateOf<List<LiveSource>>(emptyList()); private set
 
@@ -324,6 +327,24 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         context.getSharedPreferences("live_sources", android.content.Context.MODE_PRIVATE)
             .edit().putString("selected_id", id).apply()
     }
+
+    /** 菜单里选中一个新源: 先挂起, 等新流真正开播才提交 */
+    fun pickLiveSource(id: String) {
+        if (liveSources.none { it.id == id }) return
+        pendingLiveSourceId = id
+    }
+
+    /** 新流开播成功: 提交选中态并落盘 */
+    fun commitPendingLiveSource() {
+        val id = pendingLiveSourceId ?: return
+        currentLiveSourceId = id
+        pendingLiveSourceId = null
+        context.getSharedPreferences("live_sources", android.content.Context.MODE_PRIVATE)
+            .edit().putString("selected_id", id).apply()
+    }
+
+    /** 新源失败: 丢弃挂起, 选中态留在旧源 */
+    fun cancelPendingLiveSource() { pendingLiveSourceId = null }
 
     fun onLiveSourceDeleted(id: String) {
         if (currentLiveSourceId == id) currentLiveSourceId = "preset_2"

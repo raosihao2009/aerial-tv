@@ -55,6 +55,7 @@ fun ChannelFocusPreview(
     onReadyChange: (Boolean) -> Unit = {},
     onStatusRefresh: () -> Unit = {},
     onRevertFail: () -> Unit = {},
+    onSwitched: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -255,6 +256,7 @@ fun ChannelFocusPreview(
             exo.playWhenReady = true
             currentPlayingName = source.name
             playingSourceId = source.id
+            onSwitched(source.id)
             // 切换成功提示(有旧源才提示)
             if (oldName != null && oldName != source.name) {
                 toastMessage = "已经从「$oldName」切换至「${source.name}」"

@@ -860,20 +860,22 @@ fun HomeScreen(
             // ===== 二创：直播预览，只在焦点选中第一排目标应用时组合 =====
             if (channelPreviewVisible) {
                 ChannelFocusPreview(
-                    source = vm.getAllLiveSources().firstOrNull { it.id == vm.currentLiveSourceId },
+                    source = vm.getAllLiveSources().firstOrNull {
+                        it.id == (vm.pendingLiveSourceId ?: vm.currentLiveSourceId)
+                    },
                     onFallback = {
                         val fb = vm.liveSources.find { it.id == "preset_2" } ?: vm.liveSources.firstOrNull()
-                        fb?.let { vm.selectLiveSource(it.id) }
+                        fb?.let { vm.pickLiveSource(it.id) }
                         fb?.name
                     },
                     onRevert = { oldId ->
-                        // 选中态回退到旧源(菜单高亮跟着回到旧源); 旧源本来就在播, 预览协程里的
-                        // source.id == playingSourceId 守卫会直接 return, 不重载 player
-                        vm.selectLiveSource(oldId)
+                        // 新源失败: 丢弃挂起, 选中态和高亮留在旧源(本来就在播)
+                        vm.cancelPendingLiveSource()
                         null
                     },
                     onReadyChange = { liveReady = it },
                     onStatusRefresh = { vm.checkLiveStatuses(); liveStatusTick++ },
+                    onSwitched = { vm.commitPendingLiveSource() },
                     onRevertFail = {
                         // 新源失败回退到旧源时, 自动隐藏的 UI 可能还躲着, 把高亮拉回来
                         uiHidden = false
@@ -1316,7 +1318,7 @@ fun HomeScreen(
             visible = overlay is Overlay.LiveSourceMenu,
             sources = vm.getAllLiveSources(),
             currentId = vm.currentLiveSourceId,
-            onSelect = { DiagLog.i("CC-debug: LiveMenu onSelect source=$it"); vm.selectLiveSource(it); vm.overlay = Overlay.None },
+            onSelect = { DiagLog.i("CC-debug: LiveMenu onSelect source=$it"); vm.pickLiveSource(it); vm.overlay = Overlay.None },
             onMove = { from, to -> vm.moveLiveSource(from, to) },
             onHide = { vm.hideLiveSource(it) },
             onDelete = { vm.removeLiveSource(it) },
