@@ -83,6 +83,8 @@ fun ChannelFocusPreview(
     val loadingAlpha = if (loading) 1f else 0f
     // 组合离开时释放player会触发onPlayerError, 这个flag用来区分"真错误"和"dispose释放"
     var disposed by remember { mutableStateOf(false) }
+    // onPause时停掉看门狗(否则它看到!isPlaying会误判冻住并重载流, 后台继续放音)
+    var paused by remember { mutableStateOf(false) }
 
     LaunchedEffect(source?.url, restartSignal, reloadTick) {
         if (source == null) {
@@ -289,6 +291,7 @@ fun ChannelFocusPreview(
                 while (true) {
                     kotlinx.coroutines.delay(2000)
                     if (disposed) break
+                    if (paused) break
                     if (loading) break  // 正在切源加载新流, 旧看门狗不判断
                     if (playingSourceId != watchId) break
                     age += 2000
@@ -368,6 +371,7 @@ fun ChannelFocusPreview(
             when (e) {
                 Lifecycle.Event.ON_PAUSE -> {
                     // 立即暂停音频/视频, 不等ON_STOP(进入其他app时onPause先到, onStop可能延迟)
+                    paused = true
                     player?.playWhenReady = false
                 }
                 Lifecycle.Event.ON_STOP -> {
@@ -378,6 +382,7 @@ fun ChannelFocusPreview(
                 }
                 Lifecycle.Event.ON_START -> {
                     // 回到桌面: 播放器已销毁, 重新加载当前源
+                    paused = false
                     loading = true
                     restartSignal++
                 }
