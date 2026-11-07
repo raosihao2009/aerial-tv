@@ -82,7 +82,8 @@ fun ChannelFocusPreview(
     // 加载遮罩：直接显示/隐藏，不用alpha渐变动画(低端GPU fill rate优化)
     val loadingAlpha by androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (loading) 1f else 0f,
-        animationSpec = androidx.compose.animation.core.tween(300), label = "loadingAlpha"
+        animationSpec = androidx.compose.animation.core.tween(if (loading) 100 else 250),
+        label = "loadingAlpha"
     )
     // 组合离开时释放player会触发onPlayerError, 这个flag用来区分"真错误"和"dispose释放"
     var disposed by remember { mutableStateOf(false) }
