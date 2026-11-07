@@ -194,8 +194,6 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 刚选中、还在等新流加载的源; 成功开播才提交为 currentLiveSourceId, 失败则丢弃 */
     var pendingLiveSourceId by mutableStateOf<String?>(null); private set
-    /** 看门狗/加载失败触发的临时回退: 不写入 SharedPreferences, 不覆盖用户真实选择 */
-    var temporaryFallback by mutableStateOf(false); private set
     var liveSources by mutableStateOf<List<LiveSource>>(emptyList()); private set
     var hiddenLiveSources by mutableStateOf<List<LiveSource>>(emptyList()); private set
 
@@ -322,27 +320,16 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     /** 菜单里选中一个新源: 先挂起, 等新流真正开播才提交 */
     fun pickLiveSource(id: String) {
         if (liveSources.none { it.id == id }) return
-        temporaryFallback = false
         pendingLiveSourceId = id
     }
 
-    /** 看门狗/加载失败触发的回退: 切到备用源但不落盘, 不覆盖用户真实选择 */
-    fun pickFallbackLiveSource(id: String) {
-        if (liveSources.none { it.id == id }) return
-        temporaryFallback = true
-        pendingLiveSourceId = id
-    }
-
-    /** 新流开播成功: 提交选中态; 用户主动选的才落盘, 临时回退不写 */
+    /** 新流开播成功: 提交选中态并落盘 */
     fun commitPendingLiveSource() {
         val id = pendingLiveSourceId ?: return
         currentLiveSourceId = id
         pendingLiveSourceId = null
-        if (!temporaryFallback) {
-            context.getSharedPreferences("live_sources", android.content.Context.MODE_PRIVATE)
-                .edit().putString("selected_id", id).apply()
-        }
-        temporaryFallback = false
+        context.getSharedPreferences("live_sources", android.content.Context.MODE_PRIVATE)
+            .edit().putString("selected_id", id).apply()
     }
 
     /** 新源失败: 丢弃挂起, 选中态留在旧源 */
