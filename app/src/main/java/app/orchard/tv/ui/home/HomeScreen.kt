@@ -1102,29 +1102,8 @@ fun HomeScreen(
             )
         }
 
-        // 音量临时提示: 当贝同款细横条, 无数字, 底部居中, 1.6 秒自动消失
-        vm.volumeToast?.let { msg ->
-            LaunchedEffect(msg) {
-                delay(1600)
-                vm.volumeToast = null
-            }
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 60.dp)
-                    .width(280.dp)
-                    .height(3.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Color.Black.copy(alpha = 0.5f)),
-            ) {
-                Box(
-                    Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(vm.volume.fraction.coerceIn(0f, 1f))
-                        .background(Color.White),
-                )
-            }
-        }
+        // 音量 OSD: 独立 composable, 避免按键时整个 HomeScreen 重组拖卡直播
+        VolumeOsd(vm)
 
         // Once per process, while Home is idle: Control Center, then Personalize, drawn for a few
         // frames, nearly transparent, so that their first opening is not their first draw (see
@@ -1329,6 +1308,36 @@ fun HomeScreen(
             onOpen = { vm.overlay = Overlay.None; onOpen(it) },
             onClose = { vm.overlay = if (ccFromLiveMenu) { ccFromLiveMenu = false; Overlay.LiveSourceMenu } else Overlay.None },
             warm = ccWarm,
+        )
+    }
+}
+
+/**
+ * 音量 OSD: 当贝 H5 同款细横条, 底部居中, 无数字.
+ * 单独抽成 composable, 让 vm.volume / vm.volumeToast 的状态更新只重组这个小横条,
+ * 不波及 HomeScreen 主体, 避免按音量键时直播 TextureView 掉帧卡顿.
+ */
+@Composable
+private fun androidx.compose.foundation.layout.BoxScope.VolumeOsd(vm: HomeViewModel) {
+    val toast = vm.volumeToast ?: return
+    LaunchedEffect(toast) {
+        kotlinx.coroutines.delay(1600)
+        vm.volumeToast = null
+    }
+    Box(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .padding(bottom = 60.dp)
+            .width(280.dp)
+            .height(3.dp)
+            .clip(RoundedCornerShape(2.dp))
+            .background(Color.Black.copy(alpha = 0.5f)),
+    ) {
+        Box(
+            Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(vm.volume.fraction.coerceIn(0f, 1f))
+                .background(Color.White),
         )
     }
 }
