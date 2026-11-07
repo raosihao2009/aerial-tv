@@ -979,6 +979,7 @@ class MainActivity : ComponentActivity() {
         restartIdleTimer()
         GuardSetup.setHomeInFront(this, true)
         HomeGuardService.onAerialResumed()
+        onHomeInFrontReset = { vm.onHomePressed(resetFocus = true) }
         Updates.onHomeResumed()
         vm.refreshSystem()
         if (!resumedInProcess) {
@@ -1199,6 +1200,9 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
+        /** 由 HomeGuardService 在 Aerial 前台按 HOME 时直接调用, 重置焦点到首排第一个卡片. */
+        var onHomeInFrontReset: (() -> Unit)? = null
+
         /** How long the film waits for Aerial to come back from Home's bounce (MFTR0: 120-290 ms). */
         private const val HOME_BOUNCE_MS = 500L
 
