@@ -80,7 +80,10 @@ fun ChannelFocusPreview(
     // 上一个正在播放的源 id(切换失败时回退焦点)
     var playingSourceId by remember { mutableStateOf<String?>(null) }
     // 加载遮罩：直接显示/隐藏，不用alpha渐变动画(低端GPU fill rate优化)
-    val loadingAlpha = if (loading) 1f else 0f
+    val loadingAlpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (loading) 1f else 0f,
+        animationSpec = androidx.compose.animation.core.tween(300), label = "loadingAlpha"
+    )
     // 组合离开时释放player会触发onPlayerError, 这个flag用来区分"真错误"和"dispose释放"
     var disposed by remember { mutableStateOf(false) }
     // onPause时停掉看门狗(否则它看到!isPlaying会误判冻住并重载流, 后台继续放音)
