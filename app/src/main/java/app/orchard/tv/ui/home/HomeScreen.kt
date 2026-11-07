@@ -75,6 +75,7 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.dp
 import app.orchard.tv.CcPage
 import app.orchard.tv.apps.SourceLooks
@@ -1313,8 +1314,9 @@ fun HomeScreen(
 }
 
 /**
- * 音量 OSD: 当贝 H5 同款细横条, 底部居中, 无数字.
- * 单独抽成 composable, 让 vm.volume / vm.volumeToast 的状态更新只重组这个小横条,
+ * 音量 OSD: 当贝 H5 同款——左侧竖置白色胶囊, 内部灰色竖轨 + 蓝色从底向上填充,
+ * 底部蓝色喇叭图标, 无数字. 1.6 秒自动消失.
+ * 单独抽成 composable, 让 vm.volume / vm.volumeToast 的状态更新只重组这个胶囊,
  * 不波及 HomeScreen 主体, 避免按音量键时直播 TextureView 掉帧卡顿.
  */
 @Composable
@@ -1324,20 +1326,57 @@ private fun androidx.compose.foundation.layout.BoxScope.VolumeOsd(vm: HomeViewMo
         kotlinx.coroutines.delay(1600)
         vm.volumeToast = null
     }
+    val fraction = vm.volume.fraction.coerceIn(0f, 1f)
     Box(
         modifier = Modifier
-            .align(Alignment.BottomCenter)
-            .padding(bottom = 60.dp)
-            .width(280.dp)
-            .height(3.dp)
-            .clip(RoundedCornerShape(2.dp))
-            .background(Color.Black.copy(alpha = 0.5f)),
+            .align(Alignment.CenterStart)
+            .padding(start = 24.dp)
+            .width(76.dp)
+            .height(320.dp)
+            .clip(RoundedCornerShape(percent = 50))
+            .background(Color.White.copy(alpha = 0.92f)),
     ) {
+        // 轨道 + 填充: 居中偏上, 底部留位置给喇叭
         Box(
-            Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(vm.volume.fraction.coerceIn(0f, 1f))
-                .background(Color.White),
-        )
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(bottom = 48.dp)
+                .width(10.dp)
+                .height(210.dp)
+                .clip(RoundedCornerShape(5.dp))
+                .background(Color(0xFFCFD4DC)),
+        ) {
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxHeight(fraction)
+                    .fillMaxWidth()
+                    .background(Color(0xFF2E7CFF)),
+            )
+        }
+        // 喇叭图标: 蓝色, 底部居中
+        Canvas(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 14.dp)
+                .size(34.dp),
+        ) {
+            val blue = Color(0xFF2E7CFF)
+            val w = size.width; val h = size.height
+            drawRect(blue, topLeft = androidx.compose.ui.geometry.Offset(w * 0.05f, h * 0.35f),
+                size = androidx.compose.ui.geometry.Size(w * 0.25f, h * 0.3f))
+            val path = androidx.compose.ui.graphics.Path().apply {
+                moveTo(w * 0.30f, h * 0.35f)
+                lineTo(w * 0.55f, h * 0.15f)
+                lineTo(w * 0.55f, h * 0.85f)
+                lineTo(w * 0.30f, h * 0.65f)
+                close()
+            }
+            drawPath(path, blue)
+            drawArc(blue, startAngle = -55f, sweepAngle = 110f, useCenter = false,
+                topLeft = androidx.compose.ui.geometry.Offset(w * 0.55f, h * 0.25f),
+                size = androidx.compose.ui.geometry.Size(w * 0.40f, h * 0.50f),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3f))
+        }
     }
 }
