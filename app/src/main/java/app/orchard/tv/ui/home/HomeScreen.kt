@@ -1287,7 +1287,17 @@ fun HomeScreen(
             visible = overlay is Overlay.LiveSourceMenu,
             sources = vm.getAllLiveSources(),
             currentId = vm.currentLiveSourceId,
-            onSelect = { DiagLog.i("CC-debug: LiveMenu onSelect source=$it"); vm.pickLiveSource(it); vm.overlay = Overlay.None },
+            onSelect = { s ->
+                DiagLog.i("CC-debug: LiveMenu onSelect source=$s")
+                val src = vm.getAllLiveSources().find { it.id == s }
+                if (src?.liveStatus == 2) {
+                    android.widget.Toast.makeText(appContext, "「${src.name}」未开播，继续观看当前源", android.widget.Toast.LENGTH_SHORT).show()
+                    vm.overlay = Overlay.None
+                    return@LiveSourceMenu
+                }
+                vm.pickLiveSource(s)
+                vm.overlay = Overlay.None
+            },
             onMove = { from, to -> vm.moveLiveSource(from, to) },
             onHide = { vm.hideLiveSource(it) },
             onDelete = { vm.removeLiveSource(it) },
