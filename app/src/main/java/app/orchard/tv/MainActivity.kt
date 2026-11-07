@@ -84,6 +84,7 @@ import app.orchard.tv.system.SystemScreensaver
 import app.orchard.tv.system.Diagnostics
 import app.orchard.tv.system.MissingClipboard
 import app.orchard.tv.system.Sounds
+import app.orchard.tv.system.SoftwareVolume
 import app.orchard.tv.system.NetKind
 import app.orchard.tv.system.SystemProbe
 import app.orchard.tv.system.HisenseSources
@@ -272,6 +273,7 @@ class MainActivity : ComponentActivity() {
         val uhd = UhdCanvas.scale(this)
         Wallpapers.init(this)
         Weather.init(this)
+        SoftwareVolume.init(this)
         Updates.init(this)
         lifecycleScope.launch(Dispatchers.IO) { SelfCompile.init(this@MainActivity) }
         CustomIcons.init(this)
@@ -831,7 +833,15 @@ class MainActivity : ComponentActivity() {
             dreamWokeKey = -1 // a new press of the same key
         }
         if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP || event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-            if (dropVolumeKey(event)) return true
+            val firmwareDropped = dropVolumeKey(event)
+            // Software percent volume while Aerial is focused: the box only exposes ~21 system
+            // steps, so scale the live player ourselves instead of letting the stream jump.
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                val dir = if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) 2 else -2
+                vm.setSoftwareVolume(SoftwareVolume.pct + dir)
+                SoftwareVolume.lockSystem(this)
+            }
+            if (firmwareDropped || event.action == KeyEvent.ACTION_DOWN) return true
         } else if (event.action == KeyEvent.ACTION_UP) {
             volumeAtLift = volumeNow()
         }

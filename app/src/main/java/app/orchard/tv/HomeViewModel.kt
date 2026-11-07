@@ -37,6 +37,7 @@ import app.orchard.tv.system.SourceKind
 import app.orchard.tv.system.SystemProbe
 import app.orchard.tv.system.TvSource
 import app.orchard.tv.system.VolumeStatus
+import app.orchard.tv.system.SoftwareVolume
 import app.orchard.tv.ui.home.PinMode
 import app.orchard.tv.ui.home.ScreensaverSkips
 import app.orchard.tv.ui.home.TileFaces
@@ -129,6 +130,9 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     var network by mutableStateOf(NetworkStatus()); private set
     var volume by mutableStateOf(VolumeStatus()); private set
+
+    /** ChannelFocusPreview registers this so software volume changes reach its ExoPlayer live. */
+    var softwareVolumeHook: ((Float) -> Unit)? = null
     var sources by mutableStateOf<List<TvSource>>(emptyList()); private set
     var homeStatus by mutableStateOf(HomeStatus.NotDefault); private set
 
@@ -860,6 +864,13 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     fun adjustVolume(direction: Int) {
         SystemProbe.adjustVolume(context, direction)
         volume = SystemProbe.volume(context)
+    }
+
+    /** Percent (0..100) software volume: drives the OSD (0..100) and the live player gain. */
+    fun setSoftwareVolume(pct: Int) {
+        SoftwareVolume.set(pct)
+        volume = VolumeStatus(level = SoftwareVolume.pct, max = SoftwareVolume.MAX, muted = false)
+        softwareVolumeHook?.invoke(SoftwareVolume.floatVolume())
     }
 
     fun adjustBrightness(direction: Int) {
