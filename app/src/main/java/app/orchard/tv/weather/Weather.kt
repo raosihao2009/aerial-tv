@@ -194,6 +194,7 @@ object Weather {
                     val dayText = d.optString("textDay")
                     val nightText = d.optString("textNight")
                     val display = if (dayText == nightText) dayText else "${dayText}转${nightText}"
+                    android.util.Log.d("Weather", "dayText=$dayText nightText=$nightText dayKind=${kindOfText(dayText)} nightKind=${kindOfText(nightText)}")
                     add(ForecastDay(kindOfText(dayText), h, l, display,
                         dayKind = kindOfText(dayText), nightKind = kindOfText(nightText)))
                 }
