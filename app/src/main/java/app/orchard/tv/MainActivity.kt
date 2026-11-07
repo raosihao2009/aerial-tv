@@ -84,7 +84,6 @@ import app.orchard.tv.system.SystemScreensaver
 import app.orchard.tv.system.Diagnostics
 import app.orchard.tv.system.MissingClipboard
 import app.orchard.tv.system.Sounds
-import app.orchard.tv.system.SoftwareVolume
 import app.orchard.tv.system.NetKind
 import app.orchard.tv.system.SystemProbe
 import app.orchard.tv.system.HisenseSources
@@ -273,7 +272,6 @@ class MainActivity : ComponentActivity() {
         val uhd = UhdCanvas.scale(this)
         Wallpapers.init(this)
         Weather.init(this)
-        SoftwareVolume.init(this)
         Updates.init(this)
         lifecycleScope.launch(Dispatchers.IO) { SelfCompile.init(this@MainActivity) }
         CustomIcons.init(this)
@@ -832,20 +830,6 @@ class MainActivity : ComponentActivity() {
             if (event.repeatCount > 0) return true
             dreamWokeKey = -1 // a new press of the same key
         }
-        if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP || event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-            val firmwareDropped = dropVolumeKey(event)
-            // Software percent volume while Aerial is focused: the box only exposes ~21 system
-            // steps, so scale the live player ourselves instead of letting the stream jump.
-            // 不在每次按键都调 lockSystem: 那是 IPC, 长按连发时会打爆音频线程导致直播卡.
-            // 系统音量已经在 onResume 锁满, 我们又吞掉了按键, 系统不会动它.
-            if (event.action == KeyEvent.ACTION_DOWN) {
-                val dir = if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) 1 else -1
-                vm.setSoftwareVolume(SoftwareVolume.pct + dir)
-            }
-            if (firmwareDropped || event.action == KeyEvent.ACTION_DOWN) return true
-        } else if (event.action == KeyEvent.ACTION_UP) {
-            volumeAtLift = volumeNow()
-        }
         if (keysLogged++ < 200) DiagLog.i("key ${KeyEvent.keyCodeToString(event.keyCode)} ${if (event.action == KeyEvent.ACTION_DOWN) "down" else "up"} #${event.repeatCount} at ${event.eventTime}, view focused ${currentFocus != null}")
         restartIdleTimer()
         // A lift whose press never reached Aerial: Coocaa C10's hotkey service takes the press of
@@ -984,10 +968,6 @@ class MainActivity : ComponentActivity() {
     /** What onResume does once the user is unlocked; also run by a start that was locked before. */
     private fun resumeWork() {
         vm.resumed = true
-        // 用户可能在第三方 App 里用系统音量键调过: 读回当前系统档位, 反推回 0~100 pct,
-        // 再锁满系统音量交还给 ExoPlayer 浮点增益. 21 档盒子即 step*5.
-        SoftwareVolume.absorbSystemLevel(this)
-        SoftwareVolume.lockSystem(this)
         KidsWatch.homeInFront = true
         idleHandler.removeCallbacks(endHomeBounce)
         vm.homeBounce = false
@@ -1029,7 +1009,6 @@ class MainActivity : ComponentActivity() {
         super.onPause()
         if (locked) return
         vm.resumed = false
-        SoftwareVolume.applyCoarseSystem(this)
         KidsWatch.homeInFront = false
         Updates.onHomePaused()
         DiagLog.i("boot-debug: onPause at +${SystemClock.elapsedRealtime()}ms")

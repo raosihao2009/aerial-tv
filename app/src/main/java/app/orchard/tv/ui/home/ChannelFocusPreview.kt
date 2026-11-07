@@ -39,7 +39,6 @@ import androidx.media3.exoplayer.hls.HlsMediaSource
 import app.orchard.tv.LiveSource
 import app.orchard.tv.R
 import app.orchard.tv.system.DiagLog
-import app.orchard.tv.system.SoftwareVolume
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancel
@@ -73,7 +72,6 @@ fun ChannelFocusPreview(
     // 回退提示
     var toastMessage by remember { mutableStateOf<String?>(null) }
     // 软件音量回调的注销 token, 跨协程持有以便 onDispose 释放
-    val volumeUnsub = remember { mutableStateOf<(() -> Unit)?>(null) }
     // 当前已在播放的源名称(用于切换失败时提示继续观看谁)
     var currentPlayingName by remember { mutableStateOf<String?>(null) }
     // 上一个正在播放的源 id(切换失败时回退焦点)
@@ -148,8 +146,6 @@ fun ChannelFocusPreview(
                     .build()
             )
             .build()
-        SoftwareVolume.apply(exo)
-        volumeUnsub.value = SoftwareVolume.onChanged { exo.volume = it }
         try {
         val factory = DefaultHttpDataSource.Factory()
             .setUserAgent("Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
@@ -355,7 +351,6 @@ fun ChannelFocusPreview(
         lifecycleOwner.lifecycle.addObserver(obs)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(obs)
-            volumeUnsub.value?.invoke()
             scope.cancel()
             val p = player; player = null
             p?.release()
