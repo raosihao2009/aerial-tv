@@ -867,7 +867,7 @@ fun HomeScreen(
                     },
                     onFallback = {
                         val fb = vm.liveSources.find { it.id == "preset_2" } ?: vm.liveSources.firstOrNull()
-                        fb?.let { vm.pickLiveSource(it.id) }
+                        fb?.let { vm.pickFallbackLiveSource(it.id) }
                         fb?.name
                     },
                     onRevert = { oldId ->
