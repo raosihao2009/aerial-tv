@@ -301,14 +301,9 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                     app.orchard.tv.system.DiagLog.i("LiveStatus: batch done $results")
                 }
             }
-            // 检查当前源是否下播
-            val cur = liveSources.find { it.id == currentLiveSourceId }
-            if (cur != null && cur.liveStatus == 2) {
-                val fallback = liveSources.find { it.id == "preset_2" } ?: liveSources.firstOrNull()
-                if (fallback != null && fallback.id != currentLiveSourceId) {
-                    currentLiveSourceId = fallback.id
-                }
-            }
+            // 注意: 这里不再因为 liveStatus==2 就自动切 currentLiveSourceId。
+            // 后台轮询可能因网络抖动/API限流误报下播, 静默切走会让用户回来发现源被换了。
+            // 真正下播由 ChannelFocusPreview 加载失败时的 onFallback 处理。
         }
     }
 
