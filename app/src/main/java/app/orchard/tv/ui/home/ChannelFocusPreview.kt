@@ -263,6 +263,37 @@ fun ChannelFocusPreview(
             if (oldName != null && oldName != source.name) {
                 toastMessage = "已经从「$oldName」切换至「${source.name}」"
             }
+            // 卡顿看门狗: 开播后持续监测, 连续掉帧爆发或画面冻住就自动切备用源
+            scope.launch {
+                var lastDropped = 0L
+                var lastPos = -1L
+                var stuckStreak = 0
+                var age = 0
+                val watchId = source.id
+                while (true) {
+                    kotlinx.coroutines.delay(2000)
+                    if (playingSourceId != watchId) break
+                    age += 2000
+                    if (age < 8000) continue  // 头 8 秒是正常缓冲, 不判
+                    val dc = runCatching {
+                        exo.videoDecoderCounters?.ensureUpdated()
+                        exo.videoDecoderCounters?.droppedBufferCount ?: 0L
+                    }.getOrDefault(0L)
+                    val droppedDelta = dc - lastDropped; lastDropped = dc
+                    val pos = exo.currentPosition
+                    val posDelta = if (lastPos < 0) 1000L else pos - lastPos; lastPos = pos
+                    // 在播但位置不动(解码器挤不出来帧), 或两秒内掉了 40+ 帧(=PPT)
+                    val frozen = !exo.isPlaying || posDelta < 300
+                    val dropBurst = droppedDelta > 40
+                    stuckStreak = if (frozen || dropBurst) stuckStreak + 1 else 0
+                    if (stuckStreak >= 2) {
+                        DiagLog.i("channel preview: source $watchId jank (frozen=$frozen dropped=$droppedDelta), fallback")
+                        val target = onFallback()
+                        toastMessage = "「${source.name ?: ""}」卡顿严重，已切换至「${target ?: "备用源"}」"
+                        break
+                    }
+                }
+            }
         } else {
             // 新流超时未就绪
             DiagLog.i("channel preview: new stream not ready")
