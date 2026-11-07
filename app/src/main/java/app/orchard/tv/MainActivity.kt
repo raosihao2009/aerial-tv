@@ -979,7 +979,11 @@ class MainActivity : ComponentActivity() {
         restartIdleTimer()
         GuardSetup.setHomeInFront(this, true)
         HomeGuardService.onAerialResumed()
-        onHomeInFrontReset = { vm.onHomePressed(resetFocus = false) }
+        onHomeInFrontReset = {
+            // 有播放器在播(焦点在IPTV首卡片): 只关二级菜单/弹层, 不重置焦点, 避免释放player
+            // 没在播(焦点在其他卡片): 焦点回到首排第一个卡片
+            vm.onHomePressed(resetFocus = !vm.livePlaying)
+        }
         Updates.onHomeResumed()
         vm.refreshSystem()
         if (!resumedInProcess) {
