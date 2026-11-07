@@ -334,6 +334,7 @@ fun HomeScreen(
     var liveMenuOpen by remember { mutableStateOf(false) }
     var liveMoving by remember { mutableStateOf(false) }
     var ccFromLiveMenu by remember { mutableStateOf(false) }
+    var liveStatusTick by remember { mutableStateOf(0) }
     var lastKeyTime by remember { mutableStateOf(0L) }
     val channelPreviewVisible = AerialSettings.livePreviewEnabled &&
         focusedPkg == "com.jxiptv.softconsole" &&
@@ -347,8 +348,8 @@ fun HomeScreen(
         },
         animationSpec = androidx.compose.animation.core.tween(250), label = "uiAlpha")
     LaunchedEffect(channelPreviewVisible) { vm.livePlaying = channelPreviewVisible; liveReady = false }
-    // 焦点在IPTV卡片时立即检测一次直播状态, 然后每30秒刷新; 焦点移开时停止
-    LaunchedEffect(channelPreviewVisible) {
+    // 焦点在IPTV卡片时立即检测一次直播状态, 然后每30秒刷新; 其他场景刷新后重置计时
+    LaunchedEffect(channelPreviewVisible, liveStatusTick) {
         if (channelPreviewVisible) {
             vm.checkLiveStatuses()
             while (true) {
@@ -364,6 +365,7 @@ fun HomeScreen(
             if (unknown) {
                 DiagLog.i("LiveStatus: LiveSourceMenu opened, refreshing unknown sources")
                 vm.checkLiveStatuses()
+                liveStatusTick++
             }
         }
     }
@@ -864,7 +866,7 @@ fun HomeScreen(
                         null
                     },
                     onReadyChange = { liveReady = it },
-                    onStatusRefresh = { vm.checkLiveStatuses() },
+                    onStatusRefresh = { vm.checkLiveStatuses(); liveStatusTick++ },
                 )
             }
             Box(
