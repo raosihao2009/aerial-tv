@@ -1850,21 +1850,11 @@ class HomeGuardService : AccessibilityService() {
         }
         // Dangbei H5: if Aerial is already in front, don't start it again—each startActivity
         // causes a visible black flash as the window goes through onPause/onResume.
-        val front = frontByUsage()
-        if (front?.first == packageName) {
+        // 用 aerialResumed 状态判断(frontByUsage 会过滤掉 Aerial 自己, getRunningTasks 在
+        // Android 8+ 只返回自己 App 任务不可用).
+        if (aerialResumed) {
             Log.i(TAG, "goHome skipped: Aerial already in front")
             return
-        }
-        // Also check running tasks (frontByUsage filters out Aerial, so we need this separately).
-        // Android 8+ getRunningTasks 只返回自己 App 的任务, 从 Aerial 进程调用永远返回
-        // Aerial 自己(不管是否在前台), 只在 Android 7 及以下做这个检查.
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.N_MR1) {
-            val am = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager
-            val topPkg = am.getRunningTasks(1).firstOrNull()?.topActivity?.packageName
-            if (topPkg == packageName) {
-                Log.i(TAG, "goHome skipped: Aerial is top running task")
-                return
-            }
         }
         broughtBackAt = SystemClock.uptimeMillis()
         runCatching {
