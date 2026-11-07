@@ -1102,7 +1102,7 @@ fun HomeScreen(
             )
         }
 
-        // 音量临时提示: 和直播切源 toast 同款玻璃底, 带滑块进度条, 1.6 秒自动消失
+        // 音量临时提示: 系统样式细横条, 无玻璃底板, 1.6 秒自动消失
         vm.volumeToast?.let { msg ->
             LaunchedEffect(msg) {
                 delay(1600)
@@ -1112,18 +1112,19 @@ fun HomeScreen(
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 28.dp)
-                    .liquidGlass(20.dp)
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                    .padding(bottom = 40.dp),
             ) {
-                BasicText(msg, style = Type.Body)
-                Spacer(Modifier.width(14.dp))
+                BasicText(
+                    "${vm.volume.level}",
+                    style = Type.Body.copy(color = Color.White),
+                )
+                Spacer(Modifier.width(10.dp))
                 Box(
                     Modifier
-                        .width(120.dp)
-                        .height(4.dp)
+                        .width(220.dp)
+                        .height(3.dp)
                         .clip(RoundedCornerShape(2.dp))
-                        .background(Color.White.copy(alpha = 0.3f)),
+                        .background(Color.Black.copy(alpha = 0.6f)),
                 ) {
                     Box(
                         Modifier

@@ -47,13 +47,15 @@ object SoftwareVolume {
         }
     }
 
-    /** Leave Aerial for another app: drop the stream to the middle so it isn't blasting. */
-    fun restoreMid(context: Context) {
+    /** Leave Aerial for another app: map 0..100 pct onto the system's coarse steps
+     *  (e.g. 21-step box → step = pct/5). We can't keep fine control outside this process,
+     *  so the best we can do is hand a roughly equivalent loudness to the next app. */
+    fun applyCoarseSystem(context: Context) {
         val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
         val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         runCatching {
-            val mid = (max / 2).coerceAtLeast(1)
-            am.setStreamVolume(AudioManager.STREAM_MUSIC, mid, 0)
+            val step = Math.round(pct * max / 100f).coerceIn(0, max)
+            am.setStreamVolume(AudioManager.STREAM_MUSIC, step, 0)
         }
     }
 

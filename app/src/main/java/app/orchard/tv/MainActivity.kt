@@ -1025,7 +1025,7 @@ class MainActivity : ComponentActivity() {
         super.onPause()
         if (locked) return
         vm.resumed = false
-        SoftwareVolume.restoreMid(this)
+        SoftwareVolume.applyCoarseSystem(this)
         KidsWatch.homeInFront = false
         Updates.onHomePaused()
         DiagLog.i("boot-debug: onPause at +${SystemClock.elapsedRealtime()}ms")
