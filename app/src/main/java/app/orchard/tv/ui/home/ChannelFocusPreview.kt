@@ -302,10 +302,10 @@ fun ChannelFocusPreview(
                     // 三种坏情况任一:
                     //   1) 冻住: 2s 内 position 走不到 300ms
                     //   2) 掉帧爆发: 2s 丢 >40 帧
-                    //   3) 极低帧率PPT: 2s 实际只渲染 <16 帧 (=8fps, 真·录屏卡; 15~20fps 的低帧率直播不触发)
+                    //   3) 低帧率PPT: 2s 实际只渲染 <20 帧 (=10fps; 15~20fps 低帧率直播不触发)
                     val frozen = !exo.isPlaying || posDelta < 300L
                     val dropBurst = droppedDelta > 40L
-                    val lowFps = renderedDelta > 0L && renderedDelta < 16L
+                    val lowFps = renderedDelta > 0L && renderedDelta < 20L
                     val bad = frozen || dropBurst || lowFps
                     stuckStreak = if (bad) stuckStreak + 1 else 0
                     if (stuckStreak >= 2) {
