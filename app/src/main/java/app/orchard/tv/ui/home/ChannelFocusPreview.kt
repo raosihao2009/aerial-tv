@@ -276,7 +276,7 @@ fun ChannelFocusPreview(
                     kotlinx.coroutines.delay(2000)
                     if (playingSourceId != watchId) break
                     age += 2000
-                    if (age < 8000) continue  // 头 8 秒是正常起播缓冲, 不判
+                    if (age < 12000) continue  // 头 12 秒是正常起播缓冲, 不判
                     val dc: Long = try {
                         val c = exo.videoDecoderCounters
                         c?.ensureUpdated()
@@ -287,11 +287,12 @@ fun ChannelFocusPreview(
                     val pos = exo.currentPosition
                     val posDelta: Long = if (lastPos < 0) 1000L else pos - lastPos
                     lastPos = pos
-                    // 冻住(2s 内 position 走不到 300ms) 或 掉帧爆发(2s >40 帧 = PPT) 任一即算坏
-                    val frozen = !exo.isPlaying || posDelta < 300L
-                    val dropBurst = droppedDelta > 40L
-                    stuckStreak = if (frozen || dropBurst) stuckStreak + 1 else 0
-                    if (stuckStreak >= 2) {
+                    // 冻住(2s 内 position 走不到 100ms) 且 掉帧 >60/2s(=30fps 全丢), 才判 PPT
+                    val frozen = !exo.isPlaying || posDelta < 100L
+                    val dropBurst = droppedDelta > 60L
+                    val bad = frozen && dropBurst
+                    stuckStreak = if (bad) stuckStreak + 1 else 0
+                    if (stuckStreak >= 3) {
                         DiagLog.i("channel preview: source $watchId jank (frozen=$frozen dropped=$droppedDelta), handle")
                         if (watchId == "preset_2") {
                             // 已经在备用源上了: 再切还是同一个, 直接重新加载当前流
