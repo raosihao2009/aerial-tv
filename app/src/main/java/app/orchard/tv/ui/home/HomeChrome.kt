@@ -965,7 +965,8 @@ private fun WeatherIcon(kind: WeatherKind, day: Boolean, iconSize: Dp, modifier:
         WeatherKind.Haze -> R.drawable.weather_haze
         WeatherKind.Drizzle, WeatherKind.LightRain -> R.drawable.weather_light_rain
         WeatherKind.ModerateRain -> R.drawable.weather_rain
-        WeatherKind.HeavyRain, WeatherKind.ViolentRain -> R.drawable.weather_heavy_rain
+        WeatherKind.HeavyRain -> R.drawable.weather_heavy_rain
+        WeatherKind.ViolentRain -> R.drawable.weather_storm
         WeatherKind.Thunder -> R.drawable.weather_thunder
         WeatherKind.ThunderHail -> R.drawable.weather_thunder_hail
         WeatherKind.LightSnow, WeatherKind.ModerateSnow -> R.drawable.weather_snow
