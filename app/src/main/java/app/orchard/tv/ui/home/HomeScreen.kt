@@ -1087,6 +1087,23 @@ fun HomeScreen(
             )
         }
 
+        // 音量临时提示: 和直播切源 toast 同款玻璃底, 1.6 秒自动消失
+        vm.volumeToast?.let { msg ->
+            LaunchedEffect(msg) {
+                delay(1600)
+                vm.volumeToast = null
+            }
+            BasicText(
+                msg,
+                style = Type.Body,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 28.dp)
+                    .liquidGlass(20.dp)
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+            )
+        }
+
         // Once per process, while Home is idle: Control Center, then Personalize, drawn for a few
         // frames, nearly transparent, so that their first opening is not their first draw (see
         // ControlCenter, WallpaperSheet).

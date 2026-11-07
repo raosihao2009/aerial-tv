@@ -131,6 +131,9 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     var network by mutableStateOf(NetworkStatus()); private set
     var volume by mutableStateOf(VolumeStatus()); private set
 
+    /** 音量键触发的临时提示, 和直播切源 toast 同款样式 */
+    var volumeToast by mutableStateOf<String?>(null)
+
     /** ChannelFocusPreview registers this so software volume changes reach its ExoPlayer live. */
     var softwareVolumeHook: ((Float) -> Unit)? = null
     var sources by mutableStateOf<List<TvSource>>(emptyList()); private set
@@ -870,6 +873,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     fun setSoftwareVolume(pct: Int) {
         SoftwareVolume.set(pct)
         volume = VolumeStatus(level = SoftwareVolume.pct, max = SoftwareVolume.MAX, muted = false)
+        volumeToast = "音量 ${SoftwareVolume.pct}%"
         softwareVolumeHook?.invoke(SoftwareVolume.floatVolume())
     }
 

@@ -837,7 +837,7 @@ class MainActivity : ComponentActivity() {
             // Software percent volume while Aerial is focused: the box only exposes ~21 system
             // steps, so scale the live player ourselves instead of letting the stream jump.
             if (event.action == KeyEvent.ACTION_DOWN) {
-                val dir = if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) 2 else -2
+                val dir = if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) 1 else -1
                 vm.setSoftwareVolume(SoftwareVolume.pct + dir)
                 SoftwareVolume.lockSystem(this)
             }
@@ -983,6 +983,7 @@ class MainActivity : ComponentActivity() {
     /** What onResume does once the user is unlocked; also run by a start that was locked before. */
     private fun resumeWork() {
         vm.resumed = true
+        SoftwareVolume.lockSystem(this)
         KidsWatch.homeInFront = true
         idleHandler.removeCallbacks(endHomeBounce)
         vm.homeBounce = false
@@ -1024,6 +1025,7 @@ class MainActivity : ComponentActivity() {
         super.onPause()
         if (locked) return
         vm.resumed = false
+        SoftwareVolume.restoreMid(this)
         KidsWatch.homeInFront = false
         Updates.onHomePaused()
         DiagLog.i("boot-debug: onPause at +${SystemClock.elapsedRealtime()}ms")

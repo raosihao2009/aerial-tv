@@ -47,6 +47,16 @@ object SoftwareVolume {
         }
     }
 
+    /** Leave Aerial for another app: drop the stream to the middle so it isn't blasting. */
+    fun restoreMid(context: Context) {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+        val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        runCatching {
+            val mid = (max / 2).coerceAtLeast(1)
+            am.setStreamVolume(AudioManager.STREAM_MUSIC, mid, 0)
+        }
+    }
+
     fun change(delta: Int) = set(pct + delta)
 
     @Synchronized
