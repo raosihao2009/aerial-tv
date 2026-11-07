@@ -356,6 +356,10 @@ fun ChannelFocusPreview(
     DisposableEffect(Unit) {
         val obs = LifecycleEventObserver { _, e ->
             when (e) {
+                Lifecycle.Event.ON_PAUSE -> {
+                    // 立即暂停音频/视频, 不等ON_STOP(进入其他app时onPause先到, onStop可能延迟)
+                    player?.playWhenReady = false
+                }
                 Lifecycle.Event.ON_STOP -> {
                     // 进入其他app时直接销毁播放器, 回到桌面时重新加载(和开机一样)
                     player?.release()
