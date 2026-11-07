@@ -47,6 +47,20 @@ object SoftwareVolume {
         }
     }
 
+    /** Returning from a third-party app: the user may have moved the coarse system steps there.
+     *  Map the current system step back onto 0..100 (e.g. 21-step box → step*5) so the software
+     *  gain picks up where they left off, instead of snapping back to whatever it was before. */
+    fun absorbSystemLevel(context: Context) {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+        val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        if (max <= 0) return
+        runCatching {
+            val step = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+            val next = Math.round(step * 100f / max)
+            if (next in 0..MAX && next != pct) set(next)
+        }
+    }
+
     /** Leave Aerial for another app: map 0..100 pct onto the system's coarse steps
      *  (e.g. 21-step box → step = pct/5). We can't keep fine control outside this process,
      *  so the best we can do is hand a roughly equivalent loudness to the next app. */

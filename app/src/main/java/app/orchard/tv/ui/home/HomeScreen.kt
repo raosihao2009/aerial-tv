@@ -1102,37 +1102,27 @@ fun HomeScreen(
             )
         }
 
-        // 音量临时提示: 系统样式细横条, 无玻璃底板, 1.6 秒自动消失
+        // 音量临时提示: 当贝同款细横条, 无数字, 底部居中, 1.6 秒自动消失
         vm.volumeToast?.let { msg ->
             LaunchedEffect(msg) {
                 delay(1600)
                 vm.volumeToast = null
             }
-            Row(
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 40.dp),
+                    .padding(bottom = 60.dp)
+                    .width(280.dp)
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color.Black.copy(alpha = 0.5f)),
             ) {
-                BasicText(
-                    "${vm.volume.level}",
-                    style = Type.Body.copy(color = Color.White),
-                )
-                Spacer(Modifier.width(10.dp))
                 Box(
                     Modifier
-                        .width(220.dp)
-                        .height(3.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Color.Black.copy(alpha = 0.6f)),
-                ) {
-                    Box(
-                        Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(vm.volume.fraction.coerceIn(0f, 1f))
-                            .background(Color.White),
-                    )
-                }
+                        .fillMaxHeight()
+                        .fillMaxWidth(vm.volume.fraction.coerceIn(0f, 1f))
+                        .background(Color.White),
+                )
             }
         }
 
