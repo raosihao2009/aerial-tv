@@ -64,6 +64,8 @@ fun ChannelFocusPreview(
     var restartSignal by remember { mutableStateOf(0) }
     // 备用源本身也卡时, 不是再切一次(切来切去同一个), 而是把当前源重新加载一遍
     var reloadTick by remember { mutableStateOf(0) }
+    // 看门狗自动切走时, 不弹"已经从X切换至Y", 只留"卡顿严重"那条
+    var suppressSwitchToast by remember { mutableStateOf(false) }
     val streamCache = remember { mutableMapOf<String, String?>() }
     val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main + kotlinx.coroutines.SupervisorJob())
     var retryCount by remember { mutableStateOf(0) }
@@ -258,10 +260,11 @@ fun ChannelFocusPreview(
             currentPlayingName = source.name
             playingSourceId = source.id
             onSwitched(source.id)
-            // 切换成功提示(有旧源才提示)
-            if (oldName != null && oldName != source.name) {
+            // 切换成功提示(有旧源才提示; 看门狗触发的切换不弹这个, 只留"卡顿严重"那条)
+            if (oldName != null && oldName != source.name && !suppressSwitchToast) {
                 toastMessage = "已经从「$oldName」切换至「${source.name}」"
             }
+            suppressSwitchToast = false
             // 卡顿看门狗: 开播后持续监测, 连续掉帧爆发或画面冻住就自动切备用源
             scope.launch {
                 var lastDropped = 0L
@@ -273,7 +276,7 @@ fun ChannelFocusPreview(
                     kotlinx.coroutines.delay(2000)
                     if (playingSourceId != watchId) break
                     age += 2000
-                    if (age < 8000) continue  // 头 8 秒是正常缓冲, 不判
+                    if (age < 12000) continue  // 头 12 秒是正常起播缓冲, 不判
                     val dc: Long = try {
                         val c = exo.videoDecoderCounters
                         c?.ensureUpdated()
@@ -284,16 +287,19 @@ fun ChannelFocusPreview(
                     val pos = exo.currentPosition
                     val posDelta: Long = if (lastPos < 0) 1000L else pos - lastPos
                     lastPos = pos
-                    val frozen = !exo.isPlaying || posDelta < 300L
-                    val dropBurst = droppedDelta > 40L
-                    stuckStreak = if (frozen || dropBurst) stuckStreak + 1 else 0
-                    if (stuckStreak >= 2) {
+                    // 真冻住: 2 秒内 position 走不到 100ms; 且掉帧 >60(=30fps 全丢) 才算 PPT
+                    val frozen = !exo.isPlaying || posDelta < 100L
+                    val dropBurst = droppedDelta > 60L
+                    val bad = frozen && dropBurst
+                    stuckStreak = if (bad) stuckStreak + 1 else 0
+                    if (stuckStreak >= 3) {
                         DiagLog.i("channel preview: source $watchId jank (frozen=$frozen dropped=$droppedDelta), handle")
                         if (watchId == "preset_2") {
                             // 已经在备用源上了: 再切还是同一个, 直接重新加载当前流
                             toastMessage = "「央视网快看」也卡了，正在重新加载…"
                             reloadTick++
                         } else {
+                            suppressSwitchToast = true
                             val target = onFallback()
                             toastMessage = "「${source.name ?: ""}」卡顿严重，已切换至「${target ?: "备用源"}」"
                         }
