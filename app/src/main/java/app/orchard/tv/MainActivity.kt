@@ -979,7 +979,7 @@ class MainActivity : ComponentActivity() {
         restartIdleTimer()
         GuardSetup.setHomeInFront(this, true)
         HomeGuardService.onAerialResumed()
-        onHomeInFrontReset = { vm.onHomePressed(resetFocus = true) }
+        onHomeInFrontReset = { vm.onHomePressed(resetFocus = false) }
         Updates.onHomeResumed()
         vm.refreshSystem()
         if (!resumedInProcess) {
