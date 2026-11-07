@@ -63,6 +63,8 @@ fun ChannelFocusPreview(
     var surface by remember { mutableStateOf<TextureView?>(null) }
 
     var restartSignal by remember { mutableStateOf(0) }
+    // 备用源本身也卡时, 不是再切一次(切来切去同一个), 而是把当前源重新加载一遍
+    var reloadTick by remember { mutableStateOf(0) }
     val streamCache = remember { mutableMapOf<String, String?>() }
     val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main + kotlinx.coroutines.SupervisorJob())
     var retryCount by remember { mutableStateOf(0) }
@@ -79,13 +81,14 @@ fun ChannelFocusPreview(
     // 加载遮罩：直接显示/隐藏，不用alpha渐变动画(低端GPU fill rate优化)
     val loadingAlpha = if (loading) 1f else 0f
 
-    LaunchedEffect(source?.url, restartSignal) {
+    LaunchedEffect(source?.url, restartSignal, reloadTick) {
         if (source == null) {
             player?.release(); player = null
             return@LaunchedEffect
         }
         // 切回当前正在播放的源(onRevert): 不重新加载, 继续用现有player, 避免画面声音回溯
-        if (source.id == playingSourceId && player != null) {
+        // 但 reloadTick > 0 表示看门狗要求强行重载, 要放过这个早退
+        if (reloadTick == 0 && source.id == playingSourceId && player != null) {
             return@LaunchedEffect
         }
 
@@ -289,9 +292,15 @@ fun ChannelFocusPreview(
                     val dropBurst = droppedDelta > 40L
                     stuckStreak = if (frozen || dropBurst) stuckStreak + 1 else 0
                     if (stuckStreak >= 2) {
-                        DiagLog.i("channel preview: source $watchId jank (frozen=$frozen dropped=$droppedDelta), fallback")
-                        val target = onFallback()
-                        toastMessage = "「${source.name ?: ""}」卡顿严重，已切换至「${target ?: "备用源"}」"
+                        DiagLog.i("channel preview: source $watchId jank (frozen=$frozen dropped=$droppedDelta), handle")
+                        if (watchId == "preset_2") {
+                            // 已经在备用源上了: 再切还是同一个, 直接重新加载当前流
+                            toastMessage = "「央视网快看」也卡了，正在重新加载…"
+                            reloadTick++
+                        } else {
+                            val target = onFallback()
+                            toastMessage = "「${source.name ?: ""}」卡顿严重，已切换至「${target ?: "备用源"}」"
+                        }
                         break
                     }
                 }
