@@ -867,7 +867,9 @@ fun HomeScreen(
                         fb?.name
                     },
                     onRevert = { oldId ->
-                        // 旧源本来就在播, 不用切换, 直接提示
+                        // 选中态回退到旧源(菜单高亮跟着回到旧源); 旧源本来就在播, 预览协程里的
+                        // source.id == playingSourceId 守卫会直接 return, 不重载 player
+                        vm.selectLiveSource(oldId)
                         null
                     },
                     onReadyChange = { liveReady = it },
