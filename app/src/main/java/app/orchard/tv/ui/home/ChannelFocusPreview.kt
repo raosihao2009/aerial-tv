@@ -168,6 +168,7 @@ fun ChannelFocusPreview(
         // 15秒超时, 避免永远卡住
         scope.launch {
             kotlinx.coroutines.delay(15_000)
+            if (disposed) return@launch
             if (!ready) {
                 DiagLog.i("channel preview: load timeout 15s, switching to fallback")
                 loading = false
@@ -278,6 +279,7 @@ fun ChannelFocusPreview(
                 val watchId = source.id
                 while (true) {
                     kotlinx.coroutines.delay(2000)
+                    if (disposed) break
                     if (playingSourceId != watchId) break
                     age += 2000
                     if (age < 8000) continue  // 头 8 秒是正常起播缓冲, 不判
