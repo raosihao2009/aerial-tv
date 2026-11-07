@@ -178,7 +178,7 @@ fun timeText(now: LocalDateTime): String {
     // locale, and zh_CN means 12-hour, which TV clocks here never show (TCL 65S515D, issue #15).
     val twelve = runCatching { android.provider.Settings.System.getString(context.contentResolver, android.provider.Settings.System.TIME_12_24) }.getOrNull() == "12"
     val pattern = if (twelve) "h:mm" else "HH:mm"
-    return now.format(DateTimeFormatter.ofPattern(pattern)).replace(":", " : ")
+    return now.format(DateTimeFormatter.ofPattern(pattern))
 }
 
 @Composable
