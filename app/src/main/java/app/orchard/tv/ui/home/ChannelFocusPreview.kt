@@ -70,6 +70,8 @@ fun ChannelFocusPreview(
     var loading by remember { mutableStateOf(false) }
     // 回退提示
     var toastMessage by remember { mutableStateOf<String?>(null) }
+    // 软件音量回调的注销 token, 跨协程持有以便 onDispose 释放
+    val volumeUnsub = remember { mutableStateOf<(() -> Unit)?>(null) }
     // 当前已在播放的源名称(用于切换失败时提示继续观看谁)
     var currentPlayingName by remember { mutableStateOf<String?>(null) }
     // 上一个正在播放的源 id(切换失败时回退焦点)
@@ -144,7 +146,7 @@ fun ChannelFocusPreview(
             )
             .build()
         SoftwareVolume.apply(exo)
-        val unsubVolume = SoftwareVolume.onChanged { exo.volume = it }
+        volumeUnsub.value = SoftwareVolume.onChanged { exo.volume = it }
         try {
         val factory = DefaultHttpDataSource.Factory()
             .setUserAgent("Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
@@ -311,7 +313,7 @@ fun ChannelFocusPreview(
         lifecycleOwner.lifecycle.addObserver(obs)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(obs)
-            unsubVolume()
+            volumeUnsub.value?.invoke()
             scope.cancel()
             val p = player; player = null
             p?.release()
