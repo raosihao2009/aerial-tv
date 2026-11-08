@@ -84,6 +84,10 @@ fun ChannelFocusPreview(
     )
     // 当前正在跑的卡顿看门狗(纯运行时对象, 不驱动重组; 换源/dispose时 stop)
     val watchdogRef = remember { mutableStateOf<PlaybackWatchdog?>(null) }
+    // 当前 player 挂载的 listener 引用(纯运行时; release 前必须 removeListener,
+    // 否则 release 旧 player 会触发旧 listener 的 onPlayerError, 旧闭包还拿着旧 source 上下文,
+    // 会误调 onFallback/onRevert)
+    val playerListenerRef = remember { mutableStateOf<Player.Listener?>(null) }
 
     LaunchedEffect(source?.url, restartSignal, reloadTick) {
         if (source == null) {
@@ -267,6 +271,10 @@ fun ChannelFocusPreview(
             // 新流已对齐：释放旧player，绑定新player后开播
             val old = player
             val oldName = currentPlayingName
+            // 先摘掉旧 listener, 否则 release() 会触发旧 listener 的 onPlayerError,
+            // 旧闭包还拿着旧 source/retryCount/hls, 会误调 onFallback/onRevert
+            playerListenerRef.value?.let { old?.removeListener(it) }
+            playerListenerRef.value = readyListener
             old?.release()
             player = exo
             // 跳到直播边缘(缓冲末尾), 避免音视频从不同位置开始导致画面超前声音
@@ -318,6 +326,7 @@ fun ChannelFocusPreview(
         } else {
             // 新流超时未就绪
             DiagLog.i("channel preview: new stream not ready")
+            exo.removeListener(readyListener)
             exo.release()
             if (player != null) {
                 // 切换源失败：看旧源是否还在直播
@@ -341,7 +350,10 @@ fun ChannelFocusPreview(
         st.loading = false
         } finally {
             // 协程被取消(快速切源)时, 释放未被采用的 player
-            if (player !== exo) exo.release()
+            if (player !== exo) {
+                exo.removeListener(readyListener)
+                exo.release()
+            }
         }
     }
 
@@ -356,6 +368,7 @@ fun ChannelFocusPreview(
                 Lifecycle.Event.ON_STOP -> {
                     // 进入其他app时直接销毁播放器, 回到桌面时重新加载(和开机一样)
                     watchdogRef.value?.stop()
+                    playerListenerRef.value?.let { player?.removeListener(it) }
                     player?.release()
                     player = null
                     st.loading = false
@@ -376,6 +389,8 @@ fun ChannelFocusPreview(
             watchdogRef.value?.stop()
             scope.cancel()
             val p = player; player = null
+            playerListenerRef.value?.let { p?.removeListener(it) }
+            playerListenerRef.value = null
             p?.release()
         }
     }
