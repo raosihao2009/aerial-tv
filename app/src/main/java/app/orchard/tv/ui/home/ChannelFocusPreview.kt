@@ -70,25 +70,18 @@ fun ChannelFocusPreview(
     val streamCache = remember { mutableMapOf<String, String?>() }
     val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main + kotlinx.coroutines.SupervisorJob())
     var retryCount by remember { mutableStateOf(0) }
-    // 加载遮罩：切换直播源时渐入，新流就绪或失败后渐出
-    var loading by remember { mutableStateOf(false) }
-    // 回退提示
-    var toastMessage by remember { mutableStateOf<String?>(null) }
-    // 软件音量回调的注销 token, 跨协程持有以便 onDispose 释放
+    // 状态聚合：disposed/paused 是纯守卫旗标(不驱动重组, @Volatile), loading/toastMessage 是 UI 状态
+    val st = remember { PreviewState() }
     // 当前已在播放的源名称(用于切换失败时提示继续观看谁)
     var currentPlayingName by remember { mutableStateOf<String?>(null) }
     // 上一个正在播放的源 id(切换失败时回退焦点)
     var playingSourceId by remember { mutableStateOf<String?>(null) }
     // 加载遮罩：直接显示/隐藏，不用alpha渐变动画(低端GPU fill rate优化)
     val loadingAlpha by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (loading) 1f else 0f,
-        animationSpec = androidx.compose.animation.core.tween(if (loading) 100 else 250),
+        targetValue = if (st.loading) 1f else 0f,
+        animationSpec = androidx.compose.animation.core.tween(if (st.loading) 100 else 250),
         label = "loadingAlpha"
     )
-    // 组合离开时释放player会触发onPlayerError, 这个flag用来区分"真错误"和"dispose释放"
-    var disposed by remember { mutableStateOf(false) }
-    // onPause时停掉看门狗(否则它看到!isPlaying会误判冻住并重载流, 后台继续放音)
-    var paused by remember { mutableStateOf(false) }
     // 当前正在跑的卡顿看门狗(纯运行时对象, 不驱动重组; 换源/dispose时 stop)
     val watchdogRef = remember { mutableStateOf<PlaybackWatchdog?>(null) }
 
@@ -104,7 +97,7 @@ fun ChannelFocusPreview(
         }
 
         // 加载遮罩：始终显示加载图, 直到新流就绪
-        loading = true
+        st.loading = true
 
         var streamUrl: String? = streamCache[source.url ?: ""]
         if (streamUrl == null) {
@@ -124,11 +117,11 @@ fun ChannelFocusPreview(
         if (streamUrl == null) {
             // 解析失败(可能已下播或网络未就绪)
             DiagLog.i("channel preview: stream resolve failed")
-            loading = false
+            st.loading = false
             if (player != null) {
                 // 切换源失败：看旧源是否还在直播
                 val target = playingSourceId?.let { onRevert(it) }
-                toastMessage = if (target != null) {
+                st.toastMessage = if (target != null) {
                     "「${source.name}」暂时无法观看，已切换至「$target」"
                 } else {
                     "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
@@ -138,7 +131,7 @@ fun ChannelFocusPreview(
                 // 首次加载失败: 切换到备用源
                 DiagLog.i("channel preview: first load failed, switching to fallback")
                 val target = onFallback()
-                toastMessage = "「${source?.name ?: ""}」暂时无法观看，已切换至「${target ?: "备用源"}」"
+                st.toastMessage = "「${source?.name ?: ""}」暂时无法观看，已切换至「${target ?: "备用源"}」"
             }
             return@LaunchedEffect
         }
@@ -177,12 +170,12 @@ fun ChannelFocusPreview(
         // 15秒超时, 避免永远卡住
         scope.launch {
             kotlinx.coroutines.delay(15_000)
-            if (disposed) return@launch
+            if (st.disposed) return@launch
             if (!ready) {
                 DiagLog.i("channel preview: load timeout 15s, switching to fallback")
-                loading = false
+                st.loading = false
                 val target = onFallback()
-                toastMessage = "「${source?.name ?: ""}」暂时无法观看，已切换至「${target ?: "备用源"}」"
+                st.toastMessage = "「${source?.name ?: ""}」暂时无法观看，已切换至「${target ?: "备用源"}」"
             }
         }
         val readyListener = object : Player.Listener {
@@ -205,7 +198,7 @@ fun ChannelFocusPreview(
                 }
             }
             override fun onPlayerError(error: PlaybackException) {
-                if (disposed) return  // 组合离开释放player触发的错误, 不处理
+                if (st.disposed) return  // 组合离开释放player触发的错误, 不处理
                 DiagLog.i("player err: ${error.errorCodeName}, retry $retryCount")
                 val p = exo
                 // 先快速检测是否B站下播(下播就不重试)
@@ -218,9 +211,9 @@ fun ChannelFocusPreview(
                         ready = true
                         if (hasOld) {
                             // 切换源失败: 看旧源是否还在直播
-                            loading = false
+                            st.loading = false
                             val target = playingSourceId?.let { onRevert(it) }
-                            toastMessage = if (target != null) {
+                            st.toastMessage = if (target != null) {
                                 "「${source.name}」暂时无法观看，已切换至「$target」"
                             } else {
                                 "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
@@ -229,10 +222,10 @@ fun ChannelFocusPreview(
                             onStatusRefresh()
                         } else {
                             // 当前源下播: 切换到备用源
-                            loading = false
+                            st.loading = false
                             DiagLog.i("player err: current source offline, switching to fallback")
                             val target = onFallback()
-                            toastMessage = "「${source.name}」暂时无法观看，已切换至「${target ?: "备用源"}」"
+                            st.toastMessage = "「${source.name}」暂时无法观看，已切换至「${target ?: "备用源"}」"
                         }
                         return@launch
                     }
@@ -276,7 +269,7 @@ fun ChannelFocusPreview(
             onSwitched(source.id)
             // 切换成功提示(有旧源才提示; 看门狗触发的切换不弹这个, 只留"卡顿严重"那条)
             if (oldName != null && oldName != source.name && !suppressSwitchToast) {
-                toastMessage = "已经从「$oldName」切换至「${source.name}」"
+                st.toastMessage = "已经从「$oldName」切换至「${source.name}」"
             }
             suppressSwitchToast = false
             // 卡顿看门狗: 根据设置的灵敏度调整阈值, 抽到独立类 PlaybackWatchdog
@@ -298,16 +291,16 @@ fun ChannelFocusPreview(
                     renderedThreshold = renderedThreshold,
                     streakNeeded = streakNeeded,
                     isActive = {
-                        !disposed && !paused && !loading && playingSourceId == source.id
+                        !st.disposed && !st.paused && !st.loading && playingSourceId == source.id
                     },
                     onJank = { id ->
                         if (id == "preset_2") {
-                            toastMessage = "「央视网快看」也卡了，正在重新加载…"
+                            st.toastMessage = "「央视网快看」也卡了，正在重新加载…"
                             reloadTick++
                         } else {
                             suppressSwitchToast = true
                             val target = onFallback()
-                            toastMessage = "「${source.name ?: ""}」卡顿严重，已切换至「${target ?: "备用源"}」"
+                            st.toastMessage = "「${source.name ?: ""}」卡顿严重，已切换至「${target ?: "备用源"}」"
                         }
                     },
                 )
@@ -320,9 +313,9 @@ fun ChannelFocusPreview(
             exo.release()
             if (player != null) {
                 // 切换源失败：看旧源是否还在直播
-                loading = false
+                st.loading = false
                 val target = playingSourceId?.let { onRevert(it) }
-                toastMessage = if (target != null) {
+                st.toastMessage = if (target != null) {
                     "「${source.name}」暂时无法观看，已切换至「$target」"
                 } else {
                     "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
@@ -330,14 +323,14 @@ fun ChannelFocusPreview(
                 if (target == null) onRevertFail()
             } else {
                 // 开机首次加载超时：持续重试直到成功
-                loading = true
-                toastMessage = "正在加载直播…"
+                st.loading = true
+                st.toastMessage = "正在加载直播…"
                 kotlinx.coroutines.delay(2000)
                 restartSignal++
             }
             return@LaunchedEffect
         }
-        loading = false
+        st.loading = false
         } finally {
             // 协程被取消(快速切源)时, 释放未被采用的 player
             if (player !== exo) exo.release()
@@ -349,7 +342,7 @@ fun ChannelFocusPreview(
             when (e) {
                 Lifecycle.Event.ON_PAUSE -> {
                     // 立即暂停音频/视频, 不等ON_STOP(进入其他app时onPause先到, onStop可能延迟)
-                    paused = true
+                    st.paused = true
                     player?.playWhenReady = false
                 }
                 Lifecycle.Event.ON_STOP -> {
@@ -357,12 +350,12 @@ fun ChannelFocusPreview(
                     watchdogRef.value?.stop()
                     player?.release()
                     player = null
-                    loading = false
+                    st.loading = false
                 }
                 Lifecycle.Event.ON_START -> {
                     // 回到桌面: 播放器已销毁, 重新加载当前源
-                    paused = false
-                    loading = true
+                    st.paused = false
+                    st.loading = true
                     restartSignal++
                 }
                 else -> {}
@@ -370,7 +363,7 @@ fun ChannelFocusPreview(
         }
         lifecycleOwner.lifecycle.addObserver(obs)
         onDispose {
-            disposed = true
+            st.disposed = true
             lifecycleOwner.lifecycle.removeObserver(obs)
             watchdogRef.value?.stop()
             scope.cancel()
@@ -410,10 +403,10 @@ fun ChannelFocusPreview(
             )
         }
         // 回退提示(和移动卡片提示同款)
-        toastMessage?.let { msg ->
+        st.toastMessage?.let { msg ->
             LaunchedEffect(msg) {
                 kotlinx.coroutines.delay(4000)
-                toastMessage = null
+                st.toastMessage = null
             }
             BasicText(
                 msg,
