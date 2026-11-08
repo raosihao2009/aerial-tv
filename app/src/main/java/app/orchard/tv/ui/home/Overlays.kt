@@ -162,6 +162,8 @@ fun AppMenu(
     onResetIcon: (String) -> Unit,
     /** Opens [AppEntry.key] when the TV is switched on, or stops opening it. */
     onBootTarget: (String) -> Unit,
+    /** Sets [AppEntry.key]'s package as the live preview trigger app. */
+    onLiveApp: (String) -> Unit,
     /** What is plugged into a pinned input, by its input id; null puts the input's own tile back. */
     onSourceDevice: (String, SourceDevice?) -> Unit,
     /** Into folder id, or a new folder when null. */
@@ -274,6 +276,15 @@ fun AppMenu(
                                 stringResource(if (boots) R.string.menu_boot_off else R.string.menu_boot_on),
                                 { onBootTarget(shownApp.key) },
                             )
+                            // 直播预览触发应用(只有非input的普通App才显示)
+                            if (shownApp.source == null && shownApp.shortcut == null) {
+                                val isLive = shownApp.key == AerialSettings.liveAppPackage
+                                MenuRow(
+                                    if (isLive) Glyph.Check else Glyph.Play,
+                                    if (isLive) "取消直播应用" else "设定为直播应用",
+                                    { onLiveApp(shownApp.key) },
+                                )
+                            }
                             if (shownApp.removable) {
                                 MenuRow(Glyph.Trash, stringResource(R.string.menu_uninstall), { onUninstall(shownApp.key) }, destructive = true)
                             }

@@ -90,6 +90,9 @@ object AerialSettings {
      */
     var bootApp by mutableStateOf<String?>(null); private set
 
+    /** 触发直播预览的App包名, 默认IPTV */
+    var liveAppPackage by mutableStateOf("com.jxiptv.softconsole"); private set
+
     /**
      * Only the top row on Home, low on the screen, so the wallpaper (a family photo) shows above it,
      * as tvOS does under a full-screen top shelf. The rest of the grid is one press down.
@@ -203,6 +206,7 @@ object AerialSettings {
         pinnedSources = prefs.getStringSet("pinned_sources", null)?.toSet() ?: emptySet()
         bootSource = prefs.getString("boot_source", null)
         bootApp = prefs.getString("boot_app", null)
+        liveAppPackage = prefs.getString("live_app_package", "com.jxiptv.softconsole") ?: "com.jxiptv.softconsole"
         pinHash = prefs.getString("pin_hash", null)
         pinSet = pinHash != null
         pinArrows = prefs.getBoolean("pin_arrows", false)
@@ -242,6 +246,11 @@ object AerialSettings {
         bootApp = pkg
         bootSource = null
         app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putString("boot_app", pkg).remove("boot_source") }
+    }
+
+    fun chooseLiveApp(pkg: String?) {
+        liveAppPackage = pkg ?: "com.jxiptv.softconsole"
+        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putString("live_app_package", liveAppPackage) }
     }
 
     /** Something opens when the TV is switched on. */
