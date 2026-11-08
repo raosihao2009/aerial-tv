@@ -181,6 +181,10 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     val screensaverSkips = ScreensaverSkips()
     var livePlaying by mutableStateOf(false)
 
+    /** 全局轻提示(玻璃胶囊), 自动4s消失 */
+    var globalToast by mutableStateOf<String?>(null)
+    fun showToast(msg: String) { globalToast = msg }
+
     // ===== 新增：直播源管理 =====
     val presetLiveSources = listOf(
         LiveSource("preset_0", "央视网", "https://b23.tv/oJgZJqv", isBilibili = true, isPreset = true, colorIndex = 0),

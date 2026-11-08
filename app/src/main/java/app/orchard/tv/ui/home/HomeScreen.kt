@@ -1181,7 +1181,7 @@ fun HomeScreen(
                 AerialSettings.toggleLiveApp(key)
                 val msg = if (wasIn) "「$label」已经离开直播预览应用，可重新选择"
                           else "「$label」已经成为直播预览应用，在第一排时有效"
-                android.widget.Toast.makeText(appContext, msg, android.widget.Toast.LENGTH_LONG).show()
+                vm.showToast(msg)
             },
             onSourceDevice = { id, device ->
                 closeMenu()
@@ -1320,6 +1320,26 @@ fun HomeScreen(
             onClose = { vm.overlay = if (ccFromLiveMenu) { ccFromLiveMenu = false; Overlay.LiveSourceMenu } else Overlay.None },
             warm = ccWarm,
         )
+
+        // 全局玻璃胶囊轻提示(和直播切换同款)
+        vm.globalToast?.let { msg ->
+            LaunchedEffect(msg) {
+                kotlinx.coroutines.delay(4000)
+                vm.globalToast = null
+            }
+            androidx.compose.material3.BasicText(
+                msg,
+                style = androidx.compose.ui.text.TextStyle(
+                    color = androidx.compose.ui.graphics.Color.White,
+                    fontSize = androidx.compose.ui.unit.TextUnit(14f, androidx.compose.ui.unit.TextUnitType.Sp),
+                ),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 28.dp)
+                    .liquidGlass(20.dp)
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+            )
+        }
     }
 }
 

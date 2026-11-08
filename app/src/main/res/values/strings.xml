@@ -155,7 +155,7 @@
     <string name="st_live_quality">Live quality</string>
     <string name="st_live_1080">1080p</string>
     <string name="st_live_original">Original</string>
-    <string name="st_live_jank">Jank auto-switch</string>
+    <string name="st_live_jank">直播卡顿自动切换</string>
     <string name="st_hidden_apps">Hidden Apps</string>
     <string name="st_hidden_apps_hint">Apps hidden from Home are kept here, to put back. With a parental PIN set, it asks for the PIN first.</string>
     <string name="st_hidden_live">Hidden Live Cards</string>
