@@ -1181,7 +1181,7 @@ fun HomeScreen(
                 AerialSettings.toggleLiveApp(key)
                 val msg = if (wasIn) "「$label」已经离开直播预览应用，可重新选择"
                           else "「$label」已经成为直播预览应用，在第一排时有效"
-                android.widget.Toast.makeText(LocalContext.current, msg, android.widget.Toast.LENGTH_LONG).show()
+                android.widget.Toast.makeText(appContext, msg, android.widget.Toast.LENGTH_LONG).show()
             },
             onSourceDevice = { id, device ->
                 closeMenu()
