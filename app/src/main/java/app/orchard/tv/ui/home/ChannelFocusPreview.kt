@@ -291,6 +291,7 @@ fun ChannelFocusPreview(
             // 跳到直播边缘(缓冲末尾), 避免音视频从不同位置开始导致画面超前声音
             exo.seekTo(exo.bufferedPosition.coerceAtLeast(exo.currentPosition))
             exo.playWhenReady = true
+            vm.liveActuallyPlaying = true
             currentPlayingName = source.name
             playingSourceId = source.id
             onSwitched(source.id)
@@ -384,6 +385,7 @@ fun ChannelFocusPreview(
                     player?.release()
                     player = null
                     st.loading = false
+                    vm.liveActuallyPlaying = false
                 }
                 Lifecycle.Event.ON_START -> {
                     // 回到桌面: 播放器已销毁, 重新加载当前源
@@ -397,6 +399,7 @@ fun ChannelFocusPreview(
         lifecycleOwner.lifecycle.addObserver(obs)
         onDispose {
             st.disposed = true
+            vm.liveActuallyPlaying = false
             lifecycleOwner.lifecycle.removeObserver(obs)
             watchdogRef.value?.stop()
             scope.cancel()

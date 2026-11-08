@@ -980,11 +980,9 @@ class MainActivity : ComponentActivity() {
         GuardSetup.setHomeInFront(this, true)
         HomeGuardService.onAerialResumed()
         onHomeInFrontReset = {
-            // 二级菜单/弹层打开时按HOME: 只关菜单, 不重置焦点(焦点在菜单里, livePlaying可能已变false,
-            // 盲目重置焦点会跳到其他卡片释放player)
-            // 直接在一级界面按HOME: 直播在播就不关焦点, 没在播就回首排第一个
-            val inMenu = vm.overlay != Overlay.None
-            vm.onHomePressed(resetFocus = if (inMenu) false else !vm.livePlaying)
+            // 直播真正在播: 只关所有浮层/二级菜单, 不移动焦点(避免释放player)
+            // 没在播: 关浮层 + 焦点回到首排第一个卡片
+            vm.onHomePressed(resetFocus = !vm.liveActuallyPlaying)
         }
         Updates.onHomeResumed()
         vm.refreshSystem()

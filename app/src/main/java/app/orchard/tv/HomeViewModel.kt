@@ -180,6 +180,8 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     var screensaverVisible by mutableStateOf(false)
     val screensaverSkips = ScreensaverSkips()
     var livePlaying by mutableStateOf(false)
+    /** player真正在播(由ChannelFocusPreview直接驱动, 不随焦点/菜单变化), 用于HOME键判断 */
+    var liveActuallyPlaying by mutableStateOf(false)
 
     /** 全局轻提示(玻璃胶囊), 自动4s消失 */
     var globalToast by mutableStateOf<String?>(null)
