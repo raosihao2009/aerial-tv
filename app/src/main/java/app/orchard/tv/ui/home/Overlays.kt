@@ -276,12 +276,12 @@ fun AppMenu(
                                 stringResource(if (boots) R.string.menu_boot_off else R.string.menu_boot_on),
                                 { onBootTarget(shownApp.key) },
                             )
-                            // 直播预览触发应用(只有非input的普通App才显示)
+                            // 直播预览触发应用(可多选, 仅第一排聚焦时有效)
                             if (shownApp.source == null && shownApp.shortcut == null) {
-                                val isLive = shownApp.key == AerialSettings.liveAppPackage
+                                val isLive = shownApp.key in AerialSettings.liveAppPackages
                                 MenuRow(
                                     if (isLive) Glyph.Check else Glyph.Play,
-                                    if (isLive) "取消直播应用" else "设定为直播应用",
+                                    if (isLive) "离开直播预览应用" else "成为直播预览应用",
                                     { onLiveApp(shownApp.key) },
                                 )
                             }

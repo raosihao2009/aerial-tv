@@ -344,7 +344,7 @@ fun HomeScreen(
     var liveStatusTick by remember { mutableStateOf(0) }
     var lastKeyTime by remember { mutableStateOf(0L) }
     val channelPreviewVisible = AerialSettings.livePreviewEnabled &&
-        focusedPkg == AerialSettings.liveAppPackage &&
+        focusedPkg in AerialSettings.liveAppPackages &&
         focusedRow == 0 &&
         !vm.screensaverVisible && moving == null
     val uiAlpha by androidx.compose.animation.core.animateFloatAsState(
@@ -378,7 +378,7 @@ fun HomeScreen(
     }
     // 10秒无操作自动隐藏UI（直播加载成功后才开始计时）
     LaunchedEffect(focusedPkg, overlay, uiHidden, lastKeyTime, channelPreviewVisible, liveMenuOpen, liveMoving, liveReady) {
-        if (channelPreviewVisible && focusedPkg == AerialSettings.liveAppPackage && overlay == Overlay.None && !uiHidden && liveReady) {
+        if (channelPreviewVisible && focusedPkg in AerialSettings.liveAppPackages && overlay == Overlay.None && !uiHidden && liveReady) {
             delay(10_000)
             uiHidden = true
         }
@@ -534,14 +534,14 @@ fun HomeScreen(
         if (windowFocused && vm.homeResetPending && vm.loaded) {
             withFrameNanos { }
             dragged = false
-            val jxIndex = apps.indexOfFirst { it.packageName == AerialSettings.liveAppPackage }
+            val jxIndex = apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages }
             focusApp(if (jxIndex >= 0) jxIndex else 0)
             vm.homeResetPending = false
             initialFocusDone = true
         } else if (windowFocused && vm.loaded && apps.isNotEmpty() && !initialFocusDone) {
             // 启动时直接聚焦第一个卡片, 不要先聚焦右上角pill再跳过去
             withFrameNanos { }
-            val jxIndex = apps.indexOfFirst { it.packageName == AerialSettings.liveAppPackage }
+            val jxIndex = apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages }
             focusApp(if (jxIndex >= 0) jxIndex else 0)
             initialFocusDone = true
         }
@@ -558,7 +558,7 @@ fun HomeScreen(
     }
 
     // ===== 手动快速隐藏UI：10秒内按返回键立刻藏 =====
-    BackHandler(enabled = channelPreviewVisible && focusedPkg == AerialSettings.liveAppPackage && !uiHidden && overlay == Overlay.None && moving == null) {
+    BackHandler(enabled = channelPreviewVisible && focusedPkg in AerialSettings.liveAppPackages && !uiHidden && overlay == Overlay.None && moving == null) {
         uiHidden = true
     }
 
@@ -569,7 +569,7 @@ fun HomeScreen(
         uiHidden = true // 关闭二级菜单后保持UI隐藏
     }
 
-    BackHandler(enabled = channelPreviewVisible && uiHidden && overlay == Overlay.None && focusedPkg == AerialSettings.liveAppPackage) {
+    BackHandler(enabled = channelPreviewVisible && uiHidden && overlay == Overlay.None && focusedPkg in AerialSettings.liveAppPackages) {
         uiHidden = false
     }
     BoxWithConstraints(
@@ -578,7 +578,7 @@ fun HomeScreen(
             .onPreviewKeyEvent { e ->
                 lastKeyTime = System.currentTimeMillis()
                 // ===== UI隐藏时按键逻辑 =====
-                if (channelPreviewVisible && uiHidden && focusedPkg == AerialSettings.liveAppPackage) {
+                if (channelPreviewVisible && uiHidden && focusedPkg in AerialSettings.liveAppPackages) {
                     // 任何浮层(CC/个性化/隐藏应用等)都透传，不能被"恢复UI"逻辑吞掉第一个键
                     if (overlay !is Overlay.None && overlay !is Overlay.LiveSourceMenu) return@onPreviewKeyEvent false
                     if (e.type == KeyEventType.KeyDown) {
@@ -1026,7 +1026,7 @@ fun HomeScreen(
                 .graphicsLayer {
                     alpha = when {
                         overlay is Overlay.ControlCenter -> 0f
-                        channelPreviewVisible && uiHidden && focusedPkg == AerialSettings.liveAppPackage -> 0f
+                        channelPreviewVisible && uiHidden && focusedPkg in AerialSettings.liveAppPackages -> 0f
                         else -> 1f
                     }
                 },
@@ -1176,8 +1176,12 @@ fun HomeScreen(
             },
             onLiveApp = { key ->
                 closeMenu()
-                // 再点一次同一个App则恢复默认
-                AerialSettings.chooseLiveApp(key.takeIf { it != AerialSettings.liveAppPackage })
+                val label = vm.entry(key)?.label ?: key
+                val wasIn = key in AerialSettings.liveAppPackages
+                AerialSettings.toggleLiveApp(key)
+                val msg = if (wasIn) "「$label」已经离开直播预览应用，可重新选择"
+                          else "「$label」已经成为直播预览应用，在第一排时有效"
+                android.widget.Toast.makeText(LocalContext.current, msg, android.widget.Toast.LENGTH_LONG).show()
             },
             onSourceDevice = { id, device ->
                 closeMenu()

@@ -90,8 +90,8 @@ object AerialSettings {
      */
     var bootApp by mutableStateOf<String?>(null); private set
 
-    /** 触发直播预览的App包名, 默认IPTV */
-    var liveAppPackage by mutableStateOf("com.jxiptv.softconsole"); private set
+    /** 触发直播预览的App包名集合, 默认IPTV; 仅第一排聚焦时直播有效 */
+    var liveAppPackages by mutableStateOf(setOf("com.jxiptv.softconsole")); private set
 
     /**
      * Only the top row on Home, low on the screen, so the wallpaper (a family photo) shows above it,
@@ -206,7 +206,7 @@ object AerialSettings {
         pinnedSources = prefs.getStringSet("pinned_sources", null)?.toSet() ?: emptySet()
         bootSource = prefs.getString("boot_source", null)
         bootApp = prefs.getString("boot_app", null)
-        liveAppPackage = prefs.getString("live_app_package", "com.jxiptv.softconsole") ?: "com.jxiptv.softconsole"
+        liveAppPackages = prefs.getStringSet("live_app_packages", setOf("com.jxiptv.softconsole")) ?: setOf("com.jxiptv.softconsole")
         pinHash = prefs.getString("pin_hash", null)
         pinSet = pinHash != null
         pinArrows = prefs.getBoolean("pin_arrows", false)
@@ -248,9 +248,12 @@ object AerialSettings {
         app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putString("boot_app", pkg).remove("boot_source") }
     }
 
-    fun chooseLiveApp(pkg: String?) {
-        liveAppPackage = pkg ?: "com.jxiptv.softconsole"
-        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putString("live_app_package", liveAppPackage) }
+    /** 返回操作后的新集合(用于toast判断是添加还是移除) */
+    fun toggleLiveApp(pkg: String): Set<String> {
+        val next = if (pkg in liveAppPackages) liveAppPackages - pkg else liveAppPackages + pkg
+        liveAppPackages = next
+        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putStringSet("live_app_packages", next) }
+        return next
     }
 
     /** Something opens when the TV is switched on. */
