@@ -148,7 +148,15 @@ fun ChannelFocusPreview(
             .setTrackSelector(trackSelector)
             .setLoadControl(
                 androidx.media3.exoplayer.DefaultLoadControl.Builder()
-                    .setBufferDurationsMs(5000, 15000, 2000, 3000)
+                    // 低端盒子(Allwinner DBBOX-A2, Mali-G31, 仅 1960MB RAM)针对 HLS 直播调优：
+                    // - minBuffer 5s->3s, maxBuffer 15s->10s：减少缓冲占用的内存(TS 分片+解码帧)，
+                    //   2GB RAM 盒子上 15s 缓冲会明显占内存并挤占解码缓存
+                    // - bufferForPlayback 2s->1.5s：更快起播(焦点预览切源时少等)
+                    // - bufferForPlaybackAfterRebuffer 3s->2.5s：卡顿后恢复更快
+                    // 直播源本身低帧率(10-20fps)，10s maxBuffer 足够吸收网络抖动
+                    .setBufferDurationsMs(3000, 10000, 1500, 2500)
+                    // 不保留回放 back-buffer，省内存(直播不需要回看)
+                    .setBackBuffer(0, false)
                     .build()
             )
             .build()
