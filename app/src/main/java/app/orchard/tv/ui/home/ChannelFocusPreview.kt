@@ -89,6 +89,8 @@ fun ChannelFocusPreview(
     var disposed by remember { mutableStateOf(false) }
     // onPause时停掉看门狗(否则它看到!isPlaying会误判冻住并重载流, 后台继续放音)
     var paused by remember { mutableStateOf(false) }
+    // 当前正在跑的卡顿看门狗(纯运行时对象, 不驱动重组; 换源/dispose时 stop)
+    val watchdogRef = remember { mutableStateOf<PlaybackWatchdog?>(null) }
 
     LaunchedEffect(source?.url, restartSignal, reloadTick) {
         if (source == null) {
@@ -277,58 +279,29 @@ fun ChannelFocusPreview(
                 toastMessage = "已经从「$oldName」切换至「${source.name}」"
             }
             suppressSwitchToast = false
-            // 卡顿看门狗: 根据设置的灵敏度调整阈值
+            // 卡顿看门狗: 根据设置的灵敏度调整阈值, 抽到独立类 PlaybackWatchdog
             val sens = AerialSettings.jankSensitivity
             if (sens != AerialSettings.JankSensitivity.Off) {
-            val warmupMs: Long; val dropThreshold: Long; val renderedThreshold: Long; val streakNeeded: Int
-            when (sens) {
-                AerialSettings.JankSensitivity.Low -> { warmupMs = 12000L; dropThreshold = 80L; renderedThreshold = 12L; streakNeeded = 3 }
-                AerialSettings.JankSensitivity.High -> { warmupMs = 4000L; dropThreshold = 20L; renderedThreshold = 28L; streakNeeded = 2 }
-                else -> { warmupMs = 8000L; dropThreshold = 40L; renderedThreshold = 20L; streakNeeded = 2 }  // Medium
-            }
-            scope.launch {
-                var lastDropped = 0L
-                var lastRendered = 0L
-                var lastPos = -1L
-                var stuckStreak = 0
-                var age = 0
-                val watchId = source.id
-                while (true) {
-                    kotlinx.coroutines.delay(2000)
-                    if (disposed) break
-                    if (paused) break
-                    if (loading) break  // 正在切源加载新流, 旧看门狗不判断
-                    if (playingSourceId != watchId) break
-                    age += 2000
-                    if (age < warmupMs) continue
-                    // 一次读完解码器计数
-                    var droppedNow = 0L
-                    var renderedNow = 0L
-                    try {
-                        val c = exo.videoDecoderCounters
-                        c?.ensureUpdated()
-                        droppedNow = (c?.droppedBufferCount ?: 0L) as Long
-                        renderedNow = (c?.renderedOutputBufferCount ?: 0L) as Long
-                    } catch (t: Throwable) { }
-                    val droppedDelta = droppedNow - lastDropped
-                    val renderedDelta = if (lastRendered == 0L) 0L else renderedNow - lastRendered
-                    lastDropped = droppedNow
-                    lastRendered = renderedNow
-                    val pos = exo.currentPosition
-                    val posDelta: Long = if (lastPos < 0) 1000L else pos - lastPos
-                    lastPos = pos
-                    // 三种坏情况任一:
-                    //   1) 冻住: 2s 内 position 走不到 300ms
-                    //   2) 掉帧爆发: 2s 丢 >40 帧
-                    //   3) 低帧率PPT: 2s 实际只渲染 <20 帧 (=10fps; 15~20fps 低帧率直播不触发)
-                    val frozen = !exo.isPlaying || posDelta < 300L
-                    val dropBurst = droppedDelta > dropThreshold
-                    val lowFps = renderedDelta > 0L && renderedDelta < renderedThreshold
-                    val bad = frozen || dropBurst || lowFps
-                    stuckStreak = if (bad) stuckStreak + 1 else 0
-                    if (stuckStreak >= streakNeeded) {
-                        DiagLog.i("channel preview: source $watchId jank (frozen=$frozen dropped=$droppedDelta rendered=$renderedDelta), handle")
-                        if (watchId == "preset_2") {
+                val warmupMs: Long; val dropThreshold: Long; val renderedThreshold: Long; val streakNeeded: Int
+                when (sens) {
+                    AerialSettings.JankSensitivity.Low -> { warmupMs = 12000L; dropThreshold = 80L; renderedThreshold = 12L; streakNeeded = 3 }
+                    AerialSettings.JankSensitivity.High -> { warmupMs = 4000L; dropThreshold = 20L; renderedThreshold = 28L; streakNeeded = 2 }
+                    else -> { warmupMs = 8000L; dropThreshold = 40L; renderedThreshold = 20L; streakNeeded = 2 }  // Medium
+                }
+                // 停掉旧看门狗(换源/重载), 再为新流起一个
+                watchdogRef.value?.stop()
+                val wd = PlaybackWatchdog(
+                    exo = exo,
+                    sourceId = source.id,
+                    warmupMs = warmupMs,
+                    dropThreshold = dropThreshold,
+                    renderedThreshold = renderedThreshold,
+                    streakNeeded = streakNeeded,
+                    isActive = {
+                        !disposed && !paused && !loading && playingSourceId == source.id
+                    },
+                    onJank = { id ->
+                        if (id == "preset_2") {
                             toastMessage = "「央视网快看」也卡了，正在重新加载…"
                             reloadTick++
                         } else {
@@ -336,10 +309,10 @@ fun ChannelFocusPreview(
                             val target = onFallback()
                             toastMessage = "「${source.name ?: ""}」卡顿严重，已切换至「${target ?: "备用源"}」"
                         }
-                        break
-                    }
-                }
-            }
+                    },
+                )
+                wd.start(scope)
+                watchdogRef.value = wd
             }  // sens != Off
         } else {
             // 新流超时未就绪
@@ -381,6 +354,7 @@ fun ChannelFocusPreview(
                 }
                 Lifecycle.Event.ON_STOP -> {
                     // 进入其他app时直接销毁播放器, 回到桌面时重新加载(和开机一样)
+                    watchdogRef.value?.stop()
                     player?.release()
                     player = null
                     loading = false
@@ -398,6 +372,7 @@ fun ChannelFocusPreview(
         onDispose {
             disposed = true
             lifecycleOwner.lifecycle.removeObserver(obs)
+            watchdogRef.value?.stop()
             scope.cancel()
             val p = player; player = null
             p?.release()
