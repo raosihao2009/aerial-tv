@@ -376,14 +376,14 @@ fun LiveSourceMenu(
                     initialValue = fallback.art, baseBmpState.value, source.liveStatus, source.id == currentId
                 ) {
                     val statusText = when {
-                        source.id == currentId -> "直播中"
                         source.liveStatus == 2 -> "未开播"
+                        source.id == currentId -> "直播中"
                         source.liveStatus == 1 -> "已开播"
                         else -> null
                     }
                     val statusColor = when {
-                        source.id == currentId -> 0xFF007AFF.toInt()
                         source.liveStatus == 2 -> 0xFFFF3B30.toInt()
+                        source.id == currentId -> 0xFF007AFF.toInt()
                         source.liveStatus == 1 -> 0xFF34C759.toInt()
                         else -> 0
                     }

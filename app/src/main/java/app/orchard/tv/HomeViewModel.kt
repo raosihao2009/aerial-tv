@@ -253,7 +253,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     fun checkLiveStatuses() {
         kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val biliSources = liveSources.filter {
-                it.url.isNotBlank() && (it.url.contains("b23.tv") || it.url.contains("bilibili.com"))
+                it.url.isNotBlank() && (it.url.contains("b23.tv") || it.url.contains("bilibili.com") || it.url.contains("bili23.cn"))
             }
             // 每批最多并行6个
             kotlinx.coroutines.coroutineScope {
