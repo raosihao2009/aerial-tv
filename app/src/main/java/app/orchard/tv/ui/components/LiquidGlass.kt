@@ -107,7 +107,11 @@ fun Modifier.liquidGlass(corner: Dp, bottomCorners: Boolean = true, seeThroughFi
             // The glass in a layer the GPU keeps: drawn again only when it moves or its picture
             // fades, not with every frame of what lies on it. Drawn each frame, the Personalize
             // sheet cost MiTV-MFTR0's GPU about 29 ms a frame while focus moved along its cards.
-            val glass = obtainGraphicsLayer().apply { compositingStrategy = CompositingStrategy.Offscreen }
+            // Offscreen compositing strategy is applied only when we actually record this layer
+            // (else branch below). Solid / lite / no-frost panels take a flat path and never
+            // touch the layer, so they must not mark it Offscreen — on Mali-G31 an offscreen
+            // buffer costs fill-rate even when the layer is empty.
+            val glass = obtainGraphicsLayer()
             var drawnAt: Offset? = null
             var drawnRoot = IntSize.Zero
             var drawnT = -1f
@@ -129,6 +133,7 @@ fun Modifier.liquidGlass(corner: Dp, bottomCorners: Boolean = true, seeThroughFi
                 } else {
                     val t = swap()
                     if (drawnAt != at || drawnRoot != root || drawnT != t) {
+                        glass.compositingStrategy = CompositingStrategy.Offscreen
                         drawnAt = at
                         drawnRoot = root
                         drawnT = t
