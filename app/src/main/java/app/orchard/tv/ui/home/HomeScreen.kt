@@ -51,6 +51,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.State
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -336,12 +337,15 @@ fun HomeScreen(
     val gridEnabled = overlay == Overlay.None && kidsLock == null
 
 // ===== 直播预览和UI隐藏状态 =====
+    // liveReady/liveStatusTick 用 State 持有者暴露，而不是 by 委托：
+    // 主 composable 不在 composition 阶段读它们的值，避免直播就绪/状态轮询
+    // 这两个仅驱动 LaunchedEffect 的状态变化触发整棵 HomeScreen 树重组（低端盒子上明显卡顿）。
     var uiHidden by remember { mutableStateOf(false) }
-    var liveReady by remember { mutableStateOf(false) }
+    val liveReadyState = remember { mutableStateOf(false) }
     var liveMenuOpen by remember { mutableStateOf(false) }
     var liveMoving by remember { mutableStateOf(false) }
     var ccFromLiveMenu by remember { mutableStateOf(false) }
-    var liveStatusTick by remember { mutableStateOf(0) }
+    val liveStatusTickState = remember { mutableStateOf(0) }
     var lastKeyTime by remember { mutableStateOf(0L) }
     val channelPreviewVisible = AerialSettings.livePreviewEnabled &&
         focusedPkg in AerialSettings.liveAppPackages &&
@@ -354,17 +358,10 @@ fun HomeScreen(
             else -> 1f
         },
         animationSpec = androidx.compose.animation.core.tween(250), label = "uiAlpha")
-    LaunchedEffect(channelPreviewVisible) { vm.livePlaying = channelPreviewVisible; liveReady = false }
+    LaunchedEffect(channelPreviewVisible) { vm.livePlaying = channelPreviewVisible; liveReadyState.value = false }
     // 焦点在IPTV卡片时立即检测一次直播状态, 然后每30秒刷新; 其他场景刷新后重置计时
-    LaunchedEffect(channelPreviewVisible, liveStatusTick) {
-        if (channelPreviewVisible) {
-            vm.checkLiveStatuses()
-            while (true) {
-                delay(30_000)
-                vm.checkLiveStatuses()
-            }
-        }
-    }
+    // 抽到独立 composable 里读 liveStatusTickState，tick 变化只重组这个小节点，不带动整棵树。
+    LiveStatusPollingEffect(channelPreviewVisible, liveStatusTickState, vm)
     // 二级菜单打开时如果有未知状态的源, 也触发一次检测
     LaunchedEffect(overlay is Overlay.LiveSourceMenu) {
         if (overlay is Overlay.LiveSourceMenu) {
@@ -372,23 +369,24 @@ fun HomeScreen(
             if (unknown) {
                 DiagLog.i("LiveStatus: LiveSourceMenu opened, refreshing unknown sources")
                 vm.checkLiveStatuses()
-                liveStatusTick++
+                liveStatusTickState.value++
             }
         }
     }
     // 10秒无操作自动隐藏UI（直播加载成功后才开始计时）
-    LaunchedEffect(focusedPkg, overlay, uiHidden, lastKeyTime, channelPreviewVisible, liveMenuOpen, liveMoving, liveReady) {
-        if (channelPreviewVisible && focusedPkg in AerialSettings.liveAppPackages && overlay == Overlay.None && !uiHidden && liveReady) {
-            delay(10_000)
-            uiHidden = true
-        }
-        // 二级菜单打开时也10秒自动隐藏（上下文菜单/移动模式时不自动隐藏）
-        if (overlay is Overlay.LiveSourceMenu && !liveMenuOpen && !liveMoving) {
-            delay(10_000)
-            vm.overlay = Overlay.None
-            uiHidden = true
-        }
-    }
+    // 抽到独立 composable 里读 liveReadyState，就绪 false→true 只重组这个小节点，不带动整棵树。
+    LiveUiAutoHideEffect(
+        focusedPkg = focusedPkg,
+        overlay = overlay,
+        uiHidden = uiHidden,
+        onUiHiddenChange = { uiHidden = it },
+        lastKeyTime = lastKeyTime,
+        channelPreviewVisible = channelPreviewVisible,
+        liveMenuOpen = liveMenuOpen,
+        liveMoving = liveMoving,
+        liveReadyState = liveReadyState,
+        vm = vm,
+    )
     // HOME键（onHomePressed）被按下时恢复UI显示
     LaunchedEffect(vm.homePressCount) {
         if (vm.homePressCount > 0 && uiHidden) uiHidden = false
@@ -875,8 +873,8 @@ fun HomeScreen(
                         vm.cancelPendingLiveSource()
                         null
                     },
-                    onReadyChange = { liveReady = it },
-                    onStatusRefresh = { vm.checkLiveStatuses(); liveStatusTick++ },
+                    onReadyChange = { liveReadyState.value = it },
+                    onStatusRefresh = { vm.checkLiveStatuses(); liveStatusTickState.value++ },
                     onSwitched = { vm.commitPendingLiveSource() },
                     onRevertFail = {
                         // 新源失败回退到旧源时, 自动隐藏的 UI 可能还躲着, 把高亮拉回来
@@ -1343,3 +1341,63 @@ fun HomeScreen(
     }
 }
 
+/**
+ * 直播状态轮询：焦点在 IPTV 卡片时立即检测一次，之后每 30 秒刷新；
+ * onStatusRefresh 回调或二级菜单打开时手动 +1 tick 会重置计时并立即再查一次。
+ *
+ * 抽成独立 composable：liveStatusTickState.value 在这里被读取，tick 变化只重组这个小节点，
+ * 不带动 HomeScreen 整棵网格/时钟/背景树（Mali-G31 上 fill rate 是瓶颈，整树重组代价高）。
+ */
+@Composable
+private fun LiveStatusPollingEffect(
+    channelPreviewVisible: Boolean,
+    liveStatusTickState: State<Int>,
+    vm: HomeViewModel,
+) {
+    val tick = liveStatusTickState.value
+    LaunchedEffect(channelPreviewVisible, tick, vm) {
+        if (channelPreviewVisible) {
+            vm.checkLiveStatuses()
+            while (true) {
+                delay(30_000)
+                vm.checkLiveStatuses()
+            }
+        }
+    }
+}
+
+/**
+ * 10 秒无操作自动隐藏 UI：直播就绪（liveReadyState true）且无浮层、无按键时开始计时；
+ * 二级菜单打开时同理自动关闭并隐藏。
+ *
+ * 抽成独立 composable：liveReadyState.value 在这里被读取，就绪 false→true 只重组这个小节点，
+ * 不带动整棵树。其余 key（focusedPkg/overlay/uiHidden/lastKeyTime/...）本就是 HomeScreen 主 UI
+ * 状态，主树本来就会因它们重组，不会新增开销。
+ */
+@Composable
+private fun LiveUiAutoHideEffect(
+    focusedPkg: String,
+    overlay: Overlay,
+    uiHidden: Boolean,
+    onUiHiddenChange: (Boolean) -> Unit,
+    lastKeyTime: Long,
+    channelPreviewVisible: Boolean,
+    liveMenuOpen: Boolean,
+    liveMoving: Boolean,
+    liveReadyState: State<Boolean>,
+    vm: HomeViewModel,
+) {
+    val liveReady = liveReadyState.value
+    LaunchedEffect(focusedPkg, overlay, uiHidden, lastKeyTime, channelPreviewVisible, liveMenuOpen, liveMoving, liveReady, vm) {
+        if (channelPreviewVisible && focusedPkg in AerialSettings.liveAppPackages && overlay == Overlay.None && !uiHidden && liveReady) {
+            delay(10_000)
+            onUiHiddenChange(true)
+        }
+        // 二级菜单打开时也10秒自动隐藏（上下文菜单/移动模式时不自动隐藏）
+        if (overlay is Overlay.LiveSourceMenu && !liveMenuOpen && !liveMoving) {
+            delay(10_000)
+            vm.overlay = Overlay.None
+            onUiHiddenChange(true)
+        }
+    }
+}
