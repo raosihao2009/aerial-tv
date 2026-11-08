@@ -67,6 +67,12 @@ fun ChannelFocusPreview(
     var reloadTick by remember { mutableStateOf(0) }
     // 看门狗自动切走时, 不弹"已经从X切换至Y", 只留"卡顿严重"那条
     var suppressSwitchToast by remember { mutableStateOf(false) }
+    // toast 时序：每次 showToast 都自增, 即使文案相同也重置 4s 倒计时
+    var toastTick by remember { mutableStateOf(0) }
+    fun showToast(msg: String) {
+        st.toastMessage = msg
+        toastTick++
+    }
     val streamCache = remember { mutableMapOf<String, String?>() }
     val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main + kotlinx.coroutines.SupervisorJob())
     var retryCount by remember { mutableStateOf(0) }
@@ -125,18 +131,20 @@ fun ChannelFocusPreview(
             if (player != null) {
                 // 切换源失败：看旧源是否还在直播
                 val target = playingSourceId?.let { onRevert(it) }
-                st.toastMessage = if (target != null) {
+                showToast(if (target != null) {
                     "「${source.name}」暂时无法观看，已切换至「$target」"
                 } else {
                     "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
-                }
+                })
                 if (target == null) onRevertFail()
             } else {
                 // 首次加载失败: 切换到备用源
                 DiagLog.i("channel preview: first load failed, switching to fallback")
                 val target = onFallback()
-                st.toastMessage = "「${source?.name ?: ""}」暂时无法观看，已切换至「${target ?: "备用源"}」"
+                showToast("「${source?.name ?: ""}」暂时无法观看，已切换至「${target ?: "备用源"}」")
             }
+            // 失败路径没走到成功切换的 reset, 这里补回, 避免下次用户主动切源被 suppress
+            suppressSwitchToast = false
             return@LaunchedEffect
         }
 
@@ -187,7 +195,8 @@ fun ChannelFocusPreview(
                 DiagLog.i("channel preview: load timeout 15s, switching to fallback")
                 st.loading = false
                 val target = onFallback()
-                st.toastMessage = "「${source?.name ?: ""}」暂时无法观看，已切换至「${target ?: "备用源"}」"
+                showToast("「${source?.name ?: ""}」暂时无法观看，已切换至「${target ?: "备用源"}」")
+                suppressSwitchToast = false
             }
         }
         val readyListener = object : Player.Listener {
@@ -225,11 +234,11 @@ fun ChannelFocusPreview(
                             // 切换源失败: 看旧源是否还在直播
                             st.loading = false
                             val target = playingSourceId?.let { onRevert(it) }
-                            st.toastMessage = if (target != null) {
+                            showToast(if (target != null) {
                                 "「${source.name}」暂时无法观看，已切换至「$target」"
                             } else {
                                 "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
-                            }
+                            })
                             if (target == null) onRevertFail()
                             onStatusRefresh()
                         } else {
@@ -237,8 +246,9 @@ fun ChannelFocusPreview(
                             st.loading = false
                             DiagLog.i("player err: current source offline, switching to fallback")
                             val target = onFallback()
-                            st.toastMessage = "「${source.name}」暂时无法观看，已切换至「${target ?: "备用源"}」"
+                            showToast("「${source.name}」暂时无法观看，已切换至「${target ?: "备用源"}」")
                         }
+                        suppressSwitchToast = false
                         return@launch
                     }
                     // 网络卡顿: 重试
@@ -285,7 +295,7 @@ fun ChannelFocusPreview(
             onSwitched(source.id)
             // 切换成功提示(有旧源才提示; 看门狗触发的切换不弹这个, 只留"卡顿严重"那条)
             if (oldName != null && oldName != source.name && !suppressSwitchToast) {
-                st.toastMessage = "已经从「$oldName」切换至「${source.name}」"
+                showToast("已经从「$oldName」切换至「${source.name}」")
             }
             suppressSwitchToast = false
             // 卡顿看门狗: 根据设置的灵敏度调整阈值, 抽到独立类 PlaybackWatchdog
@@ -311,12 +321,12 @@ fun ChannelFocusPreview(
                     },
                     onJank = { id ->
                         if (id == "preset_2") {
-                            st.toastMessage = "「央视网快看」也卡了，正在重新加载…"
+                            showToast("「央视网快看」也卡了，正在重新加载…")
                             reloadTick++
                         } else {
                             suppressSwitchToast = true
                             val target = onFallback()
-                            st.toastMessage = "「${source.name ?: ""}」卡顿严重，已切换至「${target ?: "备用源"}」"
+                            showToast("「${source.name ?: ""}」卡顿严重，已切换至「${target ?: "备用源"}」")
                         }
                     },
                 )
@@ -332,19 +342,20 @@ fun ChannelFocusPreview(
                 // 切换源失败：看旧源是否还在直播
                 st.loading = false
                 val target = playingSourceId?.let { onRevert(it) }
-                st.toastMessage = if (target != null) {
+                showToast(if (target != null) {
                     "「${source.name}」暂时无法观看，已切换至「$target」"
                 } else {
                     "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
-                }
+                })
                 if (target == null) onRevertFail()
             } else {
                 // 开机首次加载超时：持续重试直到成功
                 st.loading = true
-                st.toastMessage = "正在加载直播…"
+                showToast("正在加载直播…")
                 kotlinx.coroutines.delay(2000)
                 restartSignal++
             }
+            suppressSwitchToast = false
             return@LaunchedEffect
         }
         st.loading = false
@@ -427,7 +438,8 @@ fun ChannelFocusPreview(
         }
         // 回退提示(和移动卡片提示同款)
         st.toastMessage?.let { msg ->
-            LaunchedEffect(msg) {
+            // key 用 toastTick 而不是 msg：即使文案相同(连续两条相同提示)也重置 4s 倒计时
+            LaunchedEffect(toastTick) {
                 kotlinx.coroutines.delay(4000)
                 st.toastMessage = null
             }
