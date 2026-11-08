@@ -38,6 +38,7 @@ class PlaybackWatchdog(
             var lastDropped = 0L
             var lastRendered = 0L
             var lastPos = -1L
+            var lastBuffered = -1L
             var stuckStreak = 0
             var age = 0L
             while (true) {
@@ -59,19 +60,30 @@ class PlaybackWatchdog(
                 lastDropped = droppedNow
                 lastRendered = renderedNow
                 val pos = exo.currentPosition
+                val buf = exo.bufferedPosition
                 val posDelta: Long = if (lastPos < 0) 1000L else pos - lastPos
+                val bufDelta: Long = if (lastBuffered < 0) 1000L else buf - lastBuffered
                 lastPos = pos
-                // 三种坏情况任一即计一次 bad：
-                //   1) 冻住: 2s 内 position 走不到 300ms
-                //   2) 掉帧爆发: 2s 丢 >dropThreshold 帧
-                //   3) 低帧率PPT: 2s 实际只渲染 <renderedThreshold 帧
-                val frozen = !exo.isPlaying || posDelta < FROZEN_POS_DELTA_MS
+                lastBuffered = buf
+
+                // 对 10-20fps 低帧率直播(B站/央视常见)：renderedDelta 自然就低，
+                // 不能再用"2s 渲染 <renderedThreshold 帧"直接判 bad。
+                // 真正的"冻住"是 position 几乎不动 AND buffer 不再增长；
+                // 如果 position 在走、buffer 在涨，即使 rendered 少也是低帧率直播，不算 bad。
+                val playing = exo.isPlaying
+                val buffering = exo.isLoading
+                // 真冻住：没在播，或 2s 内 position 走不到 100ms 且 buffer 不再增长
+                val frozen = !playing || (posDelta < FROZEN_POS_DELTA_MS && bufDelta <= 0L)
+                // 掉帧爆发：2s 丢 >dropThreshold 帧(真卡顿)
                 val dropBurst = droppedDelta > dropThreshold
-                val lowFps = renderedDelta > 0L && renderedDelta < renderedThreshold
+                // 低帧率直播白名单：在播且不在缓冲、position 推进 >500ms/2s、buffer 还在涨
+                // —— 这是正常的低帧率直播，rendered 少但内容在推进，不算 bad
+                val lowFpsLive = playing && !buffering && posDelta > LOWFPS_MIN_POS_DELTA_MS && bufDelta > 0L
+                val lowFps = !lowFpsLive && renderedDelta > 0L && renderedDelta < renderedThreshold
                 val bad = frozen || dropBurst || lowFps
                 stuckStreak = if (bad) stuckStreak + 1 else 0
                 if (stuckStreak >= streakNeeded) {
-                    DiagLog.i("channel preview: source $sourceId jank (frozen=$frozen dropped=$droppedDelta rendered=$renderedDelta), handle")
+                    DiagLog.i("channel preview: source $sourceId jank (frozen=$frozen dropped=$droppedDelta rendered=$renderedDelta pos=$posDelta buf=$bufDelta lowFpsLive=$lowFpsLive), handle")
                     onJank(sourceId)
                     break
                 }
@@ -86,6 +98,9 @@ class PlaybackWatchdog(
 
     private companion object {
         const val POLL_INTERVAL_MS = 2000L
-        const val FROZEN_POS_DELTA_MS = 300L
+        // 真冻住：2s 采样窗口内 position 推进不足 100ms 且 buffer 不涨
+        const val FROZEN_POS_DELTA_MS = 100L
+        // 低帧率直播白名单：position 推进超过 500ms/2s 视为在正常播放
+        const val LOWFPS_MIN_POS_DELTA_MS = 500L
     }
 }
