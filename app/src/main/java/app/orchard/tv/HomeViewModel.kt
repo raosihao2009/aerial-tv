@@ -253,7 +253,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     fun checkLiveStatuses() {
         kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val biliSources = liveSources.filter {
-                it.url.isNotBlank() && (it.url.contains("b23.tv") || it.url.contains("bilibili.com") || it.url.contains("bili23.cn"))
+                it.url.isNotBlank()
             }
             // 每批最多并行6个
             kotlinx.coroutines.coroutineScope {
@@ -281,8 +281,9 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                                 }
                                 val finalUrl = redirectUrl
                                 app.orchard.tv.system.DiagLog.i("LiveStatus: ${src.id} finalUrl=$finalUrl")
+                                // 只在最终URL是B站直播间时才查询状态, 其他源返回0(未知)
+                                if (!finalUrl.contains("live.bilibili.com")) return@runCatching 0
                                 val roomId = Regex("live\\.bilibili\\.com/(\\d+)").find(finalUrl)?.groupValues?.get(1)
-                                    ?: Regex("/(\\d{5,})").find(finalUrl)?.groupValues?.get(1)
                                 if (roomId.isNullOrBlank()) return@runCatching 0
                                 val apiUrl = "https://api.live.bilibili.com/room/v1/Room/get_info?room_id=$roomId"
                                 val apiConn = (java.net.URL(apiUrl).openConnection() as java.net.HttpURLConnection).apply {
