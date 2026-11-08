@@ -212,7 +212,8 @@ fun ChannelFocusPreview(
                     // 是否有旧源在播(player 还不是当前 exo)
                     val hasOld = player != null && player !== exo
                     if (offline || retryCount >= 3) {
-                        // 下播或重试耗尽
+                        // 下播或重试耗尽: 标记ready=true取消15s超时协程, 避免超时再触发一次onFallback
+                        ready = true
                         if (hasOld) {
                             // 切换源失败: 看旧源是否还在直播
                             loading = false
