@@ -891,6 +891,7 @@ fun HomeScreen(
                         uiHidden = false
                         focusApp(lastFocusedIndex)
                     },
+                    onActuallyPlayingChange = { vm.liveActuallyPlaying = it },
                 )
             }
             Box(
