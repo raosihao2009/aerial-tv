@@ -67,6 +67,8 @@ fun ChannelFocusPreview(
     var reloadTick by remember { mutableStateOf(0) }
     // 看门狗自动切走时, 不弹"已经从X切换至Y", 只留"卡顿严重"那条
     var suppressSwitchToast by remember { mutableStateOf(false) }
+    // 状态聚合：disposed/paused 是纯守卫旗标(不驱动重组, @Volatile), loading/toastMessage 是 UI 状态
+    val st = remember { PreviewState() }
     // toast 时序：每次 showToast 都自增, 即使文案相同也重置 4s 倒计时
     var toastTick by remember { mutableStateOf(0) }
     fun showToast(msg: String) {
@@ -76,8 +78,6 @@ fun ChannelFocusPreview(
     val streamCache = remember { mutableMapOf<String, String?>() }
     val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main + kotlinx.coroutines.SupervisorJob())
     var retryCount by remember { mutableStateOf(0) }
-    // 状态聚合：disposed/paused 是纯守卫旗标(不驱动重组, @Volatile), loading/toastMessage 是 UI 状态
-    val st = remember { PreviewState() }
     // 当前已在播放的源名称(用于切换失败时提示继续观看谁)
     var currentPlayingName by remember { mutableStateOf<String?>(null) }
     // 上一个正在播放的源 id(切换失败时回退焦点)
@@ -172,6 +172,7 @@ fun ChannelFocusPreview(
                     .build()
             )
             .build()
+        var readyListener: Player.Listener? = null
         try {
         val factory = DefaultHttpDataSource.Factory()
             .setUserAgent("Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
@@ -199,7 +200,7 @@ fun ChannelFocusPreview(
                 suppressSwitchToast = false
             }
         }
-        val readyListener = object : Player.Listener {
+        readyListener = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_READY) {
                     retryCount = 0
@@ -263,7 +264,7 @@ fun ChannelFocusPreview(
                 }
             }
         }
-        exo.addListener(readyListener)
+        exo.addListener(readyListener!!)
         exo.setMediaSource(hls)
         exo.prepare()
         // 所有情况都静音缓冲，READY且对齐后再绑定surface开播
@@ -284,7 +285,7 @@ fun ChannelFocusPreview(
             // 先摘掉旧 listener, 否则 release() 会触发旧 listener 的 onPlayerError,
             // 旧闭包还拿着旧 source/retryCount/hls, 会误调 onFallback/onRevert
             playerListenerRef.value?.let { old?.removeListener(it) }
-            playerListenerRef.value = readyListener
+            playerListenerRef.value = readyListener!!
             old?.release()
             player = exo
             // 跳到直播边缘(缓冲末尾), 避免音视频从不同位置开始导致画面超前声音
@@ -336,7 +337,7 @@ fun ChannelFocusPreview(
         } else {
             // 新流超时未就绪
             DiagLog.i("channel preview: new stream not ready")
-            exo.removeListener(readyListener)
+            exo.removeListener(readyListener!!)
             exo.release()
             if (player != null) {
                 // 切换源失败：看旧源是否还在直播
@@ -362,7 +363,7 @@ fun ChannelFocusPreview(
         } finally {
             // 协程被取消(快速切源)时, 释放未被采用的 player
             if (player !== exo) {
-                exo.removeListener(readyListener)
+                readyListener?.let { exo.removeListener(it) }
                 exo.release()
             }
         }

@@ -52,8 +52,8 @@ class PlaybackWatchdog(
                 try {
                     val c = exo.videoDecoderCounters
                     c?.ensureUpdated()
-                    droppedNow = c?.droppedBufferCount ?: 0L
-                    renderedNow = c?.renderedOutputBufferCount ?: 0L
+                    droppedNow = (c?.droppedBufferCount ?: 0L).toLong()
+                    renderedNow = (c?.renderedOutputBufferCount ?: 0L).toLong()
                 } catch (t: Throwable) { /* player 已释放等 */ }
                 val droppedDelta = droppedNow - lastDropped
                 val renderedDelta = if (lastRendered == 0L) 0L else renderedNow - lastRendered
