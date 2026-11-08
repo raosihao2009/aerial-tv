@@ -1327,7 +1327,7 @@ fun HomeScreen(
                 kotlinx.coroutines.delay(4000)
                 vm.globalToast = null
             }
-            androidx.compose.material3.BasicText(
+            androidx.compose.foundation.BasicText(
                 msg,
                 style = androidx.compose.ui.text.TextStyle(
                     color = androidx.compose.ui.graphics.Color.White,
