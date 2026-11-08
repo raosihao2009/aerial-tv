@@ -693,7 +693,10 @@ fun HomeScreen(
 
         // 上游 v1.75 修复：两行书架时滚动距离少一行，避免第一行被 pill 切掉一半
         val target = with(density) { metrics.scrollFor(if (inGrid) focusedRow - (metrics.shelfRows - 1) else 0, rows).toPx() }
-        val lift by animateFloatAsState(
+        // shelf lift 动画值不用 by 委托：它只在 offset {} 布局阶段读取，
+        // 动画期间（spring ~300ms）不应每帧重组整个 BoxWithConstraints 内容树，
+        // 而是触发 relayout（和 scroll 一样，只重排不重组）。
+        val liftState = animateFloatAsState(
             with(density) { if (focusedRow > 0 && !inGrid) metrics.shelfLift.toPx() else 0f },
             if (reduced) snap() else spring(dampingRatio = 1f, stiffness = 280f), label = "shelf-lift",
         )
@@ -848,7 +851,7 @@ fun HomeScreen(
                 saverImage = saverImage,
                 saverReveal = { saverReveal.value },
                 saverPush = { saverPush.value },
-                lift = { lift },
+                lift = { liftState.value },
                 wallpaper = Wallpapers.selectedId,
                 glassAwaitsStop = Wallpapers.selectedId == Wallpapers.LIVE && clipGlass == null,
                 gridGlass = clipGlass,
@@ -858,11 +861,18 @@ fun HomeScreen(
             // GPU draws every tile again under the panel each frame. 上游 v1.75 修复 #823：
             // Lite 下不再让时钟/图标在面板后淡出（否则 Home 看起来消失了）。
             // ===== 二创：直播预览，只在焦点选中第一排目标应用时组合 =====
+            // 用 remember 缓存当前源的查找结果：HomeScreen 因 now 分钟 tick / 焦点变化等
+            // 重组时，不必每次都重新遍历 liveSources 列表找 firstOrNull。
+            val previewSource = remember(channelPreviewVisible, vm.liveSources, vm.pendingLiveSourceId, vm.currentLiveSourceId) {
+                if (channelPreviewVisible) {
+                    vm.liveSources.firstOrNull {
+                        it.id == (vm.pendingLiveSourceId ?: vm.currentLiveSourceId)
+                    }
+                } else null
+            }
             if (channelPreviewVisible) {
                 ChannelFocusPreview(
-                    source = vm.getAllLiveSources().firstOrNull {
-                        it.id == (vm.pendingLiveSourceId ?: vm.currentLiveSourceId)
-                    },
+                    source = previewSource,
                     onFallback = {
                         val fb = vm.liveSources.find { it.id == "preset_2" } ?: vm.liveSources.firstOrNull()
                         fb?.let { vm.pickLiveSource(it.id) }
@@ -989,7 +999,7 @@ fun HomeScreen(
                             modifier = Modifier
                                 .diagLayer("tiles")
                                 // Lifted on the shelf with the plate; the clock above stays put.
-                                .offset { slot.value - IntOffset(0, lift.roundToInt()) }
+                                .offset { slot.value - IntOffset(0, liftState.value.roundToInt()) }
                                 // Into the screensaver, the apps go left to right, sinking a little.
                                 // Opacity lives in the tile's own layers: another layer around it dropped
                                 // the focus zoom and rounded clip on Android 9 (issue #725).
