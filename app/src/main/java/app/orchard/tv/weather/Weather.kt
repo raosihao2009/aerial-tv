@@ -19,6 +19,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import javax.net.ssl.SSLException
+import kotlin.math.roundToInt
 
 enum class WeatherKind { Clear, PartlyCloudy, Cloudy, Fog, Haze, Drizzle, LightRain, ModerateRain, HeavyRain, ViolentRain, LightSnow, ModerateSnow, HeavySnow, SnowStorm, Sleet, FreezingRain, Hail, Thunder, ThunderHail, Dust, Sand, SandStorm, Wind, Typhoon, Tornado }
 
