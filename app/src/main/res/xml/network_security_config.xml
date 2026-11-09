@@ -23,5 +23,10 @@
         <domain includeSubdomains="false">ipinfo.io</domain>
         <domain includeSubdomains="false">ipwho.is</domain>
         <domain includeSubdomains="false">ipv4.icanhazip.com</domain>
+        <domain includeSubdomains="true">weather.com.cn</domain>
+        <domain includeSubdomains="true">toy1.weather.com.cn</domain>
+        <domain includeSubdomains="true">d1.weather.com.cn</domain>
+        <domain includeSubdomains="true">d4.weather.com.cn</domain>
+        <domain includeSubdomains="true">wgeo.weather.com.cn</domain>
     </domain-config>
 </network-security-config>
