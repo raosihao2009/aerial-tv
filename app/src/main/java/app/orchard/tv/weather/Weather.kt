@@ -280,15 +280,30 @@ object Weather {
 
     /** Back to default location. */
     fun useNetworkLocation() {
-        prefs.edit {
-            putString("city_code", FALLBACK_CITY_CODE)
-            putString("place", "南昌县")
-            putBoolean("chosen", false)
-            remove("place_custom")
-        }
         chosen = false
-        place = "南昌县"
-        refresh()
+        scope.launch(Dispatchers.IO) {
+            val located = locateByIp()
+            withContext(Dispatchers.Main) {
+                if (located != null) {
+                    prefs.edit {
+                        putString("city_code", located.first)
+                        putString("place", located.second ?: located.first)
+                        putBoolean("chosen", false)
+                        remove("place_custom")
+                    }
+                    place = located.second ?: located.first
+                } else {
+                    prefs.edit {
+                        putString("city_code", FALLBACK_CITY_CODE)
+                        putString("place", "南昌县")
+                        putBoolean("chosen", false)
+                        remove("place_custom")
+                    }
+                    place = "南昌县"
+                }
+                refresh()
+            }
+        }
     }
 
     /** Auto-locate by IP using weather.com.cn geo service. Returns (cityCode, cityName). */
@@ -297,9 +312,11 @@ object Weather {
             val text = get("https://wgeo.weather.com.cn/ip/", "https://www.weather.com.cn/")
             val id = Regex("var id=\"(.*?)\"").find(text)?.groupValues?.get(1) ?: return null
             val addr = Regex("var addr=\"(.*?)\"").find(text)?.groupValues?.get(1)
-            // addr format: "省,市,区" — take city part
-            val cityName = addr?.split(",")?.getOrNull(1)
-            id to cityName
+            // addr format: "省,市,区" — use district if available, else city
+            val parts = addr?.split(",")
+            val district = parts?.getOrNull(2)?.takeIf { it.isNotBlank() }
+            val city = parts?.getOrNull(1)?.takeIf { it.isNotBlank() }
+            id to (district ?: city)
         }.onFailure { Log.w(TAG, "IP locate failed", it) }.getOrNull()
     }
 
