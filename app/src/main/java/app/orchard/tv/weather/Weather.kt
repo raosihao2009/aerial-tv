@@ -144,13 +144,11 @@ object Weather {
     private fun fetch(): WeatherNow {
         var cityCode = prefs.getString("city_code", null)
         if (cityCode == null) {
-            // Auto-locate by IP
-            val located = locateByIp()
-            cityCode = located?.first ?: FALLBACK_CITY_CODE
-            val name = located?.second
+            // Default to 南昌县; user can change via phone web
+            cityCode = FALLBACK_CITY_CODE
             prefs.edit {
                 putString("city_code", cityCode)
-                if (name != null) putString("place", name)
+                putString("place", "南昌县")
             }
         }
         val referer = "https://www.weather.com.cn/weather/$cityCode.shtml"
@@ -168,9 +166,9 @@ object Weather {
         val fcText = get("https://d1.weather.com.cn/weather_index/$cityCode.html", referer)
         val forecast = buildList {
             // Parse var fc={"f":[{...},{...}]}
-            val fcMatch = Regex("var fc=(\\{.*?\\});").find(fcText)
+            val fcMatch = Regex("var fc\s*=\\{(.*?)\\};", RegexOption.DOT_MATCHES_ALL).find(fcText)
             if (fcMatch != null) {
-                val fcJson = JSONObject(fcMatch.groupValues[1])
+                val fcJson = JSONObject("{" + fcMatch.groupValues[1] + "}")
                 val days = fcJson.optJSONArray("f")
                 if (days != null) {
                     for (i in 0 until minOf(days.length(), 5)) {
@@ -186,6 +184,7 @@ object Weather {
                         val display = if (dayText == nightText) dayText else "${dayText}转${nightText}"
                         add(ForecastDay(dayKind, high, low, display, dayKind = dayKind, nightKind = nightKind))
                     }
+                }
                 }
             }
         }
