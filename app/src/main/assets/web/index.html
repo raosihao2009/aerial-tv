@@ -345,7 +345,7 @@
     </form>
     <form class="item field" id="placeForm">
       <input id="placeName" type="text" placeholder="显示名（可选）" autocomplete="off">
-      <button class="link" id="placeBtn" type="button" data-i18n="set"></button>
+      <button class="link" id="placeBtn" data-i18n="set"></button>
     </form>
   </div>
   <p class="foot" id="wxHint"></p>
@@ -1591,6 +1591,7 @@ function renderMore() {
   const w = state.weather || {};
   $('#wxNow').textContent = w.celsius !== undefined ? `${w.celsius}° ${weatherNames[w.kind] || ''}` : '—';
   $('#wxPlace').textContent = w.place || '';
+  if ($('#placeName')) $('#placeName').value = w.place || '';
   const hint = $('#wxHint'); hint.replaceChildren();
   if (w.chosen) {
     hint.append(t('wx_chosen', { place: w.place }) + ' ');
