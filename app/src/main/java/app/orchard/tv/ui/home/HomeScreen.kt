@@ -781,7 +781,9 @@ fun HomeScreen(
             Wallpapers.isVideo() -> key(Wallpapers.selectedId) {
                 VideoWallpaper(
                     moving = filmMoves,
-                    keep = vm.filmFront && !vm.screensaverVisible,
+                    keep = vm.filmFront && (!vm.screensaverVisible || filmSaver),
+                    hold = filmSaver && vm.filmFront,
+                    home = homeVideo,
                     standIn = filmStandsIn,
                     lastInputAt = vm.lastInputAt,
                     cover = filmCover,
