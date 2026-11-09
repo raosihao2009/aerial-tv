@@ -528,12 +528,20 @@ fun HomeScreen(
     }
     val windowFocused = LocalWindowInfo.current.isWindowFocused
     var initialFocusDone by remember { mutableStateOf(false) }
-    LaunchedEffect(windowFocused, vm.homeResetPending, vm.loaded, apps.size) {
-        if (windowFocused && vm.homeResetPending && vm.loaded) {
+    LaunchedEffect(windowFocused, vm.homeFocusTarget, vm.loaded, apps.size) {
+        if (windowFocused && vm.loaded && vm.homeFocusTarget >= -2 && vm.homeFocusTarget != -1) {
             withFrameNanos { }
             dragged = false
-            focusApp(0)
-            vm.homeResetPending = false
+            val target = vm.homeFocusTarget
+            when {
+                target == 0 -> focusApp(0)
+                target == -2 -> {
+                    // 焦点回到直播预览卡片
+                    val liveIdx = apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages }
+                    focusApp(if (liveIdx >= 0) liveIdx else 0)
+                }
+            }
+            vm.homeFocusTarget = -1
             initialFocusDone = true
         } else if (windowFocused && vm.loaded && apps.isNotEmpty() && !initialFocusDone) {
             // 启动时直接聚焦第一个卡片, 不要先聚焦右上角pill再跳过去

@@ -157,7 +157,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
      * Set when Home is pressed: go back to the top row. Done once the window has focus again,
      * since a focus request made while another app is in front is lost.
      */
-    var homeResetPending by mutableStateOf(false)
+    var homeFocusTarget by mutableStateOf(-1)  // -1=不动焦点, 0=首排第一个, 其他=指定卡片索引
 
     /** When a key, a touch or coming back to the front last reset the idle timer (uptime ms). */
     var lastInputAt by mutableLongStateOf(0L)
@@ -957,23 +957,26 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         val wasOverlay = overlay
         val fromLiveMenu = ccFromLiveMenu
 
-        // 决定是否重置焦点到首排
-        val resetFocus = when {
-            // 一级界面(无浮层): 不管焦点在哪都回首排(规则2/3)
-            wasOverlay is Overlay.None -> true
-            // 控制中心/个性化从二级菜单打开: 关闭所有浮层, 不重置焦点(规则6)
-            wasOverlay is Overlay.ControlCenter && fromLiveMenu -> false
-            // 控制中心从一级界面打开: 直播在播不关焦点(规则7), 否则回首排(规则8)
-            wasOverlay is Overlay.ControlCenter -> !liveActuallyPlaying
-            // 二级菜单(AppMenu/LiveSourceMenu等): 只关菜单, 不重置焦点(规则5)
-            else -> false
+        // 决定HOME后焦点去向
+        homeFocusTarget = when {
+            // 从其他App回来: 不动焦点(规则1)
+            fromOtherApp -> -1
+            // 一级界面(无浮层): 回首排第一个(规则2/3)
+            wasOverlay is Overlay.None -> 0
+            // 控制中心从二级菜单打开: 关全部浮层, 焦点回直播卡(规则6)
+            wasOverlay is Overlay.ControlCenter && fromLiveMenu -> -2  // -2=直播卡
+            // 控制中心从一级打开+直播在播: 关控制中心, 焦点回直播卡(规则7)
+            wasOverlay is Overlay.ControlCenter && liveActuallyPlaying -> -2
+            // 控制中心从一级打开+没在播: 回首排第一个(规则8)
+            wasOverlay is Overlay.ControlCenter -> 0
+            // 二级菜单/隐藏UI: 只关菜单, 不动焦点(规则4/5)
+            else -> -1
         }
 
         overlay = Overlay.None
         ccFromLiveMenu = false
         movingKey = null
         homePressCount++
-        if (resetFocus && !fromOtherApp) homeResetPending = true
     }
 
     override fun onCleared() {
