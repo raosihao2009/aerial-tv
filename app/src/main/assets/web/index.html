@@ -1123,10 +1123,10 @@ function t(key, vars) {
   return s;
 }
 function initLangSwitch() {
-  const s = $('#lang');
+  const s = $('#lang'); if (!s) return;
   for (const l of LANGS) { const o = document.createElement('option'); o.value = l; o.textContent = NAMES[l] || l; s.appendChild(o); }
   s.value = LANG;
-  $('#langName').textContent = NAMES[LANG] || LANG;
+  const ln = $('#langName'); if (ln) ln.textContent = NAMES[LANG] || LANG;
   s.onchange = () => {
     try { localStorage.setItem('aerial-lang', s.value); } catch (e) {}
     const u = new URL(location.href); u.searchParams.set('lang', s.value); location.replace(u.toString());
