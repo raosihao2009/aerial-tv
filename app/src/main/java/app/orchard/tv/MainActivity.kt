@@ -892,10 +892,10 @@ class MainActivity : ComponentActivity() {
             return
         }
         if (intent.hasCategory(Intent.CATEGORY_HOME) || intent.action == Intent.ACTION_MAIN) {
-            // Since 1.11 Home Guard answers Home from an app by bringing Aerial back with this same
-            // intent, so the intent alone cannot tell Home-on-Home from coming back from an app.
-            // 从其他App回到桌面: 只显示一级菜单, 不调整焦点(规则1)
-            vm.onHomePressed(fromOtherApp = true)
+            // openedAppSinceHome=true: 从其他App回来(规则1, 不调焦点)
+            // openedAppSinceHome=false: 在桌面按HOME(规则2/3, 焦点回首排)
+            val comingFromApp = openedAppSinceHome
+            vm.onHomePressed(fromOtherApp = comingFromApp)
             openedAppSinceHome = false
         }
     }
