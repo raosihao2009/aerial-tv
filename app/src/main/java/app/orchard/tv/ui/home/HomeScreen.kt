@@ -530,17 +530,17 @@ fun HomeScreen(
     var initialFocusDone by remember { mutableStateOf(false) }
     LaunchedEffect(windowFocused, vm.homeFocusTarget, vm.loaded, apps.size) {
         if (windowFocused && vm.loaded && vm.homeFocusTarget >= -2 && vm.homeFocusTarget != -1) {
+            // 等两帧: 避开HOME键onPause/onResume生命周期切换, 确保焦点请求在稳定窗口执行
+            withFrameNanos { }
             withFrameNanos { }
             dragged = false
             val target = vm.homeFocusTarget
             when {
                 target == 0 -> {
-                    // 回首排第一个: 同时滚动到顶部, 确保首排可见
                     scroll.snapTo(0f)
                     focusApp(0)
                 }
                 target == -2 -> {
-                    // 焦点回到直播预览卡片(不滚动)
                     val liveIdx = apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages }
                     focusApp(if (liveIdx >= 0) liveIdx else 0)
                 }
