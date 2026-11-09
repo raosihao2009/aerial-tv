@@ -40,7 +40,7 @@ data class WeatherNow(val celsius: Int, val kind: WeatherKind, val day: Boolean,
 object Weather {
     private const val TAG = "AerialWeather"
     private const val PREFS = "weather"
-    private const val FALLBACK_CITY_CODE = "101010100"  // 北京兜底
+    private const val FALLBACK_CITY_CODE = "101240103"  // 南昌县兜底
     private const val REFRESH_MS = 10 * 60 * 1000L
     private const val RETRY_MS = 1 * 60 * 1000L
     /** A reading older than this is not shown at all. */
