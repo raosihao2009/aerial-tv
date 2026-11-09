@@ -40,8 +40,7 @@ data class WeatherNow(val celsius: Int, val kind: WeatherKind, val day: Boolean,
 object Weather {
     private const val TAG = "AerialWeather"
     private const val PREFS = "weather"
-    private const val DEFAULT_CITY_CODE = "101240103"  // 南昌县
-    private const val DEFAULT_PLACE = "南昌县"
+    private const val FALLBACK_CITY_CODE = "101010100"  // 北京兜底
     private const val REFRESH_MS = 10 * 60 * 1000L
     private const val RETRY_MS = 1 * 60 * 1000L
     /** A reading older than this is not shown at all. */
@@ -69,14 +68,7 @@ object Weather {
         started = true
         app = context.applicationContext
         prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        // If no city chosen yet, default to 南昌县
-        if (!prefs.getBoolean("chosen", false)) {
-            prefs.edit {
-                putString("city_code", DEFAULT_CITY_CODE)
-                putString("place", DEFAULT_PLACE)
-            }
-        }
-        place = prefs.getString("place", DEFAULT_PLACE)
+        place = prefs.getString("place", null)
         chosen = prefs.getBoolean("chosen", false)
         if (System.currentTimeMillis() - prefs.getLong("fetched_at", 0) < STALE_MS) {
             val kind = runCatching { WeatherKind.valueOf(prefs.getString("kind", null) ?: "") }.getOrNull()
@@ -150,7 +142,17 @@ object Weather {
 
     /** Off the main thread. Fetches real-time + forecast from weather.com.cn. */
     private fun fetch(): WeatherNow {
-        val cityCode = prefs.getString("city_code", DEFAULT_CITY_CODE) ?: DEFAULT_CITY_CODE
+        var cityCode = prefs.getString("city_code", null)
+        if (cityCode == null) {
+            // Auto-locate by IP
+            val located = locateByIp()
+            cityCode = located?.first ?: FALLBACK_CITY_CODE
+            val name = located?.second
+            prefs.edit {
+                putString("city_code", cityCode)
+                if (name != null) putString("place", name)
+            }
+        }
         val referer = "https://www.weather.com.cn/weather/$cityCode.shtml"
 
         // Real-time: d1.weather.com.cn/sk_2d/{code}.html
@@ -239,11 +241,23 @@ object Weather {
     fun useNetworkLocation() {
         prefs.edit {
             putBoolean("chosen", false)
-            putString("city_code", DEFAULT_CITY_CODE)
-            putString("place", DEFAULT_PLACE)
+            remove("city_code")
+            remove("place")
         }
         chosen = false
         refresh()
+    }
+
+    /** Auto-locate by IP using weather.com.cn geo service. Returns (cityCode, cityName). */
+    private fun locateByIp(): Pair<String, String?>? {
+        return runCatching {
+            val text = get("https://wgeo.weather.com.cn/ip/", "https://www.weather.com.cn/")
+            val id = Regex("var id=\"(.*?)\"").find(text)?.groupValues?.get(1) ?: return null
+            val addr = Regex("var addr=\"(.*?)\"").find(text)?.groupValues?.get(1)
+            // addr format: "省,市,区" — take city part
+            val cityName = addr?.split(",")?.getOrNull(1)
+            id to cityName
+        }.onFailure { Log.w(TAG, "IP locate failed", it) }.getOrNull()
     }
 
     /** Map weather.com.cn weather code to WeatherKind. */
