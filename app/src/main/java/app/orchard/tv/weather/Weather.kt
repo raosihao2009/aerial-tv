@@ -165,26 +165,29 @@ object Weather {
         // Forecast: d1.weather.com.cn/weather_index/{code}.html
         val fcText = get("https://d1.weather.com.cn/weather_index/$cityCode.html", referer)
         val forecast = buildList {
-            // Parse var fc={"f":[{...},{...}]}
-            val fcMatch = Regex("var fc\s*=\\{(.*?)\\};", RegexOption.DOT_MATCHES_ALL).find(fcText)
-            if (fcMatch != null) {
-                val fcJson = JSONObject("{" + fcMatch.groupValues[1] + "}")
-                val days = fcJson.optJSONArray("f")
-                if (days != null) {
-                    for (i in 0 until minOf(days.length(), 5)) {
-                        val d = days.getJSONObject(i)
-                        val dayCode = d.optString("fa")  // day weather code
-                        val nightCode = d.optString("fb")  // night weather code
-                        val high = d.optString("fc").toIntOrNull() ?: continue
-                        val low = d.optString("fd").toIntOrNull() ?: continue
-                        val dayKind = kindOfCode(dayCode)
-                        val nightKind = kindOfCode(nightCode)
-                        val dayText = textOfCode(dayCode)
-                        val nightText = textOfCode(nightCode)
-                        val display = if (dayText == nightText) dayText else "${dayText}转${nightText}"
-                        add(ForecastDay(dayKind, high, low, display, dayKind = dayKind, nightKind = nightKind))
+            // Parse var fc={"f":[{...}]} using substring (regex fails on nested braces)
+            val fcStart = fcText.indexOf("var fc")
+            if (fcStart >= 0) {
+                val braceStart = fcText.indexOf("{", fcStart)
+                val braceEnd = fcText.lastIndexOf("}")
+                if (braceStart >= 0 && braceEnd > braceStart) {
+                    val fcJson = JSONObject(fcText.substring(braceStart, braceEnd + 1))
+                    val days = fcJson.optJSONArray("f")
+                    if (days != null) {
+                        for (i in 0 until minOf(days.length(), 5)) {
+                            val d = days.getJSONObject(i)
+                            val dayCode = d.optString("fa")
+                            val nightCode = d.optString("fb")
+                            val high = d.optString("fc").toIntOrNull() ?: continue
+                            val low = d.optString("fd").toIntOrNull() ?: continue
+                            val dayKind = kindOfCode(dayCode)
+                            val nightKind = kindOfCode(nightCode)
+                            val dayText = textOfCode(dayCode)
+                            val nightText = textOfCode(nightCode)
+                            val display = if (dayText == nightText) dayText else "${dayText}转${nightText}"
+                            add(ForecastDay(dayKind, high, low, display, dayKind = dayKind, nightKind = nightKind))
+                        }
                     }
-                }
                 }
             }
         }
