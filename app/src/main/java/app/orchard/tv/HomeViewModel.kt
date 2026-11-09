@@ -182,6 +182,8 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     var livePlaying by mutableStateOf(false)
     /** player真正在播(由ChannelFocusPreview直接驱动, 不随焦点/菜单变化), 用于HOME键判断 */
     var liveActuallyPlaying by mutableStateOf(false)
+    /** 控制中心是否从直播二级菜单打开(决定HOME关闭路径) */
+    var ccFromLiveMenu by mutableStateOf(false)
 
     /** 全局轻提示(玻璃胶囊), 自动4s消失 */
     var globalToast by mutableStateOf<String?>(null)
@@ -949,10 +951,26 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     /** 自增计数器，HOME键被按下时自增，HomeScreen监听它恢复UI */
     var homePressCount by mutableStateOf(0); private set
 
-    fun onHomePressed(resetFocus: Boolean = true) {
+    fun onHomePressed() {
         screensaverVisible = false
         AerialSettings.relock()
+        val wasOverlay = overlay
+        val fromLiveMenu = ccFromLiveMenu
+
+        // 决定是否重置焦点到首排
+        val resetFocus = when {
+            // 一级界面(无浮层): 不管焦点在哪都回首排(规则2/3)
+            wasOverlay is Overlay.None -> true
+            // 控制中心/个性化从二级菜单打开: 关闭所有浮层, 不重置焦点(规则6)
+            wasOverlay is Overlay.ControlCenter && fromLiveMenu -> false
+            // 控制中心从一级界面打开: 直播在播不关焦点(规则7), 否则回首排(规则8)
+            wasOverlay is Overlay.ControlCenter -> !liveActuallyPlaying
+            // 二级菜单(AppMenu/LiveSourceMenu等): 只关菜单, 不重置焦点(规则5)
+            else -> false
+        }
+
         overlay = Overlay.None
+        ccFromLiveMenu = false
         movingKey = null
         homePressCount++
         if (resetFocus) homeResetPending = true

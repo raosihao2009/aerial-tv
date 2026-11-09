@@ -344,7 +344,7 @@ fun HomeScreen(
     val liveReadyState = remember { mutableStateOf(false) }
     var liveMenuOpen by remember { mutableStateOf(false) }
     var liveMoving by remember { mutableStateOf(false) }
-    var ccFromLiveMenu by remember { mutableStateOf(false) }
+    // ccFromLiveMenu 已移到 ViewModel
     val liveStatusTickState = remember { mutableStateOf(0) }
     var lastKeyTime by remember { mutableStateOf(0L) }
     val channelPreviewVisible = AerialSettings.livePreviewEnabled &&
@@ -1316,7 +1316,7 @@ fun HomeScreen(
             onDismiss = { DiagLog.i("CC-debug: LiveMenu onDismiss"); vm.overlay = Overlay.None },
             onMenuOpenChange = { liveMenuOpen = it },
             onMovingChange = { liveMoving = it },
-            onOpenControlCenter = { ccFromLiveMenu = true; vm.overlay = Overlay.ControlCenter() },
+            onOpenControlCenter = { vm.ccFromLiveMenu = true; vm.overlay = Overlay.ControlCenter() },
             controlCenterOpen = overlay is Overlay.ControlCenter,
         )
 
@@ -1326,7 +1326,7 @@ fun HomeScreen(
             vm = vm,
             now = now,
             onOpen = { vm.overlay = Overlay.None; onOpen(it) },
-            onClose = { vm.overlay = if (ccFromLiveMenu) { ccFromLiveMenu = false; Overlay.LiveSourceMenu } else Overlay.None },
+            onClose = { vm.overlay = if (vm.ccFromLiveMenu) { vm.ccFromLiveMenu = false; Overlay.LiveSourceMenu } else Overlay.None },
             warm = ccWarm,
         )
 
