@@ -294,12 +294,12 @@ object Weather {
                     place = located.second ?: located.first
                 } else {
                     prefs.edit {
-                        putString("city_code", FALLBACK_CITY_CODE)
-                        putString("place", "南昌县")
+                        putString("city_code", "101010100")
+                        putString("place", "北京")
                         putBoolean("chosen", false)
                         remove("place_custom")
                     }
-                    place = "南昌县"
+                    place = "北京"
                 }
                 refresh()
             }
@@ -311,7 +311,6 @@ object Weather {
         return runCatching {
             val text = get("https://wgeo.weather.com.cn/ip/", "https://www.weather.com.cn/")
             val id = Regex("var id=\"(.*?)\"").find(text)?.groupValues?.get(1) ?: return null
-            if (id == "101010100") return null  // Beijing = unknown IP location
             val addr = Regex("var addr=\"(.*?)\"").find(text)?.groupValues?.get(1)
             // addr format: "省,市,区" — use district if available, else city
             val parts = addr?.split(",")
