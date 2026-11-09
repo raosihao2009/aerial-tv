@@ -311,6 +311,7 @@ object Weather {
         return runCatching {
             val text = get("https://wgeo.weather.com.cn/ip/", "https://www.weather.com.cn/")
             val id = Regex("var id=\"(.*?)\"").find(text)?.groupValues?.get(1) ?: return null
+            if (id == "101010100") return null  // Beijing = unknown IP location
             val addr = Regex("var addr=\"(.*?)\"").find(text)?.groupValues?.get(1)
             // addr format: "省,市,区" — use district if available, else city
             val parts = addr?.split(",")
