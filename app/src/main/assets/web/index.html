@@ -1941,6 +1941,17 @@ $('#cityForm').onsubmit = async e => {
   btn.disabled = !$('#city').value.trim();
 };
 
+$('#gpsBtn')?.addEventListener('click', () => {
+  if (!navigator.geolocation) { toast(t('toast_set_fail')); return; }
+  navigator.geolocation.getCurrentPosition(async pos => {
+    try {
+      const next = await api('api/weather/location', { lat: pos.coords.latitude, lon: pos.coords.longitude });
+      take(next);
+      toast(next.found ? t('toast_city_set', { place: next.weather.place }) : t('toast_set_fail'));
+    } catch (e) { toast(t('toast_set_fail')); }
+  }, () => toast(t('toast_set_fail')), { timeout: 10000 });
+});
+
 let iconFor = null;
 $('#iconFile').onchange = async e => {
   const f = e.target.files[0]; const a = iconFor; e.target.value = '';

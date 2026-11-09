@@ -233,6 +233,13 @@ class PhoneServer private constructor(private val context: Context, private val 
                     onMain { Weather.useNetworkLocation() }
                     json(state())
                 }
+                session.method == Method.POST && path == "/api/weather/location" -> {
+                    val f = form(session)
+                    val lat = f["lat"]?.toDoubleOrNull()
+                    val lon = f["lon"]?.toDoubleOrNull()
+                    val found = lat != null && lon != null && runBlocking(Dispatchers.Main) { Weather.chooseByLocation(lat, lon) }
+                    json(state().put("found", found))
+                }
                 session.method == Method.POST && path == "/api/live-source" -> {
                     val f = form(session)
                     val prefs = context.getSharedPreferences("live_sources", Context.MODE_PRIVATE)

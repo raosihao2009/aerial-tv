@@ -237,6 +237,32 @@ object Weather {
         return true
     }
 
+    /** Choose location by GPS coordinates (from phone browser). Returns true on success. */
+    suspend fun chooseByLocation(lat: Double, lon: Double): Boolean {
+        val hit = withContext(Dispatchers.IO) {
+            runCatching {
+                val params = URLEncoder.encode("""{"method":"stationinfo","lat":$lat,"lng":$lon}""", "UTF-8")
+                val text = get("https://d4.weather.com.cn/geong/v1/api?params=$params", "https://www.weather.com.cn/")
+                val json = JSONObject(text)
+                if (json.optString("status") == "success") {
+                    val station = json.getJSONObject("data").getJSONObject("station")
+                    val code = station.optString("areaid")
+                    val name = station.optString("namecn")
+                    if (code.isNotBlank()) Pair(code, name) else null
+                } else null
+            }.onFailure { Log.w(TAG, "reverse geocode failed", it) }.getOrNull()
+        } ?: return false
+        prefs.edit {
+            putString("city_code", hit.first)
+            putString("place", hit.second)
+            putBoolean("chosen", true)
+        }
+        chosen = true
+        place = prefs.getString("place", null)
+        refresh()
+        return true
+    }
+
     /** Back to default location. */
     fun useNetworkLocation() {
         prefs.edit {
