@@ -1230,7 +1230,7 @@ fun HomeScreen(
                 if (!Restricted.enabled) Restricted.chooseEnabled(true)
                 Restricted.start()
                 vm.overlay = Overlay.None
-                vm.homeResetPending = true
+                vm.homeFocusTarget = 0
                 KidsWatch.poke()
             },
             onDismiss = { vm.overlay = Overlay.Wallpaper },
