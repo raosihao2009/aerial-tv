@@ -404,6 +404,7 @@ fun HomeScreen(
     // top row with nothing over it. A film that does not move within FILM_SAVER_WAIT_MS hands over
     // to the screensaver's own films.
     var filmFailed by remember(vm.screensaverVisible) { mutableStateOf(false) }
+    val homeVideo = remember { HomeVideo() }
     val filmSaverChosen = remember(vm.screensaverVisible) {
         vm.screensaverVisible && Wallpapers.selectedId == Wallpapers.LIVE && Wallpapers.screensaver == ScreensaverMode.Aerial &&
             AerialFormats.screensaverCarriesWallpaper(appContext) &&
