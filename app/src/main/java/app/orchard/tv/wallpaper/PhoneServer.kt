@@ -233,6 +233,11 @@ class PhoneServer private constructor(private val context: Context, private val 
                     onMain { Weather.useNetworkLocation() }
                     json(state())
                 }
+                session.method == Method.POST && path == "/api/weather/placename" -> {
+                    val name = form(session)["name"].orEmpty()
+                    runBlocking(Dispatchers.Main) { Weather.setCustomPlaceName(name) }
+                    json(state())
+                }
                 session.method == Method.POST && path == "/api/weather/location" -> {
                     val f = form(session)
                     val lat = f["lat"]?.toDoubleOrNull()

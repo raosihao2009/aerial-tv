@@ -68,7 +68,7 @@ object Weather {
         started = true
         app = context.applicationContext
         prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        place = prefs.getString("place", null)
+        place = prefs.getString("place_custom", null) ?: prefs.getString("place", null)
         chosen = prefs.getBoolean("chosen", false)
         if (System.currentTimeMillis() - prefs.getLong("fetched_at", 0) < STALE_MS) {
             val kind = runCatching { WeatherKind.valueOf(prefs.getString("kind", null) ?: "") }.getOrNull()
@@ -236,12 +236,20 @@ object Weather {
             putBoolean("chosen", true)
         }
         chosen = true
-        place = prefs.getString("place", null)
+        place = prefs.getString("place_custom", null) ?: prefs.getString("place", null)
         refresh()
         return true
     }
 
     /** Choose location by GPS coordinates (from phone browser). Returns true on success. */
+    /** Set a custom display name for the current city (does not change weather data). */
+    fun setCustomPlaceName(name: String) {
+        prefs.edit {
+            if (name.isBlank()) remove("place_custom") else putString("place_custom", name)
+        }
+        place = prefs.getString("place_custom", null) ?: prefs.getString("place", null)
+    }
+
     suspend fun chooseByLocation(lat: Double, lon: Double): Boolean {
         val hit = withContext(Dispatchers.IO) {
             runCatching {
@@ -262,7 +270,7 @@ object Weather {
             putBoolean("chosen", true)
         }
         chosen = true
-        place = prefs.getString("place", null)
+        place = prefs.getString("place_custom", null) ?: prefs.getString("place", null)
         refresh()
         return true
     }

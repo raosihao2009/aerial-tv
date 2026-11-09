@@ -1782,6 +1782,11 @@ document.querySelectorAll('#focus [data-style]').forEach(b => b.onclick = async 
   try { take(await api('api/focus', { style: b.dataset.style })); toast(t('toast_tv_updated')); } catch (e) { toast(t('toast_set_fail')); }
 });
 $('#city').oninput = () => $('#cityBtn').disabled = !$('#city').value.trim();
+$('#placeForm').onsubmit = async e => {
+  e.preventDefault();
+  await api('api/weather/placename', { name: $('#placeName').value.trim() });
+  toast(t('toast_set', {}));
+};
 $('#gpsBtn').addEventListener('click', () => {
   if (!navigator.geolocation) { toast(t('toast_set_fail')); return; }
   navigator.geolocation.getCurrentPosition(async pos => {
@@ -1797,7 +1802,7 @@ $('#cityForm').onsubmit = async e => {
   const name = $('#city').value.trim(); if (!name) return;
   const btn = $('#cityBtn'); btn.disabled = true; $('#city').blur();
   try {
-    const next = await api('api/weather/city', { name }); take(next);
+    const next = await api('api/weather/city', { name }); take(next); $('#placeName').value = next.weather?.place || '';
     toast(next.found ? t('toast_city_set', { place: next.weather.place }) : t('toast_city_nf', { name }));
     if (next.found) $('#city').value = '';
   } catch (err) { toast(t('toast_set_fail')); }
