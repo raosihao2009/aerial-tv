@@ -920,11 +920,9 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                 val sepStyle = weatherStyle.copy(color = Color.White.copy(alpha = 0.4f))
                 BasicText("今天", style = weatherStyle)
                 if (today != null) {
-                    WeatherIcon(today.dayKind, true, 20.dp, Modifier.padding(start = 1.dp))
+                    WeatherIcon(today.dayKind, isDayNow(), 20.dp, Modifier.padding(start = 1.dp))
                     if (today.display.contains("转")) {
-                        // "转"后的天气: 按当前时段判断日/夜图标, 避免早上8点显示月亮
-                        val nowDay = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY).let { it in 6..18 }
-                        WeatherIcon(today.nightKind, nowDay, 20.dp, Modifier.padding(start = 1.dp))
+                        WeatherIcon(today.nightKind, isDayNow(), 20.dp, Modifier.padding(start = 1.dp))
                     }
                 }
                 if (todayText != null) {
@@ -935,13 +933,18 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                 }
                 BasicText("｜", style = sepStyle)
                 BasicText("现在", style = weatherStyle)
-                WeatherIcon(w.kind, w.day, 20.dp, Modifier.padding(start = 1.dp))
+                WeatherIcon(w.kind, isDayNow(), 20.dp, Modifier.padding(start = 1.dp))
                 BasicText("$cond ${w.celsius}°", style = weatherStyle)
             }
         }
     }
 }
-private fun glyphFor(w: WeatherNow): Glyph = glyphForKind(w.kind, w.day)
+private fun isDayNow(): Boolean {
+    val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    return h in 6..18
+}
+
+private fun glyphFor(w: WeatherNow): Glyph = glyphForKind(w.kind, isDayNow())
 
 private fun glyphForKind(kind: WeatherKind, day: Boolean): Glyph = when (kind) {
     WeatherKind.Clear -> if (day) Glyph.Sun else Glyph.Moon
