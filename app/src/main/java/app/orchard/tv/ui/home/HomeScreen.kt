@@ -1316,6 +1316,7 @@ fun HomeScreen(
             onMovingChange = { liveMoving = it },
             onOpenControlCenter = { vm.ccFromLiveMenu = true; vm.overlay = Overlay.ControlCenter() },
             controlCenterOpen = overlay is Overlay.ControlCenter,
+            network = vm.network,
         )
 
         ControlCenter(

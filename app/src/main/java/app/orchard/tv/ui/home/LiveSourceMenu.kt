@@ -108,6 +108,7 @@ fun LiveSourceMenu(
     onMovingChange: (Boolean) -> Unit = {},
     onOpenControlCenter: () -> Unit = {},
     controlCenterOpen: Boolean = false,
+    network: app.orchard.tv.system.NetworkStatus = app.orchard.tv.system.NetworkStatus(),
 ) {
     var focusedId by remember { mutableStateOf(currentId) }
     var menuForId by remember { mutableStateOf<String?>(null) }
@@ -319,10 +320,9 @@ fun LiveSourceMenu(
                 )
             }
             // 控制中心（一级菜单同款 StatusPill）
-            val pillNetwork = remember { app.orchard.tv.system.NetworkStatus(app.orchard.tv.system.NetKind.Wifi, "WiFi", 1f, false) }
             StatusPill(
                 now = java.time.LocalDateTime.now(),
-                network = pillNetwork,
+                network = network,
                 showTime = false,
                 enabled = menuForId == null && movingId == null && !controlCenterOpen && !justOpened,
                 focusRequester = pillFocus,
