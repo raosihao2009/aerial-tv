@@ -1001,12 +1001,8 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         overlay = Overlay.None
         ccFromLiveMenu = false
         movingKey = null
-<<<<<<< HEAD
         homePressCount++
-=======
         movingInFolder = null
-        if (resetFocus) homeResetPending = true
->>>>>>> upstream/main
     }
 
     override fun onCleared() {

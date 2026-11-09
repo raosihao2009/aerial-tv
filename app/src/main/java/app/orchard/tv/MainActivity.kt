@@ -284,7 +284,6 @@ class MainActivity : ComponentActivity() {
         val uhd = UhdCanvas.scale(this)
         Wallpapers.init(this)
         // A receiver may have started the wallpapers with the app's size; Home's window is the one.
-        Wallpapers.fitScreen(this)
         Weather.init(this)
         Updates.init(this)
         lifecycleScope.launch(Dispatchers.IO) { SelfCompile.init(this@MainActivity) }
@@ -1011,7 +1010,6 @@ class MainActivity : ComponentActivity() {
     /** The screen turned (to portrait, #1416) or resized: pictures follow the window's new shape. */
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        if (realStarted) Wallpapers.fitScreen(this)
     }
 
     /** What onResume does once the user is unlocked; also run by a start that was locked before. */

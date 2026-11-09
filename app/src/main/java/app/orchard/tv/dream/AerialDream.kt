@@ -63,7 +63,6 @@ class AerialDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
         // Home's wallpaper film holds the decoder the dream's film needs (TCL MT5879).
         LiveFilm.onHome?.letDecoderGo()
         Wallpapers.init(this)
-        Wallpapers.fitScreen(this)
         Weather.init(this)
         val canvas = canvasDensity(resources.displayMetrics)
         setContentView(

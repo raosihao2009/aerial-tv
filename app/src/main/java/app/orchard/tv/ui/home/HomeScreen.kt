@@ -389,7 +389,7 @@ fun HomeScreen(
     )
     // HOME键（onHomePressed）被按下时恢复UI显示
     LaunchedEffect(vm.homePressCount) {
-        if (vm.homePressCount > 0 && vm.vm.uiHidden) vm.vm.uiHidden = false
+        if (vm.homePressCount > 0 && vm.uiHidden) vm.uiHidden = false
     }
     // The aerial wallpaper's film, and how far it shows through.
     val filmCover = remember { Animatable(0f) }
@@ -555,7 +555,7 @@ fun HomeScreen(
         }
     }
 
-    BackHandler(enabled = overlay == Overlay.None && moving == null && !vm.vm.uiHidden) {
+    BackHandler(enabled = overlay == Overlay.None && moving == null && !vm.uiHidden) {
         // tvOS: Back from inside the grid returns to the top row; Back on the top row starts the
         // screensaver. A grid scrolled by touch counts as being inside it.
         val scrolled = dragged && scroll.value > 1f
@@ -566,7 +566,7 @@ fun HomeScreen(
     }
 
     // ===== 手动快速隐藏UI：10秒内按返回键立刻藏 =====
-    BackHandler(enabled = channelPreviewVisible && focusedPkg in AerialSettings.liveAppPackages && !vm.vm.uiHidden && overlay == Overlay.None && moving == null) {
+    BackHandler(enabled = channelPreviewVisible && focusedPkg in AerialSettings.liveAppPackages && !vm.uiHidden && overlay == Overlay.None && moving == null) {
         vm.uiHidden = true
     }
 
@@ -577,7 +577,7 @@ fun HomeScreen(
         vm.uiHidden = true // 关闭二级菜单后保持UI隐藏
     }
 
-    BackHandler(enabled = channelPreviewVisible && vm.vm.uiHidden && overlay == Overlay.None && focusedPkg in AerialSettings.liveAppPackages) {
+    BackHandler(enabled = channelPreviewVisible && vm.uiHidden && overlay == Overlay.None && focusedPkg in AerialSettings.liveAppPackages) {
         vm.uiHidden = false
     }
     BoxWithConstraints(
@@ -586,7 +586,7 @@ fun HomeScreen(
             .onPreviewKeyEvent { e ->
                 lastKeyTime = System.currentTimeMillis()
                 // ===== UI隐藏时按键逻辑 =====
-                if (channelPreviewVisible && vm.vm.uiHidden && focusedPkg in AerialSettings.liveAppPackages) {
+                if (channelPreviewVisible && vm.uiHidden && focusedPkg in AerialSettings.liveAppPackages) {
                     // 任何浮层(CC/个性化/隐藏应用等)都透传，不能被"恢复UI"逻辑吞掉第一个键
                     if (overlay !is Overlay.None && overlay !is Overlay.LiveSourceMenu) return@onPreviewKeyEvent false
                     if (e.type == KeyEventType.KeyDown) {
@@ -1001,7 +1001,7 @@ fun HomeScreen(
                                 }
                             },
                             onLongPress = { bounds ->
-                                if (moving == null && !vm.vm.uiHidden && !Restricted.active) {
+                                if (moving == null && !vm.uiHidden && !Restricted.active) {
                                     focusAfterOverlay = app.key
                                     indexAfterOverlay = index
                                     vm.overlay = Overlay.AppMenu(app.key, bounds ?: Rect.Zero)
@@ -1045,7 +1045,7 @@ fun HomeScreen(
                 .graphicsLayer {
                     alpha = when {
                         overlay is Overlay.ControlCenter -> 0f
-                        channelPreviewVisible && vm.vm.uiHidden && focusedPkg in AerialSettings.liveAppPackages -> 0f
+                        channelPreviewVisible && vm.uiHidden && focusedPkg in AerialSettings.liveAppPackages -> 0f
                         else -> 1f
                     }
                 },
@@ -1411,7 +1411,7 @@ private fun LiveUiAutoHideEffect(
 ) {
     val liveReady = liveReadyState.value
     LaunchedEffect(focusedPkg, overlay, vm.uiHidden, lastKeyTime, channelPreviewVisible, liveMenuOpen, liveMoving, liveReady, vm) {
-        if (channelPreviewVisible && focusedPkg in AerialSettings.liveAppPackages && overlay == Overlay.None && !vm.vm.uiHidden && liveReady) {
+        if (channelPreviewVisible && focusedPkg in AerialSettings.liveAppPackages && overlay == Overlay.None && !vm.uiHidden && liveReady) {
             delay(10_000)
             onUiHiddenChange(true)
         }
