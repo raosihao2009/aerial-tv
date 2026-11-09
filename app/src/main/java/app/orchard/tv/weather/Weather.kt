@@ -218,7 +218,7 @@ object Weather {
         val hit = withContext(Dispatchers.IO) {
             runCatching {
                 val q = URLEncoder.encode(searchName, "UTF-8")
-                val resultsText = get("http://toy1.weather.com.cn/search?cityname=$q", "http://www.weather.com.cn/")
+                val resultsText = get("https://toy1.weather.com.cn/search?cityname=$q", "https://www.weather.com.cn/")
                 // Returns JSONP: ([{ref:"code~pinyin~中文名~..."}])
                 val arrayStr = resultsText.substringAfter("(").substringBefore(")")
                 val arr = JSONArray(arrayStr)
@@ -231,7 +231,7 @@ object Weather {
                         Triple(parts[0], displayName, displayName)
                     } else null
                 } else null
-            }.onFailure { Log.w(TAG, "could not look up $name", it) }.getOrNull()
+            }.onFailure { Log.w(TAG, "could not look up $name: ${it.message}", it) }.getOrNull()
         } ?: return false
         prefs.edit {
             putString("city_code", hit.first)
