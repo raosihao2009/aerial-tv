@@ -225,6 +225,7 @@ fun AppMenu(
             Column(
                 Modifier
                     .width(MenuWidth)
+                    .heightIn(max = 280.dp)
                     .consumeTaps()
                     .liquidGlass(20.dp)
                     .verticalScroll(scroll)
