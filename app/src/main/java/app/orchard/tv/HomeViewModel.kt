@@ -157,7 +157,9 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
      * Set when Home is pressed: go back to the top row. Done once the window has focus again,
      * since a focus request made while another app is in front is lost.
      */
-    var homeFocusTarget by mutableStateOf(-1)  // -1=不动焦点, 0=首排第一个, 其他=指定卡片索引
+    var homeFocusTarget by mutableStateOf(-1)
+    /** UI是否处于隐藏状态(按BACK隐藏直播时), HOME按此判断不重置焦点 */
+    var uiHidden by mutableStateOf(false)  // -1=不动焦点, 0=首排第一个, 其他=指定卡片索引
 
     /** When a key, a touch or coming back to the front last reset the idle timer (uptime ms). */
     var lastInputAt by mutableLongStateOf(0L)
@@ -961,7 +963,9 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         homeFocusTarget = when {
             // 从其他App回来: 不动焦点(规则1)
             fromOtherApp -> -1
-            // 一级界面(无浮层): 回首排第一个(规则2/3)
+            // 隐藏UI状态下: 只显示一级菜单, 不调焦点(规则4)
+            wasOverlay is Overlay.None && uiHidden -> -1
+            // 一级界面(无浮层且未隐藏): 回首排第一个(规则2/3)
             wasOverlay is Overlay.None -> 0
             // 控制中心从二级菜单打开: 关全部浮层, 不调焦点(规则6, 由overlay-close恢复)
             wasOverlay is Overlay.ControlCenter && fromLiveMenu -> -1
