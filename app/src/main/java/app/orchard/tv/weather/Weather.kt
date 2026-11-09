@@ -281,11 +281,13 @@ object Weather {
     /** Back to default location. */
     fun useNetworkLocation() {
         prefs.edit {
+            putString("city_code", FALLBACK_CITY_CODE)
+            putString("place", "南昌县")
             putBoolean("chosen", false)
-            remove("city_code")
-            remove("place")
+            remove("place_custom")
         }
         chosen = false
+        place = "南昌县"
         refresh()
     }
 
