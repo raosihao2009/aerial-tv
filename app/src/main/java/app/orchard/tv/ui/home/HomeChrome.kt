@@ -922,7 +922,9 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                 if (today != null) {
                     WeatherIcon(today.dayKind, true, 20.dp, Modifier.padding(start = 1.dp))
                     if (today.display.contains("转")) {
-                        WeatherIcon(today.nightKind, false, 20.dp, Modifier.padding(start = 1.dp))
+                        // "转"后的天气: 按当前时段判断日/夜图标, 避免早上8点显示月亮
+                        val nowDay = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY).let { it in 6..18 }
+                        WeatherIcon(today.nightKind, nowDay, 20.dp, Modifier.padding(start = 1.dp))
                     }
                 }
                 if (todayText != null) {
