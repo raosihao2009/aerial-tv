@@ -160,7 +160,7 @@ object Weather {
         val weatherCode = skJson.optString("weathercode")  // e.g. "d00" day, "n00" night
         val isDay = weatherCode.startsWith("d")
         val skKind = kindOfCode(weatherCode)
-        val cityName = displayName(skJson.optString("cityname"))
+        val cityName = skJson.optString("cityname")
 
         // Forecast: d1.weather.com.cn/weather_index/{code}.html
         val fcText = get("https://d1.weather.com.cn/weather_index/$cityCode.html", referer)
@@ -209,9 +209,12 @@ object Weather {
      * Uses weather.com.cn city search to convert name to city code.
      */
     suspend fun choose(name: String): Boolean {
+        val userInput = name.trim()
+        // Strip suffix for search (API doesn't recognize 市/区/县)
+        val searchName = userInput.replace(Regex("(市|区|县|旗|州|盟)$"), "")
         val hit = withContext(Dispatchers.IO) {
             runCatching {
-                val q = URLEncoder.encode(name.trim(), "UTF-8")
+                val q = URLEncoder.encode(searchName, "UTF-8")
                 val resultsText = get("http://toy1.weather.com.cn/search?cityname=$q", "http://www.weather.com.cn/")
                 // Returns JSONP: ([{ref:"code~pinyin~中文名~..."}])
                 val arrayStr = resultsText.substringAfter("(").substringBefore(")")
@@ -220,7 +223,9 @@ object Weather {
                     val ref = arr.getJSONObject(0).optString("ref")
                     val parts = ref.split("~")
                     if (parts.size >= 3) {
-                        Triple(parts[0], displayName(parts[2]), displayName(parts[2]))
+                        // Save user's input as display name (if they added suffix), otherwise use API name
+                        val displayName = if (userInput != searchName) userInput else parts[2]
+                        Triple(parts[0], displayName, displayName)
                     } else null
                 } else null
             }.onFailure { Log.w(TAG, "could not look up $name", it) }.getOrNull()
@@ -246,7 +251,7 @@ object Weather {
                 if (json.optString("status") == "success") {
                     val station = json.getJSONObject("data").getJSONObject("station")
                     val code = station.optString("areaid")
-                    val name = displayName(station.optString("namecn"))
+                    val name = station.optString("namecn")
                     if (code.isNotBlank()) Pair(code, name) else null
                 } else null
             }.onFailure { Log.w(TAG, "reverse geocode failed", it) }.getOrNull()
@@ -283,27 +288,6 @@ object Weather {
             val cityName = addr?.split(",")?.getOrNull(1)
             id to cityName
         }.onFailure { Log.w(TAG, "IP locate failed", it) }.getOrNull()
-    }
-
-    /** Common city/district name → proper display name with suffix. */
-    private val SUFFIX_MAP = mapOf(
-        "南昌" to "南昌市",
-        "金华" to "金华市",
-        "义乌" to "义乌市",
-        "青云谱" to "青云谱区",
-        "进贤" to "进贤县",
-        "新建" to "新建区",
-        "青山湖" to "青山湖区",
-        "东湖" to "东湖区",
-        "西湖" to "西湖区",
-        "红谷滩" to "红谷滩区",
-        "昌南" to "昌南区",
-    )
-
-    private fun displayName(raw: String): String {
-        if (raw.endsWith("市") || raw.endsWith("区") || raw.endsWith("县") ||
-            raw.endsWith("旗") || raw.endsWith("州") || raw.endsWith("盟")) return raw
-        return SUFFIX_MAP[raw] ?: raw
     }
 
     /** Map weather.com.cn weather code to WeatherKind. */
