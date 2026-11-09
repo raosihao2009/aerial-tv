@@ -13,13 +13,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
-import java.util.Locale
 import javax.net.ssl.SSLException
-import kotlin.math.roundToInt
 
 enum class WeatherKind { Clear, PartlyCloudy, Cloudy, Fog, Haze, Drizzle, LightRain, ModerateRain, HeavyRain, ViolentRain, LightSnow, ModerateSnow, HeavySnow, SnowStorm, Sleet, FreezingRain, Hail, Thunder, ThunderHail, Dust, Sand, SandStorm, Wind, Typhoon, Tornado }
 
@@ -31,9 +30,8 @@ data class ForecastDay(val kind: WeatherKind, val high: Int, val low: Int, val d
 data class WeatherNow(val celsius: Int, val kind: WeatherKind, val day: Boolean, val high: Int? = null, val low: Int? = null, val forecast: List<ForecastDay> = emptyList())
 
 /**
- * The weather beside the home clock, from QWeather (和风天气): CMA official data, county-level
- * precision in China. The place is the one the owner names on the phone page, or else a guess from
- * the network's public address.
+ * The weather beside the home clock, from 中国天气网 (weather.com.cn): CMA official data.
+ * The place is the one the owner names on the phone page, or defaults to 南昌县.
  *
  * Fetched every 10 minutes; nothing runs while the TV is idle.
  * Compose state, written on the main thread only.
@@ -41,11 +39,10 @@ data class WeatherNow(val celsius: Int, val kind: WeatherKind, val day: Boolean,
 object Weather {
     private const val TAG = "AerialWeather"
     private const val PREFS = "weather"
-    private const val QW_KEY = "2d9160494e2e4b1abdf23de36d9072b1"
-    private const val QW_HOST = "pa4gkmwbku.re.qweatherapi.com"
+    private const val DEFAULT_CITY_CODE = "101240103"  // 南昌县
+    private const val DEFAULT_PLACE = "南昌县"
     private const val REFRESH_MS = 10 * 60 * 1000L
     private const val RETRY_MS = 1 * 60 * 1000L
-    private const val RELOCATE_MS = 24 * 60 * 60 * 1000L
     /** A reading older than this is not shown at all. */
     private const val STALE_MS = 60 * 60 * 1000L
     /** Stands for "no high or low" in the prefs. */
@@ -56,7 +53,7 @@ object Weather {
     /** Where the weather is for, as a name to show; null until known. */
     var place by mutableStateOf<String?>(null); private set
 
-    /** True when the owner named the place; false while it is guessed from the network. */
+    /** True when the owner named the place; false while using the default. */
     var chosen by mutableStateOf(false); private set
 
     private lateinit var prefs: SharedPreferences
@@ -71,7 +68,14 @@ object Weather {
         started = true
         app = context.applicationContext
         prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        place = prefs.getString("place", null)
+        // If no city chosen yet, default to 南昌县
+        if (!prefs.getBoolean("chosen", false)) {
+            prefs.edit {
+                putString("city_code", DEFAULT_CITY_CODE)
+                putString("place", DEFAULT_PLACE)
+            }
+        }
+        place = prefs.getString("place", DEFAULT_PLACE)
         chosen = prefs.getBoolean("chosen", false)
         if (System.currentTimeMillis() - prefs.getLong("fetched_at", 0) < STALE_MS) {
             val kind = runCatching { WeatherKind.valueOf(prefs.getString("kind", null) ?: "") }.getOrNull()
@@ -97,20 +101,16 @@ object Weather {
 
     private var failed = false
 
-    /** 每10分钟整点对齐更新（:00 :10 :20 :30 :40 :50） */
     fun refreshIfStale(networkCameUp: Boolean = false) {
         if (!started) return
-        val now = System.currentTimeMillis()
-        val since = now - lastAttempt
-        // 失败时2分钟重试
+        val nowMs = System.currentTimeMillis()
+        val since = nowMs - lastAttempt
         if (failed && (networkCameUp || since >= RETRY_MS)) { refresh(); return }
-        // 距离上次更新超过10分钟，且已到最近的10分钟整点
         if (since >= REFRESH_MS) {
             val cal = java.util.Calendar.getInstance()
-            cal.timeInMillis = now
+            cal.timeInMillis = nowMs
             val minute = cal.get(java.util.Calendar.MINUTE)
             val second = cal.get(java.util.Calendar.SECOND)
-            // 已过最近的10分钟整点
             val lastTick = (minute / 10) * 10
             if (minute > lastTick || (minute == lastTick && second >= 0)) {
                 refresh()
@@ -136,7 +136,6 @@ object Weather {
                     putBoolean("day", reading.day)
                     putInt("high", reading.high ?: NONE)
                     putInt("low", reading.low ?: NONE)
-                    // Cache today's forecast so it shows instantly on next boot
                     reading.forecast.firstOrNull()?.let { fc ->
                         putString("fc_kind", fc.kind.name)
                         putInt("fc_high", fc.high)
@@ -148,60 +147,54 @@ object Weather {
         }
     }
 
-    /** Off the main thread. */
+    /** Off the main thread. Fetches real-time + forecast from weather.com.cn. */
     private fun fetch(): WeatherNow {
-        var lat = prefs.getFloat("lat", Float.NaN)
-        var lon = prefs.getFloat("lon", Float.NaN)
-        val guessedLongAgo = System.currentTimeMillis() - prefs.getLong("located_at", 0) > RELOCATE_MS
-        if (prefs.getBoolean("chosen", false) && !lat.isNaN() && !prefs.getBoolean("checked_against_cities", false)) {
-            correctChosenPlace(lat, lon)?.let { lat = it.lat.toFloat(); lon = it.lon.toFloat() }
-        }
-        if (!prefs.getBoolean("chosen", false) && (lat.isNaN() || guessedLongAgo)) {
-            val guess = locate()
-            if (guess != null) {
-                lat = guess.lat
-                lon = guess.lon
-                val city = guess.city
-                val zh = city?.takeIf { guess.cn && Locale.getDefault().language == "zh" }
-                    ?.let {
-                        (Cities.near(app, it, lat.toDouble(), lon.toDouble(), km = 80.0, ascii = true)
-                            ?: Cities.mainNear(app, lat.toDouble(), lon.toDouble(), km = 20.0))?.name
-                    }
-                prefs.edit {
-                    putFloat("lat", lat); putFloat("lon", lon)
-                    putString("place", zh ?: city)
-                    putLong("located_at", System.currentTimeMillis())
-                }
-            }
-        }
-        // QWeather uses lon,lat order; new accounts use api.qweatherapi.com
-        val loc = "$lon,$lat"
-        val nowJson = JSONObject(get("https://$QW_HOST/v7/weather/now?location=$loc&key=$QW_KEY"))
-        val now = nowJson.getJSONObject("now")
-        val temp = now.getString("temp").toIntOrNull() ?: 0
-        val text = now.optString("text")
-        // 和风天气icon: 100-149白天, 150-199夜间
-        val isDay = now.optString("icon").toIntOrNull()?.let { it < 150 } ?: true
+        val cityCode = prefs.getString("city_code", DEFAULT_CITY_CODE) ?: DEFAULT_CITY_CODE
+        val referer = "https://www.weather.com.cn/weather/$cityCode.shtml"
 
-        val forecastJson = JSONObject(get("https://$QW_HOST/v7/weather/3d?location=$loc&key=$QW_KEY"))
-        val daily = forecastJson.optJSONArray("daily")
+        // Real-time: d1.weather.com.cn/sk_2d/{code}.html
+        val skText = get("https://d1.weather.com.cn/sk_2d/$cityCode.html", referer)
+        val skJson = JSONObject(skText.substringAfter("var dataSK=").substringBefore(";"))
+        val temp = skJson.optString("temp").toDoubleOrNull()?.roundToInt() ?: 0
+        val weatherCode = skJson.optString("weathercode")  // e.g. "d00" day, "n00" night
+        val isDay = weatherCode.startsWith("d")
+        val skKind = kindOfCode(weatherCode)
+        val cityName = skJson.optString("cityname")
+
+        // Forecast: d1.weather.com.cn/weather_index/{code}.html
+        val fcText = get("https://d1.weather.com.cn/weather_index/$cityCode.html", referer)
         val forecast = buildList {
-            if (daily != null) {
-                for (i in 0 until daily.length()) {
-                    val d = daily.getJSONObject(i)
-                    val h = d.optString("tempMax").toIntOrNull() ?: continue
-                    val l = d.optString("tempMin").toIntOrNull() ?: continue
-                    val dayText = d.optString("textDay")
-                    val nightText = d.optString("textNight")
-                    val display = if (dayText == nightText) dayText else "${dayText}转${nightText}"
-                    add(ForecastDay(kindOfText(dayText), h, l, display,
-                        dayKind = kindOfText(dayText), nightKind = kindOfText(nightText)))
+            // Parse var fc={"f":[{...},{...}]}
+            val fcMatch = Regex("var fc=(\\{.*?\\});").find(fcText)
+            if (fcMatch != null) {
+                val fcJson = JSONObject(fcMatch.groupValues[1])
+                val days = fcJson.optJSONArray("f")
+                if (days != null) {
+                    for (i in 0 until minOf(days.length(), 5)) {
+                        val d = days.getJSONObject(i)
+                        val dayCode = d.optString("fa")  // day weather code
+                        val nightCode = d.optString("fb")  // night weather code
+                        val high = d.optString("fc").toIntOrNull() ?: continue
+                        val low = d.optString("fd").toIntOrNull() ?: continue
+                        val dayKind = kindOfCode(dayCode)
+                        val nightKind = kindOfCode(nightCode)
+                        val dayText = textOfCode(dayCode)
+                        val nightText = textOfCode(nightCode)
+                        val display = if (dayText == nightText) dayText else "${dayText}转${nightText}"
+                        add(ForecastDay(dayKind, high, low, display, dayKind = dayKind, nightKind = nightKind))
+                    }
                 }
             }
         }
+
+        // Save city name from response
+        if (cityName.isNotBlank() && !prefs.getBoolean("chosen", false)) {
+            prefs.edit { putString("place", cityName) }
+        }
+
         return WeatherNow(
             celsius = temp,
-            kind = kindOfText(text),
+            kind = skKind,
             day = isDay,
             high = forecast.firstOrNull()?.high,
             low = forecast.firstOrNull()?.low,
@@ -210,84 +203,30 @@ object Weather {
     }
 
     /**
-     * Where the connection is: ipwho.is first, ipinfo.io after it. ipinfo.io puts China Mobile's
-     * pooled addresses in the wrong province (a Foshan, Guangdong line came out as Jiaxing,
-     * Zhejiang), where ipwho.is names the city; both are keyless and answer over HTTPS.
-     */
-    private class Guess(val lat: Float, val lon: Float, val city: String?, val cn: Boolean)
-
-    private fun locate(): Guess? {
-        // Over IPv6 the databases place China Mobile's prefixes in another city of the province
-        // (a Foshan line came out as Jiangmen), so the IPv4 address is asked for and looked up.
-        val v4 = runCatching { get("https://ipv4.icanhazip.com").trim() }.getOrNull()
-            ?.takeIf { Regex("""^\d{1,3}(\.\d{1,3}){3}$""").matches(it) }
-        runCatching {
-            val ip = JSONObject(get(if (v4 != null) "https://ipwho.is/$v4" else "https://ipwho.is/"))
-            if (ip.optBoolean("success", true)) {
-                return Guess(
-                    ip.getDouble("latitude").toFloat(),
-                    ip.getDouble("longitude").toFloat(),
-                    ip.optString("city").ifBlank { null },
-                    ip.optString("country_code").equals("CN", ignoreCase = true),
-                )
-            }
-        }.onFailure { Log.w(TAG, "ipwho.is", it) }
-        runCatching {
-            // ipinfo.io: no key, and its "loc" is "lat,lon".
-            val ip = JSONObject(get("https://ipinfo.io/json"))
-            val loc = ip.getString("loc").split(',')
-            return Guess(
-                loc[0].toFloat(),
-                loc[1].toFloat(),
-                ip.optString("city").ifBlank { null },
-                ip.optString("country") == "CN",
-            )
-        }.onFailure { Log.w(TAG, "ipinfo.io", it) }
-        return null
-    }
-
-    /**
-     * A place chosen before 1.29 came from Open-Meteo's geocoder, which took 安庆 for a village in
-     * Jiangsu. If a listed city of that name is not where the chosen point is, the city is meant.
-     * Checked once.
-     */
-    private fun correctChosenPlace(lat: Float, lon: Float): Cities.City? {
-        val name = prefs.getString("place", null)
-        val city = name?.let { runCatching { Cities.find(app, it) }.getOrNull() }
-            ?.takeIf { Cities.near(app, it.name, lat.toDouble(), lon.toDouble(), km = 30.0) == null }
-        prefs.edit {
-            putBoolean("checked_against_cities", true)
-            if (city != null) {
-                Log.i(TAG, "chosen place $name moved to the city of that name")
-                putFloat("lat", city.lat.toFloat()); putFloat("lon", city.lon.toFloat())
-            }
-        }
-        return city
-    }
-
-    /**
-     * Names the place (from the phone page) and fetches its weather at once. Chinese names are
-     * looked up in Aerial's own list first, others (pinyin, places abroad) in Open-Meteo's geocoder.
-     * False when there is no such place.
+     * Names the place (from the phone page) and fetches its weather at once.
+     * Uses weather.com.cn city search to convert name to city code.
      */
     suspend fun choose(name: String): Boolean {
         val hit = withContext(Dispatchers.IO) {
-            runCatching { Cities.find(app, name) }.onFailure { Log.w(TAG, "could not read the city list", it) }.getOrNull()
-                ?.let { Triple(it.lat, it.lon, it.name) }
-                ?: runCatching {
-                    val q = URLEncoder.encode(name.trim(), "UTF-8")
-                    val results = JSONObject(get("https://geoapi.qweather.com/v2/city/lookup?location=$q&key=$QW_KEY&range=cn"))
-                        .optJSONArray("location")
-                    val all = (0 until (results?.length() ?: 0)).map { results!!.getJSONObject(it) }
-                    all.firstOrNull()?.let { Triple(it.getDouble("lat"), it.getDouble("lon"), it.optString("name").ifBlank { name.trim() }) }
-                }.onFailure { Log.w(TAG, "could not look up $name", it) }.getOrNull()
+            runCatching {
+                val q = URLEncoder.encode(name.trim(), "UTF-8")
+                val resultsText = get("http://toy1.weather.com.cn/search?cityname=$q", "http://www.weather.com.cn/")
+                // Returns JSONP: ([{ref:"code~pinyin~中文名~..."}])
+                val arrayStr = resultsText.substringAfter("(").substringBefore(")")
+                val arr = JSONArray(arrayStr)
+                if (arr.length() > 0) {
+                    val ref = arr.getJSONObject(0).optString("ref")
+                    val parts = ref.split("~")
+                    if (parts.size >= 3) {
+                        Triple(parts[0], parts[2], parts[2])
+                    } else null
+                } else null
+            }.onFailure { Log.w(TAG, "could not look up $name", it) }.getOrNull()
         } ?: return false
         prefs.edit {
-            putFloat("lat", hit.first.toFloat())
-            putFloat("lon", hit.second.toFloat())
-            putString("place", hit.third)
+            putString("city_code", hit.first)
+            putString("place", hit.second)
             putBoolean("chosen", true)
-            putBoolean("checked_against_cities", true)
         }
         chosen = true
         place = prefs.getString("place", null)
@@ -295,58 +234,108 @@ object Weather {
         return true
     }
 
-    /** Back to guessing the place from the network. */
+    /** Back to default location. */
     fun useNetworkLocation() {
-        prefs.edit { putBoolean("chosen", false); remove("lat"); remove("lon"); remove("located_at") }
+        prefs.edit {
+            putBoolean("chosen", false)
+            putString("city_code", DEFAULT_CITY_CODE)
+            putString("place", DEFAULT_PLACE)
+        }
         chosen = false
         refresh()
     }
 
-    /** Map QWeather Chinese weather text to our WeatherKind. */
-    private fun kindOfText(text: String): WeatherKind = when {
-        text.contains("晴") -> WeatherKind.Clear
-        text.contains("多云") -> WeatherKind.PartlyCloudy
-        text.contains("阴") -> WeatherKind.Cloudy
-        text.contains("雾") -> WeatherKind.Fog
-        text.contains("霾") -> WeatherKind.Haze
-        text.contains("雷阵雨伴冰雹") || text.contains("雷打冰雹") -> WeatherKind.ThunderHail
-        text.contains("雷") -> WeatherKind.Thunder
-        text.contains("冻雨") -> WeatherKind.FreezingRain
-        text.contains("雨夹雪") || text.contains("雨夹雪") -> WeatherKind.Sleet
-        text.contains("冰雹") -> WeatherKind.Hail
-        text.contains("小雪") || text.contains("阵雪") -> WeatherKind.LightSnow
-        text.contains("中雪") -> WeatherKind.ModerateSnow
-        text.contains("大雪") -> WeatherKind.HeavySnow
-        text.contains("暴雪") -> WeatherKind.SnowStorm
-        text.contains("毛毛雨") || text.contains("小雨") -> WeatherKind.LightRain
-        text.contains("阵雨") || text.contains("中雨") -> WeatherKind.ModerateRain
-        text.contains("大雨") -> WeatherKind.HeavyRain
-        text.contains("暴雨") || text.contains("大暴雨") || text.contains("特大暴雨") -> WeatherKind.ViolentRain
-        text.contains("浮尘") -> WeatherKind.Dust
-        text.contains("扬沙") -> WeatherKind.Sand
-        text.contains("沙尘暴") -> WeatherKind.SandStorm
-        text.contains("台风") || text.contains("热带风暴") -> WeatherKind.Typhoon
-        text.contains("龙卷风") -> WeatherKind.Tornado
-        text.contains("大风") || text.contains("风") -> WeatherKind.Wind
-        text.contains("雪") -> WeatherKind.LightSnow
-        text.contains("雨") -> WeatherKind.ModerateRain
-        else -> WeatherKind.Cloudy
+    /** Map weather.com.cn weather code to WeatherKind. */
+    private fun kindOfCode(code: String): WeatherKind {
+        val n = code.removePrefix("d").removePrefix("n").toIntOrNull() ?: return WeatherKind.Cloudy
+        return when (n) {
+            0 -> WeatherKind.Clear
+            1 -> WeatherKind.PartlyCloudy
+            2 -> WeatherKind.Cloudy
+            3 -> WeatherKind.Drizzle
+            4 -> WeatherKind.Thunder
+            5 -> WeatherKind.ThunderHail
+            6 -> WeatherKind.Sleet
+            7 -> WeatherKind.LightRain
+            8 -> WeatherKind.ModerateRain
+            9 -> WeatherKind.HeavyRain
+            10, 11, 12 -> WeatherKind.ViolentRain
+            13 -> WeatherKind.LightSnow
+            14 -> WeatherKind.LightSnow
+            15 -> WeatherKind.ModerateSnow
+            16 -> WeatherKind.HeavySnow
+            17 -> WeatherKind.SnowStorm
+            18 -> WeatherKind.Fog
+            19 -> WeatherKind.FreezingRain
+            20, 31, 32 -> WeatherKind.SandStorm
+            21 -> WeatherKind.LightRain
+            22 -> WeatherKind.ModerateRain
+            23 -> WeatherKind.HeavyRain
+            24, 25 -> WeatherKind.ViolentRain
+            26 -> WeatherKind.LightSnow
+            27 -> WeatherKind.ModerateSnow
+            28 -> WeatherKind.HeavySnow
+            29 -> WeatherKind.Dust
+            30 -> WeatherKind.Sand
+            53 -> WeatherKind.Haze
+            else -> WeatherKind.Cloudy
+        }
     }
 
-    /**
-     * Android before 7.1 does not trust the Let's Encrypt root these hosts use; they answer the
-     * same over plain HTTP (allowed for them in network_security_config.xml).
-     */
-    private fun get(url: String): String = try {
-        read(url)
+    /** Chinese text for a weather code (for forecast display). */
+    private fun textOfCode(code: String): String {
+        val n = code.removePrefix("d").removePrefix("n").toIntOrNull() ?: return ""
+        return when (n) {
+            0 -> "晴"
+            1 -> "多云"
+            2 -> "阴"
+            3 -> "阵雨"
+            4 -> "雷阵雨"
+            5 -> "雷阵雨伴冰雹"
+            6 -> "雨夹雪"
+            7 -> "小雨"
+            8 -> "中雨"
+            9 -> "大雨"
+            10 -> "暴雨"
+            11 -> "大暴雨"
+            12 -> "特大暴雨"
+            13 -> "阵雪"
+            14 -> "小雪"
+            15 -> "中雪"
+            16 -> "大雪"
+            17 -> "暴雪"
+            18 -> "雾"
+            19 -> "冻雨"
+            20 -> "沙尘暴"
+            21 -> "小到中雨"
+            22 -> "中到大雨"
+            23 -> "大到暴雨"
+            24 -> "暴雨到大暴雨"
+            25 -> "大暴雨到特大暴雨"
+            26 -> "小到中雪"
+            27 -> "中到大雪"
+            28 -> "大到暴雪"
+            29 -> "浮尘"
+            30 -> "扬沙"
+            31 -> "沙尘暴"
+            32 -> "强沙尘暴"
+            53 -> "霾"
+            else -> ""
+        }
+    }
+
+    private fun get(url: String, referer: String): String = try {
+        read(url, referer)
     } catch (e: SSLException) {
-        read(url.replaceFirst("https://", "http://"))
+        read(url.replaceFirst("https://", "http://"), referer)
     }
 
-    private fun read(url: String): String {
+    private fun read(url: String, referer: String): String {
         val c = URL(url).openConnection() as HttpURLConnection
         c.connectTimeout = 8_000
         c.readTimeout = 10_000
+        c.setRequestProperty("Referer", referer)
+        c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36")
         return try {
             c.inputStream.use { it.readBytes().decodeToString() }
         } finally {
