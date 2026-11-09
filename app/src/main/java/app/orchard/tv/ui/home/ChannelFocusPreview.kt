@@ -372,15 +372,30 @@ fun ChannelFocusPreview(
     }
 
     DisposableEffect(Unit) {
+        // HOME回弹(onPause后立刻onResume, 没走onStop)不暂停player: 延迟300ms暂停, onResume则取消
+        var pauseJob: kotlinx.coroutines.Job? = null
         val obs = LifecycleEventObserver { _, e ->
             when (e) {
                 Lifecycle.Event.ON_PAUSE -> {
-                    // 立即暂停音频/视频, 不等ON_STOP(进入其他app时onPause先到, onStop可能延迟)
                     st.paused = true
-                    player?.playWhenReady = false
+                    // 延迟暂停: 如果300ms内onResume来了(只是HOME回弹), 不暂停
+                    pauseJob?.cancel()
+                    pauseJob = scope.launch {
+                        kotlinx.coroutines.delay(300)
+                        player?.playWhenReady = false
+                    }
+                }
+                Lifecycle.Event.ON_RESUME -> {
+                    // HOME回弹回来了: 取消延迟暂停, 恢复播放
+                    pauseJob?.cancel()
+                    st.paused = false
+                    if (player?.playbackState == androidx.media3.common.Player.STATE_READY) {
+                        player?.playWhenReady = true
+                    }
                 }
                 Lifecycle.Event.ON_STOP -> {
-                    // 进入其他app时直接销毁播放器, 回到桌面时重新加载(和开机一样)
+                    // 真正进入其他app: 立即销毁
+                    pauseJob?.cancel()
                     watchdogRef.value?.stop()
                     playerListenerRef.value?.let { player?.removeListener(it) }
                     player?.release()
@@ -389,7 +404,7 @@ fun ChannelFocusPreview(
                     onActuallyPlayingChange(false)
                 }
                 Lifecycle.Event.ON_START -> {
-                    // 回到桌面: 播放器已销毁, 重新加载当前源
+                    // 从其他app回到桌面: 播放器已销毁, 重新加载
                     st.paused = false
                     st.loading = true
                     restartSignal++
