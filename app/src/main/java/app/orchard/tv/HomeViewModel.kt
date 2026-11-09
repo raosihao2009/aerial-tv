@@ -965,8 +965,8 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             wasOverlay is Overlay.None -> 0
             // 控制中心从二级菜单打开: 关全部浮层, 焦点回直播卡(规则6)
             wasOverlay is Overlay.ControlCenter && fromLiveMenu -> -2  // -2=直播卡
-            // 控制中心从一级打开+直播在播: 关控制中心, 焦点回直播卡(规则7)
-            wasOverlay is Overlay.ControlCenter && liveActuallyPlaying -> -2
+            // 控制中心从一级打开+直播在播: 只关控制中心, 不调焦点(由overlay-close恢复原焦点)(规则7)
+            wasOverlay is Overlay.ControlCenter && liveActuallyPlaying -> -1
             // 控制中心从一级打开+没在播: 回首排第一个(规则8)
             wasOverlay is Overlay.ControlCenter -> 0
             // 二级菜单/隐藏UI: 只关菜单, 不动焦点(规则4/5)
