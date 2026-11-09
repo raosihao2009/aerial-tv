@@ -532,15 +532,13 @@ fun HomeScreen(
         if (windowFocused && vm.homeResetPending && vm.loaded) {
             withFrameNanos { }
             dragged = false
-            val jxIndex = apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages }
-            focusApp(if (jxIndex >= 0) jxIndex else 0)
+            focusApp(0)
             vm.homeResetPending = false
             initialFocusDone = true
         } else if (windowFocused && vm.loaded && apps.isNotEmpty() && !initialFocusDone) {
             // 启动时直接聚焦第一个卡片, 不要先聚焦右上角pill再跳过去
             withFrameNanos { }
-            val jxIndex = apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages }
-            focusApp(if (jxIndex >= 0) jxIndex else 0)
+            focusApp(0)
             initialFocusDone = true
         }
     }
