@@ -160,7 +160,7 @@ object Weather {
         val weatherCode = skJson.optString("weathercode")  // e.g. "d00" day, "n00" night
         val isDay = weatherCode.startsWith("d")
         val skKind = kindOfCode(weatherCode)
-        val cityName = skJson.optString("cityname")
+        val cityName = normalizePlace(skJson.optString("cityname"), cityCode)
 
         // Forecast: d1.weather.com.cn/weather_index/{code}.html
         val fcText = get("https://d1.weather.com.cn/weather_index/$cityCode.html", referer)
@@ -220,7 +220,7 @@ object Weather {
                     val ref = arr.getJSONObject(0).optString("ref")
                     val parts = ref.split("~")
                     if (parts.size >= 3) {
-                        Triple(parts[0], parts[2], parts[2])
+                        Triple(parts[0], normalizePlace(parts[2], parts[0]), normalizePlace(parts[2], parts[0]))
                     } else null
                 } else null
             }.onFailure { Log.w(TAG, "could not look up $name", it) }.getOrNull()
@@ -246,7 +246,7 @@ object Weather {
                 if (json.optString("status") == "success") {
                     val station = json.getJSONObject("data").getJSONObject("station")
                     val code = station.optString("areaid")
-                    val name = station.optString("namecn")
+                    val name = normalizePlace(station.optString("namecn"), station.optString("areaid"))
                     if (code.isNotBlank()) Pair(code, name) else null
                 } else null
             }.onFailure { Log.w(TAG, "reverse geocode failed", it) }.getOrNull()
@@ -283,6 +283,15 @@ object Weather {
             val cityName = addr?.split(",")?.getOrNull(1)
             id to cityName
         }.onFailure { Log.w(TAG, "IP locate failed", it) }.getOrNull()
+    }
+
+    /** Add administrative suffix: 南昌→南昌市, 青云谱→青云谱区, 南昌县 stays. */
+    private fun normalizePlace(name: String, cityCode: String): String {
+        if (name.endsWith("市") || name.endsWith("区") || name.endsWith("县") || 
+            name.endsWith("旗") || name.endsWith("省") || name.endsWith("州")) return name
+        // City code ending in "01" or "00" → prefecture-level city
+        val isCityLevel = cityCode.endsWith("0100") || cityCode.endsWith("01")
+        return if (isCityLevel) "$name市" else "$name区"
     }
 
     /** Map weather.com.cn weather code to WeatherKind. */
