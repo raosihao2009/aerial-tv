@@ -894,7 +894,8 @@ class MainActivity : ComponentActivity() {
         if (intent.hasCategory(Intent.CATEGORY_HOME) || intent.action == Intent.ACTION_MAIN) {
             // Since 1.11 Home Guard answers Home from an app by bringing Aerial back with this same
             // intent, so the intent alone cannot tell Home-on-Home from coming back from an app.
-            vm.onHomePressed(resetFocus = !openedAppSinceHome)
+            // 从其他App回到桌面: 只显示一级菜单, 不调整焦点(规则1)
+            vm.onHomePressed(fromOtherApp = true)
             openedAppSinceHome = false
         }
     }

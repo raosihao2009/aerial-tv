@@ -951,7 +951,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     /** 自增计数器，HOME键被按下时自增，HomeScreen监听它恢复UI */
     var homePressCount by mutableStateOf(0); private set
 
-    fun onHomePressed() {
+    fun onHomePressed(fromOtherApp: Boolean = false) {
         screensaverVisible = false
         AerialSettings.relock()
         val wasOverlay = overlay
@@ -973,7 +973,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         ccFromLiveMenu = false
         movingKey = null
         homePressCount++
-        if (resetFocus) homeResetPending = true
+        if (resetFocus && !fromOtherApp) homeResetPending = true
     }
 
     override fun onCleared() {
