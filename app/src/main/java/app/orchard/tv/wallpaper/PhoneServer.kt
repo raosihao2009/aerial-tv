@@ -760,36 +760,29 @@ class PhoneServer private constructor(private val context: Context, private val 
             running?.let { if (it.isAlive) return it }
             val appCtx = context.applicationContext
             val tok = token(context)
-            // HTTP on 8790 (WeChat compatible)
-            val http = runCatching {
-                PhoneServer(appCtx, tok).also {
-                    it.start(SOCKET_READ_TIMEOUT, true)
-                    running = it
-                }
-            }.onFailure { Log.w(TAG, "HTTP listen failed", it) }.getOrNull() ?: return null
-            // HTTPS on 8791 (for GPS)
-            runCatching {
+            return runCatching {
                 PhoneServer(appCtx, tok).also { server ->
-                    val ks = KeyStore.getInstance("PKCS12")
-                    appCtx.assets.open("aerial.p12").use { ks.load(it, "aerial123".toCharArray()) }
-                    val kmf = javax.net.ssl.KeyManagerFactory.getInstance(javax.net.ssl.KeyManagerFactory.getDefaultAlgorithm())
-                    kmf.init(ks, "aerial123".toCharArray())
-                    val ctx = javax.net.ssl.SSLContext.getInstance("TLS")
-                    ctx.init(kmf.keyManagers, null, java.security.SecureRandom())
-                    server.makeSecure(ctx.serverSocketFactory, null)
-                    server.isSecure = true
+                    runCatching {
+                        val ks = KeyStore.getInstance("PKCS12")
+                        appCtx.assets.open("aerial.p12").use { ks.load(it, "aerial123".toCharArray()) }
+                        val kmf = javax.net.ssl.KeyManagerFactory.getInstance(javax.net.ssl.KeyManagerFactory.getDefaultAlgorithm())
+                        kmf.init(ks, "aerial123".toCharArray())
+                        val ctx = javax.net.ssl.SSLContext.getInstance("TLS")
+                        ctx.init(kmf.keyManagers, null, java.security.SecureRandom())
+                        server.makeSecure(ctx.serverSocketFactory, null)
+                        server.isSecure = true
+                    }.onFailure { Log.w(TAG, "HTTPS setup failed", it) }
                     server.start(SOCKET_READ_TIMEOUT, true)
-                    secureRunning = server
+                    running = server
                 }
-            }.onFailure { Log.w(TAG, "HTTPS listen failed: " + it.message, it) }
-            return http
+            }.onFailure { Log.w(TAG, "listen failed", it) }.getOrNull()
         }
 
         /** The address to put in the QR code, listening first if need be, or null offline. */
         fun start(context: Context): String? {
             val ip = lanAddress(context) ?: return null
             val server = listen(context) ?: return null
-return "http://$ip:$PORT/${server.token}/"
+return "https://$ip:$PORT/${server.token}/"
         }
 
         /**
