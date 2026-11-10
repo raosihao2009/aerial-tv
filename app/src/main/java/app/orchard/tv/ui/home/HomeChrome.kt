@@ -894,7 +894,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                             shadow = shadow,
                             fontSize = 14.sp,
                             letterSpacing = 0.04.em,
-                            fontFamily = OppoSans,
+                            fontFamily = OutfitRegular,
                         ),
                         modifier = Modifier.padding(top = 4.dp),
                     )
