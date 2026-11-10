@@ -879,7 +879,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                         shadow = shadow,
                         fontSize = 14.sp,
                         letterSpacing = 0.14.em,
-                        fontFamily = OutfitRegular,
+                        fontFamily = OppoSans,
                     ),
                 )
                 if (lunar != null) {
@@ -915,7 +915,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             ) {
                 val weatherStyle = Type.Caption.copy(
                     color = Color.White, shadow = shadow, fontSize = 16.sp,
-                    fontFamily = OutfitRegular, letterSpacing = 0.em,
+                    fontFamily = OppoSans, letterSpacing = 0.em,
                 )
                 val sepStyle = weatherStyle.copy(color = Color.White.copy(alpha = 0.4f))
                 BasicText("今天", style = weatherStyle)
