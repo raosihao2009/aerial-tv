@@ -54,17 +54,17 @@ import java.security.SecureRandom
  * pictures or typing a place with a remote is slow; with a phone it is not.
  *
  * It listens on the local network while Aerial runs (see [listen]), and every address carries a
- * random token shown only on the TV (the QR code and the address under it), so another device on
- * the network cannot use it by guessing. The token stays the same from one start to the next.
+ * The page is open to anyone on the local network: the address is just the TV's ip and port.
  */
 class PhoneServer private constructor(private val context: Context, private val token: String, port: Int = PORT) : NanoHTTPD(port) {
     @Volatile var isSecure = false
     var httpsError: String? = null
 
     override fun serve(session: IHTTPSession): Response {
+        // No token any more: the page answers on "/" so the address is just ip:port. The old
+        // /<token>/ form is still accepted, for bookmarks made before this change.
         val prefix = "/$token"
         val uri = session.uri
-        if (!uri.startsWith(prefix)) return text(Response.Status.NOT_FOUND, "Not found")
         val path = uri.removePrefix(prefix).ifEmpty { "/" }
         return runCatching {
             // In Kids and Elders mode the page changes nothing without the parental PIN: anyone on
@@ -789,7 +789,7 @@ const val HTTPS_PORT = 8791
         fun start(context: Context): String? {
             val ip = lanAddress(context) ?: return null
             val server = listen(context) ?: return null
-return "http://$ip:$PORT/${server.token}/"
+return "http://$ip:$PORT/"
         }
 
         /**
