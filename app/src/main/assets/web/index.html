@@ -437,7 +437,7 @@ const TEXTS = {
   "显示 {place} 的天气。",
   "改回按网络自动定位",
   "已改回自动定位",
-  "当前：{place}。网络定位按宽带出口粗略判断，卫星定位需HTTPS，不准可直接输入城市名。",
+  "当前：{place}。网络定位按宽带出口粗略判断，卫星定位可精确定位到县区。",
   "还没有定位到。输入你所在的城市。",
   "信号源",
   "起名字",
@@ -1637,7 +1637,7 @@ document.querySelectorAll('#focus [data-style]').forEach(b => b.onclick = async 
 });
 $('#city').oninput = () => $('#cityBtn').disabled = !$('#city').value.trim();
 $('#netBtn').onclick = async () => {
-  try { take(await api('api/weather/auto', {})); if (state.weather) $('#placeName').value = state.weather.place || ''; } catch (e) { toast(t('toast_set_fail')); }
+  try { take(await api('api/weather/auto', {})); if (state.weather) $('#placeName').value = state.weather.place || ''; } catch (e) { toast('网络定位失败，请手动输入城市'); }
 };
 $('#satBtn').onclick = () => {
   if (!navigator.geolocation) { toast('此浏览器不支持定位'); return; }
