@@ -57,7 +57,7 @@ import java.security.SecureRandom
  * random token shown only on the TV (the QR code and the address under it), so another device on
  * the network cannot use it by guessing. The token stays the same from one start to the next.
  */
-class PhoneServer private constructor(private val context: Context, private val token: String) : NanoHTTPD(PORT) {
+class PhoneServer private constructor(private val context: Context, private val token: String, port: Int = PORT) : NanoHTTPD(port) {
     @Volatile var isSecure = false
     var httpsError: String? = null
 
@@ -769,7 +769,7 @@ const val HTTPS_PORT = 8791
             }.onFailure { Log.w(TAG, "HTTP listen failed", it) }.getOrNull() ?: return null
             // HTTPS on 8791 (GPS/app)
             runCatching {
-                PhoneServer(appCtx, tok).also { server ->
+                PhoneServer(appCtx, tok, HTTPS_PORT).also { server ->
                     val ks = KeyStore.getInstance("PKCS12")
                     appCtx.assets.open("aerial.p12").use { ks.load(it, "aerial123".toCharArray()) }
                     val kmf = javax.net.ssl.KeyManagerFactory.getInstance(javax.net.ssl.KeyManagerFactory.getDefaultAlgorithm())
