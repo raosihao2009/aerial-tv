@@ -25,6 +25,10 @@ import app.orchard.tv.settings.RestrictedRules
 import app.orchard.tv.guard.HomeGuardService
 import app.orchard.tv.guard.KidsWatch
 import android.os.SystemClock
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.security.KeyStore
 import app.orchard.tv.system.Diagnostics
 import app.orchard.tv.system.currentNetwork
 import app.orchard.tv.settings.FocusStyle
@@ -742,12 +746,26 @@ class PhoneServer private constructor(private val context: Context, private val 
          * interface: the address the TV has may change, the page stays the same.
          */
         @Synchronized
+        private fun keystoreFile(context: Context): File = File(context.filesDir, "aerial.p12").also { f ->
+            if (!f.exists()) context.assets.open("aerial.p12").use { input ->
+                FileOutputStream(f).use { output -> input.copyTo(output) }
+            }
+        }
+
         fun listen(context: Context): PhoneServer? {
             running?.let { if (it.isAlive) return it }
             return runCatching {
-                PhoneServer(context.applicationContext, token(context)).also {
-                    it.start(SOCKET_READ_TIMEOUT, true)
-                    running = it
+                PhoneServer(context.applicationContext, token(context)).also { server ->
+                    runCatching {
+                        val ks = KeyStore.getInstance("PKCS12")
+                        FileInputStream(keystoreFile(context)).use { ks.load(it, "aerial123".toCharArray()) }
+                        server.makeSecure(
+                            NanoHTTPD.SocketConfigurationBuilder(ks, "aerial123".toCharArray())
+                                .needClientAuth(false).build()
+                        )
+                    }.onFailure { Log.w(TAG, "HTTPS setup failed, using HTTP", it) }
+                    server.start(SOCKET_READ_TIMEOUT, true)
+                    running = server
                 }
             }.onFailure { Log.w(TAG, "could not listen", it) }.getOrNull()
         }
@@ -756,7 +774,7 @@ class PhoneServer private constructor(private val context: Context, private val 
         fun start(context: Context): String? {
             val ip = lanAddress(context) ?: return null
             val server = listen(context) ?: return null
-            return "http://$ip:$PORT/${server.token}/"
+            return "https://$ip:$PORT/${server.token}/"
         }
 
         /**
