@@ -25,7 +25,6 @@ import app.orchard.tv.settings.RestrictedRules
 import app.orchard.tv.guard.HomeGuardService
 import app.orchard.tv.guard.KidsWatch
 import android.os.SystemClock
-import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.security.KeyStore
@@ -759,10 +758,7 @@ class PhoneServer private constructor(private val context: Context, private val 
                     runCatching {
                         val ks = KeyStore.getInstance("PKCS12")
                         FileInputStream(keystoreFile(context)).use { ks.load(it, "aerial123".toCharArray()) }
-                        server.makeSecure(
-                            NanoHTTPD.SocketConfigurationBuilder(ks, "aerial123".toCharArray())
-                                .needClientAuth(false).build()
-                        )
+                        server.makeSecure(ks, "aerial123".toCharArray())
                     }.onFailure { Log.w(TAG, "HTTPS setup failed, using HTTP", it) }
                     server.start(SOCKET_READ_TIMEOUT, true)
                     running = server
