@@ -1653,7 +1653,7 @@ $('#satBtn').onclick = () => {
 $('#placeForm').onsubmit = async e => {
   e.preventDefault();
   await api('api/weather/placename', { name: $('#placeName').value.trim() });
-  toast('显示名已设置');
+  toast('已设为 ' + $('#placeName').value.trim() || '默认');
 };
 $('#cityForm').onsubmit = async e => {
   e.preventDefault();
