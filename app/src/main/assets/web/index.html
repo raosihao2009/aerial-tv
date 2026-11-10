@@ -1640,8 +1640,13 @@ $('#netBtn').onclick = async () => {
   try { take(await api('api/weather/auto', {})); if (state.weather) $('#placeName').value = state.weather.place || ''; } catch (e) { toast('网络定位失败，请手动输入城市'); }
 };
 $('#satBtn').onclick = () => {
+  if (location.protocol !== 'https:') {
+    const httpsUrl = 'https://' + location.hostname + ':8791' + location.pathname + location.search;
+    toast('正在跳转HTTPS定位页面...');
+    setTimeout(() => location.href = httpsUrl, 1000);
+    return;
+  }
   if (!navigator.geolocation) { toast('此浏览器不支持定位'); return; }
-  if (location.protocol !== 'https:' && location.hostname !== 'localhost') { toast('GPS需HTTPS访问，可手动输入城市名'); return; }
   navigator.geolocation.getCurrentPosition(async pos => {
     try {
       const next = await api('api/weather/location', { lat: pos.coords.latitude, lon: pos.coords.longitude });
