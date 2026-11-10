@@ -758,7 +758,11 @@ class PhoneServer private constructor(private val context: Context, private val 
                     runCatching {
                         val ks = KeyStore.getInstance("PKCS12")
                         FileInputStream(keystoreFile(context)).use { ks.load(it, "aerial123".toCharArray()) }
-                        server.makeSecure(ks, "aerial123".toCharArray())
+                        val kmf = javax.net.ssl.KeyManagerFactory.getInstance(javax.net.ssl.KeyManagerFactory.getDefaultAlgorithm())
+                        kmf.init(ks, "aerial123".toCharArray())
+                        val ctx = javax.net.ssl.SSLContext.getInstance("TLS")
+                        ctx.init(kmf.keyManagers, null, null)
+                        server.makeSecure(ctx.serverSocketFactory)
                     }.onFailure { Log.w(TAG, "HTTPS setup failed, using HTTP", it) }
                     server.start(SOCKET_READ_TIMEOUT, true)
                     running = server
