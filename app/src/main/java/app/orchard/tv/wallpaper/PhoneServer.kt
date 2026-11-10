@@ -768,7 +768,7 @@ class PhoneServer private constructor(private val context: Context, private val 
                         server.isSecure = true
                     }.onFailure {
                         Log.w(TAG, "HTTPS setup failed: " + it.message, it)
-                        httpsError = it.message
+                        server.httpsError = it.message
                     }
                     server.start(SOCKET_READ_TIMEOUT, true)
                     running = server
