@@ -50,6 +50,7 @@
     border: 0; background: none; text-align: left; transition: background-color .2s ease;
   }
   .item + .item::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; height: .5px; background: var(--sep); }
+  .item { -webkit-tap-highlight-color: transparent; cursor: pointer; user-select: none; }
   div.item:active, button.item:active, label.item:active { background: var(--fill); transition-duration: 0s; }
   .item .txt { flex: 1; min-width: 0; }
   .item .sub { display: block; font-size: 13px; color: var(--secondary); margin-top: 2px; }
@@ -1341,7 +1342,7 @@ function renderLive() {
   // 添加按钮(网格下方)
   const addRow = el('div', 'list'); box.appendChild(addRow);
   const addBtn = el('div', 'item tint center', '+ 添加直播卡片');
-  addBtn.style.fontWeight = '600';
+  
   addBtn.onclick = async () => {
     try {
       const s2 = await api('api/live-source', { name: '新的直播', url: '' });
@@ -1376,7 +1377,7 @@ function renderLive() {
     row.appendChild(thumb);
     row.appendChild(el('span', 'txt', s.name));
     const b = el('button', 'link act', '显示');
-    b.style.color = '#007aff'; b.style.fontWeight = '600';
+    b.style.color = '#007aff';
     b.onclick = ev => { ev.stopPropagation(); b.disabled = true; api('api/live-source/hide', { id: s.id, hide: '0' }).then(take).catch(() => {}); };
     row.appendChild(b); hl.appendChild(row);
   });
@@ -1430,12 +1431,12 @@ function liveSheet(s) {
           fetch(base + 'live-icon/' + encodeURIComponent(s.id), { method: 'POST', body: fd }).then(r => r.json()).then(s2 => { take(s2); const ns = (s2.liveSources||[]).find(x=>x.id===s.id) || s; closeSheet(); liveSheet(ns); }); };
         fi.click();
       };
-      il.lastChild.style.color = '#007aff'; il.lastChild.style.fontWeight = '600';
+      il.lastChild.style.color = '#007aff';
 
       // 隐藏(红色)
       const hdl = el('div', 'list'); body.appendChild(hdl);
       const hideBtn = el('div', 'item tint center');
-      hideBtn.style.color = '#ff3b30'; hideBtn.style.fontWeight = '600';
+      hideBtn.style.color = '#ff3b30';
       hideBtn.textContent = s.hidden ? '从直播预览显示' : '从直播预览隐藏';
       hideBtn.onclick = async () => { closeSheet(); try { take(await api('api/live-source/hide', { id: s.id, hide: s.hidden ? '0' : '1' })); } catch (e) {} };
       hdl.appendChild(hideBtn);
@@ -1443,7 +1444,7 @@ function liveSheet(s) {
       // 删除(红色)
       const dl = el('div', 'list'); body.appendChild(dl);
       const del = el('div', 'item tint center');
-      del.style.color = '#ff3b30'; del.style.fontWeight = '600';
+      del.style.color = '#ff3b30';
       del.textContent = '删除';
       del.onclick = async () => { closeSheet(); if (!confirm('删除「' + s.name + '」？')) return; try { take(await api('api/live-source/delete', { id: s.id })); } catch (e) {} };
       dl.appendChild(del);
