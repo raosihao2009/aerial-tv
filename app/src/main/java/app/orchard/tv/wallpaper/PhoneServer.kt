@@ -58,6 +58,8 @@ import java.security.SecureRandom
  * the network cannot use it by guessing. The token stays the same from one start to the next.
  */
 class PhoneServer private constructor(private val context: Context, private val token: String) : NanoHTTPD(PORT) {
+    var isSecure = false
+        private set
 
     override fun serve(session: IHTTPSession): Response {
         val prefix = "/$token"
@@ -763,6 +765,7 @@ class PhoneServer private constructor(private val context: Context, private val 
                         val ctx = javax.net.ssl.SSLContext.getInstance("TLS")
                         ctx.init(kmf.keyManagers, null, null)
                         server.makeSecure(ctx.serverSocketFactory, arrayOf<String>())
+                        server.isSecure = true
                     }.onFailure { Log.w(TAG, "HTTPS setup failed, using HTTP", it) }
                     server.start(SOCKET_READ_TIMEOUT, true)
                     running = server
@@ -774,7 +777,8 @@ class PhoneServer private constructor(private val context: Context, private val 
         fun start(context: Context): String? {
             val ip = lanAddress(context) ?: return null
             val server = listen(context) ?: return null
-            return "https://$ip:$PORT/${server.token}/"
+            val scheme = if (server.isSecure) "https" else "http"
+            return "$scheme://$ip:$PORT/${server.token}/"
         }
 
         /**
