@@ -732,8 +732,7 @@ class PhoneServer private constructor(private val context: Context, private val 
 
     companion object {
         const val PORT = 8790
-        const val HTTPS_PORT = 8791
-        const val HTTPS_PORT = 8791
+const val HTTPS_PORT = 8791
         private const val TAG = "AerialPhone"
         /** Enough for a batch of phone photos at full size. */
         private const val MAX_UPLOAD = 200L * 1024 * 1024
@@ -742,8 +741,6 @@ class PhoneServer private constructor(private val context: Context, private val 
 
         @Volatile
         private var running: PhoneServer? = null
-        @Volatile
-        private var secureRunning: PhoneServer? = null
         @Volatile
         private var secureRunning: PhoneServer? = null
 
