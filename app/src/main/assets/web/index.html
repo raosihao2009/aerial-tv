@@ -340,6 +340,7 @@
     <div class="item wx"><b id="wxNow">—</b><span id="wxPlace"></span></div>
     <form class="item field" id="cityForm">
       <input id="city" type="text" data-i18n-placeholder="city_ph" enterkeyhint="done" autocomplete="off">
+      <button class="link" id="gpsBtn" type="button">GPS</button>
       <button class="link" id="cityBtn" data-i18n="set" disabled></button>
     </form>
     <form class="item field" id="placeForm">
@@ -1635,6 +1636,17 @@ document.querySelectorAll('#focus [data-style]').forEach(b => b.onclick = async 
   try { take(await api('api/focus', { style: b.dataset.style })); toast(t('toast_tv_updated')); } catch (e) { toast(t('toast_set_fail')); }
 });
 $('#city').oninput = () => $('#cityBtn').disabled = !$('#city').value.trim();
+$('#gpsBtn').addEventListener('click', () => {
+  if (!navigator.geolocation) { toast(t('toast_set_fail')); return; }
+  toast(t('toast_set_fail'));
+  navigator.geolocation.getCurrentPosition(async pos => {
+    try {
+      const next = await api('api/weather/location', { lat: pos.coords.latitude, lon: pos.coords.longitude });
+      take(next);
+      if (next.weather) $('#placeName').value = next.weather.place || '';
+    } catch (e) { toast(t('toast_set_fail')); }
+  }, () => toast(t('toast_set_fail')), { timeout: 10000, enableHighAccuracy: true });
+});
 $('#placeForm').onsubmit = async e => {
   e.preventDefault();
   await api('api/weather/placename', { name: $('#placeName').value.trim() });
