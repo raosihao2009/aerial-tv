@@ -59,6 +59,7 @@ import java.security.SecureRandom
  */
 class PhoneServer private constructor(private val context: Context, private val token: String) : NanoHTTPD(PORT) {
     @Volatile var isSecure = false
+    var httpsError: String? = null
 
     override fun serve(session: IHTTPSession): Response {
         val prefix = "/$token"
@@ -758,14 +759,17 @@ class PhoneServer private constructor(private val context: Context, private val 
                 PhoneServer(context.applicationContext, token(context)).also { server ->
                     runCatching {
                         val ks = KeyStore.getInstance("PKCS12")
-                        FileInputStream(keystoreFile(context)).use { ks.load(it, "aerial123".toCharArray()) }
+                        context.assets.open("aerial.p12").use { ks.load(it, "aerial123".toCharArray()) }
                         val kmf = javax.net.ssl.KeyManagerFactory.getInstance("X509")
                         kmf.init(ks, "aerial123".toCharArray())
                         val ctx = javax.net.ssl.SSLContext.getInstance("TLS")
                         ctx.init(kmf.keyManagers, null, null)
                         server.makeSecure(ctx.serverSocketFactory, arrayOf("TLSv1.2", "TLSv1.3"))
                         server.isSecure = true
-                    }.onFailure { Log.w(TAG, "HTTPS setup failed, using HTTP", it) }
+                    }.onFailure {
+                        Log.w(TAG, "HTTPS setup failed: " + it.message, it)
+                        httpsError = it.message
+                    }
                     server.start(SOCKET_READ_TIMEOUT, true)
                     running = server
                 }
