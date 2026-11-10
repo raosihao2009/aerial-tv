@@ -1640,18 +1640,27 @@ $('#netBtn').onclick = async () => {
   try { take(await api('api/weather/auto', {})); if (state.weather) $('#placeName').value = state.weather.place || ''; } catch (e) { toast('网络定位失败，请手动输入城市'); }
 };
 $('#satBtn').onclick = () => {
+  // HTTP页面跳转到HTTPS端口进行GPS, 完成后跳回
+  if (location.protocol !== 'https:') {
+    const httpsUrl = 'https://' + location.hostname + ':8791' + location.pathname + location.search + '#gps';
+    location.href = httpsUrl;
+    return;
+  }
   if (!navigator.geolocation) { toast('此浏览器不支持定位，请手动输入城市'); return; }
   navigator.geolocation.getCurrentPosition(async pos => {
     try {
       const next = await api('api/weather/location', { lat: pos.coords.latitude, lon: pos.coords.longitude });
       take(next);
       if (next.weather) $('#placeName').value = next.weather.place || '';
+      toast('定位成功: ' + (next.weather?.place || ''));
+      // 跳回HTTP页面
+      setTimeout(() => {
+        const backUrl = 'http://' + location.hostname + ':8790' + location.pathname;
+        location.href = backUrl;
+      }, 1500);
     } catch (e) { toast('定位失败，请手动输入城市'); }
   }, err => {
-    if (err.code === 1) {
-      if (location.protocol !== 'https:') toast('HTTP下浏览器禁止GPS，请用HTTPS端口或手动输入城市');
-      else toast('定位权限被拒绝，请在浏览器设置中允许');
-    }
+    if (err.code === 1) toast('定位权限被拒绝，请允许');
     else if (err.code === 2) toast('无法获取位置，请手动输入城市');
     else toast('定位超时，请手动输入城市');
   }, { timeout: 15000, enableHighAccuracy: true });
