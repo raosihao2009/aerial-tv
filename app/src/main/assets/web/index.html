@@ -348,7 +348,7 @@
     </form>
     <div class="list">
       <button class="item tint center" id="netBtn" type="button">按网络定位</button>
-      <button class="item tint center" id="satBtn" type="button">按卫星定位</button>
+      <button class="item tint center" id="satBtn" type="button">按卫星定位（需HTTPS）</button>
     </div>
   </div>
   <p class="foot" id="wxHint"></p>
@@ -1640,14 +1640,15 @@ $('#netBtn').onclick = async () => {
   try { take(await api('api/weather/auto', {})); if (state.weather) $('#placeName').value = state.weather.place || ''; } catch (e) { toast(t('toast_set_fail')); }
 };
 $('#satBtn').onclick = () => {
-  if (!navigator.geolocation) { toast(t('toast_set_fail')); return; }
+  if (!navigator.geolocation) { toast('此浏览器不支持定位'); return; }
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost') { toast('GPS需HTTPS访问，可手动输入城市名'); return; }
   navigator.geolocation.getCurrentPosition(async pos => {
     try {
       const next = await api('api/weather/location', { lat: pos.coords.latitude, lon: pos.coords.longitude });
       take(next);
       if (next.weather) $('#placeName').value = next.weather.place || '';
-    } catch (e) { toast(t('toast_set_fail')); }
-  }, () => toast(t('toast_set_fail')), { timeout: 15000, enableHighAccuracy: true });
+    } catch (e) { toast('定位失败，请手动输入城市'); }
+  }, err => { toast(err.code === 1 ? '定位权限被拒绝' : '定位超时，请手动输入城市'); }, { timeout: 15000, enableHighAccuracy: true });
 };
 $('#placeForm').onsubmit = async e => {
   e.preventDefault();
