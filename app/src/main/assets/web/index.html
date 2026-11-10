@@ -50,7 +50,7 @@
     border: 0; background: none; text-align: left; transition: background-color .2s ease;
   }
   .item + .item::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; height: .5px; background: var(--sep); }
-  button.item:active, label.item:active { background: var(--fill); transition-duration: 0s; }
+  div.item:active, button.item:active, label.item:active { background: var(--fill); transition-duration: 0s; }
   .item .txt { flex: 1; min-width: 0; }
   .item .sub { display: block; font-size: 13px; color: var(--secondary); margin-top: 2px; }
   .item .val { color: var(--secondary); white-space: nowrap; }
