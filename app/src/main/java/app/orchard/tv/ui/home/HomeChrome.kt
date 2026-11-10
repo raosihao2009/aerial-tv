@@ -834,7 +834,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     fontSize = 52.sp,
                     color = Color.White,
                     shadow = shadow,
-                    letterSpacing = (-0.04).em,
+                    letterSpacing = 0.em,
                     fontFamily = OppoSans,
                 ),
                 modifier = Modifier.toSaverClock(toSaver, 52.sp, 52.sp.value.dp * CAP_TOP, drift),
