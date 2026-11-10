@@ -340,13 +340,16 @@
     <div class="item wx"><b id="wxNow">—</b><span id="wxPlace"></span></div>
     <form class="item field" id="cityForm">
       <input id="city" type="text" data-i18n-placeholder="city_ph" enterkeyhint="done" autocomplete="off">
-      <button class="link" id="gpsBtn" type="button">GPS</button>
       <button class="link" id="cityBtn" data-i18n="set" disabled></button>
     </form>
     <form class="item field" id="placeForm">
       <input id="placeName" type="text" placeholder="显示名（可选）" autocomplete="off">
       <button class="link" id="placeBtn" data-i18n="set"></button>
     </form>
+    <div class="list">
+      <button class="item tint center" id="netBtn" type="button">按网络定位</button>
+      <button class="item tint center" id="satBtn" type="button">按卫星定位</button>
+    </div>
   </div>
   <p class="foot" id="wxHint"></p>
 
@@ -1593,10 +1596,7 @@ function renderMore() {
   if ($('#placeName')) $('#placeName').value = w.place || '';
   const hint = $('#wxHint'); hint.replaceChildren();
   if (w.chosen) {
-    hint.append(t('wx_chosen', { place: w.place }) + ' ');
-    const b = el('button', 'link', t('wx_auto_btn'));
-    b.onclick = async () => { try { take(await api('api/weather/auto', {})); toast(t('toast_auto')); } catch (e) { toast(t('toast_set_fail')); } };
-    hint.append(b);
+    hint.textContent = t('wx_chosen', { place: w.place });
   } else hint.textContent = w.place ? t('wx_guessed', { place: w.place }) : t('wx_none');
 }
 function renderInputs() {
@@ -1636,17 +1636,19 @@ document.querySelectorAll('#focus [data-style]').forEach(b => b.onclick = async 
   try { take(await api('api/focus', { style: b.dataset.style })); toast(t('toast_tv_updated')); } catch (e) { toast(t('toast_set_fail')); }
 });
 $('#city').oninput = () => $('#cityBtn').disabled = !$('#city').value.trim();
-$('#gpsBtn').addEventListener('click', () => {
+$('#netBtn').onclick = async () => {
+  try { take(await api('api/weather/auto', {})); if (state.weather) $('#placeName').value = state.weather.place || ''; } catch (e) { toast(t('toast_set_fail')); }
+};
+$('#satBtn').onclick = () => {
   if (!navigator.geolocation) { toast(t('toast_set_fail')); return; }
-  toast(t('toast_set_fail'));
   navigator.geolocation.getCurrentPosition(async pos => {
     try {
       const next = await api('api/weather/location', { lat: pos.coords.latitude, lon: pos.coords.longitude });
       take(next);
       if (next.weather) $('#placeName').value = next.weather.place || '';
     } catch (e) { toast(t('toast_set_fail')); }
-  }, () => toast(t('toast_set_fail')), { timeout: 10000, enableHighAccuracy: true });
-});
+  }, () => toast(t('toast_set_fail')), { timeout: 15000, enableHighAccuracy: true });
+};
 $('#placeForm').onsubmit = async e => {
   e.preventDefault();
   await api('api/weather/placename', { name: $('#placeName').value.trim() });
