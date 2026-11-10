@@ -760,11 +760,11 @@ class PhoneServer private constructor(private val context: Context, private val 
                     runCatching {
                         val ks = KeyStore.getInstance("PKCS12")
                         context.assets.open("aerial.p12").use { ks.load(it, "aerial123".toCharArray()) }
-                        val kmf = javax.net.ssl.KeyManagerFactory.getInstance("X509")
+                        val kmf = javax.net.ssl.KeyManagerFactory.getInstance(javax.net.ssl.KeyManagerFactory.getDefaultAlgorithm())
                         kmf.init(ks, "aerial123".toCharArray())
                         val ctx = javax.net.ssl.SSLContext.getInstance("TLS")
-                        ctx.init(kmf.keyManagers, null, null)
-                        server.makeSecure(ctx.serverSocketFactory, arrayOf("TLSv1.2", "TLSv1.3"))
+                        ctx.init(kmf.keyManagers, null, java.security.SecureRandom())
+                        server.makeSecure(ctx.serverSocketFactory, null)
                         server.isSecure = true
                     }.onFailure {
                         Log.w(TAG, "HTTPS setup failed: " + it.message, it)
