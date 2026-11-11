@@ -160,6 +160,8 @@ fun AppTile(
     showName: Boolean = true,
     /** 淡入淡出期间: 选中态直接跳到终值, 不演缩放过渡 */
     snapFocus: Boolean = false,
+    /** 只让缩放不演过渡(焦点框/浮起照常): 过渡期间看不到卡片放大缩小 */
+    snapScale: Boolean = false,
     /** The name sits on the glass plate, which ends just under it: it does not step down past the focus frame. */
     nameOnPlate: Boolean = false,
 ) {
@@ -197,7 +199,7 @@ fun AppTile(
         // smoothly. Critically damped, as Android TV's focus zoom (Leanback, Compose for TV) is: an
         // overshoot reads as a wobble on a lit tile and makes the white frame shimmer.
         animationSpec = when {
-            snapFocus -> androidx.compose.animation.core.snap()
+            snapFocus || snapScale -> androidx.compose.animation.core.snap()
             pressed -> tween(110, easing = Motion.EaseOut)
             else -> spring(dampingRatio = 1f, stiffness = 520f)
         },

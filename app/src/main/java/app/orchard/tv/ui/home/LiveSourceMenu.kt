@@ -216,13 +216,18 @@ fun LiveSourceMenu(
 
     // 打开量: 0=完全收起, 1=完全展开。用它驱动屏保那一套动作
     // (卡片逐列错峰下沉淡出 + 时钟缩小 + 底板退场)。
-    // 用 Animatable 而不是 animateFloatAsState: 打开时要先等焦点(和卡片缩放)演完再淡入,
-    // 否则会看到卡片在菜单里放大。
-    val alpha = androidx.compose.animation.core.Animatable(0f)
+    // 淡入要等焦点缩放演完(showing), 淡出则立刻开始 —— 关闭时一定有线性的退场动画。
+    var showing by remember { mutableStateOf(false) }
+    val alpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (visible && showing) 1f else 0f,
+        animationSpec = androidx.compose.animation.core.tween(500, easing = Motion.EaseInOut),
+        label = "liveMenuAlpha",
+    )
+    val transitionDone = alpha >= 0.99f
 
     // 焦点时机:
-    // - 打开: 先把焦点放到当前直播卡片上, 等它的缩放演完(此间菜单还没开始淡入, 全不可见),
-    //   再淡入 —— 整个过程看不到卡片放大。justOpened 让除当前卡片外的节点(含右上角控制中心)不可聚焦。
+    // - 打开: 先把焦点放到当前直播卡片上, 等它的缩放演完(showing 之前菜单还没淡入, 全不可见),
+    //   再淡入 —— 看不到卡片放大。justOpened 让除当前卡片外的节点(含右上角控制中心)不可聚焦。
     // - 关闭: 淡出全程保持焦点和选中尺寸不变, 菜单完全看不见之后才把焦点挪走 —— 看不到缩小。
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     LaunchedEffect(visible) {
@@ -232,21 +237,24 @@ fun LiveSourceMenu(
                 justOpened = true
                 repeat(2) { androidx.compose.runtime.withFrameNanos { } }
                 runCatching { pillFocus.requestFocus() }
-                alpha.animateTo(1f, androidx.compose.animation.core.tween(500, easing = Motion.EaseInOut))
+                showing = true
+                snapshotFlow { alpha }.first { it >= 0.99f }
                 justOpened = false
             } else {
                 focusedId = currentId
                 justOpened = true
                 repeat(2) { androidx.compose.runtime.withFrameNanos { } }
                 runCatching { requester(currentId).requestFocus() }
-                // 焦点缩放演完之后才淡入: 缩放全程在看不见的时候发生
                 kotlinx.coroutines.delay(FOCUS_SETTLE_MS)
                 runCatching { requester(currentId).requestFocus() }
-                alpha.animateTo(1f, androidx.compose.animation.core.tween(500, easing = Motion.EaseInOut))
+                showing = true
+                snapshotFlow { alpha }.first { it >= 0.99f }
                 justOpened = false
             }
         } else {
-            alpha.animateTo(0f, androidx.compose.animation.core.tween(500, easing = Motion.EaseInOut))
+            // 立刻开始淡出(animateFloatAsState 自己会演 500ms), 看不见之后再放掉焦点
+            showing = false
+            snapshotFlow { alpha }.first { it <= 0.01f }
             justOpened = true
             runCatching { focusManager.clearFocus(force = true) }
         }
@@ -554,6 +562,8 @@ fun LiveSourceMenu(
                         enabled = menuForId == null && visible && !controlCenterOpen && (!justOpened || source.id == currentId),
                         moving = movingId == source.id,
                         onFocused = { focusedId = source.id; Sounds.focusMoved() },
+                        // 过渡期间缩放不演: 避免看到卡片放大/缩小
+                        snapScale = !transitionDone,
                         onClick = { if (movingId == null) {
                             if (source.url.isBlank()) {
                                 bannerMsg = "「${source.name}」暂未设置直播地址"

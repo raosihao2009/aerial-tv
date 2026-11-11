@@ -544,28 +544,29 @@ fun HomeScreen(
         val wanted = focusAfterOverlay
         focusAfterOverlay = null
         if (wanted != null) { focusedKey = wanted; pillFocused = false }
-        if (lastOverlay is Overlay.LiveSourceMenu) {
-            // 二级菜单关闭后回到一级: 焦点落在直播预览卡片上
+        // 从二级菜单回来、或者根本没有记住焦点: 焦点一律落在直播频道卡片上,
+        // 不要落到右上角的控制中心按钮(以前会偶发/经常落在那里)
+        val liveIndex = apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages }
+        if (lastOverlay is Overlay.LiveSourceMenu || pillFocused) {
             pillFocused = false
-            val live = apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages }
-            val i = if (live >= 0) live else apps.indexOfFirst { it.key == focusedKey }
-            if (i >= 0) focusApp(i)
+            val i = if (liveIndex >= 0) liveIndex else apps.indexOfFirst { it.key == focusedKey }
+            if (i >= 0) { focusApp(i); focusedKey = apps[i].key }
             return@LaunchedEffect
         }
+        // 兜底: 几帧之后如果焦点还是不在任何卡片上(落到控制中心), 拉回直播卡片
+        repeat(3) { withFrameNanos { } }
+        if (focusedKey == null && liveIndex >= 0) { focusApp(liveIndex); focusedKey = apps[liveIndex].key }
         val index = apps.indexOfFirst { it.key == focusedKey }
         // A tile that went while the overlay was up (hidden, put in a folder, a folder ungrouped)
         // leaves focus where it was.
-        if (pillFocused && focusedKey != null) runCatching { pillRequester.requestFocus() }
-        else {
-            // 没记住焦点(如首次进入): 优先落在直播频道卡片上, 避免焦点跑到右上角控制中心
-            val liveIndex = if (index < 0) apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages } else -1
-            focusApp(when {
-                index >= 0 -> index
-                liveIndex >= 0 -> liveIndex
-                wanted != null -> indexAfterOverlay
-                else -> lastFocusedIndex
-            })
-        }
+        // 兜底: 没记住焦点(首次进入/卡片消失)时优先落在直播频道卡片上, 避免焦点跑到右上角控制中心
+        val liveFallback = if (index < 0) apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages } else -1
+        focusApp(when {
+            index >= 0 -> index
+            liveFallback >= 0 -> liveFallback
+            wanted != null -> indexAfterOverlay
+            else -> lastFocusedIndex
+        })
     }
     // A folder whose last app left closes.
     LaunchedEffect(overlay, vm.folderApps) {
