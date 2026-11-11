@@ -158,6 +158,8 @@ fun AppTile(
     rowEnd: Boolean = false,
     /** False on the glass plate: the top row shows no names there, as on tvOS 26. */
     showName: Boolean = true,
+    /** 淡入淡出期间: 选中态直接跳到终值, 不演缩放过渡 */
+    snapFocus: Boolean = false,
     /** The name sits on the glass plate, which ends just under it: it does not step down past the focus frame. */
     nameOnPlate: Boolean = false,
 ) {
@@ -181,22 +183,29 @@ fun AppTile(
     val leanX = remember { Animatable(0f) }
     val push = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
 
+    // 二级菜单淡入淡出期间为 true: 选中态直接跳到终值, 不演放大/缩小过渡,
+    // 这样菜单显示和收回时看不到卡片在缩放。
+    val scaleTarget = when {
+        reduced -> 1f
+        pressed -> PRESSED_SCALE
+        focused || moving -> FOCUSED_SCALE
+        else -> 1f
+    }
     val scale by animateFloatAsState(
-        targetValue = when {
-            reduced -> 1f
-            pressed -> PRESSED_SCALE
-            focused || moving -> FOCUSED_SCALE
-            else -> 1f
-        },
+        targetValue = scaleTarget,
         // Press answers immediately; focus settles on a spring so rapid D-pad presses retarget
         // smoothly. Critically damped, as Android TV's focus zoom (Leanback, Compose for TV) is: an
         // overshoot reads as a wobble on a lit tile and makes the white frame shimmer.
-        animationSpec = if (pressed) tween(110, easing = Motion.EaseOut) else spring(dampingRatio = 1f, stiffness = 520f),
+        animationSpec = when {
+            snapFocus -> androidx.compose.animation.core.snap()
+            pressed -> tween(110, easing = Motion.EaseOut)
+            else -> spring(dampingRatio = 1f, stiffness = 520f)
+        },
         label = "tile-scale",
     )
     val liftState = animateFloatAsState(
         targetValue = if (focused || moving) 1f else 0f,
-        animationSpec = spring(dampingRatio = 1f, stiffness = 380f),
+        animationSpec = if (snapFocus) androidx.compose.animation.core.snap() else spring(dampingRatio = 1f, stiffness = 380f),
         label = "tile-lift",
     )
     val lift by liftState
@@ -210,7 +219,11 @@ fun AppTile(
     // never shows two frames at once. It grows out from the tile's edge to its place.
     val ringInState = animateFloatAsState(
         targetValue = if (focused || moving) 1f else 0f,
-        animationSpec = if (focused || moving) spring(dampingRatio = 1f, stiffness = 700f) else spring(dampingRatio = 1f, stiffness = 2400f),
+        animationSpec = when {
+            snapFocus -> androidx.compose.animation.core.snap()
+            focused || moving -> spring(dampingRatio = 1f, stiffness = 700f)
+            else -> spring(dampingRatio = 1f, stiffness = 2400f)
+        },
         label = "tile-ring-in",
     )
     val ringIn by ringInState

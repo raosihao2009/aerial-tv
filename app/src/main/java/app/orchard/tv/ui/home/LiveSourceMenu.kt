@@ -217,6 +217,8 @@ fun LiveSourceMenu(
         label = "liveMenuAlpha",
     )
 
+    // 是否已经完全显示(过渡结束)。过渡期间卡片不做缩放动画。
+    val transitionDone = alpha.value >= 0.99f
     // 焦点要等"淡入/淡出演完"再动: 打开时菜单显示完成后才把焦点放到当前直播卡片上,
     // 关闭时先保持选中态把菜单收掉, 收回之后才放掉焦点 —— 卡片不会在过渡当中放大/缩小。
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
@@ -363,7 +365,7 @@ fun LiveSourceMenu(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = 28.dp, end = 42.dp)
-                    .graphicsLayer { this.alpha = 1f - alpha.value }
+                    .graphicsLayer { this.alpha = alpha.value }
                     .focusProperties {
                     up = FocusRequester.Cancel
                     right = FocusRequester.Cancel
@@ -428,7 +430,7 @@ fun LiveSourceMenu(
                         .offset(x = plateX, y = plateY)
                         .width(plateW)
                         .height(plateHeight)
-                        .graphicsLayer { this.alpha = 1f - alpha.value }
+                        .graphicsLayer { this.alpha = alpha.value }
                         .drawBehind {
                             val corner = 32.dp.toPx()
                             val rim = 1.2.dp.toPx()
@@ -548,6 +550,8 @@ fun LiveSourceMenu(
                         enabled = menuForId == null && visible && !controlCenterOpen && (!justOpened || source.id == currentId),
                         moving = movingId == source.id,
                         onFocused = { focusedId = source.id; Sounds.focusMoved() },
+                        // 淡入淡出期间不演选中缩放: 不能看到卡片放大/缩小
+                        snapFocus = !transitionDone,
                         onClick = { if (movingId == null) {
                             if (source.url.isBlank()) {
                                 bannerMsg = "「${source.name}」暂未设置直播地址"

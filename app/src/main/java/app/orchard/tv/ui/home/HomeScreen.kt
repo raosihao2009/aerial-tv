@@ -962,12 +962,14 @@ fun HomeScreen(
                     Wallpapers.selectedId.startsWith(Wallpapers.VIDEO_PREFIX)
                 val plateFrost = Wallpapers.frosted.takeIf { Wallpapers.backdrop != null }
                 val greyGlass = remember(Wallpapers.backdrop) { frostGreyGlass() }
-                // 底板自己按 toSaver(=saverLike) 淡出, 这里不再叠一层 alpha, 免得双重淡出
-                Box(Modifier.fillMaxSize()) {
+                // 跟着 uiAlpha 一起走: 隐藏 UI / 打开浮层时和卡片同时淡出, 不会单独留在屏幕上
+                Box(Modifier.fillMaxSize().graphicsLayer { alpha = uiAlpha }) {
                     HomePlate(
-                        glass = if (videoWall) greyGlass else plateFrost,
-                        film = if (videoWall) greyGlass else null,
-                        filmPlate = false,
+                        // 压在直播画面上时, 底板要变成半透明的玻璃(磨砂+烟灰+亮边),
+                        // 不管壁纸本身是静态还是视频, 不能盖一层不透明的壁纸板
+                        glass = if (videoWall || channelPreviewVisible) greyGlass else plateFrost,
+                        film = if (videoWall || channelPreviewVisible) greyGlass else null,
+                        filmPlate = videoWall || channelPreviewVisible,
                         deepSmoke = false,
                         stillOverFilm = false,
                         plate = plateRect,
