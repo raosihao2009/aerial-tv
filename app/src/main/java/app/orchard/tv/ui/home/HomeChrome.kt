@@ -464,20 +464,23 @@ private fun Plate(glass: ImageBitmap?, film: ImageBitmap?, filmPlate: Boolean, d
             bakePlate(plateTinted(glass), size, plate, with(density) { PlateCorner.toPx() }, with(density) { 1.2.dp.toPx() })
         }
     }
-    val top by produceState<ImageBitmap?>(null, shown, plate, screen) { value = baked(shown) }
-    val bottom by produceState<ImageBitmap?>(null, under, plate, screen) { value = baked(under) }
+    // 重烘焙期间保留上一张: 否则 plate 矩形一变(露出下一排、行位移动)的那几帧底板会"消失一下"
+    var top by remember { mutableStateOf<ImageBitmap?>(null) }
+    var bottom by remember { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(shown, plate, screen) { baked(shown)?.let { top = it } }
+    LaunchedEffect(under, plate, screen) { baked(under)?.let { bottom = it } }
     var filmTop by remember { mutableStateOf<ImageBitmap?>(null) }
     var filmBottom by remember { mutableStateOf<ImageBitmap?>(null) }
     var smoke by remember { mutableStateOf<ImageBitmap?>(null) }
     val filmSwap = remember { Animatable(1f) }
     LaunchedEffect(plate, screen, deepSmoke) {
         if (plate == null || screen == Size.Zero) return@LaunchedEffect
-        smoke = withContext(Dispatchers.Default) { bakePlate(smokeGlass(if (deepSmoke) FILM_SMOKE_ALONE else FILM_SMOKE), screen, plate, with(density) { PlateCorner.toPx() }, with(density) { 1.2.dp.toPx() }) }
+        val b = withContext(Dispatchers.Default) { bakePlate(smokeGlass(if (deepSmoke) FILM_SMOKE_ALONE else FILM_SMOKE), screen, plate, with(density) { PlateCorner.toPx() }, with(density) { 1.2.dp.toPx() }) }
+        smoke = b
     }
     LaunchedEffect(film, plate, screen) {
         if (film == null || plate == null || screen == Size.Zero) {
-            filmTop = null
-            filmBottom = null
+            if (film == null) { filmTop = null; filmBottom = null }
             return@LaunchedEffect
         }
         val baked = withContext(Dispatchers.Default) { bakePlate(plateTinted(film), screen, plate, with(density) { PlateCorner.toPx() }, 0f, edge = false) }

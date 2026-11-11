@@ -61,6 +61,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
@@ -79,6 +80,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import app.orchard.tv.CcPage
 import app.orchard.tv.apps.SourceLooks
@@ -232,6 +234,8 @@ private class GridMetrics(screenW: Dp, screenH: Dp, val columns: Int, oneRow: Bo
      * well showed the second row nearly three times as far (issue #540).
      */
     val topRowY = when {
+        // 双排: 选了"下一排/露出一点"时, 让第三排的上沿在底部露出 12dp
+        !oneRow && peek -> minOf(maxOf(twoRowFit, twoRowFloor), screenH - pitchY * 2 - 12.dp - firstGap)
         !oneRow -> maxOf(twoRowFit, twoRowFloor)
         peek -> screenH - pitchY - 12.dp - firstGap
         // Nothing peeks under the row, so it goes as low as it fits: the plate as far from the
@@ -321,6 +325,8 @@ fun HomeScreen(
         SystemProbe.tclInputPanel(appContext) != null || SystemProbe.coocaaInputPanel(appContext) != null
     }
 
+    // 上一个浮层: 从二级菜单回来时, 焦点要落在直播卡片上(不是右上角控制中心)
+    var lastOverlay by remember { mutableStateOf<Overlay?>(null) }
     var focusedKey by remember { mutableStateOf<String?>(null) }
     // Where focus goes when the overlay closes, when that is not the tile it was on. Kept apart
     // from focusedKey: a closing menu hands focus to whatever tile lies under it first.
@@ -528,6 +534,9 @@ fun HomeScreen(
         runCatching { requester(app.key).requestFocus() }
     }
 
+    // 记住上一个浮层: 从二级菜单回到一级时要用它判断焦点落点
+    LaunchedEffect(overlay) { if (overlay != Overlay.None) lastOverlay = overlay }
+
     // First focus once the apps are in; afterwards, put focus back wherever it was when an overlay closes.
     LaunchedEffect(vm.loaded, overlay) {
         if (!vm.loaded || overlay != Overlay.None) return@LaunchedEffect
@@ -535,6 +544,14 @@ fun HomeScreen(
         val wanted = focusAfterOverlay
         focusAfterOverlay = null
         if (wanted != null) { focusedKey = wanted; pillFocused = false }
+        if (lastOverlay is Overlay.LiveSourceMenu) {
+            // 二级菜单关闭后回到一级: 焦点落在直播预览卡片上
+            pillFocused = false
+            val live = apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages }
+            val i = if (live >= 0) live else apps.indexOfFirst { it.key == focusedKey }
+            if (i >= 0) focusApp(i)
+            return@LaunchedEffect
+        }
         val index = apps.indexOfFirst { it.key == focusedKey }
         // A tile that went while the overlay was up (hidden, put in a folder, a folder ungrouped)
         // leaves focus where it was.
@@ -901,8 +918,8 @@ fun HomeScreen(
                 scroll = { scroll.value },
                 collapse = collapsePx,
                 // 只有壁纸本身是视频时, 直播预览才"接管"影片层(遮住壁纸的影片);
-                // 静态壁纸没有影片要接管, 这里传 1f 会连壁纸一起遮掉, 切到预览卡时黑一下。
-                cover = { if (channelPreviewVisible && Wallpapers.moves()) 1f else filmCover.value },
+                // 静态壁纸没有影片要接管: 永远 0, 既不遮壁纸, 底板也不会因为 cover 被算成看不见。
+                cover = { if (!Wallpapers.moves()) 0f else if (channelPreviewVisible) 1f else filmCover.value },
                 // An input's picture gets the shade a picture has; in the grid it gives way to the
                 // glass, as any wallpaper does (it cannot be blurred). Not a film, moving or not
                 // (the owner, 2026-10-29): since the aerial wallpaper keeps moving under keys
@@ -961,6 +978,26 @@ fun HomeScreen(
                     onActuallyPlayingChange = { vm.liveActuallyPlaying = it },
                 )
             }
+            // 静态壁纸: 直播画面还没出帧时 SurfaceView 是黑的, 先盖一层壁纸,
+            // 出帧后再淡出 —— 观感是"直播画面直接覆盖在壁纸上", 不会黑一下。
+            if (channelPreviewVisible && !Wallpapers.moves()) {
+                val still = Wallpapers.backdrop ?: Wallpapers.frosted
+                val ready by androidx.compose.animation.core.animateFloatAsState(
+                    targetValue = if (liveReadyState.value) 1f else 0f,
+                    animationSpec = androidx.compose.animation.core.tween(320),
+                    label = "previewStillCover",
+                )
+                if (still != null && ready < 0.999f) {
+                    Canvas(Modifier.fillMaxSize().diagLayer("preview-still")) {
+                        drawImage(
+                            still,
+                            dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+                            alpha = 1f - ready,
+                            filterQuality = FilterQuality.Low,
+                        )
+                    }
+                }
+            }
             // 底板: 只有这一处, 排在直播画面之后(压得住它), 又在 UI 内容之下;
             // 单实例 + 跟着 uiAlpha 走, 焦点在普通卡片和直播预览卡片之间移动时不会闪,
             // 隐藏 UI 时也会跟着一起消失。
@@ -979,16 +1016,15 @@ fun HomeScreen(
                         // 静态壁纸切到直播预览时不换玻璃图: 沿用同一张磨砂片, 避免底板闪一下;
                         // 只在上面叠烟灰和亮边(半透明地压在直播画面上)。
                         glass = if (videoWall) greyGlass else (plateFrost ?: greyGlass),
-                        film = if (videoWall) greyGlass else (plateFrost ?: greyGlass),
+                        // 压在直播画面上时磨砂片必须是中性灰, 不能是壁纸色
+                        film = if (videoWall || channelPreviewVisible) greyGlass else (plateFrost ?: greyGlass),
                         filmPlate = videoWall || channelPreviewVisible,
                         deepSmoke = false,
                         stillOverFilm = false,
                         plate = plateRect,
                         scroll = { scroll.value },
                         collapse = collapsePx,
-                        // 只有壁纸本身是视频时, 直播预览才"接管"影片层(遮住壁纸的影片);
-                // 静态壁纸没有影片要接管, 这里传 1f 会连壁纸一起遮掉, 切到预览卡时黑一下。
-                cover = { if (channelPreviewVisible && Wallpapers.moves()) 1f else filmCover.value },
+                        cover = { if (!Wallpapers.moves()) 0f else if (channelPreviewVisible) 1f else filmCover.value },
                         filmStopped = { filmStopped },
                         toSaver = { saverLike },
                         lift = { liftState.value },

@@ -2,6 +2,7 @@ package app.orchard.tv.ui.home
 
 import android.content.ComponentName
 import android.view.KeyEvent as NativeKeyEvent
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateIntOffsetAsState
@@ -45,6 +46,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -72,6 +74,9 @@ import app.orchard.tv.ui.theme.Type
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.IntSize
+
+/** 焦点缩放的演出时长: 菜单在这之后才开始淡入 */
+private const val FOCUS_SETTLE_MS = 260L
 
 private val liveColors = listOf(
     Pair(0xFFD32F2F.toInt(), 0xFF8E0000.toInt()),
@@ -209,19 +214,16 @@ fun LiveSourceMenu(
     val basePad = if (plate) 50.dp else 70.dp
     val showAllNames = AerialSettings.showAllNames
 
-    // 打开量: 0=完全展开, 1=完全收起。用它驱动屏保那一套动作
+    // 打开量: 0=完全收起, 1=完全展开。用它驱动屏保那一套动作
     // (卡片逐列错峰下沉淡出 + 时钟缩小 + 底板退场)。
-    val alpha = androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (!visible) 0f else 1f,
-        animationSpec = androidx.compose.animation.core.tween(500, easing = Motion.EaseInOut),
-        label = "liveMenuAlpha",
-    )
+    // 用 Animatable 而不是 animateFloatAsState: 打开时要先等焦点(和卡片缩放)演完再淡入,
+    // 否则会看到卡片在菜单里放大。
+    val alpha = androidx.compose.animation.core.Animatable(0f)
 
     // 焦点时机:
-    // - 打开: 在菜单还没淡入之前(alpha≈0)就把焦点放到当前直播卡片上, 配合 snapFocus
-    //   卡片直接以选中尺寸出现 —— 淡入全程看不到放大。
-    // - 关闭: 淡出期间保持焦点和选中尺寸不变, 菜单完全看不见之后才把焦点挪走 —— 看不到缩小。
-    val transitionDone = alpha.value >= 0.99f
+    // - 打开: 先把焦点放到当前直播卡片上, 等它的缩放演完(此间菜单还没开始淡入, 全不可见),
+    //   再淡入 —— 整个过程看不到卡片放大。justOpened 让除当前卡片外的节点(含右上角控制中心)不可聚焦。
+    // - 关闭: 淡出全程保持焦点和选中尺寸不变, 菜单完全看不见之后才把焦点挪走 —— 看不到缩小。
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     LaunchedEffect(visible) {
         if (visible) {
@@ -230,23 +232,21 @@ fun LiveSourceMenu(
                 justOpened = true
                 repeat(2) { androidx.compose.runtime.withFrameNanos { } }
                 runCatching { pillFocus.requestFocus() }
-                // 淡入完成后再放开控制中心(允许聚焦)
-                snapshotFlow { alpha.value }.first { it >= 0.99f }
+                alpha.animateTo(1f, androidx.compose.animation.core.tween(500, easing = Motion.EaseInOut))
                 justOpened = false
             } else {
                 focusedId = currentId
-                // 打开瞬间: 只有当前直播卡片可聚焦(justOpened=true), 焦点落不到控制中心
                 justOpened = true
                 repeat(2) { androidx.compose.runtime.withFrameNanos { } }
                 runCatching { requester(currentId).requestFocus() }
-                if (focusedId != currentId) runCatching { requester(currentId).requestFocus() }
-                // 淡入完成后: 放开其余卡片和控制中心
-                snapshotFlow { alpha.value }.first { it >= 0.99f }
+                // 焦点缩放演完之后才淡入: 缩放全程在看不见的时候发生
+                kotlinx.coroutines.delay(FOCUS_SETTLE_MS)
+                runCatching { requester(currentId).requestFocus() }
+                alpha.animateTo(1f, androidx.compose.animation.core.tween(500, easing = Motion.EaseInOut))
                 justOpened = false
             }
         } else {
-            // 淡出全程保持焦点不动; 菜单看不见之后才挪焦点
-            snapshotFlow { alpha.value }.first { it <= 0.01f }
+            alpha.animateTo(0f, androidx.compose.animation.core.tween(500, easing = Motion.EaseInOut))
             justOpened = true
             runCatching { focusManager.clearFocus(force = true) }
         }
@@ -554,8 +554,6 @@ fun LiveSourceMenu(
                         enabled = menuForId == null && visible && !controlCenterOpen && (!justOpened || source.id == currentId),
                         moving = movingId == source.id,
                         onFocused = { focusedId = source.id; Sounds.focusMoved() },
-                        // 淡入淡出期间不演选中缩放: 不能看到卡片放大/缩小
-                        snapFocus = !transitionDone,
                         onClick = { if (movingId == null) {
                             if (source.url.isBlank()) {
                                 bannerMsg = "「${source.name}」暂未设置直播地址"
