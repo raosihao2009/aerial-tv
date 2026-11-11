@@ -176,6 +176,8 @@
     <string name="st_hidden_none">None</string>
     <string name="st_hidden_count">%d</string>
     <string name="st_hidden">Hidden Cards</string>
+    <string name="st_hidden_apps_title">Hidden Cards·Apps</string>
+    <string name="st_hidden_live_title">Hidden Cards·Live</string>
     <string name="st_hidden_hint">Cards taken off Home or the live menu are kept here, to put back. With a parental PIN set, it asks for the PIN first.</string>
     <string name="st_hidden_app_none">Apps·none</string>
     <string name="st_hidden_app_count">Apps·%1$d</string>

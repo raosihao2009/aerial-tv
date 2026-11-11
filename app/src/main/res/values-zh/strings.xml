@@ -163,6 +163,8 @@
     <string name="st_hidden_none">没有</string>
     <string name="st_hidden_count">%d 个</string>
     <string name="st_hidden">隐藏的卡片</string>
+    <string name="st_hidden_apps_title">隐藏的卡片·应用</string>
+    <string name="st_hidden_live_title">隐藏的卡片·直播</string>
     <string name="st_hidden_hint">从应用菜单或直播菜单隐藏的卡片都在这里，可以随时放回。设了家长密码时要先输入密码。</string>
     <string name="st_hidden_app_none">应用·没有</string>
     <string name="st_hidden_app_count">应用·%1$d个</string>
