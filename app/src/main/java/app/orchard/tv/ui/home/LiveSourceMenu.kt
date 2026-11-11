@@ -393,14 +393,16 @@ fun LiveSourceMenu(
                 )
                 val plateW = tileW * columns + gridGap * (columns - 1) + 52.dp
                 val plateX = gridMargin - 26.dp
-                // 和一级菜单同一块玻璃, 只把"壁纸那层颜色"换成中性灰:
-                // 灰 55% + 烟灰(argb(72,0,0,0)) + 32dp 圆角 + 1.2dp lit edge(顶部光泽+一圈亮边)。
-                // 直接调一级那个烘焙函数, 参数一模一样, 只是喂给它一张灰图。
-                // 灰色取一级那块玻璃的平均亮度(去掉色偏): 参数完全一致, 亮度也就一致,
-                // 只把壁纸的颜色换成中性灰
-                val greyPlate = remember(Wallpapers.backdrop) {
+                // 和一级菜单的 bakeLivePlate 完全同一套参数, 只把"壁纸那层的颜色"换成中性灰;
+                // 但这里用矢量方式画(不烘焙成图), 首排/双排高度变化时 32dp 圆角永远不变形。
+                //   磨砂: 灰 55% (FILM_FROST)
+                //   烟灰: argb(72,0,0,0) (FILM_SMOKE)
+                //   圆角: 32dp (PlateCorner), 描边 1.2dp (glassEdge 的 rim)
+                //   顶部光泽: 白 10% -> 中段 0 (glassEdge 的 sheen)
+                //   亮边: 白 55% -> 10% -> 6% -> 30% 的横向渐变 (glassEdge 的 rim)
+                val greyLevel = remember(Wallpapers.backdrop) {
                     val frost = Wallpapers.frosted
-                    val level = if (frost != null) {
+                    if (frost != null) {
                         val small = android.graphics.Bitmap.createScaledBitmap(frost.asAndroidBitmap(), 16, 9, true)
                         var sum = 0f
                         for (y in 0 until 9) for (x in 0 until 16) {
@@ -409,24 +411,6 @@ fun LiveSourceMenu(
                         }
                         (sum / 144f).roundToInt().coerceIn(0, 255)
                     } else 176
-                    android.graphics.Bitmap.createBitmap(2, 2, android.graphics.Bitmap.Config.ARGB_8888)
-                        .apply { eraseColor(android.graphics.Color.rgb(level, level, level)) }
-                        .asImageBitmap()
-                }
-                val plateWpx = with(density) { plateW.toPx() }
-                val plateHpx = with(density) { plateHeight.toPx() }
-                val bakedPlate by androidx.compose.runtime.produceState<ImageBitmap?>(
-                    null, plateWpx, plateHpx
-                ) {
-                    value = withContext(Dispatchers.Default) {
-                        bakeLivePlate(
-                            glass = greyPlate,
-                            screen = androidx.compose.ui.geometry.Size(plateWpx, plateHpx),
-                            plate = androidx.compose.ui.geometry.Rect(0f, 0f, plateWpx, plateHpx),
-                            radius = with(density) { 32.dp.toPx() },
-                            rim = with(density) { 1.2.dp.toPx() },
-                        )
-                    }
                 }
                 Box(
                     Modifier
@@ -434,16 +418,41 @@ fun LiveSourceMenu(
                         .width(plateW)
                         .height(plateHeight)
                         .drawBehind {
-                            val pic = bakedPlate
-                            if (pic != null) {
-                                drawImage(
-                                    pic,
-                                    dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
-                                    filterQuality = FilterQuality.Low,
-                                )
-                            } else {
-                                drawRoundRect(Color(0x48000000), cornerRadius = CornerRadius(32.dp.toPx()))
-                            }
+                            val corner = 32.dp.toPx()
+                            val rim = 1.2.dp.toPx()
+                            // 磨砂灰(和一级 plateTinted 之后的平均亮度一致) 55%
+                            drawRoundRect(
+                                Color(greyLevel, greyLevel, greyLevel).copy(alpha = 0.55f),
+                                cornerRadius = CornerRadius(corner),
+                            )
+                            // 烟灰压暗
+                            drawRoundRect(Color(0x48000000), cornerRadius = CornerRadius(corner))
+                            // 顶部那道光泽, 到中间淡没
+                            drawRoundRect(
+                                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                                    0f to Color(0x1AFFFFFF),
+                                    0.5f to Color(0x00FFFFFF),
+                                    startY = 0f,
+                                    endY = size.height,
+                                ),
+                                cornerRadius = CornerRadius(corner),
+                            )
+                            // 一圈亮边: 左上最亮, 往下和往右变淡, 末角再抬起来
+                            drawRoundRect(
+                                brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                    0f to Color(0x8CFFFFFF),
+                                    0.35f to Color(0x1AFFFFFF),
+                                    0.7f to Color(0x0FFFFFFF),
+                                    1f to Color(0x4DFFFFFF),
+                                ),
+                                topLeft = androidx.compose.ui.geometry.Offset(rim / 2, rim / 2),
+                                size = androidx.compose.ui.geometry.Size(
+                                    size.width - rim,
+                                    size.height - rim,
+                                ),
+                                cornerRadius = CornerRadius(corner - rim / 2),
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(rim),
+                            )
                         }
                 )
             }
