@@ -3,6 +3,7 @@ package app.orchard.tv.ui.home
 import android.content.ComponentName
 import android.view.KeyEvent as NativeKeyEvent
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateIntOffsetAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.focusable
@@ -12,6 +13,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -349,6 +351,24 @@ fun LiveSourceMenu(
             val baseY = remember(screenH, tileH) { screenH - tileH - 62.dp }
             val pitchYVal = remember(tileH) { pitchY }
             fun rowY(rowFromTop: Int): Dp = baseY + pitchYVal * (rowFromTop - bottomRow)
+            // 玻璃底板：照搬一级菜单书架底板，铺在当前可见的直播卡片行下面(小屏是两行)
+            if (AerialSettings.homePlate && sources.isNotEmpty()) {
+                val plateFirstRow = (bottomRow - 1).coerceAtLeast(0)
+                val plateTop = rowY(plateFirstRow) - 20.dp
+                val plateHeight = rowY(bottomRow) + tileH + 20.dp + 28.dp - plateTop
+                val plateY by animateDpAsState(
+                    plateTop,
+                    spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessHigh),
+                    label = "livePlateY",
+                )
+                Box(
+                    Modifier
+                        .offset(x = gridMargin - 26.dp, y = plateY)
+                        .width(tileW * columns + gridGap * (columns - 1) + 52.dp)
+                        .height(plateHeight)
+                        .liquidGlass(32.dp)
+                )
+            }
             sources.forEachIndexed { index, source ->
                 val rowFromTop = index / columns
                 val shifted = rowFromTop - bottomRow

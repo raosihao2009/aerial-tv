@@ -1241,7 +1241,7 @@ function confirmSheet(message, okLabel) {
       const list = el('div', 'list');
       const okB = el('button', 'item center danger', okLabel || '删除');
       okB.onclick = () => finish(true);
-      const cancel = el('button', 'item center', t('cancel'));
+      const cancel = el('button', 'item center tint', t('cancel')); cancel.style.fontWeight = '600';
       cancel.onclick = () => finish(false);
       list.append(okB, cancel);
       body.appendChild(list);
