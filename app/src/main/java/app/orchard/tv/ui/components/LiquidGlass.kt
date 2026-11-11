@@ -82,7 +82,9 @@ fun Modifier.liquidGlass(corner: Dp, bottomCorners: Boolean = true, seeThroughFi
     // in the app (Wallpapers.filmFrost), over the picture's, which may be another shot.
     val latest = (if (Wallpapers.moves() && Wallpapers.filmGlassless) Wallpapers.filmFrost ?: Wallpapers.frosted else Wallpapers.frosted)
         .takeIf { Wallpapers.backdrop != null }
-    val held = remember(Wallpapers.selectedId, latest == null) { latest }
+    // 手里这张要跟着"当前的磨砂图"走: 换壁纸后磨砂图是晚一步烘焙出来的,
+    // 只按 selectedId 记一次会一直拿着换壁纸前的旧图, 面板/控制中心/个性化背景就永远不换。
+    val held = remember(Wallpapers.selectedId, latest) { latest }
     val (frost, under, swap) = rememberFrostSwap(held)
     var at by remember { mutableStateOf(Offset.Zero) }
     var root by remember { mutableStateOf(IntSize.Zero) }
