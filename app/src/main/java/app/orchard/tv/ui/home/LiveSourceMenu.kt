@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import kotlin.math.roundToInt
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -59,6 +60,7 @@ import app.orchard.tv.apps.TileArtFactory
 import app.orchard.tv.settings.AerialSettings
 import app.orchard.tv.system.Sounds
 import app.orchard.tv.ui.components.liquidGlass
+import app.orchard.tv.wallpaper.Wallpapers
 import app.orchard.tv.ui.theme.Glyph
 import app.orchard.tv.ui.theme.Type
 import androidx.compose.foundation.shape.RoundedCornerShape
