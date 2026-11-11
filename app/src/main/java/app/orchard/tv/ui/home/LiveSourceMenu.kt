@@ -356,13 +356,13 @@ fun LiveSourceMenu(
                         .padding(horizontal = 56.dp)
                         .padding(top = 80.dp),
                     // 和屏保过渡一样: 收起时缩回角落小钟
-                    toSaver = { 1f - alpha.value },
+                    toSaver = { 1f - alpha },
                 )
             } else if (!clockRight) {
                 CornerClock(
                     now = java.time.LocalDateTime.now(),
                     modifier = Modifier.align(Alignment.TopStart).padding(start = 56.dp, top = 28.dp),
-                    toSaver = { 1f - alpha.value },
+                    toSaver = { 1f - alpha },
                 )
             }
             // 控制中心（一级菜单同款 StatusPill）
@@ -377,7 +377,7 @@ fun LiveSourceMenu(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = 28.dp, end = 42.dp)
-                    .graphicsLayer { this.alpha = alpha.value }
+                    .graphicsLayer { this.alpha = alpha }
                     .focusProperties {
                     up = FocusRequester.Cancel
                     right = FocusRequester.Cancel
@@ -442,7 +442,7 @@ fun LiveSourceMenu(
                         .offset(x = plateX, y = plateY)
                         .width(plateW)
                         .height(plateHeight)
-                        .graphicsLayer { this.alpha = alpha.value }
+                        .graphicsLayer { this.alpha = alpha }
                         .drawBehind {
                             val corner = 32.dp.toPx()
                             val rim = 1.2.dp.toPx()
@@ -537,7 +537,7 @@ fun LiveSourceMenu(
                 val animY by androidx.compose.animation.core.animateIntAsState(
                     yPx, spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessHigh), label = "slotY")
                 // 屏保那一套: 从左到右逐列错峰, 每列下沉 18dp 并淡出
-                val cardFade = ((1f - alpha.value - 0.05f * colIndex) / 0.6f).coerceIn(0f, 1f)
+                val cardFade = ((1f - alpha - 0.05f * colIndex) / 0.6f).coerceIn(0f, 1f)
                 val isFirstCol = colIndex == 0
                 val isLastCol = colIndex == columns - 1 || index == sources.size - 1
                 val isLastRow = rowFromTop == (sources.size - 1) / columns && index >= sources.size - 1 - columns
