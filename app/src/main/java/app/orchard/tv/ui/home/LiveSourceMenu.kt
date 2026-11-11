@@ -76,7 +76,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.IntSize
 
 /** 焦点缩放的演出时长: 菜单在这之后才开始淡入 */
-private const val FOCUS_SETTLE_MS = 260L
 
 private val liveColors = listOf(
     Pair(0xFFD32F2F.toInt(), 0xFF8E0000.toInt()),
@@ -245,8 +244,7 @@ fun LiveSourceMenu(
                 justOpened = true
                 repeat(2) { androidx.compose.runtime.withFrameNanos { } }
                 runCatching { requester(currentId).requestFocus() }
-                kotlinx.coroutines.delay(FOCUS_SETTLE_MS)
-                runCatching { requester(currentId).requestFocus() }
+                // 卡片已按选中尺寸画好(preFocus), 不需要再等缩放, 立刻淡入
                 showing = true
                 snapshotFlow { alpha }.first { it >= 0.99f }
                 justOpened = false
@@ -562,8 +560,8 @@ fun LiveSourceMenu(
                         enabled = menuForId == null && visible && !controlCenterOpen && (!justOpened || source.id == currentId),
                         moving = movingId == source.id,
                         onFocused = { focusedId = source.id; Sounds.focusMoved() },
-                        // 过渡期间缩放不演: 避免看到卡片放大/缩小
-                        snapScale = !transitionDone,
+                        // 和一级菜单一样: 当前选中的卡片从第一帧就是选中尺寸, 焦点落上去不演缩放
+                        preFocus = source.id == focusedId,
                         onClick = { if (movingId == null) {
                             if (source.url.isBlank()) {
                                 bannerMsg = "「${source.name}」暂未设置直播地址"

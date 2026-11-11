@@ -162,6 +162,11 @@ fun AppTile(
     snapFocus: Boolean = false,
     /** 只让缩放不演过渡(焦点框/浮起照常): 过渡期间看不到卡片放大缩小 */
     snapScale: Boolean = false,
+    /**
+     * 预先按"已选中"画出来(和一级菜单一样): 卡片从第一帧就是选中尺寸,
+     * 焦点落上去时没有任何缩放过渡。二级菜单用它替代"等焦点动画演完"。
+     */
+    preFocus: Boolean = false,
     /** The name sits on the glass plate, which ends just under it: it does not step down past the focus frame. */
     nameOnPlate: Boolean = false,
 ) {
@@ -187,10 +192,12 @@ fun AppTile(
 
     // 二级菜单淡入淡出期间为 true: 选中态直接跳到终值, 不演放大/缩小过渡,
     // 这样菜单显示和收回时看不到卡片在缩放。
+    // 视觉上的选中: 真实焦点 / 正在移动 / 调用方预先指定的选中(preFocus, 二级菜单用)
+    val active = focused || moving || preFocus
     val scaleTarget = when {
         reduced -> 1f
         pressed -> PRESSED_SCALE
-        focused || moving -> FOCUSED_SCALE
+        active -> FOCUSED_SCALE
         else -> 1f
     }
     val scale by animateFloatAsState(
@@ -206,7 +213,7 @@ fun AppTile(
         label = "tile-scale",
     )
     val liftState = animateFloatAsState(
-        targetValue = if (focused || moving) 1f else 0f,
+        targetValue = if (active) 1f else 0f,
         animationSpec = if (snapFocus) androidx.compose.animation.core.snap() else spring(dampingRatio = 1f, stiffness = 380f),
         label = "tile-lift",
     )
@@ -220,10 +227,10 @@ fun AppTile(
     // The frame comes on quickly with the zoom and goes off faster still, so moving along a row
     // never shows two frames at once. It grows out from the tile's edge to its place.
     val ringInState = animateFloatAsState(
-        targetValue = if (focused || moving) 1f else 0f,
+        targetValue = if (active) 1f else 0f,
         animationSpec = when {
             snapFocus -> androidx.compose.animation.core.snap()
-            focused || moving -> spring(dampingRatio = 1f, stiffness = 700f)
+            active -> spring(dampingRatio = 1f, stiffness = 700f)
             else -> spring(dampingRatio = 1f, stiffness = 2400f)
         },
         label = "tile-ring-in",
