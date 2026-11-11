@@ -914,6 +914,7 @@ fun HomeScreen(
                     },
                     onActuallyPlayingChange = { vm.liveActuallyPlaying = it },
                 )
+            }
 
             Box(
                 Modifier
@@ -1435,6 +1436,3 @@ private fun LiveUiAutoHideEffect(
     }
 }
 
-
-/** 0..1 的平滑过渡, 和壁纸层底板同一条曲线。 */
-private fun smoothStep(x: Float): Float = x * x * (3f - 2f * x)
