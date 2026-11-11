@@ -864,7 +864,9 @@ fun HomeScreen(
             // bare wallpaper, as if left off the shelf.
             // 控制中心和个性化(壁纸)打开时, 玻璃底板不画出来, 免得面板后面还露着一层。
             val plateHidden = overlay is Overlay.ControlCenter || sheetIn
-            val plate = if (apps.isEmpty() || !AerialSettings.homePlate || plateHidden) null else with(density) {
+            // 底板的位置照常算出来: 打开控制中心/个性化时不再直接"去掉它", 而是让它跟着
+            // uiAlpha 淡出(和二级菜单打开控制中心时一样有过渡), 恢复时同样淡回来。
+            val plateRect = if (apps.isEmpty() || !AerialSettings.homePlate) null else with(density) {
                 val second = if (metrics.shelfRows > 1) metrics.shelfSecond else 0.dp
                 Rect(
                     (metrics.margin - PlatePadH).toPx(),
@@ -873,6 +875,7 @@ fun HomeScreen(
                     (metrics.topRowY + metrics.tileH + PlatePadV + metrics.firstGap + second).toPx(),
                 )
             }
+            val plate = if (!plateHidden) plateRect else null
             // Another wallpaper chosen: nothing shows through until the new one has a frame.
             LaunchedEffect(Wallpapers.selectedId) { filmCover.snapTo(0f) }
             // The aerial film's own glass for the grid: the one playing or stopped, else the one
@@ -950,7 +953,7 @@ fun HomeScreen(
             // 底板: 只有这一处, 排在直播画面之后(压得住它), 又在 UI 内容之下;
             // 单实例 + 跟着 uiAlpha 走, 焦点在普通卡片和直播预览卡片之间移动时不会闪,
             // 隐藏 UI 时也会跟着一起消失。
-            if (plate != null) {
+            if (plateRect != null) {
                 val plateFrost = Wallpapers.frosted.takeIf { Wallpapers.backdrop != null } ?: Wallpapers.backdrop
                 val plateFilmGlass = (Wallpapers.filmFrost ?: Wallpapers.frosted)
                     .takeIf { Wallpapers.moves() && Wallpapers.backdrop != null }
@@ -958,14 +961,15 @@ fun HomeScreen(
                     Wallpapers.moves() && plateFrost != null
                 val plateFilm = if (channelPreviewVisible) plateFilmGlass ?: plateFrost
                 else plateFilmGlass?.takeUnless { Wallpapers.filmGlassless }
-                Box(Modifier.fillMaxSize().graphicsLayer { alpha = uiAlpha }) {
+                // 底板自己按 toSaver(=saverLike) 淡出, 这里不再叠一层 alpha, 免得双重淡出
+                Box(Modifier.fillMaxSize()) {
                     HomePlate(
                         glass = if (plateStillNow) plateFilmGlass ?: plateFrost else plateFrost,
                         film = plateFilm,
                         filmPlate = channelPreviewVisible || plateFilm != null,
                         deepSmoke = Wallpapers.filmGlassless && !channelPreviewVisible,
                         stillOverFilm = plateStillNow,
-                        plate = plate,
+                        plate = plateRect,
                         scroll = { scroll.value },
                         collapse = collapsePx,
                         cover = { if (channelPreviewVisible) 1f else filmCover.value },
