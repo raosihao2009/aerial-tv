@@ -266,7 +266,9 @@ private class GridMetrics(screenW: Dp, screenH: Dp, val columns: Int, oneRow: Bo
      * under the large clock, so the second row and its names clear the bottom edge. Nothing in
      * almost every layout; it used to lift whenever a name went under the second row.
      */
-    val shelfLift = if (oneRow) 0.dp else topRowY - twoRowFit
+    // 只用于"两排塞不进时钟下面时整体上抬"; 露出下一排时 topRowY 比 twoRowFit 还高,
+    // 差值会变成负数把整块往下推, 第三排就被推出屏幕(焦点到第二排时不露了) -> 不往下抬
+    val shelfLift = if (oneRow) 0.dp else (topRowY - twoRowFit).coerceAtLeast(0.dp)
 
     /** The rows on the shelf, over the plate: the top row, and in two-row mode the second too. */
     val shelfRows = if (oneRow) 1 else 2
@@ -836,8 +838,9 @@ fun HomeScreen(
         // 个性化面板打开时壁纸照旧播: 面板是模糊的, 后面停一张图反而明显 (owner, 2026-11-11)
         val filmMoves = vm.filmFront && (overlay == Overlay.None || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper) &&
             (!vm.screensaverVisible || videoSaver) && !pastShelf && !inGrid && moving == null &&
-            // 直播预览正在播时, 壁纸影片必须停下: 否则视频壁纸的影片层会压住直播画面
-            !channelPreviewVisible
+            // 直播画面真的放出来之后才停壁纸影片: 否则视频壁纸的影片层会压住直播画面;
+            // 直播还在加载(或没源)的时候壁纸照旧播, 不能因为停在直播卡片上就冻住
+            !(channelPreviewVisible && liveReadyState.value)
         // Nothing over Home blurs it: a paused film stays.
         val filmStandsIn = overlay == Overlay.None || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper ||
             (overlay is Overlay.AppMenu && overlay.inFolder == null)
