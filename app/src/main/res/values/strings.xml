@@ -173,6 +173,12 @@
     <string name="home_locked_notice">Home is locked. To arrange apps, turn off Lock Home in Personalize.</string>
     <string name="st_hidden_none">None</string>
     <string name="st_hidden_count">%d</string>
+    <string name="st_hidden">Hidden Cards</string>
+    <string name="st_hidden_hint">Cards taken off Home or the live menu are kept here, to put back. With a parental PIN set, it asks for the PIN first.</string>
+    <string name="st_hidden_app_none">Apps·none</string>
+    <string name="st_hidden_app_count">Apps·%1$d</string>
+    <string name="st_hidden_live_none">Live·none</string>
+    <string name="st_hidden_live_count">Live·%1$d</string>
     <string name="st_focus_high">High Contrast</string>
     <string name="st_focus_standard">Standard</string>
     <string name="st_focus_high_hint">A white frame around the selected app, easy to spot from across the room.</string>

@@ -231,20 +231,25 @@ fun WallpaperSheet(
                         listOf(true to R.string.st_home_one_row, false to R.string.st_home_standard),
                         AerialSettings.oneRowHome, AerialSettings::chooseOneRowHome,
                     )
-                    // Apps taken off Home are kept with the rest of how Home looks.
-                    SettingRow(R.string.st_hidden_apps, stringResource(R.string.st_hidden_apps_hint), note) {
-                        ActionChip(
-                            if (hiddenCount == 0) stringResource(R.string.st_hidden_none) else stringResource(R.string.st_hidden_count, hiddenCount),
-                            Glyph.ChevronRight,
-                            onHiddenApps,
-                        )
-                    }
-                    SettingRow(R.string.st_hidden_live, stringResource(R.string.st_hidden_live_hint), note) {
-                        ActionChip(
-                            if (hiddenLiveCount == 0) stringResource(R.string.st_hidden_none) else stringResource(R.string.st_hidden_count, hiddenLiveCount),
-                            Glyph.ChevronRight,
-                            onHiddenLiveSources,
-                        )
+                    // 应用/直播隐藏的卡片合并成一行: 左"应用·N个" 右"直播·N个", 分别进各自的恢复页
+                    SettingRow(R.string.st_hidden, stringResource(R.string.st_hidden_hint), note) {
+                        androidx.compose.foundation.layout.Row(
+                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        ) {
+                            ActionChip(
+                                if (hiddenCount == 0) stringResource(R.string.st_hidden_app_none)
+                                else stringResource(R.string.st_hidden_app_count, hiddenCount),
+                                Glyph.ChevronRight,
+                                onHiddenApps,
+                            )
+                            ActionChip(
+                                if (hiddenLiveCount == 0) stringResource(R.string.st_hidden_live_none)
+                                else stringResource(R.string.st_hidden_live_count, hiddenLiveCount),
+                                Glyph.ChevronRight,
+                                onHiddenLiveSources,
+                            )
+                        }
                     }
                 }
                 Spacer(Modifier.height(10.dp))

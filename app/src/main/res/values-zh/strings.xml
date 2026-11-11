@@ -160,6 +160,12 @@
     <string name="st_hidden_live_hint">选择一张卡片放回直播菜单</string>
     <string name="st_hidden_none">没有</string>
     <string name="st_hidden_count">%d 个</string>
+    <string name="st_hidden">隐藏的卡片</string>
+    <string name="st_hidden_hint">从应用菜单或直播菜单隐藏的卡片都在这里，可以随时放回。设了家长密码时要先输入密码。</string>
+    <string name="st_hidden_app_none">应用·没有</string>
+    <string name="st_hidden_app_count">应用·%1$d个</string>
+    <string name="st_hidden_live_none">直播·没有</string>
+    <string name="st_hidden_live_count">直播·%1$d个</string>
     <string name="st_focus_high">高对比度</string>
     <string name="st_focus_standard">标准</string>
     <string name="st_focus_high_hint">选中的卡片外面加一圈白色描边，离得远也看得清。</string>
