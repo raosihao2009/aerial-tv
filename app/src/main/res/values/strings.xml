@@ -145,6 +145,8 @@
     <string name="st_names_hint">Names under every app, or only under the selected one, as on Apple TV. With every name shown, the top row\'s names sit on its glass plate too.</string>
     <string name="ss_kind">Style</string>
     <string name="wp_weather_city">Location</string>
+    <string name="st_weather_visibility">Visibility</string>
+    <string name="st_weather_visibility_hint">Whether the weather line shows under the clock at the top. Off keeps just the clock, date and greeting.</string>
     <string name="st_home_standard">Two Rows</string>
     <string name="st_home_one_row">One Row</string>
     <string name="st_home_layout_hint">One Row puts only the top row on screen, low down, so more of the wallpaper shows, a family photo say. Two Rows shows the top of the second row too. Press down for the rest.</string>

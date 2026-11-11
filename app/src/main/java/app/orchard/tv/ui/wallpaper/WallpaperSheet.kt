@@ -254,15 +254,6 @@ fun WallpaperSheet(
                 }
                 Spacer(Modifier.height(10.dp))
                 Group { note ->
-                    // "时钟大小""时钟"两个选项已按 owner 要求删掉(值仍按原来的默认走)
-                    Choices(
-                        R.string.wp_weather, null, note,
-                        listOf(true to R.string.st_on, false to R.string.st_off),
-                        AerialSettings.showWeather, AerialSettings::chooseShowWeather, first = true,
-                    )
-                }
-                Spacer(Modifier.height(10.dp))
-                Group { note ->
                     // 二创：焦点选中 IPTV 应用时背景播放相关直播
                     Choices(
                         R.string.st_live_preview,
@@ -385,7 +376,13 @@ fun WallpaperSheet(
                 Spacer(Modifier.height(22.dp))
                 SectionTitle(R.string.wp_weather)
                 Group(stringResource(if (Weather.chosen) R.string.wp_weather_chosen else R.string.wp_weather_guessed)) { note ->
-                    SettingRow(R.string.wp_weather_city, null, note, first = true) { WeatherValue() }
+                    // 天气是否显示在时钟下方
+                    Choices(
+                        R.string.st_weather_visibility, stringResource(R.string.st_weather_visibility_hint), note,
+                        listOf(true to R.string.st_on, false to R.string.st_off),
+                        AerialSettings.showWeather, AerialSettings::chooseShowWeather, first = true,
+                    )
+                    SettingRow(R.string.wp_weather_city, null, note) { WeatherValue() }
                 }
 
                 // One row says what it is; a title over it would only repeat it.

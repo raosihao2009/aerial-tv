@@ -136,6 +136,8 @@
     <string name="st_names_hint">每张卡片下面都显示名称，或者像 Apple TV 一样只显示选中的。全部显示时，第一排的名称也显示在玻璃底板里。</string>
     <string name="ss_kind">类型</string>
     <string name="wp_weather_city">位置</string>
+    <string name="st_weather_visibility">可见性</string>
+    <string name="st_weather_visibility_hint">天气信息是否在屏幕顶部时钟下方显示。关闭后只保留时钟、日期和问候语。</string>
     <string name="st_home_standard">双排</string>
     <string name="st_home_one_row">单排</string>
     <string name="st_home_layout_hint">单排：只显示第一排，放在屏幕下方，露出更多壁纸，比如家庭合照。双排：下面露出第二排。按下键看其余卡片。</string>
