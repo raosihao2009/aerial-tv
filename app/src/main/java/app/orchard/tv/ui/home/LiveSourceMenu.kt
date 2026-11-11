@@ -379,45 +379,33 @@ fun LiveSourceMenu(
                 )
                 val plateW = tileW * columns + gridGap * (columns - 1) + 52.dp
                 val plateX = gridMargin - 26.dp
-                // 和一级菜单同一块玻璃: 取底板下面那一块磨砂壁纸, 55% + 烟灰, 外面一圈亮边。
-                // 直接从整屏磨砂图里取那一片来画(不再烘焙成图), 高度/位置变化时圆角永远是 32dp,
-                // 不会因为拉伸把圆角拉扁。
-                val frostPic = Wallpapers.frosted.takeIf { Wallpapers.backdrop != null }
+                // 二级菜单这块玻璃: 中性灰磨砂 + 顶上的光泽 + 烟灰 + 外面一圈亮边。
+                // 圆角靠 clip 裁, 高度/位置变化时永远是 32dp, 不会被拉伸成椭圆。
                 Box(
                     Modifier
                         .offset(x = plateX, y = plateY)
                         .width(plateW)
                         .height(plateHeight)
                 ) {
-                    // 玻璃本体: 裁成 32dp 圆角, 取底板下面那一片磨砂壁纸 55% + 烟灰。
-                    // 不要壁纸的光泽(那层奶白亮光), 二级菜单这块更平一些。
+                    // 玻璃本体: 裁成 32dp 圆角。磨砂片用中性灰(不带壁纸的颜色),
+                    // 亮面光泽留在顶上, 再叠一层和一级菜单同样的烟灰。
                     Box(
                         Modifier
                             .matchParentSize()
                             .clip(RoundedCornerShape(32.dp))
                             .drawBehind {
-                                val pic = frostPic
-                                if (pic != null) {
-                                    val sw = with(density) { screenW.toPx() }
-                                    val sh = with(density) { screenH.toPx() }
-                                    val left = with(density) { plateX.toPx() }
-                                    val top = with(density) { plateY.toPx() }
-                                    val kx = pic.width / sw
-                                    val ky = pic.height / sh
-                                    val sx = (left * kx).roundToInt().coerceIn(0, (pic.width - 1).coerceAtLeast(0))
-                                    val sy = (top * ky).roundToInt().coerceIn(0, (pic.height - 1).coerceAtLeast(0))
-                                    val cw = (size.width * kx).roundToInt().coerceIn(1, pic.width - sx)
-                                    val ch = (size.height * ky).roundToInt().coerceIn(1, pic.height - sy)
-                                    drawImage(
-                                        pic,
-                                        srcOffset = IntOffset(sx, sy),
-                                        srcSize = IntSize(cw, ch),
-                                        dstOffset = IntOffset.Zero,
-                                        dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
-                                        alpha = 0.55f,
-                                        filterQuality = FilterQuality.Low,
-                                    )
-                                }
+                                // 磨砂: 中性灰 55%
+                                drawRect(Color(0x8C8C8C8C))
+                                // 光泽: 顶上那道白光, 往下淡出
+                                drawRect(
+                                    brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                                        0f to Color(0x24FFFFFF),
+                                        0.5f to Color(0x0DFFFFFF),
+                                        1f to Color(0x00FFFFFF),
+                                        startY = 0f,
+                                        endY = size.height,
+                                    ),
+                                )
                                 // 烟灰: 和一级同一个颜色, argb(72,0,0,0)
                                 drawRect(Color(0x48000000))
                             }
