@@ -891,7 +891,9 @@ fun HomeScreen(
                 plate = plate,
                 scroll = { scroll.value },
                 collapse = collapsePx,
-                cover = { if (channelPreviewVisible) 1f else filmCover.value },
+                // 只有壁纸本身是视频时, 直播预览才"接管"影片层(遮住壁纸的影片);
+                // 静态壁纸没有影片要接管, 这里传 1f 会连壁纸一起遮掉, 切到预览卡时黑一下。
+                cover = { if (channelPreviewVisible && Wallpapers.moves()) 1f else filmCover.value },
                 // An input's picture gets the shade a picture has; in the grid it gives way to the
                 // glass, as any wallpaper does (it cannot be blurred). Not a film, moving or not
                 // (the owner, 2026-10-29): since the aerial wallpaper keeps moving under keys
@@ -971,7 +973,9 @@ fun HomeScreen(
                         plate = plateRect,
                         scroll = { scroll.value },
                         collapse = collapsePx,
-                        cover = { if (channelPreviewVisible) 1f else filmCover.value },
+                        // 只有壁纸本身是视频时, 直播预览才"接管"影片层(遮住壁纸的影片);
+                // 静态壁纸没有影片要接管, 这里传 1f 会连壁纸一起遮掉, 切到预览卡时黑一下。
+                cover = { if (channelPreviewVisible && Wallpapers.moves()) 1f else filmCover.value },
                         filmStopped = { filmStopped },
                         toSaver = { saverLike },
                         lift = { liftState.value },
