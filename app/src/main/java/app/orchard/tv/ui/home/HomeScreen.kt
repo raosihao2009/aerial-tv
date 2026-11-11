@@ -121,6 +121,9 @@ import kotlin.math.roundToInt
 private const val SAVER_FADE_MS = 500
 private const val UI_FADE_MS = 500
 
+/** 一级菜单与屏保过渡时下沉的距离, 和屏保里卡片的 18dp 一致。 */
+private val UI_SINK = 18.dp
+
 private val PlateMarginBottom = 30.dp
 
 /**
@@ -191,7 +194,9 @@ private class GridMetrics(screenW: Dp, screenH: Dp, val columns: Int, oneRow: Bo
      * Extra room under the top row while it is the one in focus, for names on a plate grown to
      * hold them. Down in the grid the plate is gone and the rows close up to even spacing.
      */
-    val firstGap = if (plateNames) PlateNameRoom else 0.dp
+    // 底板上始终给名字留 28dp: 只显示选中的名称时, 第一排那个名字也画在底板上,
+    // 不留位置就会掉到板子外面去
+    val firstGap = if (plate) PlateNameRoom else 0.dp
 
     /**
      * How far the second row sits under the top row in two-row mode while both are on the shelf:
@@ -968,8 +973,10 @@ fun HomeScreen(
                 Modifier
                     .fillMaxSize()
                     .offset { IntOffset(0, -scroll.value.roundToInt()) }
+                    // 和进屏保同款: 淡出时整体往下沉一点, 淡入时从下面升回来, 不是只有一个透明度
+                    .offset { IntOffset(0, ((1f - uiAlpha) * UI_SINK.toPx()).roundToInt()) }
                     .graphicsLayer {
-                        // 一级网格透明度(含ui隐藏和浮层覆盖，都带250ms过渡)
+                        // 一级网格透明度(含ui隐藏和浮层覆盖, 与屏保同为0.5秒)
                         alpha = uiAlpha
                     },
             ) {

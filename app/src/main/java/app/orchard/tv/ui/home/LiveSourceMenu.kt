@@ -40,7 +40,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.KeyEventType
@@ -234,6 +236,8 @@ fun LiveSourceMenu(
     androidx.compose.foundation.layout.BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
+            // 和一级/屏保同款: 淡入时从下面升上来, 淡出时往下沉一点
+            .graphicsLayer { translationY = (1f - alpha.value) * with(density) { 18.dp.toPx() } }
             .alpha(alpha.value)
             .onPreviewKeyEvent { e ->
                 if (!visible || controlCenterOpen) return@onPreviewKeyEvent false
@@ -365,7 +369,7 @@ fun LiveSourceMenu(
             //   没底板: 一级那一支是 screenH - tileH - 70dp (名字在卡片里), 二级要跟着一起降
             val baseY = remember(screenH, tileH, showAllNames, AerialSettings.homePlate) {
                 if (AerialSettings.homePlate) {
-                    screenH - tileH - 50.dp - if (showAllNames) 28.dp else 0.dp
+                    screenH - tileH - 50.dp - 28.dp
                 } else {
                     screenH - tileH - 70.dp
                 }
@@ -385,50 +389,47 @@ fun LiveSourceMenu(
                 )
                 val plateW = tileW * columns + gridGap * (columns - 1) + 52.dp
                 val plateX = gridMargin - 26.dp
-                // 二级菜单这块玻璃: 中性灰磨砂 + 顶上的光泽 + 烟灰 + 外面一圈亮边。
-                // 圆角靠 clip 裁, 高度/位置变化时永远是 32dp, 不会被拉伸成椭圆。
+                // 和一级菜单同一块玻璃, 只把"壁纸那层颜色"换成中性灰:
+                // 灰 55% + 烟灰(argb(72,0,0,0)) + 32dp 圆角 + 1.2dp lit edge(顶部光泽+一圈亮边)。
+                // 直接调一级那个烘焙函数, 参数一模一样, 只是喂给它一张灰图。
+                val greyPlate = remember {
+                    android.graphics.Bitmap.createBitmap(2, 2, android.graphics.Bitmap.Config.ARGB_8888)
+                        .apply { eraseColor(0xFF8C8C8C.toInt()) }
+                        .asImageBitmap()
+                }
+                val plateWpx = with(density) { plateW.toPx() }
+                val plateHpx = with(density) { plateHeight.toPx() }
+                val bakedPlate by androidx.compose.runtime.produceState<ImageBitmap?>(
+                    null, plateWpx, plateHpx
+                ) {
+                    value = withContext(Dispatchers.Default) {
+                        bakeLivePlate(
+                            glass = greyPlate,
+                            screen = androidx.compose.ui.geometry.Size(plateWpx, plateHpx),
+                            plate = androidx.compose.ui.geometry.Rect(0f, 0f, plateWpx, plateHpx),
+                            radius = with(density) { 32.dp.toPx() },
+                            rim = with(density) { 1.2.dp.toPx() },
+                        )
+                    }
+                }
                 Box(
                     Modifier
                         .offset(x = plateX, y = plateY)
                         .width(plateW)
                         .height(plateHeight)
-                ) {
-                    // 玻璃本体: 裁成 32dp 圆角。磨砂片用中性灰(不带壁纸的颜色),
-                    // 亮面光泽留在顶上, 再叠一层和一级菜单同样的烟灰。
-                    Box(
-                        Modifier
-                            .matchParentSize()
-                            .clip(RoundedCornerShape(32.dp))
-                            .drawBehind {
-                                // 磨砂: 中性灰 55%
-                                drawRect(Color(0x8C8C8C8C))
-                                // 光泽: 顶上那道白光, 往下淡出
-                                drawRect(
-                                    brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                                        0f to Color(0x24FFFFFF),
-                                        0.5f to Color(0x0DFFFFFF),
-                                        1f to Color(0x00FFFFFF),
-                                        startY = 0f,
-                                        endY = size.height,
-                                    ),
+                        .drawBehind {
+                            val pic = bakedPlate
+                            if (pic != null) {
+                                drawImage(
+                                    pic,
+                                    dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+                                    filterQuality = FilterQuality.Low,
                                 )
-                                // 烟灰: 和一级同一个颜色, argb(72,0,0,0)
-                                drawRect(Color(0x48000000))
+                            } else {
+                                drawRoundRect(Color(0x48000000), cornerRadius = CornerRadius(32.dp.toPx()))
                             }
-                    )
-                    // 描边单独一层, 不跟着裁切, 圆角那一圈才画得出来
-                    Box(
-                        Modifier
-                            .matchParentSize()
-                            .drawBehind {
-                                drawRoundRect(
-                                    Color(0x26FFFFFF),
-                                    cornerRadius = CornerRadius(32.dp.toPx()),
-                                    style = Stroke(1.2.dp.toPx()),
-                                )
-                            }
-                    )
-                }
+                        }
+                )
             }
             sources.forEachIndexed { index, source ->
                 val rowFromTop = index / columns
