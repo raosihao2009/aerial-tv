@@ -299,8 +299,9 @@ class SplashVeil(context: Context) : FrameLayout(context) {
         override fun run() {
             val e = (SystemClock.uptimeMillis() - startAt).toFloat()
             mark.frame(e)
-            // 黑幕由这层自己的背景承担(揭开前它就是不透明的那块黑); 最后一段跟着一起收薄。
-            background?.alpha = (mark.blackAlpha * 255).toInt().coerceIn(0, 255)
+            // 背景那块黑只负责"揭开前的第一帧"; 揭开后黑幕由 curtain 承担, 它自己是透明的(alpha 0)。
+            // curtain 没赶出来(极少): 退回"整层黑幕跟着 blackAlpha 淡掉", 至少不会一直黑着。
+            if (!mark.curtainOk) background?.alpha = (mark.blackAlpha * 255).toInt().coerceIn(0, 255)
             if (e < TOTAL_MS) postOnAnimation(this) else finish()
         }
     }
@@ -331,11 +332,17 @@ private class MarkView(context: Context) : View(context) {
     /** 黑幕现在多不透明: 遮罩自己的背景按它淡出。 */
     var blackAlpha = 1f
         private set
+
+    /** 黑幕(带洞)已经就绪: 这层就不再需要自己那块黑底了。 */
+    val curtainOk: Boolean get() = curtainReady
     private var inkAlpha = 1f
     private var wordAlpha = 1f
     private var scale = 1f
 
-    private var mask: Bitmap? = null
+    /** 黑幕+洞, 一次烤好: 洞是真的透明, 不是抠在黑色上。 */
+    private var curtain: Bitmap? = null
+    private var curtainReady = false
+    private val curtainPaint = Paint(Paint.FILTER_BITMAP_FLAG)
     private var building = false
     private var pivotX = 0f
     private var pivotY = 0f
@@ -388,13 +395,14 @@ private class MarkView(context: Context) : View(context) {
             }
             return
         }
-        // 黑幕是这层自己的背景(透明度在 tick 里跟着 blackAlpha 收); 这里直接在画布上抠洞:
-        // DST_OUT 只擦掉已经画在这一层里的东西(也就是那块黑), 让下面的桌面从标志形状里透出来。
-        // 不开离屏层 —— 视频壁纸还在解码时, 每帧一次整屏 saveLayer 是这台盒子上卡顿的主因。
-        mask?.let {
+        // 黑幕连洞一起是一张现成的位图(黑底, 标志形状处真透明), 整张贴上去、按 blackAlpha 淡出。
+        // 不能在这层的画布上直接 DST_OUT 抠洞: 那样抠掉的是黑色, 洞背后还是这层自己的黑底, 洞就变黑了;
+        // 也不开整屏 saveLayer —— 视频壁纸解码时每帧一次 8MB 离屏是这台盒子上卡顿的主因。
+        curtain?.let { c ->
             canvas.save()
             canvas.scale(scale, scale, pivotX, pivotY)
-            canvas.drawBitmap(it, null, RectF(0f, 0f, w, h), cut)
+            curtainPaint.alpha = (blackAlpha * 255).toInt().coerceIn(0, 255)
+            canvas.drawBitmap(c, null, RectF(0f, 0f, w, h), curtainPaint)
             canvas.restore()
         }
         // 标志自己的颜色先退, 只留下形状的开口 —— 放大到几倍的字会糊成一片, 不该留到最后。
@@ -432,15 +440,28 @@ private class MarkView(context: Context) : View(context) {
         // 换一份 Paint/Typeface 在别的线程画, 不和正在上屏的那几处抢同一个 Paint。
         Thread {
             val a = runCatching {
+                // 标志剪影(只要 alpha), 半分辨率: 够用, 也省内存。
                 val full = Bitmap.createBitmap(halfW, halfH, Bitmap.Config.ARGB_8888)
                 Canvas(full).apply {
                     scale(0.5f, 0.5f)
                     SplashArt(ctx).drawBrand(this, w, h, 1f)
                 }
-                full.extractAlpha().also { full.recycle() }
+                val holeMask = full.extractAlpha().also { full.recycle() }
+                // 黑幕: 整块不透明, 再把标志形状擦成真透明 —— 洞底下就是桌面的壁纸和卡片。
+                val c = Bitmap.createBitmap(halfW, halfH, Bitmap.Config.ARGB_8888)
+                Canvas(c).apply {
+                    drawColor(Color.BLACK)
+                    drawBitmap(holeMask, null, RectF(0f, 0f, halfW.toFloat(), halfH.toFloat()), cut)
+                }
+                holeMask.recycle()
+                c
             }.getOrNull()
             post {
-                mask = a
+                curtain = a
+                curtainReady = a != null
+                // 黑幕有了自己的载体, 这层那块"第一帧保护"的黑底就该让开了, 不然洞背后还是黑的。
+                // 只在揭开之后才让 —— 揭开前 onDraw 什么都不画, 得靠这块黑底挡住桌面。
+                if (a != null && started) background?.alpha = 0
                 building = false
                 invalidate()
             }
