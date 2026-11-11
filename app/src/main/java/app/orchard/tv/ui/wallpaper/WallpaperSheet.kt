@@ -220,16 +220,16 @@ fun WallpaperSheet(
                         listOf(true to R.string.st_plate_glass, false to R.string.st_plate_none),
                         AerialSettings.homePlate, AerialSettings::chooseHomePlate,
                     )
-                    Choices(
-                        R.string.st_layout, stringResource(R.string.st_home_layout_hint), note,
-                        listOf(true to R.string.st_home_one_row, false to R.string.st_home_standard),
-                        AerialSettings.oneRowHome, AerialSettings::chooseOneRowHome,
-                    )
                     // 双排布局下也保留这个选项: 它也控制二级菜单(直播源)露出下一排的效果。
                     Choices(
                         R.string.st_peek, stringResource(R.string.st_peek_hint), note,
                         listOf(true to R.string.st_peek_show, false to R.string.st_peek_hide),
                         AerialSettings.peekNextRow, AerialSettings::choosePeekNextRow,
+                    )
+                    Choices(
+                        R.string.st_layout, stringResource(R.string.st_home_layout_hint), note,
+                        listOf(true to R.string.st_home_one_row, false to R.string.st_home_standard),
+                        AerialSettings.oneRowHome, AerialSettings::chooseOneRowHome,
                     )
                     // Apps taken off Home are kept with the rest of how Home looks.
                     SettingRow(R.string.st_hidden_apps, stringResource(R.string.st_hidden_apps_hint), note) {

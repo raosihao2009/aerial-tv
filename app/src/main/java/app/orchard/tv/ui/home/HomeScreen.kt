@@ -568,6 +568,17 @@ fun HomeScreen(
             else -> lastFocusedIndex
         })
     }
+    // 二级菜单淡出结束后, 如果焦点还停在右上角控制中心, 拉回直播频道卡片
+    LaunchedEffect(overlay, vm.loaded) {
+        if (!vm.loaded || overlay != Overlay.None) return@LaunchedEffect
+        kotlinx.coroutines.delay(700)
+        if (pillFocused) {
+            val live = apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages }
+            pillFocused = false
+            if (live >= 0) focusApp(live)
+        }
+    }
+
     // A folder whose last app left closes.
     LaunchedEffect(overlay, vm.folderApps) {
         val open = (overlay as? Overlay.Folder)?.id ?: (overlay as? Overlay.AppMenu)?.inFolder ?: return@LaunchedEffect
@@ -824,7 +835,9 @@ fun HomeScreen(
         // 上游 v1.75：移动壁纸的影片渲染（从 Box 内挪到 Box 外，在最底层绘制）
         // 个性化面板打开时壁纸照旧播: 面板是模糊的, 后面停一张图反而明显 (owner, 2026-11-11)
         val filmMoves = vm.filmFront && (overlay == Overlay.None || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper) &&
-            (!vm.screensaverVisible || videoSaver) && !pastShelf && !inGrid && moving == null
+            (!vm.screensaverVisible || videoSaver) && !pastShelf && !inGrid && moving == null &&
+            // 直播预览正在播时, 壁纸影片必须停下: 否则视频壁纸的影片层会压住直播画面
+            !channelPreviewVisible
         // Nothing over Home blurs it: a paused film stays.
         val filmStandsIn = overlay == Overlay.None || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper ||
             (overlay is Overlay.AppMenu && overlay.inFolder == null)
@@ -1002,6 +1015,8 @@ fun HomeScreen(
             // 底板: 只有这一处, 排在直播画面之后(压得住它), 又在 UI 内容之下;
             // 单实例 + 跟着 uiAlpha 走, 焦点在普通卡片和直播预览卡片之间移动时不会闪,
             // 隐藏 UI 时也会跟着一起消失。
+            // 直播画面是否已经真的显示(出帧)出来
+            val overLive = channelPreviewVisible && liveReadyState.value
             if (plateRect != null) {
                 // 静态壁纸: 底板照旧从壁纸取色(磨砂帧那一块)。
                 // 视频壁纸: 底板用二级菜单那块中性灰(不带影片/壁纸的颜色)。
@@ -1017,9 +1032,10 @@ fun HomeScreen(
                         // 静态壁纸切到直播预览时不换玻璃图: 沿用同一张磨砂片, 避免底板闪一下;
                         // 只在上面叠烟灰和亮边(半透明地压在直播画面上)。
                         glass = if (videoWall) greyGlass else (plateFrost ?: greyGlass),
-                        // 压在直播画面上时磨砂片必须是中性灰, 不能是壁纸色
-                        film = if (videoWall || channelPreviewVisible) greyGlass else (plateFrost ?: greyGlass),
-                        filmPlate = videoWall || channelPreviewVisible,
+                        // 压在直播画面上时磨砂片必须是中性灰, 不能是壁纸色。
+                        // 静态壁纸: 等直播画面真的出来(overLive)再切, 画面没换之前底板不先变。
+                        film = if (videoWall || overLive) greyGlass else (plateFrost ?: greyGlass),
+                        filmPlate = videoWall || overLive,
                         deepSmoke = false,
                         stillOverFilm = false,
                         plate = plateRect,
@@ -1079,7 +1095,8 @@ fun HomeScreen(
                 // The rows below the shelf stay out of sight until Home scrolls to them: in one row
                 // unless set to peek; in two rows always, as the second row already shows there are more.
                 val hiddenFrom = when {
-                    !oneRow -> columns * 2
+                    // 双排 + "下一排": 第三排也要组合出来, 否则底部没有卡片可露
+                    !oneRow -> if (peek) columns * 3 else columns * 2
                     !peek -> columns
                     else -> Int.MAX_VALUE
                 }
