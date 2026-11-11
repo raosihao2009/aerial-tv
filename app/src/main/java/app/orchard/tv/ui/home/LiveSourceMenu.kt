@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -33,8 +34,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -366,7 +369,16 @@ fun LiveSourceMenu(
                         .offset(x = gridMargin - 26.dp, y = plateY)
                         .width(tileW * columns + gridGap * (columns - 1) + 52.dp)
                         .height(plateHeight)
-                        .liquidGlass(32.dp)
+                        // 视频壁纸那套灰色透明底板: 不取壁纸的磨砂, 亮色视频上也压得住
+                        .drawBehind {
+                            val radius = CornerRadius(32.dp.toPx())
+                            drawRoundRect(Color(0x48000000), cornerRadius = radius)
+                            drawRoundRect(
+                                Color(0x22FFFFFF),
+                                cornerRadius = radius,
+                                style = Stroke(width = 0.6.dp.toPx()),
+                            )
+                        }
                 )
             }
             sources.forEachIndexed { index, source ->
