@@ -34,6 +34,11 @@ import android.widget.Toast
 import androidx.core.content.getSystemService
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -337,6 +342,15 @@ class MainActivity : ComponentActivity() {
                     onStartScreensaver = { idleHandler.postDelayed({ startScreensaver(asked = true) }, 150) },
                 )
             }
+        }
+        // 冷启动预热: 在真正 setContent 之前先用一个 1dp 的 ComposeView 跑一次带文字的组合,
+        // 把字体测量、文字布局、默认 shader、Compose runtime 这些"首帧一次性"成本提前吃掉,
+        // 这样主界面第一帧就直接出底板+卡片+壁纸, 而不是先黑一下再整树出现。
+        runCatching {
+            val warm = ComposeView(this)
+            warm.setContent { Box(Modifier.size(1.dp)) { BasicText(" ", style = app.orchard.tv.ui.theme.Type.Body) } }
+            addContentView(warm, android.widget.FrameLayout.LayoutParams(1, 1))
+            warm.post { (warm.parent as? android.view.ViewGroup)?.removeView(warm) }
         }
         DiagLog.i("boot-debug: calling setContent at +${SystemClock.elapsedRealtime()}ms")
         if (Build.VERSION.SDK_INT >= 29 && uhd > 1f) {
