@@ -632,6 +632,38 @@ private fun bakePlate(glass: ImageBitmap, screen: Size, plate: Rect, radius: Flo
  * 二创: 直播菜单(二级菜单)的底板, 和一级菜单同一套配方: 磨砂帧 55% + 烟灰 + 亮边,
  * 这样两块底板看起来才是一块玻璃。玻璃图片取的是底板下面那一块壁纸。
  */
+/**
+ * 一级/二级菜单底板共用的那块灰色: 取壁纸磨砂帧的平均亮度(不带壁纸的颜色)。
+ * 一级走 plateTinted(0.8 scale + 30 提亮), 所以这里反算回去, 保证烘焙出来的亮度
+ * 和二级菜单那块灰板一模一样。
+ */
+internal fun frostGreyLevel(): Int {
+    val frost = app.orchard.tv.wallpaper.Wallpapers.frosted ?: return 176
+    return synchronized(greyLevels) {
+        greyLevels.getOrPut(System.identityHashCode(frost)) {
+            val small = android.graphics.Bitmap.createScaledBitmap(frost.asAndroidBitmap(), 16, 9, true)
+            var sum = 0f
+            for (y in 0 until 9) for (x in 0 until 16) {
+                val c = small.getPixel(x, y)
+                sum += 0.299f * ((c shr 16) and 0xFF) + 0.587f * ((c shr 8) and 0xFF) + 0.114f * (c and 0xFF)
+            }
+            (sum / 144f).roundToInt().coerceIn(0, 255)
+        }
+    }
+}
+
+private val greyLevels = HashMap<Int, Int>()
+
+/** 一张纯灰的"玻璃底图", 喂给 Plate 的烘焙流程: 出来的就是和二级菜单同一块灰板。 */
+internal fun frostGreyGlass(): ImageBitmap {
+    val level = frostGreyLevel()
+    // 反算 plateTinted: 0.8*x + 30 = level
+    val raw = (((level - 30) / 0.8f).roundToInt()).coerceIn(0, 255)
+    return android.graphics.Bitmap.createBitmap(2, 2, android.graphics.Bitmap.Config.ARGB_8888)
+        .apply { eraseColor(android.graphics.Color.rgb(raw, raw, raw)) }
+        .asImageBitmap()
+}
+
 internal fun bakeLivePlate(
     glass: ImageBitmap?,
     screen: androidx.compose.ui.geometry.Size,

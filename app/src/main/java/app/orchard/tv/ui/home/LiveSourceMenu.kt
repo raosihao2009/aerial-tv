@@ -402,18 +402,7 @@ fun LiveSourceMenu(
                 //   圆角: 32dp (PlateCorner), 描边 1.2dp (glassEdge 的 rim)
                 //   顶部光泽: 白 10% -> 中段 0 (glassEdge 的 sheen)
                 //   亮边: 白 55% -> 10% -> 6% -> 30% 的横向渐变 (glassEdge 的 rim)
-                val greyLevel = remember(Wallpapers.backdrop) {
-                    val frost = Wallpapers.frosted
-                    if (frost != null) {
-                        val small = android.graphics.Bitmap.createScaledBitmap(frost.asAndroidBitmap(), 16, 9, true)
-                        var sum = 0f
-                        for (y in 0 until 9) for (x in 0 until 16) {
-                            val c = small.getPixel(x, y)
-                            sum += 0.299f * ((c shr 16) and 0xFF) + 0.587f * ((c shr 8) and 0xFF) + 0.114f * (c and 0xFF)
-                        }
-                        (sum / 144f).roundToInt().coerceIn(0, 255)
-                    } else 176
-                }
+                val greyLevel = remember(Wallpapers.backdrop) { frostGreyLevel() }
                 Box(
                     Modifier
                         .offset(x = plateX, y = plateY)
