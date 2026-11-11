@@ -422,6 +422,8 @@ fun ChannelFocusPreview(
         lifecycleOwner.lifecycle.addObserver(obs)
         onDispose {
             st.disposed = true
+            // 预览销毁(切到非直播卡片/退出直播)时把加载图收掉, 别留在屏幕上
+            onLoadingChange(false)
             onActuallyPlayingChange(false)
             lifecycleOwner.lifecycle.removeObserver(obs)
             watchdogRef.value?.stop()
