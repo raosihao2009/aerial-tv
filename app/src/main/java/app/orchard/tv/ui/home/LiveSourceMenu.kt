@@ -64,6 +64,8 @@ import app.orchard.tv.wallpaper.Wallpapers
 import app.orchard.tv.ui.theme.Glyph
 import app.orchard.tv.ui.theme.Type
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.IntSize
 
 private val liveColors = listOf(
     Pair(0xFFD32F2F.toInt(), 0xFF8E0000.toInt()),
@@ -224,7 +226,7 @@ fun LiveSourceMenu(
 
     val alpha = androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (!visible) 0f else 1f,
-        animationSpec = androidx.compose.animation.core.tween(300),
+        animationSpec = androidx.compose.animation.core.tween(500),
         label = "liveMenuAlpha",
     )
 
@@ -372,51 +374,50 @@ fun LiveSourceMenu(
                     label = "livePlateY",
                 )
                 val plateW = tileW * columns + gridGap * (columns - 1) + 52.dp
-                // 和一级菜单同一块玻璃: 取底板下面那块磨砂壁纸, 磨砂帧 55% + 烟灰 + 亮边,
-                // 烘焙成一张图, 不再自己画渐变(那样和一级的质感对不上)。
-                val glassPic = (Wallpapers.filmFrost ?: Wallpapers.frosted)
-                    .takeIf { Wallpapers.backdrop != null }
-                val bakedPlate by androidx.compose.runtime.produceState<ImageBitmap?>(
-                    null, glassPic, plateW, plateHeight, screenW, screenH, columns
-                ) {
-                    value = withContext(kotlinx.coroutines.Dispatchers.Default) {
-                        bakeLivePlate(
-                            glass = glassPic,
-                            screen = androidx.compose.ui.geometry.Size(
-                                with(density) { screenW.toPx() },
-                                with(density) { screenH.toPx() },
-                            ),
-                            plate = androidx.compose.ui.geometry.Rect(
-                                with(density) { (gridMargin - 26.dp).toPx() },
-                                with(density) { plateTop.toPx() },
-                                with(density) { (gridMargin - 26.dp + plateW).toPx() },
-                                with(density) { (plateTop + plateHeight).toPx() },
-                            ),
-                            radius = with(density) { 32.dp.toPx() },
-                            rim = with(density) { 1.2.dp.toPx() },
-                        )
-                    }
-                }
+                val plateX = gridMargin - 26.dp
+                // 和一级菜单同一块玻璃: 取底板下面那一块磨砂壁纸, 55% + 一层奶白提亮 + 烟灰 + 亮边。
+                // 直接从整屏磨砂图里取那一片来画(不再烘焙成图), 高度/位置变化时圆角永远是 32dp,
+                // 不会因为拉伸把圆角拉扁。
+                val frostPic = Wallpapers.frosted.takeIf { Wallpapers.backdrop != null }
                 Box(
                     Modifier
-                        .offset(x = gridMargin - 26.dp, y = plateY)
+                        .offset(x = plateX, y = plateY)
                         .width(plateW)
                         .height(plateHeight)
+                        .clip(RoundedCornerShape(32.dp))
                         .drawBehind {
-                            val p = bakedPlate
-                            if (p != null) {
+                            val pic = frostPic
+                            if (pic != null) {
+                                val sw = with(density) { screenW.toPx() }
+                                val sh = with(density) { screenH.toPx() }
+                                val left = with(density) { plateX.toPx() }
+                                val top = with(density) { plateY.toPx() }
+                                val kx = pic.width / sw
+                                val ky = pic.height / sh
+                                val sx = (left * kx).roundToInt().coerceIn(0, (pic.width - 1).coerceAtLeast(0))
+                                val sy = (top * ky).roundToInt().coerceIn(0, (pic.height - 1).coerceAtLeast(0))
+                                val cw = (size.width * kx).roundToInt().coerceIn(1, pic.width - sx)
+                                val ch = (size.height * ky).roundToInt().coerceIn(1, pic.height - sy)
                                 drawImage(
-                                    p,
-                                    dstOffset = androidx.compose.ui.unit.IntOffset.Zero,
-                                    dstSize = androidx.compose.ui.unit.IntSize(
-                                        size.width.roundToInt(), size.height.roundToInt(),
-                                    ),
+                                    pic,
+                                    srcOffset = IntOffset(sx, sy),
+                                    srcSize = IntSize(cw, ch),
+                                    dstOffset = IntOffset.Zero,
+                                    dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+                                    alpha = 0.55f,
                                     filterQuality = FilterQuality.Low,
                                 )
-                            } else {
-                                // 壁纸还没解出来: 先垫半透明的烟灰, 不至于整块空白
-                                drawRoundRect(Color(0x33000000), cornerRadius = CornerRadius(32.dp.toPx()))
+                                // 一级那块玻璃的奶白底色(PlateTint 的提亮), 免得纯磨砂看着发闷
+                                drawRect(Color(0x1EFFFFFF))
                             }
+                            // 烟灰: 和一级同一个颜色, argb(72,0,0,0)
+                            drawRect(Color(0x48000000))
+                            // 亮边
+                            drawRoundRect(
+                                Color(0x26FFFFFF),
+                                cornerRadius = CornerRadius(32.dp.toPx()),
+                                style = Stroke(1.2.dp.toPx()),
+                            )
                         }
                 )
             }

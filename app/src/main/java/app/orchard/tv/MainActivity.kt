@@ -859,6 +859,8 @@ class MainActivity : ComponentActivity() {
     private fun hideScreensaver() {
         if (vm.screensaverVisible) DiagLog.i("screensaver ends")
         vm.screensaverVisible = false
+        // 回到一级菜单: 直播预览自动隐藏的 UI 也要拉回来
+        if (vm.uiHidden) vm.uiHidden = false
         idleHandler.removeCallbacks(releaseScreen)
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
@@ -880,8 +882,7 @@ class MainActivity : ComponentActivity() {
         if (event.action == KeyEvent.ACTION_DOWN) keysDown += event.keyCode else keysDown -= event.keyCode
         // The key that wakes the screensaver only wakes it, silently.
         if (!vm.screensaverVisible && event.keyCode != swallowKeyUp) Sounds.onKey(event)
-        // Left / right step through the films or photos and keep the screensaver up.
-        if (vm.screensaverVisible && vm.screensaverSkips.onKey(event)) return true
+        // 二创: 屏保里按任何键(返回/主页/方向/确定/菜单)都只是回到一级菜单, 不再用左右键翻影片。
         if (vm.screensaverVisible && loneLift) {
             DiagLog.i("key ${KeyEvent.keyCodeToString(event.keyCode)} lifted with no press; ending the screensaver")
             hideScreensaver()

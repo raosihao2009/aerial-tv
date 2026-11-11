@@ -118,6 +118,9 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /** The plate's distance from the bottom edge with no second row peeking: as from the sides. */
+private const val SAVER_FADE_MS = 500
+private const val UI_FADE_MS = 500
+
 private val PlateMarginBottom = 30.dp
 
 /**
@@ -359,7 +362,7 @@ fun HomeScreen(
             channelPreviewVisible && vm.uiHidden -> 0f
             else -> 1f
         },
-        animationSpec = androidx.compose.animation.core.tween(250), label = "uiAlpha")
+        animationSpec = androidx.compose.animation.core.tween(UI_FADE_MS), label = "uiAlpha")
     LaunchedEffect(channelPreviewVisible) { vm.livePlaying = channelPreviewVisible; liveReadyState.value = false }
     // 焦点在IPTV卡片时立即检测一次直播状态, 然后每30秒刷新; 其他场景刷新后重置计时
     // 抽到独立 composable 里读 liveStatusTickState，tick 变化只重组这个小节点，不带动整棵树。
@@ -484,10 +487,10 @@ fun HomeScreen(
     LaunchedEffect(carrying) {
         when {
             reduced -> toSaver.snapTo(if (carrying) 1f else 0f)
-            carrying -> toSaver.animateTo(1f, tween(2000, easing = Motion.EaseInOut))
+            carrying -> toSaver.animateTo(1f, tween(SAVER_FADE_MS, easing = Motion.EaseInOut))
             // A key woke it: Home comes back at once and settles in, the way it went. At 380 ms the
             // apps' part of it (60% of the way) was over in a blink and read as a cut (issue #357).
-            else -> toSaver.animateTo(0f, tween(650, easing = Motion.EaseOut))
+            else -> toSaver.animateTo(0f, tween(SAVER_FADE_MS, easing = Motion.EaseOut))
         }
     }
     // The large clock's time goes back the way it came, at half the pace. On Home's 650 ms ease-out
@@ -497,8 +500,8 @@ fun HomeScreen(
     LaunchedEffect(carrying) {
         when {
             reduced -> clockToSaver.snapTo(if (carrying) 1f else 0f)
-            carrying -> clockToSaver.animateTo(1f, tween(2000, easing = Motion.EaseInOut))
-            else -> clockToSaver.animateTo(0f, tween(CLOCK_BACK_MS, easing = Motion.EaseInOut))
+            carrying -> clockToSaver.animateTo(1f, tween(SAVER_FADE_MS, easing = Motion.EaseInOut))
+            else -> clockToSaver.animateTo(0f, tween(SAVER_FADE_MS, easing = Motion.EaseInOut))
         }
     }
 
