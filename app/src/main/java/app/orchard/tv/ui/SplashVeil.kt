@@ -198,8 +198,8 @@ class SplashVeil(context: Context) : View(context) {
         }
     }
 
-    /** 尾部收得快一点, 推开时先快后慢, 像 tvOS 那样"一下铺开"。 */
-    private fun easeOut(p: Float): Float = 1f - (1f - p) * (1f - p) * (1f - p)
+    /** 起手和落点都放慢一点, 像光圈慢慢铺开整块屏幕, 全程 2.5 秒不显得赶。 */
+    private fun easeOut(p: Float): Float = p * p * (3f - 2f * p)
 
     private fun finish() {
         onRevealed?.invoke()
@@ -207,9 +207,10 @@ class SplashVeil(context: Context) : View(context) {
     }
 
     private companion object {
-        const val FADE_MS = 300f
-        const val OPEN_DELAY_MS = 140f
-        const val OPEN_MS = 680f
+        // 揭开全程 2.5 秒: 字先淡 450ms, 140ms 后开始推圆, 圆再走 2.2 秒 (到 2500ms 结束)
+        const val FADE_MS = 450f
+        const val OPEN_DELAY_MS = 300f
+        const val OPEN_MS = 2200f
     }
 }
 
