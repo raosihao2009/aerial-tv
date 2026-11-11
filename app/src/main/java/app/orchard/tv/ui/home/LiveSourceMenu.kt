@@ -372,23 +372,26 @@ fun LiveSourceMenu(
             // 双排: 焦点行贴底, 上一行在上方, 无peek
             var bottomRow = focusedRow
             if (bottomRow >= numRows) bottomRow = numRows - 1
-            // 和一级菜单顶排同一个 Y:
-            //   有底板: screenH - tileH - (PlateMarginBottom 30 + PlatePadV 20) - 名字那一段
-            //   没底板: 一级那一支是 screenH - tileH - 70dp (名字在卡片里), 二级要跟着一起降
-            val baseY = remember(screenH, tileH, showAllNames, AerialSettings.homePlate) {
-                if (AerialSettings.homePlate) {
-                    screenH - tileH - 50.dp - 28.dp
-                } else {
-                    screenH - tileH - 70.dp
+            // 和一级菜单 topRowY 同一个算法, 逐支对上:
+            //   有底板+露一排: screenH - pitchY - 12 - 28
+            //   有底板:        screenH - tileH - 50 - 28
+            //   没底板+露一排: screenH - pitchY - 12
+            //   没底板:        screenH - tileH - 70
+            val peeking = AerialSettings.peekNextRow && bottomRow + 1 < numRows
+            val baseY = remember(screenH, tileH, pitchY, peeking, AerialSettings.homePlate) {
+                when {
+                    AerialSettings.homePlate && peeking -> screenH - pitchY - 40.dp
+                    AerialSettings.homePlate -> screenH - tileH - 78.dp
+                    peeking -> screenH - pitchY - 12.dp
+                    else -> screenH - tileH - 70.dp
                 }
             }
-            // "露出下一行"和一级一样: 底下还有一行卡时整体抬 12dp, 而那一行自己再往下 28dp
-            // (一级 slot() 里 row>0 的那段 firstGap), 屏幕底边只露 12dp 一条边, 不会露太多
-            val peeking = AerialSettings.peekNextRow && bottomRow + 1 < numRows
-            val rowsY = if (peeking) baseY - 12.dp else baseY
             val pitchYVal = remember(tileH) { pitchY }
-            fun rowY(rowFromTop: Int): Dp = rowsY + pitchYVal * (rowFromTop - bottomRow) +
-                if (rowFromTop > bottomRow) 28.dp else 0.dp
+            // 下面那一排: 露出时让它的上沿停在屏幕底边上方 12dp, 不露出时正好压在屏幕外
+            val nextTop = if (peeking) screenH - 12.dp else screenH
+            val nextOffset = nextTop - (baseY + pitchYVal)
+            fun rowY(rowFromTop: Int): Dp = baseY + pitchYVal * (rowFromTop - bottomRow) +
+                if (rowFromTop > bottomRow) nextOffset else 0.dp
             // 玻璃底板：照搬一级菜单书架底板，铺在当前可见的直播卡片行下面(小屏是两行)
             if (AerialSettings.homePlate && sources.isNotEmpty()) {
                 val plateFirstRow = (bottomRow - 1).coerceAtLeast(0)
