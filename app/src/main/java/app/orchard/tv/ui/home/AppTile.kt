@@ -504,7 +504,9 @@ fun AppTile(
             }
         }
 
-        if (showName && DiagLayers.shows("names")) BasicText(
+        // 底板上的名字: "只显示选中的"时也要有, 否则第一排一张名字都不显示
+        // (非选中项由下面的 alpha=lift 淡掉)
+        if ((showName || nameOnPlate) && DiagLayers.shows("names")) BasicText(
             text = app.label,
             style = Type.Headline.copy(
                 textAlign = TextAlign.Center,
