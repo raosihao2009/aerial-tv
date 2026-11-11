@@ -122,7 +122,6 @@ private const val SAVER_FADE_MS = 500
 private const val UI_FADE_MS = 500
 
 /** 一级菜单与屏保过渡时下沉的距离, 和屏保里卡片的 18dp 一致。 */
-private val UI_SINK = 18.dp
 
 private val PlateMarginBottom = 30.dp
 
@@ -510,6 +509,14 @@ fun HomeScreen(
         }
     }
 
+    /**
+     * 屏保过渡那一整套动效的驱动值: 进屏保时是 [toSaver], 打开一级/二级菜单、隐藏 UI 时
+     * 借用同一个值(1 - uiAlpha)。这样菜单的显隐不是单纯的透明度: 卡片逐列错峰淡出、
+     * 往下沉一点、底板和时钟一起退场, 和"视频壁纸↔屏保"是同一套动作、同样 0.5 秒。
+     */
+    val overlayAmt = 1f - uiAlpha
+    val saverLike = maxOf(toSaver.value, overlayAmt)
+
     // Grid scroll offset (px). The remote sets it from the focused row; a finger drags it freely
     // (issue #60), and then it stays where the finger left it until the next key press.
     val scroll = remember { Animatable(0f) }
@@ -889,7 +896,7 @@ fun HomeScreen(
                 // (Xiaomi MiTV-MFTR0: GPU 9.8 -> 6.9 ms a frame moving focus over the film).
                 shadeMoving = sourceInput != null,
                 filmStopped = { filmStopped },
-                toSaver = { toSaver.value },
+                toSaver = { saverLike },
                 filmGlass = (Wallpapers.filmFrost ?: Wallpapers.frosted).takeIf { Wallpapers.moves() && Wallpapers.backdrop != null },
                 saverImage = saverImage,
                 saverReveal = { saverReveal.value },
@@ -963,7 +970,7 @@ fun HomeScreen(
                         collapse = collapsePx,
                         cover = { if (channelPreviewVisible) 1f else filmCover.value },
                         filmStopped = { filmStopped },
-                        toSaver = { toSaver.value },
+                        toSaver = { saverLike },
                         lift = { liftState.value },
                     )
                 }
@@ -972,13 +979,8 @@ fun HomeScreen(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .offset { IntOffset(0, -scroll.value.roundToInt()) }
-                    // 和进屏保同款: 淡出时整体往下沉一点, 淡入时从下面升回来, 不是只有一个透明度
-                    .offset { IntOffset(0, ((1f - uiAlpha) * UI_SINK.toPx()).roundToInt()) }
-                    .graphicsLayer {
-                        // 一级网格透明度(含ui隐藏和浮层覆盖, 与屏保同为0.5秒)
-                        alpha = uiAlpha
-                    },
+                    .offset { IntOffset(0, -scroll.value.roundToInt()) },
+                // 淡出不在这里整层做: 每张卡片按屏保那一套逐列错峰淡出、下沉(见 saverFade)
             ) {
                 val clockRight = AerialSettings.clockRight
                 // The large clock stands over the top row; the small one is the time and weather in
@@ -998,7 +1000,7 @@ fun HomeScreen(
                                 alpha = 1f - (scroll.value / collapsePx * 1.6f).coerceIn(0f, 1f)
                                 compositingStrategy = CompositingStrategy.ModulateAlpha
                             },
-                        toSaver = { clockToSaver.value },
+                        toSaver = { maxOf(clockToSaver.value, overlayAmt) },
                         saving = vm.screensaverVisible,
                         away = carrying,
                     )
@@ -1012,7 +1014,7 @@ fun HomeScreen(
                                 alpha = 1f - (scroll.value / collapsePx * 1.6f).coerceIn(0f, 1f)
                                 compositingStrategy = CompositingStrategy.ModulateAlpha
                             },
-                        toSaver = { toSaver.value },
+                        toSaver = { saverLike },
                         saving = vm.screensaverVisible,
                     )
                 }
@@ -1033,7 +1035,7 @@ fun HomeScreen(
                             spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow),
                             label = "slot",
                         )
-                        val saverFade = { ((toSaver.value - 0.05f * (index % columns)) / 0.6f).coerceIn(0f, 1f) }
+                        val saverFade = { ((saverLike - 0.05f * (index % columns)) / 0.6f).coerceIn(0f, 1f) }
                         AppTile(
                             app = app,
                             width = metrics.tileW,
@@ -1128,7 +1130,7 @@ fun HomeScreen(
                             alpha = 1f - (scroll.value / collapsePx * 1.6f).coerceIn(0f, 1f)
                             compositingStrategy = CompositingStrategy.ModulateAlpha
                         },
-                    toSaver = { toSaver.value },
+                    toSaver = { saverLike },
                     saving = vm.screensaverVisible,
                 )
             }
@@ -1147,7 +1149,7 @@ fun HomeScreen(
                         if (key != null && apps.indexOfFirst { it.key == key } in 0 until columns) down = requester(key)
                     }
                     .graphicsLayer {
-                        alpha = (1f - (toSaver.value * 2f).coerceIn(0f, 1f)) * uiAlpha
+                        alpha = 1f - (saverLike * 2f).coerceIn(0f, 1f)
                         // No offscreen buffer: it would cut the focused pill's 8% growth to a box.
                         compositingStrategy = CompositingStrategy.ModulateAlpha
                     },

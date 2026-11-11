@@ -395,9 +395,21 @@ fun LiveSourceMenu(
                 // 和一级菜单同一块玻璃, 只把"壁纸那层颜色"换成中性灰:
                 // 灰 55% + 烟灰(argb(72,0,0,0)) + 32dp 圆角 + 1.2dp lit edge(顶部光泽+一圈亮边)。
                 // 直接调一级那个烘焙函数, 参数一模一样, 只是喂给它一张灰图。
-                val greyPlate = remember {
+                // 灰色取一级那块玻璃的平均亮度(去掉色偏): 参数完全一致, 亮度也就一致,
+                // 只把壁纸的颜色换成中性灰
+                val greyPlate = remember(Wallpapers.backdrop) {
+                    val frost = Wallpapers.frosted
+                    val level = if (frost != null) {
+                        val small = android.graphics.Bitmap.createScaledBitmap(frost.asAndroidBitmap(), 16, 9, true)
+                        var sum = 0f
+                        for (y in 0 until 9) for (x in 0 until 16) {
+                            val c = small.getPixel(x, y)
+                            sum += 0.299f * ((c shr 16) and 0xFF) + 0.587f * ((c shr 8) and 0xFF) + 0.114f * (c and 0xFF)
+                        }
+                        (sum / 144f).roundToInt().coerceIn(0, 255)
+                    } else 176
                     android.graphics.Bitmap.createBitmap(2, 2, android.graphics.Bitmap.Config.ARGB_8888)
-                        .apply { eraseColor(0xFF8C8C8C.toInt()) }
+                        .apply { eraseColor(android.graphics.Color.rgb(level, level, level)) }
                         .asImageBitmap()
                 }
                 val plateWpx = with(density) { plateW.toPx() }
