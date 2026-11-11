@@ -359,7 +359,10 @@ fun LiveSourceMenu(
             // 双排: 焦点行贴底, 上一行在上方, 无peek
             var bottomRow = focusedRow
             if (bottomRow >= numRows) bottomRow = numRows - 1
-            val baseY = remember(screenH, tileH) { screenH - tileH - 62.dp }
+            // 和一级菜单顶排同一个 Y: 一级是 screenH - tileH - (PlateMarginBottom + PlatePadV) - 名字那一段
+            val baseY = remember(screenH, tileH, showAllNames) {
+                screenH - tileH - 50.dp - if (showAllNames) 28.dp else 0.dp
+            }
             val pitchYVal = remember(tileH) { pitchY }
             fun rowY(rowFromTop: Int): Dp = baseY + pitchYVal * (rowFromTop - bottomRow)
             // 玻璃底板：照搬一级菜单书架底板，铺在当前可见的直播卡片行下面(小屏是两行)
@@ -375,7 +378,7 @@ fun LiveSourceMenu(
                 )
                 val plateW = tileW * columns + gridGap * (columns - 1) + 52.dp
                 val plateX = gridMargin - 26.dp
-                // 和一级菜单同一块玻璃: 取底板下面那一块磨砂壁纸, 55% + 一层奶白提亮 + 烟灰 + 亮边。
+                // 和一级菜单同一块玻璃: 取底板下面那一块磨砂壁纸, 55% + 烟灰, 外面一圈亮边。
                 // 直接从整屏磨砂图里取那一片来画(不再烘焙成图), 高度/位置变化时圆角永远是 32dp,
                 // 不会因为拉伸把圆角拉扁。
                 val frostPic = Wallpapers.frosted.takeIf { Wallpapers.backdrop != null }
@@ -384,42 +387,53 @@ fun LiveSourceMenu(
                         .offset(x = plateX, y = plateY)
                         .width(plateW)
                         .height(plateHeight)
-                        .clip(RoundedCornerShape(32.dp))
-                        .drawBehind {
-                            val pic = frostPic
-                            if (pic != null) {
-                                val sw = with(density) { screenW.toPx() }
-                                val sh = with(density) { screenH.toPx() }
-                                val left = with(density) { plateX.toPx() }
-                                val top = with(density) { plateY.toPx() }
-                                val kx = pic.width / sw
-                                val ky = pic.height / sh
-                                val sx = (left * kx).roundToInt().coerceIn(0, (pic.width - 1).coerceAtLeast(0))
-                                val sy = (top * ky).roundToInt().coerceIn(0, (pic.height - 1).coerceAtLeast(0))
-                                val cw = (size.width * kx).roundToInt().coerceIn(1, pic.width - sx)
-                                val ch = (size.height * ky).roundToInt().coerceIn(1, pic.height - sy)
-                                drawImage(
-                                    pic,
-                                    srcOffset = IntOffset(sx, sy),
-                                    srcSize = IntSize(cw, ch),
-                                    dstOffset = IntOffset.Zero,
-                                    dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
-                                    alpha = 0.55f,
-                                    filterQuality = FilterQuality.Low,
-                                )
-                                // 一级那块玻璃的奶白底色(PlateTint 的提亮), 免得纯磨砂看着发闷
-                                drawRect(Color(0x1EFFFFFF))
+                ) {
+                    // 玻璃本体: 裁成 32dp 圆角, 取底板下面那一片磨砂壁纸 55% + 烟灰。
+                    // 不要壁纸的光泽(那层奶白亮光), 二级菜单这块更平一些。
+                    Box(
+                        Modifier
+                            .matchParentSize()
+                            .clip(RoundedCornerShape(32.dp))
+                            .drawBehind {
+                                val pic = frostPic
+                                if (pic != null) {
+                                    val sw = with(density) { screenW.toPx() }
+                                    val sh = with(density) { screenH.toPx() }
+                                    val left = with(density) { plateX.toPx() }
+                                    val top = with(density) { plateY.toPx() }
+                                    val kx = pic.width / sw
+                                    val ky = pic.height / sh
+                                    val sx = (left * kx).roundToInt().coerceIn(0, (pic.width - 1).coerceAtLeast(0))
+                                    val sy = (top * ky).roundToInt().coerceIn(0, (pic.height - 1).coerceAtLeast(0))
+                                    val cw = (size.width * kx).roundToInt().coerceIn(1, pic.width - sx)
+                                    val ch = (size.height * ky).roundToInt().coerceIn(1, pic.height - sy)
+                                    drawImage(
+                                        pic,
+                                        srcOffset = IntOffset(sx, sy),
+                                        srcSize = IntSize(cw, ch),
+                                        dstOffset = IntOffset.Zero,
+                                        dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+                                        alpha = 0.55f,
+                                        filterQuality = FilterQuality.Low,
+                                    )
+                                }
+                                // 烟灰: 和一级同一个颜色, argb(72,0,0,0)
+                                drawRect(Color(0x48000000))
                             }
-                            // 烟灰: 和一级同一个颜色, argb(72,0,0,0)
-                            drawRect(Color(0x48000000))
-                            // 亮边
-                            drawRoundRect(
-                                Color(0x26FFFFFF),
-                                cornerRadius = CornerRadius(32.dp.toPx()),
-                                style = Stroke(1.2.dp.toPx()),
-                            )
-                        }
-                )
+                    )
+                    // 描边单独一层, 不跟着裁切, 圆角那一圈才画得出来
+                    Box(
+                        Modifier
+                            .matchParentSize()
+                            .drawBehind {
+                                drawRoundRect(
+                                    Color(0x26FFFFFF),
+                                    cornerRadius = CornerRadius(32.dp.toPx()),
+                                    style = Stroke(1.2.dp.toPx()),
+                                )
+                            }
+                    )
+                }
             }
             sources.forEachIndexed { index, source ->
                 val rowFromTop = index / columns
