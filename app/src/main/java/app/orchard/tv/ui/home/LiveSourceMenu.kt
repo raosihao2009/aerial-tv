@@ -228,6 +228,8 @@ fun LiveSourceMenu(
     val basePad = if (plate) 50.dp else 70.dp
     val showAllNames = AerialSettings.showAllNames
 
+    // 打开量: 0=完全展开, 1=完全收起。用它驱动屏保那一套动作
+    // (卡片逐列错峰下沉淡出 + 时钟缩小 + 底板退场)。
     val alpha = androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (!visible) 0f else 1f,
         animationSpec = androidx.compose.animation.core.tween(500, easing = Motion.EaseInOut),
@@ -237,9 +239,7 @@ fun LiveSourceMenu(
     androidx.compose.foundation.layout.BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            // 和一级/屏保同款: 淡入时从下面升上来, 淡出时往下沉一点
-            .graphicsLayer { translationY = (1f - alpha.value) * with(density) { 18.dp.toPx() } }
-            .alpha(alpha.value)
+            // 不再整层做透明度: 卡片逐列错峰下沉淡出、时钟缩小、底板退场, 和屏保/一级同一套
             .onPreviewKeyEvent { e ->
                 if (!visible || controlCenterOpen) return@onPreviewKeyEvent false
                 if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_HOME && e.type == KeyEventType.KeyDown) {
@@ -330,12 +330,15 @@ fun LiveSourceMenu(
                     modifier = Modifier
                         .align(if (clockRight) Alignment.TopEnd else Alignment.TopStart)
                         .padding(horizontal = 56.dp)
-                        .padding(top = 80.dp)
+                        .padding(top = 80.dp),
+                    // 和屏保过渡一样: 收起时缩回角落小钟
+                    toSaver = { 1f - alpha.value },
                 )
             } else if (!clockRight) {
                 CornerClock(
                     now = java.time.LocalDateTime.now(),
-                    modifier = Modifier.align(Alignment.TopStart).padding(start = 56.dp, top = 28.dp)
+                    modifier = Modifier.align(Alignment.TopStart).padding(start = 56.dp, top = 28.dp),
+                    toSaver = { 1f - alpha.value },
                 )
             }
             // 控制中心（一级菜单同款 StatusPill）
@@ -347,7 +350,11 @@ fun LiveSourceMenu(
                 focusRequester = pillFocus,
                 onFocused = {},
                 onClick = { onOpenControlCenter() },
-                modifier = Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = 42.dp).focusProperties {
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 28.dp, end = 42.dp)
+                    .graphicsLayer { alpha = 1f - alpha.value }
+                    .focusProperties {
                     up = FocusRequester.Cancel
                     right = FocusRequester.Cancel
                     left = requester(focusedId)
@@ -408,6 +415,7 @@ fun LiveSourceMenu(
                         .offset(x = plateX, y = plateY)
                         .width(plateW)
                         .height(plateHeight)
+                        .graphicsLayer { alpha = 1f - alpha.value }
                         .drawBehind {
                             val corner = 32.dp.toPx()
                             val rim = 1.2.dp.toPx()
@@ -501,12 +509,17 @@ fun LiveSourceMenu(
                     xPx, spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessHigh), label = "slotX")
                 val animY by androidx.compose.animation.core.animateIntAsState(
                     yPx, spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessHigh), label = "slotY")
+                // 屏保那一套: 从左到右逐列错峰, 每列下沉 18dp 并淡出
+                val cardFade = ((1f - alpha.value - 0.05f * colIndex) / 0.6f).coerceIn(0f, 1f)
                 val isFirstCol = colIndex == 0
                 val isLastCol = colIndex == columns - 1 || index == sources.size - 1
                 val isLastRow = rowFromTop == (sources.size - 1) / columns && index >= sources.size - 1 - columns
                 Box(modifier = Modifier
-                    .graphicsLayer { translationX = animX.toFloat(); translationY = animY.toFloat() }
-                    .alpha(if (shifted in -1..1) 1f else 0f)
+                    .graphicsLayer {
+                        translationX = animX.toFloat()
+                        translationY = animY.toFloat() + cardFade * 18.dp.toPx()
+                    }
+                    .alpha((if (shifted in -1..1) 1f else 0f) * (1f - cardFade))
                     .focusProperties {
                         if (isFirstCol) left = FocusRequester.Cancel
                         if (isLastCol) right = FocusRequester.Cancel

@@ -257,10 +257,10 @@
     <string name="weather_high_low">H:%1$d°  L:%2$d°</string>
     <string name="st_columns">Apps per Row</string>
     <string name="st_columns_hint">How many apps fit across Home, and in folders. Six shows more at a glance; four makes them larger, easier to see from across the room.</string>
-    <string name="st_peek">Second Row</string>
+    <string name="st_peek">Next Row</string>
     <string name="st_peek_show">Peek</string>
     <string name="st_peek_hide">Hidden</string>
-    <string name="st_peek_hint">With one row, the top of the second row peeks out under the first, to show there is more below. Hidden keeps it out of sight until you press down.</string>
+    <string name="st_peek_hint">The top of the next row peeks out below a row, to show there is more below (Home and the live menu). Hidden keeps it out of sight until you press down.</string>
     <string name="menu_boot_on">Open When TV Turns On</string>
     <string name="menu_boot_off">Don\'t Open When TV Turns On</string>
     <string name="cc_boot">When TV Turns On</string>

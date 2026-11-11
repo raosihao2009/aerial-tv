@@ -225,8 +225,8 @@ fun WallpaperSheet(
                         listOf(true to R.string.st_home_one_row, false to R.string.st_home_standard),
                         AerialSettings.oneRowHome, AerialSettings::chooseOneRowHome,
                     )
-                    // Two rows show the second row whole; only one row has a peek to hide.
-                    if (AerialSettings.oneRowHome) Choices(
+                    // 双排布局下也保留这个选项: 它也控制二级菜单(直播源)露出下一排的效果。
+                    Choices(
                         R.string.st_peek, stringResource(R.string.st_peek_hint), note,
                         listOf(true to R.string.st_peek_show, false to R.string.st_peek_hide),
                         AerialSettings.peekNextRow, AerialSettings::choosePeekNextRow,
