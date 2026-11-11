@@ -6,15 +6,12 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PixelFormat
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.os.SystemClock
 import android.view.View
 import app.orchard.tv.ui.components.smoothCut
-import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -57,8 +54,9 @@ private class SplashArt(context: Context) {
             .getOrNull()
     }
 
-    fun drawBrand(canvas: Canvas, w: Float, h: Float, fade: Float) {
-        if (fade <= 0f) return
+    /** [fade] 管图标, [wordFade] 管文字: 开屏时文字先淡到透明, 图标留到整体放大那一段。 */
+    fun drawBrand(canvas: Canvas, w: Float, h: Float, fade: Float, wordFade: Float = fade) {
+        if (fade <= 0f && wordFade <= 0f) return
         word.textSize = min(w * 0.082f, h * 0.175f).coerceAtLeast(28f)
         val textW = word.measureText(BRAND)
         val iconSide = word.textSize
@@ -67,12 +65,12 @@ private class SplashArt(context: Context) {
         val left = w / 2f - (iconRoom + textW) / 2f
         val radius = w * CARD_CORNER_RATIO
         val bmp = roundedIcon(iconSide.roundToInt(), radius)
-        if (bmp != null) {
+        if (bmp != null && fade > 0f) {
             iconPaint.alpha = (fade * 255).toInt().coerceIn(0, 255)
             val top = h / 2f - iconSide / 2f
             canvas.drawBitmap(bmp, null, RectF(left, top, left + iconSide, top + iconSide), iconPaint)
         }
-        word.alpha = (fade * 255).toInt().coerceIn(0, 255)
+        word.alpha = (wordFade * 255).toInt().coerceIn(0, 255)
         // 纵向居中对齐图标: 字的中线压在屏幕中线上
         canvas.drawText(BRAND, left + iconRoom, h / 2f - (word.descent() + word.ascent()) / 2f, word)
     }
@@ -104,8 +102,12 @@ class SplashBackground(context: Context) : Drawable() {
 }
 
 /**
- * 冷启动遮罩: 一块纯黑, 中间横排着 Aerial 的图标和白色字(和窗口背景同一张图, 所以无缝接上)。
- * 桌面的首帧(壁纸、底板、卡片)真的画出来之后, 白字先淡到透明, 再从字的位置扩出一个圆把黑幕推开。
+ * 冷启动遮罩: 一块纯黑, 中间横排着 Aerial 的图标和白色字(和窗口背景同一张图, 无缝接上)。
+ * 桌面的首帧(壁纸、底板、卡片)真的画出来、再等半秒之后开始过渡:
+ *   ① 文字" Aerial "由白渐变为透明;
+ *   ② 图标与文字这一组整体从小放大(向观众推近), 同时黑幕淡出, 桌面在它后面露出来。
+ * 全程 2.5 秒, 用缓动曲线逐帧自算。早前那版是"圆形抠图", 圆的边缘在电视的缩放/合成上放大后
+ * 有锯齿和色带, 所以换成这种整体缩放 + 淡出, 每一帧都只是位图和文字的缩放/透明度, 更顺。
  *
  * 动画自己按 [SystemClock] 逐帧算, 不走 ValueAnimator: 电视盒子常把开发者选项里的"动画时长
  * 缩放"关成 0, 那时 ValueAnimator 会直接跳到终点, 看起来就是"没有过渡"。
@@ -116,15 +118,18 @@ class SplashBackground(context: Context) : Drawable() {
 class SplashVeil(context: Context) : View(context) {
 
     private val art = SplashArt(context)
-    private val clear = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR) }
+    private val black = Paint()
 
-    /** 1 → 白字与图标完全可见; 0 → 全透明。 */
-    private var fade = 1f
-    /** 0 → 全黑; 1 → 圆已经盖满整屏, 黑幕完全推开。 */
-    private var reveal = 0f
+    /** 图标的透明度: 1 → 完全可见, 0 → 全透明。 */
+    private var markAlpha = 1f
+    /** 文字的透明度: 先于图标淡到 0。 */
+    private var wordAlpha = 1f
+    /** 黑幕的透明度: 1 → 全黑, 0 → 桌面完全露出来。 */
+    private var veilAlpha = 1f
+    /** 图标与文字这一组的放大倍数。 */
+    private var zoom = 1f
     private var cx = 0f
     private var cy = 0f
-    private var maxR = 1f
     private var started = false
     /** 桌面报"好了"时报得太早(还没量出尺寸), 等 [onSizeChanged] 再真正开始。 */
     private var pending = false
@@ -149,22 +154,21 @@ class SplashVeil(context: Context) : View(context) {
     private fun measureCenter() {
         cx = width / 2f
         cy = height / 2f
-        maxR = hypot(cx, cy) + 2f
     }
 
     override fun onDraw(canvas: Canvas) {
-        if (reveal <= 0f) {
-            canvas.drawColor(Color.BLACK)
-            art.drawBrand(canvas, width.toFloat(), height.toFloat(), fade)
-            return
+        // 黑幕只是一个会变淡的纯色矩形: 不用离屏层、不抠图, 低端 GPU 上也是一次填充。
+        if (veilAlpha > 0f) {
+            black.color = Color.argb((veilAlpha * 255).toInt().coerceIn(0, 255), 0, 0, 0)
+            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), black)
         }
-        // 黑幕只在圆外: 用离屏层把黑填满, 再在那个位置把圆抠掉。
-        val layer = canvas.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null)
-        canvas.drawColor(Color.BLACK)
-        canvas.drawCircle(cx, cy, maxR * reveal, clear)
-        canvas.restoreToCount(layer)
-        // 圆推开时字还没淡完(两个动画有重叠), 一起收掉更自然
-        if (fade > 0f) art.drawBrand(canvas, width.toFloat(), height.toFloat(), fade)
+        if (markAlpha > 0f || wordAlpha > 0f) {
+            // 以屏幕中心为锚点放大, 字和图标都还压在同一条中线上。
+            canvas.save()
+            canvas.scale(zoom, zoom, cx, cy)
+            art.drawBrand(canvas, width.toFloat(), height.toFloat(), markAlpha, wordAlpha)
+            canvas.restore()
+        }
     }
 
     /** 桌面报"好了"之后再等一会儿才揭开: 底板和卡片刚上屏的那一下不算好光学, 停半秒更稳。 */
@@ -173,11 +177,11 @@ class SplashVeil(context: Context) : View(context) {
         postDelayed({ revealNow() }, delayMs)
     }
 
-    /** 桌面首帧到了: 白字淡出, 随即从字的位置把黑幕推开。只做一次。 */
+    /** 桌面首帧到了: 文字淡到透明, 图标与字放大, 黑幕淡出。只做一次。 */
     fun revealNow() {
         if (started || pending) return
         if (width == 0 || height == 0) {
-            // 内容视图还没量过: 现在开始的话圆心和最大半径都是 0, 等于没有过渡。
+            // 内容视图还没量过: 现在开始的话连中心点都还是 0, 等于没有过渡。
             pending = true
             return
         }
@@ -196,16 +200,21 @@ class SplashVeil(context: Context) : View(context) {
     private val tick = object : Runnable {
         override fun run() {
             val e = SystemClock.uptimeMillis() - startAt
-            fade = (1f - e.toFloat() / FADE_MS).coerceIn(0f, 1f)
-            val p = ((e - OPEN_DELAY_MS).toFloat() / OPEN_MS).coerceIn(0f, 1f)
-            reveal = easeOut(p)
+            // ① 文字先淡到透明(0 → 700ms)
+            wordAlpha = 1f - smooth((e / WORD_MS).coerceIn(0f, 1f))
+            // ② 一组整体放大(500 → 2400ms), 同时跟着放大淡出
+            val pz = ((e - ZOOM_DELAY_MS) / ZOOM_MS).coerceIn(0f, 1f)
+            zoom = 1f + (ZOOM_TO - 1f) * smooth(pz)
+            markAlpha = 1f - smooth(pz)
+            // ③ 黑幕在放大到一半以后开始淡, 到 2500ms 全开(桌面完全露出)
+            veilAlpha = 1f - smooth(((e - VEIL_DELAY_MS) / VEIL_MS).coerceIn(0f, 1f))
             invalidate()
-            if (p < 1f || fade > 0f) postOnAnimation(this) else finish()
+            if (e < TOTAL_MS) postOnAnimation(this) else finish()
         }
     }
 
-    /** 起手和落点都放慢一点, 像光圈慢慢铺开整块屏幕, 全程 2.5 秒不显得赶。 */
-    private fun easeOut(p: Float): Float = p * p * (3f - 2f * p)
+    /** 两端都放慢的 smoothstep: 起手不突兀, 落点不急刹。 */
+    private fun smooth(p: Float): Float = p * p * (3f - 2f * p)
 
     private fun finish() {
         onRevealed?.invoke()
@@ -213,10 +222,17 @@ class SplashVeil(context: Context) : View(context) {
     }
 
     private companion object {
-        // 揭开全程 2.5 秒: 字先淡 450ms, 140ms 后开始推圆, 圆再走 2.2 秒 (到 2500ms 结束)
-        const val FADE_MS = 450f
-        const val OPEN_DELAY_MS = 300f
-        const val OPEN_MS = 2200f
+        /** 过渡全程 2.5 秒。 */
+        const val TOTAL_MS = 2500f
+        /** 文字淡到透明。 */
+        const val WORD_MS = 700f
+        /** 整组放大: 500ms 起步, 到 2400ms 放大到 4 倍(边放大边淡出)。 */
+        const val ZOOM_DELAY_MS = 500f
+        const val ZOOM_MS = 1900f
+        const val ZOOM_TO = 4f
+        /** 黑幕淡出: 900ms 起, 到 2500ms 全开。 */
+        const val VEIL_DELAY_MS = 900f
+        const val VEIL_MS = 1600f
     }
 }
 
