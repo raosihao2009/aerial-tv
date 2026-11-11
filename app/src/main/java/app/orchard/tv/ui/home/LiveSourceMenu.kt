@@ -60,6 +60,7 @@ import app.orchard.tv.apps.TileArtFactory
 import app.orchard.tv.settings.AerialSettings
 import app.orchard.tv.system.Sounds
 import app.orchard.tv.ui.components.liquidGlass
+import app.orchard.tv.ui.theme.Motion
 import app.orchard.tv.wallpaper.Wallpapers
 import app.orchard.tv.ui.theme.Glyph
 import app.orchard.tv.ui.theme.Type
@@ -226,7 +227,7 @@ fun LiveSourceMenu(
 
     val alpha = androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (!visible) 0f else 1f,
-        animationSpec = androidx.compose.animation.core.tween(500),
+        animationSpec = androidx.compose.animation.core.tween(500, easing = Motion.EaseInOut),
         label = "liveMenuAlpha",
     )
 
