@@ -63,6 +63,7 @@ import app.orchard.tv.guard.GuardSetup
 import app.orchard.tv.guard.HomeGuardService
 import app.orchard.tv.ui.home.FilmAfterInput
 import app.orchard.tv.ui.BootVeil
+import app.orchard.tv.ui.SplashBackground
 import app.orchard.tv.ui.SplashVeil
 import app.orchard.tv.ui.home.HomeScreen
 import app.orchard.tv.ui.home.AerialStart
@@ -307,7 +308,12 @@ class MainActivity : ComponentActivity() {
         // baked at the last start, so the window never shows black while Compose sets up. Without
         // one, keep what the window already shows (the kept backdrop of a locked start).
         val baked = Wallpapers.backdrop
-        if (baked != null) {
+        if (fresh) {
+            // 冷启动: 窗口背景直接画开屏图(黑底+图标+Aerial字)。窗口一可见就是它, 不用等
+            // 内容视图和 Compose 组合 —— 以前这里放的是上次烘焙的壁纸, 于是先看两秒壁纸才黑下来。
+            window.setBackgroundDrawable(SplashBackground(this))
+            DiagLog.i("boot-debug: window background is the splash at +${SystemClock.elapsedRealtime()}ms")
+        } else if (baked != null) {
             window.setBackgroundDrawable(BitmapDrawable(resources, baked.asAndroidBitmap()))
             DiagLog.i("boot-debug: window background set to baked backdrop at +${SystemClock.elapsedRealtime()}ms")
         } else {
@@ -357,6 +363,8 @@ class MainActivity : ComponentActivity() {
         )
         if (fresh) {
             val veil = SplashVeil(this)
+            // 揭开之后窗口背景换成纯黑: 内容视图盖在上面看不见它, 但不用每帧再画一遍字。
+            veil.onRevealed = { window.setBackgroundDrawable(ColorDrawable(Color.BLACK)) }
             root.addView(
                 veil,
                 FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT),
