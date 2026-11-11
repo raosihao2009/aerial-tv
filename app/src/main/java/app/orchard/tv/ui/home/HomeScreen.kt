@@ -827,7 +827,9 @@ fun HomeScreen(
             // there are, which sit at its left: sized to three apps it read as a stray panel (#284).
             // In two rows it holds both: under the top row alone, the second sat beside it on the
             // bare wallpaper, as if left off the shelf.
-            val plate = if (apps.isEmpty() || !AerialSettings.homePlate) null else with(density) {
+            // 控制中心和个性化(壁纸)打开时, 玻璃底板不画出来, 免得面板后面还露着一层。
+            val plateHidden = overlay is Overlay.ControlCenter || sheetIn
+            val plate = if (apps.isEmpty() || !AerialSettings.homePlate || plateHidden) null else with(density) {
                 val second = if (metrics.shelfRows > 1) metrics.shelfSecond else 0.dp
                 Rect(
                     (metrics.margin - PlatePadH).toPx(),
