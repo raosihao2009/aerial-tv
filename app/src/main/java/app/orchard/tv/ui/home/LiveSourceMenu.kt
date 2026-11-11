@@ -28,6 +28,7 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -44,6 +45,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.KeyEventType
@@ -189,27 +191,6 @@ fun LiveSourceMenu(
     // 初始值true: 组件首次组合时justOpened就为true, 只有当前直播卡片可聚焦
     var justOpened by remember { mutableStateOf(true) }
 
-    // 菜单显示时立即聚焦上次焦点位置(默认当前直播源), 避免焦点先落到第一个卡片再跳过来
-    LaunchedEffect(visible) {
-        if (visible) {
-            if (wasCcOpen) {
-                wasCcOpen = false
-                justOpened = false
-                repeat(3) { androidx.compose.runtime.withFrameNanos { } }
-                runCatching { pillFocus.requestFocus() }
-            } else {
-                // justOpened=true时只有currentId可聚焦, 1帧后requestFocus确保焦点在currentId上
-                focusedId = currentId
-                justOpened = true
-                androidx.compose.runtime.withFrameNanos { }
-                runCatching { requester(currentId).requestFocus() }
-                justOpened = false
-            }
-        } else {
-            // 关闭时重置justOpened=true, 下次打开组件首次组合就只有currentId可聚焦
-            justOpened = true
-        }
-    }
     // 移动时焦点跟随
     LaunchedEffect(movingId, sources) {
         movingId?.let { runCatching { requester(it).requestFocus() } }
@@ -235,6 +216,35 @@ fun LiveSourceMenu(
         animationSpec = androidx.compose.animation.core.tween(500, easing = Motion.EaseInOut),
         label = "liveMenuAlpha",
     )
+
+    // 焦点要等"淡入/淡出演完"再动: 打开时菜单显示完成后才把焦点放到当前直播卡片上,
+    // 关闭时先保持选中态把菜单收掉, 收回之后才放掉焦点 —— 卡片不会在过渡当中放大/缩小。
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    LaunchedEffect(visible) {
+        if (visible) {
+            if (wasCcOpen) {
+                wasCcOpen = false
+                justOpened = false
+                snapshotFlow { alpha.value }.first { it >= 0.99f }
+                repeat(2) { androidx.compose.runtime.withFrameNanos { } }
+                runCatching { pillFocus.requestFocus() }
+            } else {
+                focusedId = currentId
+                // 淡入期间只有当前直播卡片可聚焦(justOpened), 右上角控制中心不会被抢到焦点
+                justOpened = true
+                snapshotFlow { alpha.value }.first { it >= 0.99f }
+                repeat(2) { androidx.compose.runtime.withFrameNanos { } }
+                justOpened = false
+                // 偶发焦点落到控制中心时, 这里再确认一次
+                runCatching { requester(currentId).requestFocus() }
+                if (focusedId != currentId) runCatching { requester(currentId).requestFocus() }
+            }
+        } else {
+            snapshotFlow { alpha.value }.first { it <= 0.01f }
+            justOpened = true
+            runCatching { focusManager.clearFocus(force = true) }
+        }
+    }
 
     androidx.compose.foundation.layout.BoxWithConstraints(
         modifier = Modifier
