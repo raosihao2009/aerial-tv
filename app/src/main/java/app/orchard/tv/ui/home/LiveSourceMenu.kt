@@ -359,8 +359,8 @@ fun LiveSourceMenu(
             if (AerialSettings.homePlate && sources.isNotEmpty()) {
                 val plateFirstRow = (bottomRow - 1).coerceAtLeast(0)
                 val plateTop = rowY(plateFirstRow) - 20.dp
-                // 名字下面只留一点点: 之前留 28dp 显得整块底板往下坠
-                val plateHeight = rowY(bottomRow) + tileH + 18.dp - plateTop
+                // 名字画在底板上: 高度 = 卡片 + 名字那一段, 和一级菜单同一套 (PlatePadV + PlateNameRoom)
+                val plateHeight = rowY(bottomRow) + tileH + 20.dp + 28.dp - plateTop
                 val plateY by animateDpAsState(
                     plateTop,
                     spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessHigh),
@@ -478,7 +478,10 @@ fun LiveSourceMenu(
                         } },
                         onLongPress = { if (movingId == null) menuForId = source.id },
                         rowEnd = index % columns == columns - 1 || index == sources.size - 1,
-                        showName = showAllNames || focusedId == source.id,
+                        // 和一级菜单一样: 底板开着时名字画在底板上, 不占卡片内部高度,
+                        // 否则卡片里的图会矮一截, 和一级菜单对不上
+                        showName = if (AerialSettings.homePlate) showAllNames else showAllNames || focusedId == source.id,
+                        nameOnPlate = AerialSettings.homePlate,
                     )
                 }
                 }
