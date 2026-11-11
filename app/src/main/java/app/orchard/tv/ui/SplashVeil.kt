@@ -6,26 +6,38 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PixelFormat
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
+import android.graphics.SurfaceTexture
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
+import android.media.MediaPlayer
 import android.os.SystemClock
+import android.view.Surface
+import android.view.TextureView
 import android.view.View
+import android.widget.FrameLayout
+import androidx.core.content.res.ResourcesCompat
+import app.orchard.tv.R
 import app.orchard.tv.ui.components.smoothCut
+import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 /**
- * 开屏的那张图: 纯黑, 中间横排着 Aerial 的图标和白色字。窗口背景([SplashBackground])和遮罩
- * ([SplashVeil])画的是同一份, 所以窗口一可见就看得见它, 内容视图后到也没有接缝。
+ * 开屏的静态图: 纯黑, 中间横排着 Aerial 的图标和白色字。窗口背景([SplashBackground])、短片
+ * ([SplashVideo])和遮罩([MarkView])画的是同一份几何, 所以从窗口一可见到揭开, 中间不会有接缝。
  *
- * 图标的圆角用卡片圆角的半径: 卡片画在设计稿 960 宽的画布上、圆角 12dp, 也就是屏宽的 1/80,
- * 这里按同一个比例切。
+ * 字用包内的 Inter(和桌面同一套字体), 图标用应用图标, 圆角取卡片圆角的半径: 卡片画在设计稿 960
+ * 宽的画布上、圆角 12dp, 也就是屏宽的 1/80, 这里按同一个比例切。
  */
 private class SplashArt(context: Context) {
     val word = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
-        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        typeface = runCatching { ResourcesCompat.getFont(context, R.font.inter) }.getOrNull()
+            ?: Typeface.create("sans-serif-medium", Typeface.NORMAL)
         letterSpacing = 0.04f
     }
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
@@ -54,15 +66,29 @@ private class SplashArt(context: Context) {
             .getOrNull()
     }
 
+    /** 图标在屏幕上的位置, 整组横排在屏幕中线上时。 */
+    class Box(val side: Float, val left: Float) {
+        val centerX: Float get() = left + side / 2
+    }
+
+    fun box(w: Float, h: Float): Box {
+        word.textSize = sizeOf(w, h)
+        val textW = word.measureText(BRAND)
+        val iconSide = word.textSize
+        val gap = iconSide * 0.42f
+        val room = if (icon != null) iconSide + gap else 0f
+        return Box(iconSide, w / 2f - (room + textW) / 2f)
+    }
+
     /** [fade] 管图标, [wordFade] 管文字: 开屏时文字先淡到透明, 图标留到整体放大那一段。 */
     fun drawBrand(canvas: Canvas, w: Float, h: Float, fade: Float, wordFade: Float = fade) {
         if (fade <= 0f && wordFade <= 0f) return
-        word.textSize = min(w * 0.082f, h * 0.175f).coerceAtLeast(28f)
+        word.textSize = sizeOf(w, h)
         val textW = word.measureText(BRAND)
         val iconSide = word.textSize
-        val gap = word.textSize * 0.42f
-        val iconRoom = if (icon != null) iconSide + gap else 0f
-        val left = w / 2f - (iconRoom + textW) / 2f
+        val gap = iconSide * 0.42f
+        val room = if (icon != null) iconSide + gap else 0f
+        val left = w / 2f - (room + textW) / 2f
         val radius = w * CARD_CORNER_RATIO
         val bmp = roundedIcon(iconSide.roundToInt(), radius)
         if (bmp != null && fade > 0f) {
@@ -72,8 +98,10 @@ private class SplashArt(context: Context) {
         }
         word.alpha = (wordFade * 255).toInt().coerceIn(0, 255)
         // 纵向居中对齐图标: 字的中线压在屏幕中线上
-        canvas.drawText(BRAND, left + iconRoom, h / 2f - (word.descent() + word.ascent()) / 2f, word)
+        canvas.drawText(BRAND, left + room, h / 2f - (word.descent() + word.ascent()) / 2f, word)
     }
+
+    private fun sizeOf(w: Float, h: Float): Float = min(w * 0.082f, h * 0.175f).coerceAtLeast(28f)
 
     private companion object {
         const val BRAND = "Aerial"
@@ -102,73 +130,125 @@ class SplashBackground(context: Context) : Drawable() {
 }
 
 /**
- * 冷启动遮罩: 一块纯黑, 中间横排着 Aerial 的图标和白色字(和窗口背景同一张图, 无缝接上)。
- * 桌面的首帧(壁纸、底板、卡片)真的画出来、再等半秒之后开始过渡:
- *   ① 文字" Aerial "由白渐变为透明;
- *   ② 图标与文字这一组整体从小放大(向观众推近), 同时黑幕淡出, 桌面在它后面露出来。
- * 全程 2.5 秒, 用缓动曲线逐帧自算。早前那版是"圆形抠图", 圆的边缘在电视的缩放/合成上放大后
- * 有锯齿和色带, 所以换成这种整体缩放 + 淡出, 每一帧都只是位图和文字的缩放/透明度, 更顺。
+ * 开屏短片: 纯黑底上一张"圆角图标 + 横向 Aerial 白字", 一道微光扫过标志(素材见
+ * tools/render-intro.py)。它是一块普通的 [TextureView], 不是 Compose。
+ *
+ * 短片的首帧和 [SplashArt] 画的是同一份几何, 所以窗口背景的静图、短片、揭开用的遮罩之间
+ * 接得上。短片循环播放: 桌面准备得慢就多循环一轮, 首尾帧一样, 看不出接缝。
+ */
+private class SplashVideo(context: Context) : TextureView(context) {
+    private var player: MediaPlayer? = null
+    private var surface: Surface? = null
+    private var failed = false
+    var onFail: (() -> Unit)? = null
+
+    init {
+        isOpaque = false
+        surfaceTextureListener = object : SurfaceTextureListener {
+            override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) = open(st)
+            override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) = Unit
+            override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
+                release()
+                return true
+            }
+
+            override fun onSurfaceTextureUpdated(st: SurfaceTexture) = Unit
+        }
+    }
+
+    private fun open(st: SurfaceTexture) {
+        if (player != null || failed) return
+        // 软件图层上 TextureView 是空的(见 MainActivity 的 softLayer), 那时退回静态图。
+        if (!isHardwareAccelerated) {
+            fail()
+            return
+        }
+        val mp = MediaPlayer()
+        player = mp
+        try {
+            context.assets.openFd(CLIP).use { fd ->
+                mp.setDataSource(fd.fileDescriptor, fd.startOffset, fd.length)
+            }
+            mp.isLooping = true
+            // 开屏不该有声音: 电视盒子刚上电就响比静音更糟。
+            mp.setVolume(0f, 0f)
+            surface = Surface(st)
+            mp.setSurface(surface)
+            mp.setOnPreparedListener { it.start() }
+            mp.setOnErrorListener { _, _, _ ->
+                fail()
+                true
+            }
+            mp.prepareAsync()
+        } catch (e: Exception) {
+            fail()
+        }
+    }
+
+    private fun fail() {
+        if (failed) return
+        failed = true
+        release()
+        onFail?.invoke()
+    }
+
+    /** 揭开时用: 先把画面藏起来, 再把解码器还掉, 免得和桌面抢显存。 */
+    fun stop() {
+        visibility = GONE
+        release()
+    }
+
+    private fun release() {
+        val mp = player ?: return
+        player = null
+        runCatching { mp.setOnErrorListener(null) }
+        runCatching { mp.setOnPreparedListener(null) }
+        // release 会停一会儿, 别压在主线程上。
+        Thread { runCatching { mp.release() } }.start()
+        surface?.let { runCatching { it.release() } }
+        surface = null
+    }
+
+    private companion object {
+        const val CLIP = "intro.mp4"
+    }
+}
+
+/**
+ * 冷启动遮罩: 短片在上, 桌面在黑幕后面先把壁纸、底板、卡片画好; 桌面报"好了"再等半秒, 然后:
+ *   ① 文字"Aerial"由白渐变为透明;
+ *   ② 图标与这一组整体放大(向观众推近), 标志本身渐渐只剩形状, 桌面从标志的形状里透出来;
+ *   ③ 最后一段黑幕收薄到全透明, 桌面完全落定。
+ * 全程 2.5 秒。开口的形状就是标志本身(不是圆): 圆的边缘在电视的缩放/合成上会出锯齿和色带,
+ * 而标志是从一开始就在画面里的那个东西, 放大它没有"多出来的一条边"。
  *
  * 动画自己按 [SystemClock] 逐帧算, 不走 ValueAnimator: 电视盒子常把开发者选项里的"动画时长
  * 缩放"关成 0, 那时 ValueAnimator 会直接跳到终点, 看起来就是"没有过渡"。
  *
- * 它是一块普通的 [View], 不是 Compose: 早前在 setContent 前先挂一个 ComposeView 预热, 抢走了
- * 窗口唯一的 Recomposer, 摘掉之后主界面再也拿不到帧, 于是永远黑屏。这里只画 canvas, 不碰 Compose。
+ * 它是普通的 View, 不是 Compose: 早前在 setContent 前先挂一个 ComposeView 预热, 抢走了窗口
+ * 唯一的 Recomposer, 摘掉之后主界面再也拿不到帧, 于是永远黑屏。
  */
-class SplashVeil(context: Context) : View(context) {
+class SplashVeil(context: Context) : FrameLayout(context) {
+    private val video = SplashVideo(context)
+    private val mark = MarkView(context)
 
-    private val art = SplashArt(context)
-    private val black = Paint()
+    /** 揭开之后叫一声: 窗口背景换回纯黑, 不用每帧再画一遍字。 */
+    var onRevealed: (() -> Unit)? = null
 
-    /** 图标的透明度: 1 → 完全可见, 0 → 全透明。 */
-    private var markAlpha = 1f
-    /** 文字的透明度: 先于图标淡到 0。 */
-    private var wordAlpha = 1f
-    /** 黑幕的透明度: 1 → 全黑, 0 → 桌面完全露出来。 */
-    private var veilAlpha = 1f
-    /** 图标与文字这一组的放大倍数。 */
-    private var zoom = 1f
-    private var cx = 0f
-    private var cy = 0f
     private var started = false
     /** 桌面报"好了"时报得太早(还没量出尺寸), 等 [onSizeChanged] 再真正开始。 */
     private var pending = false
     private var startAt = 0L
 
-    /** 揭开之后叫一声: 窗口背景换回纯黑, 不用每帧再画一遍字。 */
-    var onRevealed: (() -> Unit)? = null
-
     init {
-        // 黑幕期间不接受焦点、不响应触摸, 让下面的桌面照常准备自己的焦点。
-        isFocusable = false
-        isClickable = false
+        video.onFail = { mark.showStill() }
+        addView(video, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        addView(mark, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        measureCenter()
-        invalidate()
         if (pending) start()
-    }
-
-    private fun measureCenter() {
-        cx = width / 2f
-        cy = height / 2f
-    }
-
-    override fun onDraw(canvas: Canvas) {
-        // 黑幕只是一个会变淡的纯色矩形: 不用离屏层、不抠图, 低端 GPU 上也是一次填充。
-        if (veilAlpha > 0f) {
-            black.color = Color.argb((veilAlpha * 255).toInt().coerceIn(0, 255), 0, 0, 0)
-            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), black)
-        }
-        if (markAlpha > 0f || wordAlpha > 0f) {
-            // 以屏幕中心为锚点放大, 字和图标都还压在同一条中线上。
-            canvas.save()
-            canvas.scale(zoom, zoom, cx, cy)
-            art.drawBrand(canvas, width.toFloat(), height.toFloat(), markAlpha, wordAlpha)
-            canvas.restore()
-        }
     }
 
     /** 桌面报"好了"之后再等一会儿才揭开: 底板和卡片刚上屏的那一下不算好光学, 停半秒更稳。 */
@@ -177,7 +257,7 @@ class SplashVeil(context: Context) : View(context) {
         postDelayed({ revealNow() }, delayMs)
     }
 
-    /** 桌面首帧到了: 文字淡到透明, 图标与字放大, 黑幕淡出。只做一次。 */
+    /** 桌面首帧到了: 收起短片, 文字淡到透明, 标志放大, 黑幕收起。只做一次。 */
     fun revealNow() {
         if (started || pending) return
         if (width == 0 || height == 0) {
@@ -192,53 +272,184 @@ class SplashVeil(context: Context) : View(context) {
         if (started) return
         pending = false
         started = true
-        measureCenter()
+        // 短片让位给遮罩: 同一帧里遮罩就把黑幕和标志画上, 所以不会有闪白。
+        video.stop()
+        mark.reveal()
         startAt = SystemClock.uptimeMillis()
         postOnAnimation(tick)
     }
 
     private val tick = object : Runnable {
         override fun run() {
-            val e = SystemClock.uptimeMillis() - startAt
-            // ① 文字先淡到透明(0 → 700ms)
-            wordAlpha = 1f - smooth((e / WORD_MS).coerceIn(0f, 1f))
-            // ② 一组整体放大(500 → 2400ms), 同时跟着放大淡出
-            val pz = ((e - ZOOM_DELAY_MS) / ZOOM_MS).coerceIn(0f, 1f)
-            zoom = 1f + (ZOOM_TO - 1f) * smooth(pz)
-            markAlpha = 1f - smooth(pz)
-            // ③ 黑幕在放大到一半以后开始淡, 到 2500ms 全开(桌面完全露出)
-            veilAlpha = 1f - smooth(((e - VEIL_DELAY_MS) / VEIL_MS).coerceIn(0f, 1f))
-            invalidate()
+            val e = (SystemClock.uptimeMillis() - startAt).toFloat()
+            mark.frame(e)
             if (e < TOTAL_MS) postOnAnimation(this) else finish()
         }
     }
 
-    /** 两端都放慢的 smoothstep: 起手不突兀, 落点不急刹。 */
-    private fun smooth(p: Float): Float = p * p * (3f - 2f * p)
-
     private fun finish() {
+        video.stop()
         onRevealed?.invoke()
         (parent as? android.view.ViewGroup)?.removeView(this)
     }
 
     private companion object {
-        /** 过渡全程 2.5 秒。 */
         const val TOTAL_MS = 2500f
-        /** 文字淡到透明。 */
-        const val WORD_MS = 700f
-        /** 整组放大: 500ms 起步, 到 2400ms 放大到 4 倍(边放大边淡出)。 */
-        const val ZOOM_DELAY_MS = 500f
-        const val ZOOM_MS = 1900f
-        const val ZOOM_TO = 4f
-        /** 黑幕淡出: 900ms 起, 到 2500ms 全开。 */
-        const val VEIL_DELAY_MS = 900f
-        const val VEIL_MS = 1600f
     }
 }
 
+/** 黑幕 + 标志 + 开口。揭开时唯一还在动的东西。 */
+private class MarkView(context: Context) : View(context) {
+    private val ctx = context
+    private val art = SplashArt(context)
+    private val black = Paint()
+    private val cut = Paint(Paint.FILTER_BITMAP_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT) }
+
+    /** 短片起不来时, 这里就是那块静态图。 */
+    private var showsStill = false
+    private var started = false
+    private var startAt = 0L
+
+    private var blackAlpha = 1f
+    private var inkAlpha = 1f
+    private var wordAlpha = 1f
+    private var scale = 1f
+
+    private var mask: Bitmap? = null
+    private var building = false
+    private var pivotX = 0f
+    private var pivotY = 0f
+    private var endScale = 12f
+
+    fun showStill() {
+        showsStill = true
+        invalidate()
+    }
+
+    fun reveal() {
+        if (started) return
+        started = true
+        startAt = SystemClock.uptimeMillis()
+        measure()
+        buildMask()
+        invalidate()
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        measure()
+        buildMask()
+        invalidate()
+    }
+
+    /**
+     * 放大要绕的点和要放多大: 绕图标中心放大, 放大到洞能盖住离它最远的那个屏幕角。第一帧就
+     * 算好, 不等剪影(剪影在别的线程画, 慢一点也没关系 —— 颜色层挡着, 看不出洞里少了什么)。
+     */
+    private fun measure() {
+        if (width <= 0 || height <= 0) return
+        val w = width.toFloat()
+        val h = height.toFloat()
+        val box = art.box(w, h)
+        pivotX = box.centerX
+        pivotY = h / 2f
+        val far = maxOf(hypot(pivotX, pivotY), hypot(w - pivotX, pivotY), hypot(pivotX, h - pivotY), hypot(w - pivotX, h - pivotY))
+        endScale = (far / (box.side / 2f) * 1.15f).coerceIn(4f, 24f)
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        val w = width.toFloat()
+        val h = height.toFloat()
+        if (w <= 0f || h <= 0f) return
+        if (!started) {
+            if (showsStill) {
+                canvas.drawColor(Color.BLACK)
+                art.drawBrand(canvas, w, h, 1f)
+            }
+            return
+        }
+        // 黑幕: 到最后一段才收薄, 免得四角先露出一圈黑边。
+        val layer = canvas.saveLayer(0f, 0f, w, h, null)
+        black.color = Color.argb((blackAlpha * 255).toInt().coerceIn(0, 255), 0, 0, 0)
+        canvas.drawRect(0f, 0f, w, h, black)
+        mask?.let {
+            canvas.save()
+            canvas.scale(scale, scale, pivotX, pivotY)
+            canvas.drawBitmap(it, null, RectF(0f, 0f, w, h), cut)
+            canvas.restore()
+        }
+        canvas.restoreToCount(layer)
+        // 标志自己的颜色先退, 只留下形状的开口 —— 放大到几倍的字会糊成一片, 不该留到最后。
+        if (inkAlpha > 0f || wordAlpha > 0f) {
+            canvas.save()
+            canvas.scale(scale, scale, pivotX, pivotY)
+            art.drawBrand(canvas, w, h, inkAlpha, wordAlpha)
+            canvas.restore()
+        }
+    }
+
+    /** 每帧的透明度与放大倍数, 由 [SplashVeil] 的时钟推。 */
+    fun frame(e: Float) {
+        wordAlpha = 1f - smooth((e / WORD_MS).coerceIn(0f, 1f))
+        inkAlpha = 1f - smooth(((e - INK_DELAY_MS) / INK_MS).coerceIn(0f, 1f))
+        val t = ((e - ZOOM_DELAY_MS) / ZOOM_MS).coerceIn(0f, 1f)
+        // 起手先轻轻回拉一点, 再越放越快: 像镜头被人推着进去, 不是匀速放大。
+        val pull = 1f - 0.05f * sin(Math.PI * min(t / 0.28f, 1f).toDouble()).toFloat()
+        scale = 1f + (endScale - 1f) * (t * t * (t * 0.6f + 0.4f)) * pull
+        blackAlpha = 1f - smooth(((e - VEIL_DELAY_MS) / VEIL_MS).coerceIn(0f, 1f))
+        invalidate()
+    }
+
+    /**
+     * 标志的剪影(半分辨率, 够用且省内存), 以及放大要绕的点和要放多大: 绕图标中心放大, 放大到
+     * 遮住的洞能盖住离它最远的那个屏幕角。
+     */
+    private fun buildMask() {
+        if (mask != null || building || width <= 0 || height <= 0) return
+        building = true
+        val w = width.toFloat()
+        val h = height.toFloat()
+        val halfW = (width / 2).coerceAtLeast(1)
+        val halfH = (height / 2).coerceAtLeast(1)
+        // 换一份 Paint/Typeface 在别的线程画, 不和正在上屏的那几处抢同一个 Paint。
+        Thread {
+            val a = runCatching {
+                val full = Bitmap.createBitmap(halfW, halfH, Bitmap.Config.ARGB_8888)
+                Canvas(full).apply {
+                    scale(0.5f, 0.5f)
+                    SplashArt(ctx).drawBrand(this, w, h, 1f)
+                }
+                full.extractAlpha().also { full.recycle() }
+            }.getOrNull()
+            post {
+                mask = a
+                building = false
+                invalidate()
+            }
+        }.start()
+    }
+
+    private companion object {
+        /** 文字先淡到透明(0.7 秒)。 */
+        const val WORD_MS = 700f
+        /** 标志的颜色在放大途中退掉(0.1 → 1.0 秒)。 */
+        const val INK_DELAY_MS = 100f
+        const val INK_MS = 900f
+        /** 放大: 0.5 秒起步, 走到 2.4 秒。 */
+        const val ZOOM_DELAY_MS = 500f
+        const val ZOOM_MS = 1900f
+        /** 黑幕: 1.9 秒才收, 2.5 秒全开。 */
+        const val VEIL_DELAY_MS = 1900f
+        const val VEIL_MS = 600f
+    }
+}
+
+/** 两端都放慢的 smoothstep: 起手不突兀, 落点不急刹。 */
+private fun smooth(p: Float): Float = p * p * (3f - 2f * p)
+
 /**
- * 遮罩与桌面之间的信号: HomeScreen 在首帧真的画完之后 [reveal], 遮罩收到就把自己揭开。
- * 遮罩还挂在窗口上时提前来了信号也没关系, 每次挂新遮罩重新等一次。
+ * 遮罩与桌面之间的信号: HomeScreen 在首帧真的画完之后 [arm], 遮罩收到就把自己揭开。
+ * 本进程是否已经完整显示过一次桌面也记在这里: 屏保回来、换分辨率重建不用再盖一次开屏。
  */
 object BootVeil {
     private var veil: SplashVeil? = null
@@ -246,9 +457,8 @@ object BootVeil {
     private var signaled = false
 
     /**
-     * 本进程是否已经完整显示过一次桌面。开机时 Activity 会先后建两次(先解锁前那次只铺一张图,
-     * 解锁后再真正启动), 所以不能靠 savedInstanceState 判断要不要盖开屏 —— 看这个标志:
-     * 还没显示过桌面就盖, 从屏保回来、换分辨率重建时就不盖了。
+     * 开机时 Activity 会先后建两次(先解锁前那次只铺一张图, 解锁后再真正启动), 所以不能靠
+     * savedInstanceState 判断要不要盖开屏 —— 看这个标志: 还没显示过桌面就盖。
      */
     var desktopShown = false
         private set
