@@ -539,7 +539,16 @@ fun HomeScreen(
         // A tile that went while the overlay was up (hidden, put in a folder, a folder ungrouped)
         // leaves focus where it was.
         if (pillFocused && focusedKey != null) runCatching { pillRequester.requestFocus() }
-        else focusApp(if (index >= 0) index else if (wanted != null) indexAfterOverlay else lastFocusedIndex)
+        else {
+            // 没记住焦点(如首次进入): 优先落在直播频道卡片上, 避免焦点跑到右上角控制中心
+            val liveIndex = if (index < 0) apps.indexOfFirst { it.pkg in AerialSettings.liveAppPackages } else -1
+            focusApp(when {
+                index >= 0 -> index
+                liveIndex >= 0 -> liveIndex
+                wanted != null -> indexAfterOverlay
+                else -> lastFocusedIndex
+            })
+        }
     }
     // A folder whose last app left closes.
     LaunchedEffect(overlay, vm.folderApps) {
@@ -967,8 +976,10 @@ fun HomeScreen(
                     HomePlate(
                         // 压在直播画面上时, 底板要变成半透明的玻璃(磨砂+烟灰+亮边),
                         // 不管壁纸本身是静态还是视频, 不能盖一层不透明的壁纸板
-                        glass = if (videoWall || channelPreviewVisible) greyGlass else plateFrost,
-                        film = if (videoWall || channelPreviewVisible) greyGlass else null,
+                        // 静态壁纸切到直播预览时不换玻璃图: 沿用同一张磨砂片, 避免底板闪一下;
+                        // 只在上面叠烟灰和亮边(半透明地压在直播画面上)。
+                        glass = if (videoWall) greyGlass else (plateFrost ?: greyGlass),
+                        film = if (videoWall) greyGlass else (plateFrost ?: greyGlass),
                         filmPlate = videoWall || channelPreviewVisible,
                         deepSmoke = false,
                         stillOverFilm = false,
