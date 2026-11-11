@@ -58,6 +58,8 @@ fun ChannelFocusPreview(
     onRevertFail: () -> Unit = {},
     onSwitched: (String) -> Unit = {},
     onActuallyPlayingChange: (Boolean) -> Unit = {},
+    // 加载中(含切源): 由 HomeScreen 画在最上层, 盖住壁纸和预览影片
+    onLoadingChange: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -84,6 +86,10 @@ fun ChannelFocusPreview(
     var currentPlayingName by remember { mutableStateOf<String?>(null) }
     // 上一个正在播放的源 id(切换失败时回退焦点)
     var playingSourceId by remember { mutableStateOf<String?>(null) }
+    // 把加载状态报给外面: 加载图要画在壁纸/预览影片之上
+    LaunchedEffect(st) {
+        snapshotFlow { st.loading }.collect { onLoadingChange(it) }
+    }
     // 加载遮罩：直接显示/隐藏，不用alpha渐变动画(低端GPU fill rate优化)
     val loadingAlpha by androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (st.loading) 1f else 0f,

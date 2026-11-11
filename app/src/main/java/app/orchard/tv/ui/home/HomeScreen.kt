@@ -359,6 +359,7 @@ fun HomeScreen(
     // 这两个仅驱动 LaunchedEffect 的状态变化触发整棵 HomeScreen 树重组（低端盒子上明显卡顿）。
     
     val liveReadyState = remember { mutableStateOf(false) }
+    var liveLoadingState = remember { mutableStateOf(false) }
     var liveMenuOpen by remember { mutableStateOf(false) }
     var liveMoving by remember { mutableStateOf(false) }
     // ccFromLiveMenu 已移到 ViewModel
@@ -985,6 +986,7 @@ fun HomeScreen(
                         null
                     },
                     onReadyChange = { liveReadyState.value = it },
+                    onLoadingChange = { liveLoadingState.value = it },
                     onStatusRefresh = { vm.checkLiveStatuses(); liveStatusTickState.value++ },
                     onSwitched = { vm.commitPendingLiveSource() },
                     onRevertFail = {
@@ -1017,7 +1019,7 @@ fun HomeScreen(
             }
             // 直播加载图: 盖在壁纸和直播预览影片之上, 出帧后淡出。
             // 抽成小节点读 liveReadyState, 就绪翻转只重组这一层, 不带动整棵树。
-            LiveLoadingOverlay(channelPreviewVisible, liveReadyState)
+            LiveLoadingOverlay(channelPreviewVisible, liveLoadingState)
 
             // 底板: 只有这一处, 排在直播画面之后(压得住它), 又在 UI 内容之下;
             // 单实例 + 跟着 uiAlpha 走, 焦点在普通卡片和直播预览卡片之间移动时不会闪,
@@ -1577,8 +1579,10 @@ private fun LiveUiAutoHideEffect(
 
 /** 直播加载图: 铺满整屏, 压在壁纸/预览影片(都是 SurfaceView)之上, 直播出帧后淡出。 */
 @Composable
-private fun LiveLoadingOverlay(visible: Boolean, ready: androidx.compose.runtime.MutableState<Boolean>) {
-    val on = visible && !ready.value
+private fun LiveLoadingOverlay(visible: Boolean, loading: androidx.compose.runtime.MutableState<Boolean>) {
+    // 用"正在加载"而不是"未出帧": 切换直播源时画面本来是就绪的,
+    // 只看就绪位就永远不会显示加载图
+    val on = visible && loading.value
     val alpha by androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (on) 1f else 0f,
         animationSpec = androidx.compose.animation.core.tween(if (on) 100 else 250),
