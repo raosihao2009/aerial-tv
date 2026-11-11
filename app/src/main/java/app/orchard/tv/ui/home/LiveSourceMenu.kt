@@ -217,31 +217,35 @@ fun LiveSourceMenu(
         label = "liveMenuAlpha",
     )
 
-    // 是否已经完全显示(过渡结束)。过渡期间卡片不做缩放动画。
+    // 焦点时机:
+    // - 打开: 在菜单还没淡入之前(alpha≈0)就把焦点放到当前直播卡片上, 配合 snapFocus
+    //   卡片直接以选中尺寸出现 —— 淡入全程看不到放大。
+    // - 关闭: 淡出期间保持焦点和选中尺寸不变, 菜单完全看不见之后才把焦点挪走 —— 看不到缩小。
     val transitionDone = alpha.value >= 0.99f
-    // 焦点要等"淡入/淡出演完"再动: 打开时菜单显示完成后才把焦点放到当前直播卡片上,
-    // 关闭时先保持选中态把菜单收掉, 收回之后才放掉焦点 —— 卡片不会在过渡当中放大/缩小。
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     LaunchedEffect(visible) {
         if (visible) {
             if (wasCcOpen) {
                 wasCcOpen = false
-                justOpened = false
-                snapshotFlow { alpha.value }.first { it >= 0.99f }
+                justOpened = true
                 repeat(2) { androidx.compose.runtime.withFrameNanos { } }
                 runCatching { pillFocus.requestFocus() }
+                // 淡入完成后再放开控制中心(允许聚焦)
+                snapshotFlow { alpha.value }.first { it >= 0.99f }
+                justOpened = false
             } else {
                 focusedId = currentId
-                // 淡入期间只有当前直播卡片可聚焦(justOpened), 右上角控制中心不会被抢到焦点
+                // 打开瞬间: 只有当前直播卡片可聚焦(justOpened=true), 焦点落不到控制中心
                 justOpened = true
-                snapshotFlow { alpha.value }.first { it >= 0.99f }
                 repeat(2) { androidx.compose.runtime.withFrameNanos { } }
-                justOpened = false
-                // 偶发焦点落到控制中心时, 这里再确认一次
                 runCatching { requester(currentId).requestFocus() }
                 if (focusedId != currentId) runCatching { requester(currentId).requestFocus() }
+                // 淡入完成后: 放开其余卡片和控制中心
+                snapshotFlow { alpha.value }.first { it >= 0.99f }
+                justOpened = false
             }
         } else {
+            // 淡出全程保持焦点不动; 菜单看不见之后才挪焦点
             snapshotFlow { alpha.value }.first { it <= 0.01f }
             justOpened = true
             runCatching { focusManager.clearFocus(force = true) }
