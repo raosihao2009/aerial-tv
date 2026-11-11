@@ -189,7 +189,6 @@ fun LiveSourceMenu(
     val density = LocalDensity.current
 
     // CC关闭返回时聚焦pill(和一级菜单一致)
-    var wasCcOpen by remember { mutableStateOf(false) }
     val pillFocus = remember { FocusRequester() }
     // 刚打开时pill临时不可聚焦, 让焦点自然落到直播卡片上, 避免从右上角跳转的动画
     // 初始值true: 组件首次组合时justOpened就为true, 只有当前直播卡片可聚焦
@@ -231,24 +230,16 @@ fun LiveSourceMenu(
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     LaunchedEffect(visible) {
         if (visible) {
-            if (wasCcOpen) {
-                wasCcOpen = false
-                justOpened = true
-                repeat(2) { androidx.compose.runtime.withFrameNanos { } }
-                runCatching { pillFocus.requestFocus() }
-                showing = true
-                snapshotFlow { alpha }.first { it >= 0.99f }
-                justOpened = false
-            } else {
-                focusedId = currentId
-                justOpened = true
-                repeat(2) { androidx.compose.runtime.withFrameNanos { } }
-                runCatching { requester(currentId).requestFocus() }
-                // 卡片已按选中尺寸画好(preFocus), 不需要再等缩放, 立刻淡入
-                showing = true
-                snapshotFlow { alpha }.first { it >= 0.99f }
-                justOpened = false
-            }
+            // 一律落在当前直播卡片上。之前"从控制中心回来就落 pill"的那一支会失败:
+            // 打开瞬间 pill 还是 disabled(justOpened), requestFocus 落空, 结果完全没有焦点。
+            focusedId = currentId
+            justOpened = true
+            repeat(2) { androidx.compose.runtime.withFrameNanos { } }
+            runCatching { requester(currentId).requestFocus() }
+            // 卡片已按选中尺寸画好(preFocus), 不需要再等缩放, 立刻淡入
+            showing = true
+            snapshotFlow { alpha }.first { it >= 0.99f }
+            justOpened = false
         } else {
             // 立刻开始淡出(animateFloatAsState 自己会演 500ms), 看不见之后再放掉焦点
             showing = false
@@ -278,9 +269,6 @@ fun LiveSourceMenu(
         val tileW = (screenW - gridMargin * 2 - gridGap * (columns - 1)) / columns
         val tileH = tileW * 9f / 16f
         val pitchY = tileH + pitchYExtra
-        LaunchedEffect(controlCenterOpen) {
-            if (controlCenterOpen) wasCcOpen = true
-        }
 
         Box(
             modifier = Modifier
@@ -559,13 +547,16 @@ fun LiveSourceMenu(
                         height = tileH,
                         focusRequester = requester(source.id),
                         // justOpened期间只有当前直播卡片可聚焦, 其他卡片disabled, 让Compose自动聚焦到它
-                        enabled = menuForId == null && visible && !controlCenterOpen && (!justOpened || source.id == currentId),
+                        // 淡出期间(visible 已经变 false 但还看得见)必须保持可聚焦,
+                        // 否则焦点在这一刻被放掉, 淡出的同时也看得见卡片缩小
+                        enabled = menuForId == null && (visible || alpha > 0.02f) && !controlCenterOpen &&
+                            (!justOpened || source.id == currentId),
                         moving = movingId == source.id,
                         onFocused = { focusedId = source.id; Sounds.focusMoved() },
                         // 和一级菜单一样: 当前选中的卡片从第一帧就是选中尺寸, 焦点落上去不演缩放。
                         // 只在菜单淡入的那一段按选中尺寸画; 淡入结束后交还给真实焦点,
                         // 否则焦点跑到控制中心按钮上时这张卡片还一直保持放大。
-                        preFocus = justOpened && source.id == focusedId,
+                        preFocus = source.id == focusedId && alpha < 0.99f,
                         // 淡出走卡片自己的 opacity(和一级菜单 saverFade 同一处), 不用外层 alpha:
                         // 外层 alpha 会让卡片走离屏合成, 32dp 圆角在这段时间里会丢掉, 只剩方角
                         opacity = { (if (shifted in -1..1) 1f else 0f) * (1f - cardFade) },
