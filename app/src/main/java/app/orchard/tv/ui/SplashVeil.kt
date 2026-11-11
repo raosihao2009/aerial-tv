@@ -427,11 +427,11 @@ private class MarkView(context: Context) : View(context) {
     }
 
     /**
-     * 标志的剪影(半分辨率, 够用且省内存), 以及放大要绕的点和要放多大: 绕图标中心放大, 放大到
-     * 遮住的洞能盖住离它最远的那个屏幕角。
+     * 黑幕位图: 整块黑 + 标志形状的透明洞(半分辨率, 够用且省内存)。在别的线程烤, 烤好前一帧
+     * 靠这层自己的黑底顶着, 所以看不到半成品。
      */
     private fun buildMask() {
-        if (mask != null || building || width <= 0 || height <= 0) return
+        if (curtain != null || building || width <= 0 || height <= 0) return
         building = true
         val w = width.toFloat()
         val h = height.toFloat()
