@@ -260,8 +260,10 @@ object AerialSettings {
         oneRowHome = prefs.getBoolean("one_row_home", true)
         peekNextRow = prefs.getBoolean("peek_next_row", true)
         chosenColumns = prefs.getInt("home_columns", DEFAULT_HOME_COLUMNS).takeIf { it in HOME_COLUMNS } ?: DEFAULT_HOME_COLUMNS
-        clockRight = prefs.getBoolean("clock_right", false)
-        largeClock = prefs.getBoolean("large_clock", false)
+        // 时钟选项已从设置中移除: 一律小、左上。旧设备上可能存过大/右上, 这里强制覆盖,
+        // 否则升级后还是按旧值渲染。
+        clockRight = false
+        largeClock = false
         clockHours = ClockHours.of(prefs.getString("clock_hours", null))
         homeLocked = prefs.getBoolean("home_locked", false)
         photoMinutes = prefs.getInt("photo_minutes", DAY_MINUTES).takeIf { it in PHOTO_MINUTES } ?: DAY_MINUTES
