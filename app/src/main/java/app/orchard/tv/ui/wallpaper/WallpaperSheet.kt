@@ -249,23 +249,11 @@ fun WallpaperSheet(
                 }
                 Spacer(Modifier.height(10.dp))
                 Group { note ->
-                    Choices(
-                        R.string.st_clock_size, stringResource(R.string.st_clock_size_hint), note,
-                        listOf(false to R.string.st_clock_small, true to R.string.st_clock_large),
-                        AerialSettings.largeClock, AerialSettings::chooseLargeClock, first = true,
-                    )
-                    // 二创：小时钟强制左上；仅大时钟可选左/右上
-                    if (AerialSettings.largeClock) {
-                        Choices(
-                            R.string.st_clock, stringResource(R.string.st_clock_hint), note,
-                            listOf(false to R.string.st_clock_left, true to R.string.st_clock_right),
-                            AerialSettings.clockRight, AerialSettings::chooseClockRight,
-                        )
-                    }
+                    // "时钟大小""时钟"两个选项已按 owner 要求删掉(值仍按原来的默认走)
                     Choices(
                         R.string.wp_weather, null, note,
                         listOf(true to R.string.st_on, false to R.string.st_off),
-                        AerialSettings.showWeather, AerialSettings::chooseShowWeather,
+                        AerialSettings.showWeather, AerialSettings::chooseShowWeather, first = true,
                     )
                 }
                 Spacer(Modifier.height(10.dp))

@@ -379,8 +379,11 @@ fun LiveSourceMenu(
             val numRows = (sources.size + columns - 1) / columns
             val focusedIndex = remember(sources, focusedId) { sources.indexOfFirst { it.id == focusedId }.coerceAtLeast(0) }
             val focusedRow = focusedIndex / columns
-            // 双排: 焦点行贴底, 上一行在上方, 无peek
+            // 双排: 焦点行贴底, 上一行在上方, 无peek。
+            // 卡片布局是"双排"时, 焦点在第一排也要把两排都显示出来(和一级菜单的双排一致),
+            // 所以底行按第二排算, 第一排落在它上面一格。
             var bottomRow = focusedRow
+            if (!AerialSettings.oneRowHome && bottomRow < 1) bottomRow = 1
             if (bottomRow >= numRows) bottomRow = numRows - 1
             // 和一级菜单 topRowY 同一个算法, 逐支对上:
             //   有底板+露一排: screenH - pitchY - 12 - 28

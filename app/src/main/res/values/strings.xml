@@ -125,7 +125,7 @@
     <string name="ss_aerial_keeps">Aerial keeps the last %2$d films on the TV (up to %1$s); wallpaper and screensaver play them in turn, with a new one each day. In the screensaver, right brings a new film, left goes back.</string>
     <string name="st_focus_style">Focus Style</string>
     <string name="st_home_layout">Home Screen</string>
-    <string name="st_layout">Layout</string>
+    <string name="st_layout">Card Layout</string>
     <string name="st_clock">Clock</string>
     <string name="st_clock_left">Top Left</string>
     <string name="st_clock_right">Top Right</string>
@@ -257,7 +257,7 @@
     <string name="weather_high_low">H:%1$d°  L:%2$d°</string>
     <string name="st_columns">Apps per Row</string>
     <string name="st_columns_hint">How many apps fit across Home, and in folders. Six shows more at a glance; four makes them larger, easier to see from across the room.</string>
-    <string name="st_peek">Next Row</string>
+    <string name="st_peek">Next Row Cards</string>
     <string name="st_peek_show">Peek</string>
     <string name="st_peek_hide">Hidden</string>
     <string name="st_peek_hint">The top of the next row peeks out below a row, to show there is more below (Home and the live menu). Hidden keeps it out of sight until you press down.</string>
