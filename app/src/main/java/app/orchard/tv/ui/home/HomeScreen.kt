@@ -541,7 +541,7 @@ fun HomeScreen(
         if (pillFocused && focusedKey != null) runCatching { pillRequester.requestFocus() }
         else {
             // 没记住焦点(如首次进入): 优先落在直播频道卡片上, 避免焦点跑到右上角控制中心
-            val liveIndex = if (index < 0) apps.indexOfFirst { it.pkg in AerialSettings.liveAppPackages } else -1
+            val liveIndex = if (index < 0) apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages } else -1
             focusApp(when {
                 index >= 0 -> index
                 liveIndex >= 0 -> liveIndex
