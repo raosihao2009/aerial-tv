@@ -562,8 +562,10 @@ fun LiveSourceMenu(
                         enabled = menuForId == null && visible && !controlCenterOpen && (!justOpened || source.id == currentId),
                         moving = movingId == source.id,
                         onFocused = { focusedId = source.id; Sounds.focusMoved() },
-                        // 和一级菜单一样: 当前选中的卡片从第一帧就是选中尺寸, 焦点落上去不演缩放
-                        preFocus = source.id == focusedId,
+                        // 和一级菜单一样: 当前选中的卡片从第一帧就是选中尺寸, 焦点落上去不演缩放。
+                        // 只在菜单淡入的那一段按选中尺寸画; 淡入结束后交还给真实焦点,
+                        // 否则焦点跑到控制中心按钮上时这张卡片还一直保持放大。
+                        preFocus = justOpened && source.id == focusedId,
                         // 淡出走卡片自己的 opacity(和一级菜单 saverFade 同一处), 不用外层 alpha:
                         // 外层 alpha 会让卡片走离屏合成, 32dp 圆角在这段时间里会丢掉, 只剩方角
                         opacity = { (if (shifted in -1..1) 1f else 0f) * (1f - cardFade) },
