@@ -374,8 +374,11 @@ fun LiveSourceMenu(
                     screenH - tileH - 70.dp
                 }
             }
+            // "露出下一行"和一级一样: 底下还有一行卡时整体再抬 12dp, 让下一行露出板子下沿一点点
+            val peekShift = if (AerialSettings.peekNextRow && bottomRow + 1 < numRows) 12.dp else 0.dp
+            val rowsY = baseY - peekShift
             val pitchYVal = remember(tileH) { pitchY }
-            fun rowY(rowFromTop: Int): Dp = baseY + pitchYVal * (rowFromTop - bottomRow)
+            fun rowY(rowFromTop: Int): Dp = rowsY + pitchYVal * (rowFromTop - bottomRow)
             // 玻璃底板：照搬一级菜单书架底板，铺在当前可见的直播卡片行下面(小屏是两行)
             if (AerialSettings.homePlate && sources.isNotEmpty()) {
                 val plateFirstRow = (bottomRow - 1).coerceAtLeast(0)
