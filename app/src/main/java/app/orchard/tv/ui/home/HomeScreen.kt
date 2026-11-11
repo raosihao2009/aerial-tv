@@ -838,7 +838,9 @@ fun HomeScreen(
         }
         // 上游 v1.75：移动壁纸的影片渲染（从 Box 内挪到 Box 外，在最底层绘制）
         // 个性化面板打开时壁纸照旧播: 面板是模糊的, 后面停一张图反而明显 (owner, 2026-11-11)
-        val filmMoves = vm.filmFront && (overlay == Overlay.None || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper) &&
+        // 上下文菜单(长按卡片)只是压在 Home 上的一个小面板, 壁纸照旧播
+        val filmMoves = vm.filmFront && (overlay == Overlay.None || overlay is Overlay.ControlCenter ||
+            overlay is Overlay.Wallpaper || overlay is Overlay.AppMenu || overlay is Overlay.Folder) &&
             (!vm.screensaverVisible || videoSaver) && !pastShelf && !inGrid && moving == null &&
             // 直播画面真的放出来之后才停壁纸影片: 否则视频壁纸的影片层会压住直播画面;
             // 直播还在加载(或没源)的时候壁纸照旧播, 不能因为停在直播卡片上就冻住
