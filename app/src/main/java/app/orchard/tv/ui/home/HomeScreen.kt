@@ -1015,6 +1015,10 @@ fun HomeScreen(
                     }
                 }
             }
+            // 直播加载图: 盖在壁纸和直播预览影片之上, 出帧后淡出。
+            // 抽成小节点读 liveReadyState, 就绪翻转只重组这一层, 不带动整棵树。
+            LiveLoadingOverlay(channelPreviewVisible, liveReadyState)
+
             // 底板: 只有这一处, 排在直播画面之后(压得住它), 又在 UI 内容之下;
             // 单实例 + 跟着 uiAlpha 走, 焦点在普通卡片和直播预览卡片之间移动时不会闪,
             // 隐藏 UI 时也会跟着一起消失。
@@ -1571,3 +1575,22 @@ private fun LiveUiAutoHideEffect(
     }
 }
 
+/** 直播加载图: 铺满整屏, 压在壁纸/预览影片(都是 SurfaceView)之上, 直播出帧后淡出。 */
+@Composable
+private fun LiveLoadingOverlay(visible: Boolean, ready: androidx.compose.runtime.MutableState<Boolean>) {
+    val on = visible && !ready.value
+    val alpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (on) 1f else 0f,
+        animationSpec = androidx.compose.animation.core.tween(if (on) 100 else 250),
+        label = "liveLoading",
+    )
+    if (alpha > 0.01f) {
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.res.painterResource(R.drawable.live_loading),
+            contentDescription = "直播加载中",
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+            alpha = alpha,
+        )
+    }
+}

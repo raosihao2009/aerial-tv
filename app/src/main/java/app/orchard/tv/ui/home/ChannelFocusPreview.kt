@@ -445,18 +445,7 @@ fun ChannelFocusPreview(
                 p.playWhenReady = true
             }
         }
-        // 加载遮罩：整图铺满(图片本身已含右上角黑底文字布局)
-        if (loadingAlpha > 0.01f) {
-            Image(
-                painter = painterResource(R.drawable.live_loading),
-                contentDescription = "直播加载中",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .align(Alignment.Center),
-                alpha = loadingAlpha,
-            )
-        }
+        // 加载图不再画在这里: 它要盖在壁纸/预览影片之上(见 HomeScreen 的 LiveLoadingOverlay)
         // 回退提示(和移动卡片提示同款)
         st.toastMessage?.let { msg ->
             // key 用 toastTick 而不是 msg：即使文案相同(连续两条相同提示)也重置 4s 倒计时
