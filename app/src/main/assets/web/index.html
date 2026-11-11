@@ -1225,6 +1225,31 @@ function closeSheet() {
 }
 $('#scrim').onclick = closeSheet;
 
+// Replace the browser's native confirm() with a sheet styled like the rest of the page.
+function confirmSheet(message, okLabel) {
+  return new Promise(resolve => {
+    let done = false;
+    const oldScrim = $('#scrim').onclick;
+    const finish = ok => {
+      if (done) return; done = true;
+      $('#scrim').onclick = oldScrim;
+      closeSheet();
+      setTimeout(() => resolve(ok), 200);
+    };
+    openSheet(body => {
+      body.appendChild(el('h3', '', message));
+      const list = el('div', 'list');
+      const okB = el('button', 'item center danger', okLabel || '删除');
+      okB.onclick = () => finish(true);
+      const cancel = el('button', 'item center', t('cancel'));
+      cancel.onclick = () => finish(false);
+      list.append(okB, cancel);
+      body.appendChild(list);
+    });
+    $('#scrim').onclick = () => finish(false);
+  });
+}
+
 /*
  * Pull the sheet down to close it, as on iOS. A flick is enough (by speed, not distance); a slow
  * pull closes it past a third of its height, otherwise it springs back. Only from its top, so a
@@ -1446,7 +1471,7 @@ function liveSheet(s) {
       const del = el('div', 'item tint center');
       del.style.color = '#ff3b30';
       del.textContent = '删除';
-      del.onclick = async () => { closeSheet(); if (!confirm('删除「' + s.name + '」？')) return; try { take(await api('api/live-source/delete', { id: s.id })); } catch (e) {} };
+      del.onclick = async () => { closeSheet(); if (!await confirmSheet('删除「' + s.name + '」？')) return; try { take(await api('api/live-source/delete', { id: s.id })); } catch (e) {} };
       dl.appendChild(del);
     }
 
@@ -1533,7 +1558,7 @@ function renderScreensaver() {
     row.appendChild(el('span', 'txt', video.name));
     const del = el('button', 'link', t('aria_delete')); del.style.color = 'var(--danger)';
     del.onclick = async () => {
-      if (!confirm(t('confirm_video_delete', { name: video.name }))) return;
+      if (!await confirmSheet(t('confirm_video_delete', { name: video.name }))) return;
       del.disabled = true;
       try { take(await api('api/videos/delete', { id: video.id })); } catch (err) { del.disabled = false; toast(t('toast_video_bad')); }
     };
