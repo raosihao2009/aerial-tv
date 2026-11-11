@@ -388,20 +388,6 @@ private fun Pictures(
 }
 
 /**
- * The plate under the top row, one layer over whatever is behind it: the picture, or the film
- * once stopped. It gives way only to a moving film, so the swap from the paused film to its
- * picture leaves it as it is. A new glass fades in over the old one, which stays whole beneath
- * it: two plates fading against each other let what is behind show through halfway.
- *
- * Under it, while a film moves, the film's plate ([film]): a film under the window cannot be
- * blurred, so a small key frame of it, frosted, a few seconds old (LiveWallpaper), lies
- * [FILM_FROST] of the way over the film, and a smoke tint and the lit edge over both. The film
- * shows through moving, so the frame's lag reads as the glass's softness. With no [film] (an
- * input's picture) only the smoke and the edge. Drawn only as the plate
- * moves or a new frame fades in, every [GLASS_EVERY_MS]: the film plays with Compose all but still.
- */
-@Composable
-/**
  * 二创: 一级菜单那块玻璃底板, 单独一层。直播预览是全屏影片, 壁纸层排在它前面会被整块盖住,
  * 所以这一层要排在直播画面之后画 (HomeScreen)。
  */
@@ -425,6 +411,20 @@ fun HomePlate(
     }
 }
 
+/**
+ * The plate under the top row, one layer over whatever is behind it: the picture, or the film
+ * once stopped. It gives way only to a moving film, so the swap from the paused film to its
+ * picture leaves it as it is. A new glass fades in over the old one, which stays whole beneath
+ * it: two plates fading against each other let what is behind show through halfway.
+ *
+ * Under it, while a film moves, the film's plate ([film]): a film under the window cannot be
+ * blurred, so a small key frame of it, frosted, a few seconds old (LiveWallpaper), lies
+ * [FILM_FROST] of the way over the film, and a smoke tint and the lit edge over both. The film
+ * shows through moving, so the frame's lag reads as the glass's softness. With no [film] (an
+ * input's picture) only the smoke and the edge. Drawn only as the plate
+ * moves or a new frame fades in, every [GLASS_EVERY_MS]: the film plays with Compose all but still.
+ */
+@Composable
 private fun Plate(glass: ImageBitmap?, film: ImageBitmap?, filmPlate: Boolean, deepSmoke: Boolean, plate: Rect?, scroll: () -> Float, collapse: Float, cover: () -> Float, filmStopped: () -> Float, toSaver: () -> Float, lift: () -> Float, stillOverFilm: Boolean = false) {
     var shown by remember { mutableStateOf(glass) }
     var under by remember { mutableStateOf<ImageBitmap?>(null) }
