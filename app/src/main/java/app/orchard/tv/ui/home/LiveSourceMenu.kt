@@ -360,9 +360,15 @@ fun LiveSourceMenu(
             // 双排: 焦点行贴底, 上一行在上方, 无peek
             var bottomRow = focusedRow
             if (bottomRow >= numRows) bottomRow = numRows - 1
-            // 和一级菜单顶排同一个 Y: 一级是 screenH - tileH - (PlateMarginBottom + PlatePadV) - 名字那一段
-            val baseY = remember(screenH, tileH, showAllNames) {
-                screenH - tileH - 50.dp - if (showAllNames) 28.dp else 0.dp
+            // 和一级菜单顶排同一个 Y:
+            //   有底板: screenH - tileH - (PlateMarginBottom 30 + PlatePadV 20) - 名字那一段
+            //   没底板: 一级那一支是 screenH - tileH - 70dp (名字在卡片里), 二级要跟着一起降
+            val baseY = remember(screenH, tileH, showAllNames, AerialSettings.homePlate) {
+                if (AerialSettings.homePlate) {
+                    screenH - tileH - 50.dp - if (showAllNames) 28.dp else 0.dp
+                } else {
+                    screenH - tileH - 70.dp
+                }
             }
             val pitchYVal = remember(tileH) { pitchY }
             fun rowY(rowFromTop: Int): Dp = baseY + pitchYVal * (rowFromTop - bottomRow)
