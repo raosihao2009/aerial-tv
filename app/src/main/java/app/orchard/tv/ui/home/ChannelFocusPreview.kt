@@ -88,7 +88,7 @@ fun ChannelFocusPreview(
     var playingSourceId by remember { mutableStateOf<String?>(null) }
     // 把加载状态报给外面: 加载图要画在壁纸/预览影片之上
     LaunchedEffect(st) {
-        snapshotFlow { st.loading }.collect { onLoadingChange(it) }
+        androidx.compose.runtime.snapshotFlow { st.loading }.collect { onLoadingChange(it) }
     }
     // 加载遮罩：直接显示/隐藏，不用alpha渐变动画(低端GPU fill rate优化)
     val loadingAlpha by androidx.compose.animation.core.animateFloatAsState(
