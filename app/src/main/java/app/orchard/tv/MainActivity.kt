@@ -30,6 +30,7 @@ import android.view.View
 import android.view.ViewTreeObserver
 import android.view.WindowManager
 import android.provider.Settings
+import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.core.content.getSystemService
 import androidx.activity.ComponentActivity
@@ -61,6 +62,8 @@ import app.orchard.tv.apps.rewritesLauncher
 import app.orchard.tv.guard.GuardSetup
 import app.orchard.tv.guard.HomeGuardService
 import app.orchard.tv.ui.home.FilmAfterInput
+import app.orchard.tv.ui.BootVeil
+import app.orchard.tv.ui.SplashVeil
 import app.orchard.tv.ui.home.HomeScreen
 import app.orchard.tv.ui.home.AerialStart
 import app.orchard.tv.ui.home.LiveFilm
@@ -339,11 +342,30 @@ class MainActivity : ComponentActivity() {
             }
         }
         DiagLog.i("boot-debug: calling setContent at +${SystemClock.elapsedRealtime()}ms")
-        if (Build.VERSION.SDK_INT >= 29 && uhd > 1f) {
-            setContentView(UhdCanvas.host(this, ComposeView(this).apply { setContent(home) }, uhd))
+        val host = if (Build.VERSION.SDK_INT >= 29 && uhd > 1f) {
+            UhdCanvas.host(this, ComposeView(this).apply { setContent(home) }, uhd)
         } else {
-            setContent(content = home)
+            ComposeView(this).apply { setContent(home) }
         }
+        // 冷启动: 桌面在黑幕后面先把壁纸、底板、卡片都画好, 首帧到了再揭开(SplashVeil)。
+        // 盖在 SurfaceView(影片)之上没问题: SurfaceView 默认压在窗口下面, 普通 View 画在它上面。
+        // 从屏保回来、换了屏幕尺寸重进 Activity 时桌面已经就绪, 不需要再来一次。
+        val root = FrameLayout(this)
+        root.addView(
+            host,
+            FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT),
+        )
+        if (fresh) {
+            val veil = SplashVeil(this)
+            root.addView(
+                veil,
+                FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT),
+            )
+            BootVeil.attach(veil)
+            // 桌面万一没能报"好了"(没有卡片、数据读失败), 也别让黑幕一直盖着。
+            veil.postDelayed({ BootVeil.reveal() }, 3000)
+        }
+        setContentView(root)
         DiagLog.i("boot-debug: setContent returned at +${SystemClock.elapsedRealtime()}ms")
 
         ContextCompat.registerReceiver(

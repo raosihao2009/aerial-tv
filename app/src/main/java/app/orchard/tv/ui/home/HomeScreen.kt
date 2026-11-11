@@ -83,6 +83,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import app.orchard.tv.CcPage
+import app.orchard.tv.ui.BootVeil
 import app.orchard.tv.apps.SourceLooks
 import app.orchard.tv.HomeViewModel
 import app.orchard.tv.Overlay
@@ -581,6 +582,15 @@ fun HomeScreen(
             pillFocused = false
             if (live >= 0) focusApp(live)
         }
+    }
+
+    // 冷启动遮罩(SplashVeil): 等卡片和底板真的画出来了再揭开。两帧: 一帧让内容绘制,
+    // 再一帧让壁纸/玻璃层的首帧也落地, 然后才把黑幕推开。
+    LaunchedEffect(vm.loaded, apps.size) {
+        if (!vm.loaded || apps.isEmpty()) return@LaunchedEffect
+        withFrameNanos { }
+        withFrameNanos { }
+        BootVeil.reveal()
     }
 
     // A folder whose last app left closes.
