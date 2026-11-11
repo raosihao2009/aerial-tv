@@ -666,7 +666,7 @@ fun HomeScreen(
             .drawWithContent {
                 drawContent()
                 // 底板和卡片都画上去了, 再等半秒才揭开(见 SplashVeil.armReveal)
-                if (vm.loaded) BootVeil.arm(500)
+                if (vm.loaded) BootVeil.arm(1500)
             }
             .onPreviewKeyEvent { e ->
                 lastKeyTime = System.currentTimeMillis()

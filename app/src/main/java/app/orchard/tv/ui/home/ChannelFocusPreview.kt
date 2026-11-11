@@ -38,6 +38,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import app.orchard.tv.LiveSource
 import app.orchard.tv.R
+import app.orchard.tv.ui.BootVeil
 import app.orchard.tv.settings.AerialSettings
 import app.orchard.tv.ui.components.FilmSlot
 import app.orchard.tv.system.DiagLog
@@ -113,6 +114,10 @@ fun ChannelFocusPreview(
         if (reloadTick == 0 && source.id == playingSourceId && player != null) {
             return@LaunchedEffect
         }
+
+        // 冷启动: 直播预览也是个硬件解码器, 别和开屏动画同时起播(实测首列直播预览+视频壁纸
+        // 时过渡一卡一卡; 把预览挪到第≥2列就顺, 就是因为起播时机错开了)。等揭开后再走下面。
+        while (!BootVeil.revealed) kotlinx.coroutines.delay(100)
 
         // 加载遮罩：始终显示加载图, 直到新流就绪
         st.loading = true

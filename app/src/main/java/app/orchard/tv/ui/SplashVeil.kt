@@ -18,6 +18,9 @@ import android.view.Surface
 import android.view.TextureView
 import android.view.View
 import android.widget.FrameLayout
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.content.res.ResourcesCompat
 import app.orchard.tv.R
 import app.orchard.tv.ui.components.smoothCut
@@ -304,6 +307,7 @@ class SplashVeil(context: Context) : FrameLayout(context) {
 
     private fun finish() {
         video.stop()
+        BootVeil.revealed = true
         onRevealed?.invoke()
         (parent as? android.view.ViewGroup)?.removeView(this)
     }
@@ -469,6 +473,13 @@ object BootVeil {
     private var veil: SplashVeil? = null
     private var armed = false
     private var signaled = false
+
+    /**
+     * 冷启动遮罩已经揭开(冷启动动画跑完)。VideoWallpaper / ChannelFocusPreview 这种要抢
+     * 硬件解码器的东西, 在它变 true 之前不起播 —— 盒子上同时起两个解码器再叠过渡动画就是卡的来源。
+     * 非冷启动(从应用/屏保回来)由 MainActivity 直接置 true。
+     */
+    var revealed by mutableStateOf(false)
 
     /**
      * 开机时 Activity 会先后建两次(先解锁前那次只铺一张图, 解锁后再真正启动), 所以不能靠

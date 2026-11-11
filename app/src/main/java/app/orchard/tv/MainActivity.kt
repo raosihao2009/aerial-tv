@@ -285,6 +285,8 @@ class MainActivity : ComponentActivity() {
         // 要不要盖开屏: 看这个进程有没有完整显示过桌面。开机时这里会先建一次"解锁前"的窗口
         // (铺一张静图), 再建真正的那次(savedInstanceState 往往不为 null), 所以不能只看 fresh。
         val coldBoot = !BootVeil.desktopShown
+        // 非冷启动(进程还在、从应用/屏保回来)没有遮罩要跑, 让壁纸/预览照常起播。
+        if (!coldBoot) BootVeil.revealed = true
         FontWarmup.start(this)
         val uhd = UhdCanvas.scale(this)
         Wallpapers.init(this)
