@@ -435,6 +435,23 @@ fun HomeScreen(
         } else null
     }
     val stillCarry = remember(stillSaver) { stillSaver?.let { SaverCarry.Still(it) } }
+    // 二创: 视频壁纸进视频屏保时, 不另起一个播放器(那样会黑一下、卡一下),
+    // 直接让 Home 的影片接着播, 只把一级菜单淡出——和直播菜单打开时一个思路。
+    var videoFailed by remember(vm.screensaverVisible) { mutableStateOf(false) }
+    val videoCarry = remember(vm.screensaverVisible) {
+        vm.screensaverVisible && Wallpapers.isVideo() && Wallpapers.screensaver == ScreensaverMode.Videos &&
+            focusedRow == 0 && overlay == Overlay.None && moving == null
+    }
+    val videoSaver = videoCarry && !videoFailed
+    LaunchedEffect(videoCarry) {
+        if (!videoCarry) return@LaunchedEffect
+        // 影片没能接上(解码失败之类): 退回屏保自己的播放器, 别让屏幕空着
+        val shown = withTimeoutOrNull(FILM_SAVER_WAIT_MS) { snapshotFlow { filmCover.value > 0.99f }.first { it } }
+        if (shown == null) {
+            DiagLog.i("video wallpaper did not carry on for the screensaver; its own films instead")
+            videoFailed = true
+        }
+    }
     var saverImage by remember { mutableStateOf<ImageBitmap?>(null) }
     val saverReveal = remember { Animatable(0f) }
     val saverPush = remember { Animatable(0f) }
@@ -462,7 +479,7 @@ fun HomeScreen(
             saverImage = null
         }
     }
-    val carrying = filmSaver || stillSaver != null
+    val carrying = filmSaver || stillSaver != null || videoSaver
     val toSaver = remember { Animatable(0f) }
     LaunchedEffect(carrying) {
         when {
@@ -765,7 +782,7 @@ fun HomeScreen(
         // 上游 v1.75：移动壁纸的影片渲染（从 Box 内挪到 Box 外，在最底层绘制）
         // 个性化面板打开时壁纸照旧播: 面板是模糊的, 后面停一张图反而明显 (owner, 2026-11-11)
         val filmMoves = vm.filmFront && (overlay == Overlay.None || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper) &&
-            !vm.screensaverVisible && !pastShelf && !inGrid && moving == null
+            (!vm.screensaverVisible || videoSaver) && !pastShelf && !inGrid && moving == null
         // Nothing over Home blurs it: a paused film stays.
         val filmStandsIn = overlay == Overlay.None || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper ||
             (overlay is Overlay.AppMenu && overlay.inFolder == null)
@@ -785,8 +802,8 @@ fun HomeScreen(
             Wallpapers.isVideo() -> key(Wallpapers.selectedId) {
                 VideoWallpaper(
                     moving = filmMoves,
-                    keep = vm.filmFront && (!vm.screensaverVisible || filmSaver),
-                    hold = filmSaver && vm.filmFront,
+                    keep = vm.filmFront && (!vm.screensaverVisible || filmSaver || videoSaver),
+                    hold = (filmSaver || videoSaver) && vm.filmFront,
                     home = homeVideo,
                     standIn = filmStandsIn,
                     lastInputAt = vm.lastInputAt,
@@ -1345,6 +1362,7 @@ fun HomeScreen(
 
         Screensaver(visible = vm.screensaverVisible, apps = apps, now = now, skips = vm.screensaverSkips, carry = when {
                 filmSaver -> SaverCarry.Film(liveFilm)
+                videoSaver -> SaverCarry.Video(homeVideo)
                 stillCarry != null -> stillCarry
                 else -> null
             },

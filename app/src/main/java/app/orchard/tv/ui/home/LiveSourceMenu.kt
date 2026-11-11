@@ -38,6 +38,9 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -366,28 +369,52 @@ fun LiveSourceMenu(
                     spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessHigh),
                     label = "livePlateY",
                 )
+                val plateW = tileW * columns + gridGap * (columns - 1) + 52.dp
+                // 和一级菜单同一块玻璃: 取底板下面那块磨砂壁纸, 磨砂帧 55% + 烟灰 + 亮边,
+                // 烘焙成一张图, 不再自己画渐变(那样和一级的质感对不上)。
+                val glassPic = (Wallpapers.filmFrost ?: Wallpapers.frosted)
+                    .takeIf { Wallpapers.backdrop != null }
+                val bakedPlate by androidx.compose.runtime.produceState<ImageBitmap?>(
+                    null, glassPic, plateW, plateHeight, screenW, screenH, columns
+                ) {
+                    value = withContext(kotlinx.coroutines.Dispatchers.Default) {
+                        bakeLivePlate(
+                            glass = glassPic,
+                            screen = androidx.compose.ui.geometry.Size(
+                                with(density) { screenW.toPx() },
+                                with(density) { screenH.toPx() },
+                            ),
+                            plate = androidx.compose.ui.geometry.Rect(
+                                with(density) { (gridMargin - 26.dp).toPx() },
+                                with(density) { plateTop.toPx() },
+                                with(density) { (gridMargin - 26.dp + plateW).toPx() },
+                                with(density) { (plateTop + plateHeight).toPx() },
+                            ),
+                            radius = with(density) { 32.dp.toPx() },
+                            rim = with(density) { 1.2.dp.toPx() },
+                        )
+                    }
+                }
                 Box(
                     Modifier
                         .offset(x = gridMargin - 26.dp, y = plateY)
-                        .width(tileW * columns + gridGap * (columns - 1) + 52.dp)
+                        .width(plateW)
                         .height(plateHeight)
-                        // 半透明玻璃: 底下一层薄的烟灰, 顶上一道白高光, 加一圈细亮边。
-                        // 不用 liquidGlass 是因为它取整张磨砂壁纸, 在暗背景上看着像一块实心板。
                         .drawBehind {
-                            val radius = CornerRadius(32.dp.toPx())
-                            drawRoundRect(Color(0x33000000), cornerRadius = radius)
-                            drawRoundRect(
-                                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                                    0f to Color(0x1AFFFFFF), 0.45f to Color(0x0AFFFFFF), 1f to Color(0x00FFFFFF),
-                                    startY = 0f, endY = size.height,
-                                ),
-                                cornerRadius = radius,
-                            )
-                            drawRoundRect(
-                                Color(0x26FFFFFF),
-                                cornerRadius = radius,
-                                style = Stroke(width = 1.0.dp.toPx()),
-                            )
+                            val p = bakedPlate
+                            if (p != null) {
+                                drawImage(
+                                    p,
+                                    dstOffset = androidx.compose.ui.unit.IntOffset.Zero,
+                                    dstSize = androidx.compose.ui.unit.IntSize(
+                                        size.width.roundToInt(), size.height.roundToInt(),
+                                    ),
+                                    filterQuality = FilterQuality.Low,
+                                )
+                            } else {
+                                // 壁纸还没解出来: 先垫半透明的烟灰, 不至于整块空白
+                                drawRoundRect(Color(0x33000000), cornerRadius = CornerRadius(32.dp.toPx()))
+                            }
                         }
                 )
             }

@@ -216,6 +216,11 @@ fun WallpaperSheet(
                         AerialSettings.showAllNames, AerialSettings::chooseShowAllNames,
                     )
                     Choices(
+                        R.string.st_plate, stringResource(R.string.st_plate_hint), note,
+                        listOf(true to R.string.st_plate_glass, false to R.string.st_plate_none),
+                        AerialSettings.homePlate, AerialSettings::chooseHomePlate,
+                    )
+                    Choices(
                         R.string.st_layout, stringResource(R.string.st_home_layout_hint), note,
                         listOf(true to R.string.st_home_one_row, false to R.string.st_home_standard),
                         AerialSettings.oneRowHome, AerialSettings::chooseOneRowHome,
@@ -225,11 +230,6 @@ fun WallpaperSheet(
                         R.string.st_peek, stringResource(R.string.st_peek_hint), note,
                         listOf(true to R.string.st_peek_show, false to R.string.st_peek_hide),
                         AerialSettings.peekNextRow, AerialSettings::choosePeekNextRow,
-                    )
-                    Choices(
-                        R.string.st_plate, stringResource(R.string.st_plate_hint), note,
-                        listOf(true to R.string.st_plate_glass, false to R.string.st_plate_none),
-                        AerialSettings.homePlate, AerialSettings::chooseHomePlate,
                     )
                     // Apps taken off Home are kept with the rest of how Home looks.
                     SettingRow(R.string.st_hidden_apps, stringResource(R.string.st_hidden_apps_hint), note) {

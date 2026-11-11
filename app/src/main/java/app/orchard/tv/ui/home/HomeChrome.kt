@@ -629,6 +629,38 @@ private fun bakePlate(glass: ImageBitmap, screen: Size, plate: Rect, radius: Flo
 }
 
 /**
+ * 二创: 直播菜单(二级菜单)的底板, 和一级菜单同一套配方: 磨砂帧 55% + 烟灰 + 亮边,
+ * 这样两块底板看起来才是一块玻璃。玻璃图片取的是底板下面那一块壁纸。
+ */
+internal fun bakeLivePlate(
+    glass: ImageBitmap?,
+    screen: androidx.compose.ui.geometry.Size,
+    plate: androidx.compose.ui.geometry.Rect,
+    radius: Float,
+    rim: Float,
+): ImageBitmap? {
+    glass ?: return null
+    val tinted = plateTinted(glass)
+    val w = plate.width.roundToInt().coerceAtLeast(1)
+    val h = plate.height.roundToInt().coerceAtLeast(1)
+    val out = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(out)
+    val matrix = android.graphics.Matrix().apply {
+        setScale(screen.width / tinted.width, screen.height / tinted.height)
+        postTranslate(-plate.left, -plate.top)
+    }
+    // 磨砂帧 55%
+    canvas.drawBitmap(tinted.asAndroidBitmap(), matrix, android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG).apply {
+        alpha = (FILM_FROST * 255f).roundToInt()
+    })
+    // 烟灰压暗, 和一级菜单一样
+    canvas.drawColor(FILM_SMOKE)
+    canvas.drawBitmap(smoothMask(w, h, radius), 0f, 0f, android.graphics.Paint().apply { xfermode = android.graphics.PorterDuffXfermode(PorterDuff.Mode.DST_IN) })
+    canvas.drawBitmap(glassEdge(w, h, radius, rim).asAndroidBitmap(), 0f, 0f, null)
+    return out.frozen().asImageBitmap()
+}
+
+/**
  * What Home shows behind panels. Folders and Hidden Apps open on Home frosted, as on tvOS: the
  * grid's frosted background fading over it [frost] of the way, one full-screen draw of a small
  * picture (in "Follow App" mode, which has none, a dark veil). Control Center keeps Home sharp
