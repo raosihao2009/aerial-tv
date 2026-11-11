@@ -167,6 +167,12 @@ class SplashVeil(context: Context) : View(context) {
         if (fade > 0f) art.drawBrand(canvas, width.toFloat(), height.toFloat(), fade)
     }
 
+    /** 桌面报"好了"之后再等一会儿才揭开: 底板和卡片刚上屏的那一下不算好光学, 停半秒更稳。 */
+    fun armReveal(delayMs: Long) {
+        if (started || pending) return
+        postDelayed({ revealNow() }, delayMs)
+    }
+
     /** 桌面首帧到了: 白字淡出, 随即从字的位置把黑幕推开。只做一次。 */
     fun revealNow() {
         if (started || pending) return
@@ -220,14 +226,34 @@ class SplashVeil(context: Context) : View(context) {
  */
 object BootVeil {
     private var veil: SplashVeil? = null
+    private var armed = false
     private var signaled = false
+
+    /**
+     * 本进程是否已经完整显示过一次桌面。开机时 Activity 会先后建两次(先解锁前那次只铺一张图,
+     * 解锁后再真正启动), 所以不能靠 savedInstanceState 判断要不要盖开屏 —— 看这个标志:
+     * 还没显示过桌面就盖, 从屏保回来、换分辨率重建时就不盖了。
+     */
+    var desktopShown = false
+        private set
 
     fun attach(v: SplashVeil) {
         veil = v
+        armed = false
         signaled = false
     }
 
+    /** 桌面画完第一帧: 记下"显示过了", 并约好 [delayMs] 之后揭开。 */
+    fun arm(delayMs: Long) {
+        desktopShown = true
+        if (armed || signaled) return
+        armed = true
+        veil?.armReveal(delayMs)
+    }
+
+    /** 兜底: 桌面一直没报"好了"也把黑幕揭开。 */
     fun reveal() {
+        if (signaled) return
         signaled = true
         veil?.revealNow()
     }

@@ -7,7 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.ColorDrawable
@@ -168,10 +167,10 @@ class MainActivity : ComponentActivity() {
 
     private fun showLocked() {
         locked = true
-        val picture = Wallpapers.lockedBootBackdrop(this)?.takeIf { it.exists() }
-            ?.let { runCatching { BitmapFactory.decodeFile(it.path) }.getOrNull() }
-        DiagLog.i("boot-debug: showLocked at +${SystemClock.elapsedRealtime()}ms; ${if (picture != null) "locked backdrop" else "BLACK (no backdrop)"}")
-        window.setBackgroundDrawable(picture?.let { BitmapDrawable(resources, it) } ?: ColorDrawable(Color.BLACK))
+        DiagLog.i("boot-debug: showLocked at +${SystemClock.elapsedRealtime()}ms; splash")
+        // 解锁前这一屏本来就什么也读不到, 与其铺上次的静图(开机后会先看到几秒壁纸), 不如直接
+        // 铺开屏图: 解锁后真正启动时接的是同一张, 视觉上连成一次开屏。
+        window.setBackgroundDrawable(SplashBackground(this))
         ContextCompat.registerReceiver(this, unlocked, IntentFilter(Intent.ACTION_USER_UNLOCKED), ContextCompat.RECEIVER_EXPORTED)
         // Unlocked between the check and the registration.
         if (GuardSetup.isUserUnlocked(this)) startReal(null)
@@ -283,7 +282,9 @@ class MainActivity : ComponentActivity() {
         hideSystemBars()
         // Unlocked at power-on: what the system kept. Unlocked under the locked window: nothing to
         // restore, and this is the boot's first real start.
-        val fresh = savedInstanceState == null
+        // 要不要盖开屏: 看这个进程有没有完整显示过桌面。开机时这里会先建一次"解锁前"的窗口
+        // (铺一张静图), 再建真正的那次(savedInstanceState 往往不为 null), 所以不能只看 fresh。
+        val coldBoot = !BootVeil.desktopShown
         FontWarmup.start(this)
         val uhd = UhdCanvas.scale(this)
         Wallpapers.init(this)
@@ -308,7 +309,7 @@ class MainActivity : ComponentActivity() {
         // baked at the last start, so the window never shows black while Compose sets up. Without
         // one, keep what the window already shows (the kept backdrop of a locked start).
         val baked = Wallpapers.backdrop
-        if (fresh) {
+        if (coldBoot) {
             // 冷启动: 窗口背景直接画开屏图(黑底+图标+Aerial字)。窗口一可见就是它, 不用等
             // 内容视图和 Compose 组合 —— 以前这里放的是上次烘焙的壁纸, 于是先看两秒壁纸才黑下来。
             window.setBackgroundDrawable(SplashBackground(this))
@@ -361,7 +362,7 @@ class MainActivity : ComponentActivity() {
             host,
             FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT),
         )
-        if (fresh) {
+        if (coldBoot) {
             val veil = SplashVeil(this)
             // 揭开之后窗口背景换成纯黑: 内容视图盖在上面看不见它, 但不用每帧再画一遍字。
             veil.onRevealed = { window.setBackgroundDrawable(ColorDrawable(Color.BLACK)) }
@@ -371,7 +372,7 @@ class MainActivity : ComponentActivity() {
             )
             BootVeil.attach(veil)
             // 桌面万一没能报"好了"(没有卡片、数据读失败), 也别让黑幕一直盖着。
-            veil.postDelayed({ BootVeil.reveal() }, 3000)
+            veil.postDelayed({ BootVeil.reveal() }, 4500)
         }
         setContentView(root)
         DiagLog.i("boot-debug: setContent returned at +${SystemClock.elapsedRealtime()}ms")
@@ -393,7 +394,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        if (fresh && firstStartSinceBoot()) openBootSource("boot")
+        if (coldBoot && firstStartSinceBoot()) openBootSource("boot")
         if (intent.getBooleanExtra(EXTRA_WOKE, false)) openBootSource("brought back on wake")
         if (intent.getBooleanExtra(EXTRA_REOPEN_BOOT, false)) openBootSource("covered by the stock launcher", again = true)
         if (fromLocked) {

@@ -665,7 +665,8 @@ fun HomeScreen(
             // 所以揭开时壁纸、底板、卡片都已经在屏幕上了, 不会露出还没画好的桌面。
             .drawWithContent {
                 drawContent()
-                if (vm.loaded) BootVeil.reveal()
+                // 底板和卡片都画上去了, 再等半秒才揭开(见 SplashVeil.armReveal)
+                if (vm.loaded) BootVeil.arm(500)
             }
             .onPreviewKeyEvent { e ->
                 lastKeyTime = System.currentTimeMillis()
