@@ -258,6 +258,8 @@ fun HomeBackground(
     glassAwaitsStop: Boolean = false,
     /** The grid's own glass, where it is not the picture's ([frosted]): the aerial film's (Wallpapers.clipGlass). */
     gridGlass: ImageBitmap? = null,
+    /** 二创: 直播预览的影片在 UI 下面播, 和视频壁纸一样: 不画整屏壁纸, 底板只留灰色透明那一层。 */
+    plateOverVideo: Boolean = false,
 ) {
     val shade = remember { Images.homeShade.asImageBitmap() }
     Box(Modifier.fillMaxSize()) {
@@ -282,9 +284,23 @@ fun HomeBackground(
             // (LiveWallpaper.goOnFromPicture; owner, TCL MT5879, issue #1238).
             // Its glass follows the film where frames of it are decoded in the app while it moves
             // ([filmGlass], every 15 s), so it is not the colours of a shot long gone.
-            val still = Wallpapers.filmGlassless && Wallpapers.moves() && (frosted ?: backdrop) != null
+            val still = !plateOverVideo && Wallpapers.filmGlassless && Wallpapers.moves() && (frosted ?: backdrop) != null
             val film = filmGlass.takeUnless { Wallpapers.filmGlassless }
-            Plate(if (still) filmGlass ?: frosted ?: backdrop else frosted ?: backdrop, film, film != null, Wallpapers.filmGlassless, plate, scroll, collapse, cover, filmStopped, toSaver, lift, still)
+            Plate(
+                glass = if (still) filmGlass ?: frosted ?: backdrop else frosted ?: backdrop,
+                // 直播预览下面没有可取的帧: 底板只用烟灰色和亮边, 和视频壁纸停住时那块一致
+                film = film.takeUnless { plateOverVideo },
+                filmPlate = plateOverVideo || film != null,
+                deepSmoke = Wallpapers.filmGlassless && !plateOverVideo,
+                plate = plate,
+                scroll = scroll,
+                collapse = collapse,
+                cover = cover,
+                filmStopped = filmStopped,
+                toSaver = toSaver,
+                lift = lift,
+                stillOverFilm = still,
+            )
         }
     }
 }

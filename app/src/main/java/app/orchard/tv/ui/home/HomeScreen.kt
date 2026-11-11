@@ -765,7 +765,9 @@ fun HomeScreen(
         // 上游 v1.75：移动壁纸的影片渲染（从 Box 内挪到 Box 外，在最底层绘制）
         // 个性化面板打开时壁纸照旧播: 面板是模糊的, 后面停一张图反而明显 (owner, 2026-11-11)
         val filmMoves = vm.filmFront && (overlay == Overlay.None || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper) &&
-            !vm.screensaverVisible && !pastShelf && !inGrid && moving == null
+            !vm.screensaverVisible && !pastShelf && !inGrid && moving == null &&
+            // 直播预览占着影片层时, 壁纸的影片让它一块, 免得两个播放器抢同一个图层
+            !channelPreviewVisible
         // Nothing over Home blurs it: a paused film stays.
         val filmStandsIn = overlay == Overlay.None || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper ||
             (overlay is Overlay.AppMenu && overlay.inFolder == null)
@@ -856,7 +858,7 @@ fun HomeScreen(
                 plate = plate,
                 scroll = { scroll.value },
                 collapse = collapsePx,
-                cover = { filmCover.value },
+                cover = { if (channelPreviewVisible) 1f else filmCover.value },
                 // An input's picture gets the shade a picture has; in the grid it gives way to the
                 // glass, as any wallpaper does (it cannot be blurred). Not a film, moving or not
                 // (the owner, 2026-10-29): since the aerial wallpaper keeps moving under keys
@@ -873,6 +875,7 @@ fun HomeScreen(
                 wallpaper = Wallpapers.selectedId,
                 glassAwaitsStop = Wallpapers.selectedId == Wallpapers.LIVE && clipGlass == null,
                 gridGlass = clipGlass,
+                plateOverVideo = channelPreviewVisible,
             )
 
             // Before Android 7 there is no picture of Home under Control Center (issue #466), so the
@@ -911,35 +914,7 @@ fun HomeScreen(
                     },
                     onActuallyPlayingChange = { vm.liveActuallyPlaying = it },
                 )
-                // 直播预览是全屏视频, 会盖住壁纸层那块底板; 这里把同一块底板画在预览上面,
-                // 用的是视频壁纸那套灰色透明底板, 视频再亮底板也还在。
-                if (plate != null) {
-                    val p = (scroll.value / collapsePx).coerceIn(0f, 1f)
-                    val rest = 1f - smoothStep((p / 0.55f).coerceIn(0f, 1f))
-                    Canvas(Modifier.fillMaxSize()) {
-                        if (rest < 0.01f) return@Canvas
-                        val oy = -scroll.value - liftState.value
-                        val rect = Rect(plate.left, plate.top + oy, plate.right, plate.bottom + oy)
-                            .inflate(with(density) { 6.dp.toPx() } * (1f - rest))
-                        val radius = with(density) { 32.dp.toPx() }
-                        drawRoundRect(
-                            color = Color(0x48000000),
-                            topLeft = rect.topLeft,
-                            size = rect.size,
-                            cornerRadius = CornerRadius(radius),
-                            alpha = rest,
-                        )
-                        drawRoundRect(
-                            color = Color(0x22FFFFFF),
-                            topLeft = rect.topLeft,
-                            size = rect.size,
-                            cornerRadius = CornerRadius(radius),
-                            style = Stroke(width = with(density) { 0.6.dp.toPx() }),
-                            alpha = rest,
-                        )
-                    }
-                }
-            }
+
             Box(
                 Modifier
                     .fillMaxSize()

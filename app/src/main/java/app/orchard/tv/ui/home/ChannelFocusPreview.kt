@@ -1,10 +1,10 @@
 package app.orchard.tv.ui.home
 
 import android.net.Uri
-import android.view.TextureView
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import android.view.SurfaceView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,6 +39,7 @@ import androidx.media3.exoplayer.hls.HlsMediaSource
 import app.orchard.tv.LiveSource
 import app.orchard.tv.R
 import app.orchard.tv.settings.AerialSettings
+import app.orchard.tv.ui.components.FilmSlot
 import app.orchard.tv.system.DiagLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -61,7 +62,7 @@ fun ChannelFocusPreview(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var player by remember { mutableStateOf<ExoPlayer?>(null) }
-    var surface by remember { mutableStateOf<TextureView?>(null) }
+    var surface by remember { mutableStateOf<SurfaceView?>(null) }
 
     var restartSignal by remember { mutableStateOf(0) }
     // 备用源本身也卡时, 不是再切一次(切来切去同一个), 而是把当前源重新加载一遍
@@ -429,9 +430,9 @@ fun ChannelFocusPreview(
     Box(modifier = modifier.fillMaxSize()) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
-            factory = { ctx -> TextureView(ctx).also {
-                it.isFocusable = false; it.isFocusableInTouchMode = false
-                surface = it
+            factory = { ctx -> FilmSlot(ctx).also {
+                // 直播画面走壁纸那套影片层(UI 下面), 底板和图标就能画在它上面
+                surface = it.surface
             }},
             onRelease = { surface = null },
         )
@@ -439,7 +440,7 @@ fun ChannelFocusPreview(
         LaunchedEffect(player, surface) {
             val p = player; val s = surface
             if (p != null && s != null) {
-                p.setVideoTextureView(s)
+                p.setVideoSurfaceView(s)
                 if (p.playbackState == Player.STATE_IDLE) p.prepare()
                 p.playWhenReady = true
             }
