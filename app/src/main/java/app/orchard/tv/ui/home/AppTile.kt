@@ -296,7 +296,7 @@ fun AppTile(
         Box(
             Modifier
                 .size(width, height)
-                .onGloballyPositioned { bounds = it.boundsInWindow() }
+                .onGloballyPositioned { val r = it.boundsInWindow(); if (r != bounds) bounds = r }
                 .graphicsLayer {
                     alpha = opacity()
                     // Fading into the screensaver, without an offscreen buffer per tile: every tile

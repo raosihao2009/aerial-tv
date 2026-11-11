@@ -91,10 +91,12 @@ fun Modifier.liquidGlass(corner: Dp, bottomCorners: Boolean = true, seeThroughFi
     val shape = if (bottomCorners) RoundedCornerShape(corner) else RoundedCornerShape(topStart = corner, topEnd = corner)
     this
         .onGloballyPositioned { c ->
-            at = c.positionInRoot()
+            // 只在位置/尺寸真的变了才写 state, 否则每次布局都触发整树重组。
+            val newAt = c.positionInRoot()
+            if (newAt != at) at = newAt
             var r = c
             while (true) r = r.parentLayoutCoordinates ?: break
-            root = r.size
+            if (r.size != root) root = r.size
         }
         .clip(shape)
         .drawWithCache {
