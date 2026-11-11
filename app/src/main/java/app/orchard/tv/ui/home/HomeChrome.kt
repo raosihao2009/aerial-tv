@@ -288,8 +288,9 @@ fun HomeBackground(
             val film = filmGlass.takeUnless { Wallpapers.filmGlassless }
             Plate(
                 glass = if (still) filmGlass ?: frosted ?: backdrop else frosted ?: backdrop,
-                // 直播预览下面没有可取的帧: 底板只用烟灰色和亮边, 和视频壁纸停住时那块一致
-                film = film.takeUnless { plateOverVideo },
+                // 直播预览压在上面时, 底板用壁纸的磨砂帧打底(和视频壁纸那块同一个配方:
+                // 磨砂帧 55% + 烟灰 + 亮边), 不是只有一层烟灰, 否则看着像没有底板
+                film = if (plateOverVideo) filmGlass ?: frosted ?: backdrop else film,
                 filmPlate = plateOverVideo || film != null,
                 deepSmoke = Wallpapers.filmGlassless && !plateOverVideo,
                 plate = plate,
