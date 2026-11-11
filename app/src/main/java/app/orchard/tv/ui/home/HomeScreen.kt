@@ -234,8 +234,8 @@ private class GridMetrics(screenW: Dp, screenH: Dp, val columns: Int, oneRow: Bo
      * well showed the second row nearly three times as far (issue #540).
      */
     val topRowY = when {
-        // 双排: 选了"下一排/露出一点"时, 让第三排的上沿在底部露出 12dp
-        !oneRow && peek -> minOf(maxOf(twoRowFit, twoRowFloor), screenH - pitchY * 2 - 12.dp - firstGap)
+        // 双排: 选了"下一排/露出一点"时, 把两排整体放在让第三排上沿露出 12dp 的位置
+        !oneRow && peek -> maxOf(twoRowFloor, screenH - pitchY * 2 - 12.dp - firstGap)
         !oneRow -> maxOf(twoRowFit, twoRowFloor)
         peek -> screenH - pitchY - 12.dp - firstGap
         // Nothing peeks under the row, so it goes as low as it fits: the plate as far from the

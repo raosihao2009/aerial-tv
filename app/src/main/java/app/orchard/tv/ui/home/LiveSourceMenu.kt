@@ -399,7 +399,10 @@ fun LiveSourceMenu(
             //   有底板:        screenH - tileH - 50 - 28
             //   没底板+露一排: screenH - pitchY - 12
             //   没底板:        screenH - tileH - 70
-            val peeking = AerialSettings.peekNextRow && bottomRow + 1 < numRows
+            // 只要开了"下一排", 行位就固定用"露一排"那一支; 焦点在最后一排时下面没有可露的排,
+            // 但位置不能因此下移(否则底板会比露出时低一点点)
+            val peeking = AerialSettings.peekNextRow
+            val hasBelow = AerialSettings.peekNextRow && bottomRow + 1 < numRows
             val baseY = remember(screenH, tileH, pitchY, peeking, AerialSettings.homePlate) {
                 when {
                     AerialSettings.homePlate && peeking -> screenH - pitchY - 40.dp
@@ -410,7 +413,7 @@ fun LiveSourceMenu(
             }
             val pitchYVal = remember(tileH) { pitchY }
             // 下面那一排: 露出时让它的上沿停在屏幕底边上方 12dp, 不露出时正好压在屏幕外
-            val nextTop = if (peeking) screenH - 12.dp else screenH
+            val nextTop = if (hasBelow) screenH - 12.dp else screenH
             val nextOffset = nextTop - (baseY + pitchYVal)
             fun rowY(rowFromTop: Int): Dp = baseY + pitchYVal * (rowFromTop - bottomRow) +
                 if (rowFromTop > bottomRow) nextOffset else 0.dp
@@ -544,7 +547,6 @@ fun LiveSourceMenu(
                         translationX = animX.toFloat()
                         translationY = animY.toFloat() + cardFade * 18.dp.toPx()
                     }
-                    .alpha((if (shifted in -1..1) 1f else 0f) * (1f - cardFade))
                     .focusProperties {
                         if (isFirstCol) left = FocusRequester.Cancel
                         if (isLastCol) right = FocusRequester.Cancel
@@ -562,6 +564,9 @@ fun LiveSourceMenu(
                         onFocused = { focusedId = source.id; Sounds.focusMoved() },
                         // 和一级菜单一样: 当前选中的卡片从第一帧就是选中尺寸, 焦点落上去不演缩放
                         preFocus = source.id == focusedId,
+                        // 淡出走卡片自己的 opacity(和一级菜单 saverFade 同一处), 不用外层 alpha:
+                        // 外层 alpha 会让卡片走离屏合成, 32dp 圆角在这段时间里会丢掉, 只剩方角
+                        opacity = { (if (shifted in -1..1) 1f else 0f) * (1f - cardFade) },
                         onClick = { if (movingId == null) {
                             if (source.url.isBlank()) {
                                 bannerMsg = "「${source.name}」暂未设置直播地址"
