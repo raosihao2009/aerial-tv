@@ -584,15 +584,6 @@ fun HomeScreen(
         }
     }
 
-    // 冷启动遮罩(SplashVeil): 等卡片和底板真的画出来了再揭开。两帧: 一帧让内容绘制,
-    // 再一帧让壁纸/玻璃层的首帧也落地, 然后才把黑幕推开。
-    LaunchedEffect(vm.loaded, apps.size) {
-        if (!vm.loaded || apps.isEmpty()) return@LaunchedEffect
-        withFrameNanos { }
-        withFrameNanos { }
-        BootVeil.reveal()
-    }
-
     // A folder whose last app left closes.
     LaunchedEffect(overlay, vm.folderApps) {
         val open = (overlay as? Overlay.Folder)?.id ?: (overlay as? Overlay.AppMenu)?.inFolder ?: return@LaunchedEffect
@@ -670,6 +661,12 @@ fun HomeScreen(
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
+            // 冷启动遮罩(SplashVeil)在这里揭开: 这行代码在整棵树真正画完之后才跑,
+            // 所以揭开时壁纸、底板、卡片都已经在屏幕上了, 不会露出还没画好的桌面。
+            .drawWithContent {
+                drawContent()
+                if (vm.loaded) BootVeil.reveal()
+            }
             .onPreviewKeyEvent { e ->
                 lastKeyTime = System.currentTimeMillis()
                 // ===== UI隐藏时按键逻辑 =====
