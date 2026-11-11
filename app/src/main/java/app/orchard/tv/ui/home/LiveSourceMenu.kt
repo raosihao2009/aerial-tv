@@ -353,7 +353,7 @@ fun LiveSourceMenu(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = 28.dp, end = 42.dp)
-                    .graphicsLayer { alpha = 1f - alpha.value }
+                    .graphicsLayer { this.alpha = 1f - alpha.value }
                     .focusProperties {
                     up = FocusRequester.Cancel
                     right = FocusRequester.Cancel
@@ -418,7 +418,7 @@ fun LiveSourceMenu(
                         .offset(x = plateX, y = plateY)
                         .width(plateW)
                         .height(plateHeight)
-                        .graphicsLayer { alpha = 1f - alpha.value }
+                        .graphicsLayer { this.alpha = 1f - alpha.value }
                         .drawBehind {
                             val corner = 32.dp.toPx()
                             val rim = 1.2.dp.toPx()
