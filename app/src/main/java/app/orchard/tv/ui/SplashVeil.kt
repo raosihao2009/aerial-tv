@@ -71,24 +71,34 @@ private class SplashArt(context: Context) {
         val centerX: Float get() = left + side / 2
     }
 
-    fun box(w: Float, h: Float): Box {
+    private var cachedW = -1f
+    private var cachedH = -1f
+    private var textW = 0f
+    private var iconSide = 0f
+    private var room = 0f
+    private var left = 0f
+
+    private fun relayout(w: Float, h: Float) {
+        if (cachedW == w && cachedH == h) return
+        cachedW = w
+        cachedH = h
         word.textSize = sizeOf(w, h)
-        val textW = word.measureText(BRAND)
-        val iconSide = word.textSize
-        val gap = iconSide * 0.42f
-        val room = if (icon != null) iconSide + gap else 0f
-        return Box(iconSide, w / 2f - (room + textW) / 2f)
+        // 每帧都 measureText 要重新 shaping 一遍, 弱 GPU 上就是一卡一卡的原因; 尺寸没变就算一次。
+        textW = word.measureText(BRAND)
+        iconSide = word.textSize
+        room = if (icon != null) iconSide * 1.42f else 0f
+        left = w / 2f - (room + textW) / 2f
+    }
+
+    fun box(w: Float, h: Float): Box {
+        relayout(w, h)
+        return Box(iconSide, left)
     }
 
     /** [fade] 管图标, [wordFade] 管文字: 开屏时文字先淡到透明, 图标留到整体放大那一段。 */
     fun drawBrand(canvas: Canvas, w: Float, h: Float, fade: Float, wordFade: Float = fade) {
         if (fade <= 0f && wordFade <= 0f) return
-        word.textSize = sizeOf(w, h)
-        val textW = word.measureText(BRAND)
-        val iconSide = word.textSize
-        val gap = iconSide * 0.42f
-        val room = if (icon != null) iconSide + gap else 0f
-        val left = w / 2f - (room + textW) / 2f
+        relayout(w, h)
         val radius = w * CARD_CORNER_RATIO
         val bmp = roundedIcon(iconSide.roundToInt(), radius)
         if (bmp != null && fade > 0f) {
@@ -241,6 +251,9 @@ class SplashVeil(context: Context) : FrameLayout(context) {
     private var startAt = 0L
 
     init {
+        // 内容视图刚挂上、短片还没出第一帧的那几十毫秒: 没有这块黑底, Compose 已经画好的
+        // 壁纸和时钟就会透出来, 也就是"开机第一眼是桌面而不是黑底标志"。
+        setBackgroundColor(Color.BLACK)
         video.onFail = { mark.showStill() }
         addView(video, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         addView(mark, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
@@ -283,6 +296,8 @@ class SplashVeil(context: Context) : FrameLayout(context) {
         override fun run() {
             val e = (SystemClock.uptimeMillis() - startAt).toFloat()
             mark.frame(e)
+            // 黑幕由这层自己的背景承担(揭开前它就是不透明的那块黑); 最后一段跟着一起收薄。
+            background?.alpha = (mark.blackAlpha * 255).toInt().coerceIn(0, 255)
             if (e < TOTAL_MS) postOnAnimation(this) else finish()
         }
     }
@@ -302,7 +317,6 @@ class SplashVeil(context: Context) : FrameLayout(context) {
 private class MarkView(context: Context) : View(context) {
     private val ctx = context
     private val art = SplashArt(context)
-    private val black = Paint()
     private val cut = Paint(Paint.FILTER_BITMAP_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT) }
 
     /** 短片起不来时, 这里就是那块静态图。 */
@@ -310,7 +324,9 @@ private class MarkView(context: Context) : View(context) {
     private var started = false
     private var startAt = 0L
 
-    private var blackAlpha = 1f
+    /** 黑幕现在多不透明: 遮罩自己的背景按它淡出。 */
+    var blackAlpha = 1f
+        private set
     private var inkAlpha = 1f
     private var wordAlpha = 1f
     private var scale = 1f
@@ -368,17 +384,15 @@ private class MarkView(context: Context) : View(context) {
             }
             return
         }
-        // 黑幕: 到最后一段才收薄, 免得四角先露出一圈黑边。
-        val layer = canvas.saveLayer(0f, 0f, w, h, null)
-        black.color = Color.argb((blackAlpha * 255).toInt().coerceIn(0, 255), 0, 0, 0)
-        canvas.drawRect(0f, 0f, w, h, black)
+        // 黑幕是这层自己的背景(透明度在 tick 里跟着 blackAlpha 收); 这里直接在画布上抠洞:
+        // DST_OUT 只擦掉已经画在这一层里的东西(也就是那块黑), 让下面的桌面从标志形状里透出来。
+        // 不开离屏层 —— 视频壁纸还在解码时, 每帧一次整屏 saveLayer 是这台盒子上卡顿的主因。
         mask?.let {
             canvas.save()
             canvas.scale(scale, scale, pivotX, pivotY)
             canvas.drawBitmap(it, null, RectF(0f, 0f, w, h), cut)
             canvas.restore()
         }
-        canvas.restoreToCount(layer)
         // 标志自己的颜色先退, 只留下形状的开口 —— 放大到几倍的字会糊成一片, 不该留到最后。
         if (inkAlpha > 0f || wordAlpha > 0f) {
             canvas.save()

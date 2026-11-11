@@ -235,6 +235,7 @@
     <string name="weather_partly_cloudy">多云</string>
     <string name="weather_cloudy">阴</string>
     <string name="weather_fog">雾</string>
+    <string name="weather_haze">霾</string>
     <string name="weather_rain">雨</string>
     <string name="weather_snow">雪</string>
     <string name="weather_thunder">雷雨</string>
@@ -330,4 +331,5 @@
     <string name="kids_blocked">「%s」不在这个模式里</string>
     <string name="kids_warn">还能看 %d 分钟</string>
     <string name="kids_warn_break">%d 分钟后休息一下</string>
+    <string name="home_locked_notice">主屏幕已锁定。要整理应用，请在「个性化」里关闭「锁定主屏幕」。</string>
 </resources>
