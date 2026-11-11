@@ -369,16 +369,9 @@ fun LiveSourceMenu(
                         .offset(x = gridMargin - 26.dp, y = plateY)
                         .width(tileW * columns + gridGap * (columns - 1) + 52.dp)
                         .height(plateHeight)
-                        // 视频壁纸那套灰色透明底板: 不取壁纸的磨砂, 亮色视频上也压得住
-                        .drawBehind {
-                            val radius = CornerRadius(32.dp.toPx())
-                            drawRoundRect(Color(0x48000000), cornerRadius = radius)
-                            drawRoundRect(
-                                Color(0x22FFFFFF),
-                                cornerRadius = radius,
-                                style = Stroke(width = 0.6.dp.toPx()),
-                            )
-                        }
+                        // 和一级菜单同一块玻璃: 壁纸磨砂打底 + 烟灰压暗 + 亮边, 不是一块平色
+                        .liquidGlass(32.dp)
+                        .drawBehind { drawRoundRect(Color(0x20000000)) }
                 )
             }
             sources.forEachIndexed { index, source ->

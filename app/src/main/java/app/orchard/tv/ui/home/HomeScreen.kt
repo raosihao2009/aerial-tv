@@ -765,9 +765,7 @@ fun HomeScreen(
         // 上游 v1.75：移动壁纸的影片渲染（从 Box 内挪到 Box 外，在最底层绘制）
         // 个性化面板打开时壁纸照旧播: 面板是模糊的, 后面停一张图反而明显 (owner, 2026-11-11)
         val filmMoves = vm.filmFront && (overlay == Overlay.None || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper) &&
-            !vm.screensaverVisible && !pastShelf && !inGrid && moving == null &&
-            // 直播预览占着影片层时, 壁纸的影片让它一块, 免得两个播放器抢同一个图层
-            !channelPreviewVisible
+            !vm.screensaverVisible && !pastShelf && !inGrid && moving == null
         // Nothing over Home blurs it: a paused film stays.
         val filmStandsIn = overlay == Overlay.None || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper ||
             (overlay is Overlay.AppMenu && overlay.inFolder == null)
