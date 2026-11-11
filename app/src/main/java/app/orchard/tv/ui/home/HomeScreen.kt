@@ -954,14 +954,17 @@ fun HomeScreen(
             // 单实例 + 跟着 uiAlpha 走, 焦点在普通卡片和直播预览卡片之间移动时不会闪,
             // 隐藏 UI 时也会跟着一起消失。
             if (plateRect != null) {
-                // 一级菜单的底板照搬二级菜单那块: 中性灰(亮度取壁纸磨砂帧的平均值)
-                // + 同一套烟灰/光泽/亮边参数, 不再映壁纸的画面颜色。
+                // 静态壁纸: 底板照旧从壁纸取色(磨砂帧那一块)。
+                // 视频壁纸: 底板用二级菜单那块中性灰(不带影片/壁纸的颜色)。
+                val videoWall = Wallpapers.selectedId == Wallpapers.LIVE ||
+                    Wallpapers.selectedId.startsWith(Wallpapers.VIDEO_PREFIX)
+                val plateFrost = Wallpapers.frosted.takeIf { Wallpapers.backdrop != null }
                 val greyGlass = remember(Wallpapers.backdrop) { frostGreyGlass() }
                 // 底板自己按 toSaver(=saverLike) 淡出, 这里不再叠一层 alpha, 免得双重淡出
                 Box(Modifier.fillMaxSize()) {
                     HomePlate(
-                        glass = greyGlass,
-                        film = greyGlass,
+                        glass = if (videoWall) greyGlass else plateFrost,
+                        film = if (videoWall) greyGlass else null,
                         filmPlate = false,
                         deepSmoke = false,
                         stillOverFilm = false,
