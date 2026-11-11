@@ -260,8 +260,21 @@ fun HomeBackground(
     gridGlass: ImageBitmap? = null,
     /** 二创: 直播预览的影片在 UI 下面播, 和视频壁纸一样: 不画整屏壁纸, 底板只留灰色透明那一层。 */
     plateOverVideo: Boolean = false,
+    /** 二创: 底板由调用方在直播画面之后单独画(HomePlate), 免得整块壁纸层被直播盖住。 */
+    drawPlate: Boolean = true,
 ) {
     val shade = remember { Images.homeShade.asImageBitmap() }
+    // Where the film's frames cannot be had (Wallpapers.filmGlassless), the plate is the one
+    // over a still picture, of the picture's glass, over the film moving or stopped: the
+    // picture is the frame decoded where the film was let go, and the film goes on from it
+    // (LiveWallpaper.goOnFromPicture; owner, TCL MT5879, issue #1238).
+    // Its glass follows the film where frames of it are decoded in the app while it moves
+    // ([filmGlass], every 15 s), so it is not the colours of a shot long gone.
+    val plateStill = !plateOverVideo && Wallpapers.filmGlassless && Wallpapers.moves() && (frosted ?: backdrop) != null
+    val plateFilm = if (plateOverVideo) filmGlass ?: frosted ?: backdrop else filmGlass.takeUnless { Wallpapers.filmGlassless }
+    val plateFilmPlate = plateOverVideo || plateFilm != null
+    val plateDeepSmoke = Wallpapers.filmGlassless && !plateOverVideo
+    val plateGlass = if (plateStill) filmGlass ?: frosted ?: backdrop else frosted ?: backdrop
     Box(Modifier.fillMaxSize()) {
         // Over an input's picture, under the pictures: the shading a picture has.
         if (shadeMoving) Canvas(Modifier.fillMaxSize().diagLayer("shade")) {
@@ -277,32 +290,20 @@ fun HomeBackground(
             val a = saverReveal()
             if (a > 0.01f) drawDrawingIn(saverImage, saverPush(), a)
         }
-        Box(Modifier.fillMaxSize().diagLayer("plate")) {
-            // Where the film's frames cannot be had (Wallpapers.filmGlassless), the plate is the one
-            // over a still picture, of the picture's glass, over the film moving or stopped: the
-            // picture is the frame decoded where the film was let go, and the film goes on from it
-            // (LiveWallpaper.goOnFromPicture; owner, TCL MT5879, issue #1238).
-            // Its glass follows the film where frames of it are decoded in the app while it moves
-            // ([filmGlass], every 15 s), so it is not the colours of a shot long gone.
-            val still = !plateOverVideo && Wallpapers.filmGlassless && Wallpapers.moves() && (frosted ?: backdrop) != null
-            val film = filmGlass.takeUnless { Wallpapers.filmGlassless }
-            Plate(
-                glass = if (still) filmGlass ?: frosted ?: backdrop else frosted ?: backdrop,
-                // 直播预览压在上面时, 底板用壁纸的磨砂帧打底(和视频壁纸那块同一个配方:
-                // 磨砂帧 55% + 烟灰 + 亮边), 不是只有一层烟灰, 否则看着像没有底板
-                film = if (plateOverVideo) filmGlass ?: frosted ?: backdrop else film,
-                filmPlate = plateOverVideo || film != null,
-                deepSmoke = Wallpapers.filmGlassless && !plateOverVideo,
-                plate = plate,
-                scroll = scroll,
-                collapse = collapse,
-                cover = cover,
-                filmStopped = filmStopped,
-                toSaver = toSaver,
-                lift = lift,
-                stillOverFilm = still,
-            )
-        }
+        if (drawPlate) HomePlate(
+            glass = plateGlass,
+            film = plateFilm,
+            filmPlate = plateFilmPlate,
+            deepSmoke = plateDeepSmoke,
+            stillOverFilm = plateStill,
+            plate = plate,
+            scroll = scroll,
+            collapse = collapse,
+            cover = cover,
+            filmStopped = filmStopped,
+            toSaver = toSaver,
+            lift = lift,
+        )
     }
 }
 
@@ -400,6 +401,30 @@ private fun Pictures(
  * moves or a new frame fades in, every [GLASS_EVERY_MS]: the film plays with Compose all but still.
  */
 @Composable
+/**
+ * 二创: 一级菜单那块玻璃底板, 单独一层。直播预览是全屏影片, 壁纸层排在它前面会被整块盖住,
+ * 所以这一层要排在直播画面之后画 (HomeScreen)。
+ */
+@Composable
+fun HomePlate(
+    glass: ImageBitmap?,
+    film: ImageBitmap?,
+    filmPlate: Boolean,
+    deepSmoke: Boolean,
+    stillOverFilm: Boolean,
+    plate: Rect?,
+    scroll: () -> Float,
+    collapse: Float,
+    cover: () -> Float,
+    filmStopped: () -> Float,
+    toSaver: () -> Float,
+    lift: () -> Float = { 0f },
+) {
+    Box(Modifier.fillMaxSize().diagLayer("plate")) {
+        Plate(glass, film, filmPlate, deepSmoke, plate, scroll, collapse, cover, filmStopped, toSaver, lift, stillOverFilm)
+    }
+}
+
 private fun Plate(glass: ImageBitmap?, film: ImageBitmap?, filmPlate: Boolean, deepSmoke: Boolean, plate: Rect?, scroll: () -> Float, collapse: Float, cover: () -> Float, filmStopped: () -> Float, toSaver: () -> Float, lift: () -> Float, stillOverFilm: Boolean = false) {
     var shown by remember { mutableStateOf(glass) }
     var under by remember { mutableStateOf<ImageBitmap?>(null) }

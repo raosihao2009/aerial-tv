@@ -874,6 +874,8 @@ fun HomeScreen(
                 glassAwaitsStop = Wallpapers.selectedId == Wallpapers.LIVE && clipGlass == null,
                 gridGlass = clipGlass,
                 plateOverVideo = channelPreviewVisible,
+                // 直播预览是全屏影片, 壁纸层排在它前面会被整块盖住: 底板改到预览之后单独画
+                drawPlate = !channelPreviewVisible,
             )
 
             // Before Android 7 there is no picture of Home under Control Center (issue #466), so the
@@ -911,6 +913,25 @@ fun HomeScreen(
                         focusApp(lastFocusedIndex)
                     },
                     onActuallyPlayingChange = { vm.liveActuallyPlaying = it },
+                )
+            }
+            // 底板排在直播画面之后再画, 才压得住它
+            if (channelPreviewVisible && plate != null) {
+                HomePlate(
+                    glass = Wallpapers.frosted ?: Wallpapers.backdrop,
+                    film = (Wallpapers.filmFrost ?: Wallpapers.frosted)
+                        .takeIf { Wallpapers.moves() && Wallpapers.backdrop != null }
+                        ?: Wallpapers.frosted ?: Wallpapers.backdrop,
+                    filmPlate = true,
+                    deepSmoke = false,
+                    stillOverFilm = false,
+                    plate = plate,
+                    scroll = { scroll.value },
+                    collapse = collapsePx,
+                    cover = { 1f },
+                    filmStopped = { 0f },
+                    toSaver = { toSaver.value },
+                    lift = { liftState.value },
                 )
             }
 

@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.KeyEventType
@@ -358,7 +359,8 @@ fun LiveSourceMenu(
             if (AerialSettings.homePlate && sources.isNotEmpty()) {
                 val plateFirstRow = (bottomRow - 1).coerceAtLeast(0)
                 val plateTop = rowY(plateFirstRow) - 20.dp
-                val plateHeight = rowY(bottomRow) + tileH + 20.dp + 28.dp - plateTop
+                // 名字下面只留一点点: 之前留 28dp 显得整块底板往下坠
+                val plateHeight = rowY(bottomRow) + tileH + 18.dp - plateTop
                 val plateY by animateDpAsState(
                     plateTop,
                     spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessHigh),
@@ -369,9 +371,24 @@ fun LiveSourceMenu(
                         .offset(x = gridMargin - 26.dp, y = plateY)
                         .width(tileW * columns + gridGap * (columns - 1) + 52.dp)
                         .height(plateHeight)
-                        // 和一级菜单同一块玻璃: 壁纸磨砂打底 + 烟灰压暗 + 亮边, 不是一块平色
-                        .liquidGlass(32.dp)
-                        .drawBehind { drawRoundRect(Color(0x20000000)) }
+                        // 半透明玻璃: 底下一层薄的烟灰, 顶上一道白高光, 加一圈细亮边。
+                        // 不用 liquidGlass 是因为它取整张磨砂壁纸, 在暗背景上看着像一块实心板。
+                        .drawBehind {
+                            val radius = CornerRadius(32.dp.toPx())
+                            drawRoundRect(Color(0x33000000), cornerRadius = radius)
+                            drawRoundRect(
+                                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                                    0f to Color(0x1AFFFFFF), 0.45f to Color(0x0AFFFFFF), 1f to Color(0x00FFFFFF),
+                                    startY = 0f, endY = size.height,
+                                ),
+                                cornerRadius = radius,
+                            )
+                            drawRoundRect(
+                                Color(0x26FFFFFF),
+                                cornerRadius = radius,
+                                style = Stroke(width = 1.0.dp.toPx()),
+                            )
+                        }
                 )
             }
             sources.forEachIndexed { index, source ->
