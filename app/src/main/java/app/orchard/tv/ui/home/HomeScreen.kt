@@ -874,8 +874,8 @@ fun HomeScreen(
                 glassAwaitsStop = Wallpapers.selectedId == Wallpapers.LIVE && clipGlass == null,
                 gridGlass = clipGlass,
                 plateOverVideo = channelPreviewVisible,
-                // 直播预览是全屏影片, 壁纸层排在它前面会被整块盖住: 底板改到预览之后单独画
-                drawPlate = !channelPreviewVisible,
+                // 底板统一由预览之后那一层画 (压在直播画面上, 且跟着 UI 一起隐藏)
+                drawPlate = false,
             )
 
             // Before Android 7 there is no picture of Home under Control Center (issue #466), so the
@@ -915,24 +915,33 @@ fun HomeScreen(
                     onActuallyPlayingChange = { vm.liveActuallyPlaying = it },
                 )
             }
-            // 底板排在直播画面之后再画, 才压得住它
-            if (channelPreviewVisible && plate != null) {
-                HomePlate(
-                    glass = Wallpapers.frosted ?: Wallpapers.backdrop,
-                    film = (Wallpapers.filmFrost ?: Wallpapers.frosted)
-                        .takeIf { Wallpapers.moves() && Wallpapers.backdrop != null }
-                        ?: Wallpapers.frosted ?: Wallpapers.backdrop,
-                    filmPlate = true,
-                    deepSmoke = false,
-                    stillOverFilm = false,
-                    plate = plate,
-                    scroll = { scroll.value },
-                    collapse = collapsePx,
-                    cover = { 1f },
-                    filmStopped = { 0f },
-                    toSaver = { toSaver.value },
-                    lift = { liftState.value },
-                )
+            // 底板: 只有这一处, 排在直播画面之后(压得住它), 又在 UI 内容之下;
+            // 单实例 + 跟着 uiAlpha 走, 焦点在普通卡片和直播预览卡片之间移动时不会闪,
+            // 隐藏 UI 时也会跟着一起消失。
+            if (plate != null) {
+                val plateFrost = Wallpapers.frosted.takeIf { Wallpapers.backdrop != null } ?: Wallpapers.backdrop
+                val plateFilmGlass = (Wallpapers.filmFrost ?: Wallpapers.frosted)
+                    .takeIf { Wallpapers.moves() && Wallpapers.backdrop != null }
+                val plateStillNow = !channelPreviewVisible && Wallpapers.filmGlassless &&
+                    Wallpapers.moves() && plateFrost != null
+                val plateFilm = if (channelPreviewVisible) plateFilmGlass ?: plateFrost
+                else plateFilmGlass?.takeUnless { Wallpapers.filmGlassless }
+                Box(Modifier.fillMaxSize().graphicsLayer { alpha = uiAlpha }) {
+                    HomePlate(
+                        glass = if (plateStillNow) plateFilmGlass ?: plateFrost else plateFrost,
+                        film = plateFilm,
+                        filmPlate = channelPreviewVisible || plateFilm != null,
+                        deepSmoke = Wallpapers.filmGlassless && !channelPreviewVisible,
+                        stillOverFilm = plateStillNow,
+                        plate = plate,
+                        scroll = { scroll.value },
+                        collapse = collapsePx,
+                        cover = { if (channelPreviewVisible) 1f else filmCover.value },
+                        filmStopped = { filmStopped },
+                        toSaver = { toSaver.value },
+                        lift = { liftState.value },
+                    )
+                }
             }
 
             Box(
