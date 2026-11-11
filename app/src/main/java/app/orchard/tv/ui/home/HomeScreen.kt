@@ -550,7 +550,8 @@ fun HomeScreen(
         // 从二级菜单回来、或者根本没有记住焦点: 焦点一律落在直播频道卡片上,
         // 不要落到右上角的控制中心按钮(以前会偶发/经常落在那里)
         val liveIndex = apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages }
-        if (lastOverlay is Overlay.LiveSourceMenu || pillFocused) {
+        // 只有"从二级菜单回来"才强制落到直播卡片; 从控制中心回来要回到原来那张卡片
+        if (lastOverlay is Overlay.LiveSourceMenu) {
             pillFocused = false
             val i = if (liveIndex >= 0) liveIndex else apps.indexOfFirst { it.key == focusedKey }
             if (i >= 0) { focusApp(i); focusedKey = apps[i].key }
@@ -575,7 +576,7 @@ fun HomeScreen(
     LaunchedEffect(overlay, vm.loaded) {
         if (!vm.loaded || overlay != Overlay.None) return@LaunchedEffect
         kotlinx.coroutines.delay(700)
-        if (pillFocused) {
+        if (pillFocused && lastOverlay is Overlay.LiveSourceMenu) {
             val live = apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages }
             pillFocused = false
             if (live >= 0) focusApp(live)
