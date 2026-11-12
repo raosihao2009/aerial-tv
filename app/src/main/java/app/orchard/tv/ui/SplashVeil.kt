@@ -20,6 +20,7 @@ import android.widget.FrameLayout
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.annotation.RequiresApi
 import androidx.core.content.res.ResourcesCompat
 import androidx.compose.ui.graphics.asAndroidPath
 import app.orchard.tv.ui.components.smoothRectPath
@@ -397,8 +398,7 @@ private class MarkView(context: Context) : View(context) {
         // 分辨率下光栅化, 所以洞边缘始终干净 —— 之前是把一张半分辨率的黑幕位图放大十几倍, 边缘
         // 的 1 像素过渡被放大成几十像素的台阶, 就是"洞边锯齿"。
         // 也不再需要 saveLayer / 离屏: 一次实心填充 + 一条裁剪路径, 比整屏贴一张大位图还便宜。
-        val backed = Build.VERSION.SDK_INT >= 26 && usePathCurtain
-        if (backed) {
+        if (Build.VERSION.SDK_INT >= 26 && usePathCurtain) {
             if (blackAlpha > 0f) drawCurtain(canvas, w, h)
         } else {
             if (curtain == null) canvas.drawColor(Color.BLACK)
@@ -424,6 +424,7 @@ private class MarkView(context: Context) : View(context) {
      * 四个圆角小块 —— 只有这几个角需要曲线, 每帧要算覆盖率的面积从整屏缩到半径大小的方块。
      * 之前整屏贴一条巨大曲线路径, 放大到最后覆盖率要按整屏算, 就是末段卡顿的来源。
      */
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun drawCurtain(canvas: Canvas, w: Float, h: Float) {
         val a = (blackAlpha * 255).toInt().coerceIn(0, 255)
         veilPaint.alpha = a
