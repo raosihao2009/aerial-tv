@@ -81,6 +81,11 @@ private class SplashArt(context: Context) {
     private var room = 0f
     private var left = 0f
 
+    /** "Aerial" 烤成一张白色位图: 每帧带不同 alpha 去 drawText 会让 Skia 每帧重新光栅化字形。 */
+    private var wordBitmap: Bitmap? = null
+    private var wordTop = 0f
+    private val wordPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+
     private fun relayout(w: Float, h: Float) {
         if (cachedW == w && cachedH == h) return
         cachedW = w
@@ -91,6 +96,26 @@ private class SplashArt(context: Context) {
         iconSide = word.textSize
         room = if (icon != null) iconSide * 1.42f else 0f
         left = w / 2f - (room + textW) / 2f
+        bakeWord(w, h)
+    }
+
+    /**
+     * 把 "Aerial" 画进一张位图(白字, 位置和直接 drawText 一模一样)。之后每帧只改这张图的
+     * alpha: 一条带透明度的 drawText 每帧都会让 Skia 重做一遍字形光栅, 2.5 秒六十帧就是六十次。
+     */
+    private fun bakeWord(w: Float, h: Float) {
+        val fm = word.fontMetrics
+        val bw = (textW + 4f).toInt().coerceAtLeast(1)
+        val bh = (fm.descent - fm.top + 4f).toInt().coerceAtLeast(1)
+        val bmp = runCatching {
+            Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888).also { b ->
+                Canvas(b).drawText(BRAND, 2f, 2f - fm.top, word)
+            }
+        }.getOrNull() ?: return
+        wordBitmap?.recycle()
+        wordBitmap = bmp
+        // 直接 drawText 的基线: h/2 - (descent+ascent)/2; 位图的 top 就按同一条基线反推。
+        wordTop = h / 2f - (fm.descent + fm.ascent) / 2f + fm.top - 2f
     }
 
     fun box(w: Float, h: Float): Box {
@@ -109,9 +134,11 @@ private class SplashArt(context: Context) {
             val top = h / 2f - iconSide / 2f
             canvas.drawBitmap(bmp, null, RectF(left, top, left + iconSide, top + iconSide), iconPaint)
         }
-        word.alpha = (wordFade * 255).toInt().coerceIn(0, 255)
         // 纵向居中对齐图标: 字的中线压在屏幕中线上
-        canvas.drawText(BRAND, left + room, h / 2f - (word.descent() + word.ascent()) / 2f, word)
+        wordBitmap?.let { b ->
+            wordPaint.alpha = (wordFade * 255).toInt().coerceIn(0, 255)
+            canvas.drawBitmap(b, left + room, wordTop, wordPaint)
+        }
     }
 
     private fun sizeOf(w: Float, h: Float): Float = min(w * 0.082f, h * 0.175f).coerceAtLeast(28f)
@@ -130,13 +157,18 @@ private class SplashArt(context: Context) {
  */
 class SplashBackground(context: Context) : Drawable() {
     private val art = SplashArt(context)
+    /** 0 时整张都不画: 遮罩盖上来之后每帧再画一遍这张字, 就是白花的钱。 */
+    private var alpha = 255
 
     override fun draw(canvas: Canvas) {
+        if (alpha <= 0) return
         canvas.drawColor(Color.BLACK)
         art.drawBrand(canvas, bounds.width().toFloat(), bounds.height().toFloat(), 1f)
     }
 
-    override fun setAlpha(alpha: Int) = Unit
+    override fun setAlpha(alpha: Int) {
+        this.alpha = alpha
+    }
     override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) = Unit
     @Deprecated("Deprecated in Java")
     override fun getOpacity(): Int = PixelFormat.OPAQUE
@@ -154,6 +186,8 @@ private class SplashVideo(context: Context) : TextureView(context) {
     private var surface: Surface? = null
     private var failed = false
     var onFail: (() -> Unit)? = null
+    /** 短片已经出画: 盖在下面的那张静图可以让开了(同一份几何, 换过去看不出)。 */
+    var onFirstFrame: (() -> Unit)? = null
 
     init {
         isOpaque = false
@@ -188,6 +222,14 @@ private class SplashVideo(context: Context) : TextureView(context) {
             surface = Surface(st)
             mp.setSurface(surface)
             mp.setOnPreparedListener { it.start() }
+            // 只报一次: 循环播放每轮都会回调, 不必每次重设背景。
+            mp.setOnInfoListener { _, what, _ ->
+                if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) {
+                    mp.setOnInfoListener(null)
+                    onFirstFrame?.invoke()
+                }
+                false
+            }
             mp.setOnErrorListener { _, _, _ ->
                 fail()
                 true
@@ -254,10 +296,12 @@ class SplashVeil(context: Context) : FrameLayout(context) {
     private var startAt = 0L
 
     init {
-        // 内容视图刚挂上、短片还没出第一帧的那几十毫秒: 没有这块黑底, Compose 已经画好的
-        // 壁纸和时钟就会透出来, 也就是"开机第一眼是桌面而不是黑底标志"。
-        setBackgroundColor(Color.BLACK)
+        // 内容视图刚挂上、短片还没出第一帧之前, 这块背景就是窗口背景那张开屏静图(黑底+图标+Aerial)。
+        // 以前这里铺的是纯黑: 窗口的静图先被它盖住, 短片又要等媒体服务冷启动几秒, 于是
+        // "先看到 logo → 黑掉几秒 → logo 又出来"。静图和短片画的是同一份几何, 第一帧一到就无缝接上。
+        setBackgroundDrawable(SplashBackground(context))
         video.onFail = { mark.showStill() }
+        video.onFirstFrame = { background?.alpha = 0 }
         addView(video, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         addView(mark, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
