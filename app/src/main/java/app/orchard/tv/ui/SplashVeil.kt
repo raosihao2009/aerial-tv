@@ -301,10 +301,13 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
     private var videoFrameSeen = false
     /** 影片停下来的那一帧(取成位图自己画: TextureView 自己的 alpha 在盒子上不可靠)。 */
     private var still: Bitmap? = null
+    /** 我们自己画的标志 + 文字, 烤成一张透明底位图: 透明用 paint.alpha, 绕开绘制里任何 alpha 损耗。 */
+    private var brand: Bitmap? = null
     private var videoEnded = false
     /** 影片起不来(编码不支持/文件坏了/迟迟不出帧)。 */
     private var broken = false
     private var removingVideo = false
+    private var hardCapArmed = false
 
     private var started = false
     private var transitioning = false
@@ -332,9 +335,24 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         measure()
+        bakeBrand()
+        // 全局硬期限: 不管影片准没准备起来, 7.5 秒必须开始收尾。
+        if (!hardCapArmed) {
+            hardCapArmed = true
+            handler.postDelayed({ if (!transitioning && !removed) endVideo() }, HARD_CAP_MS)
+        }
         if (usesVideo && videoView == null && !broken && !transitioning) attachVideo()
         // 没有影片: 量好就自己开始走时间线, 不依赖任何"桌面画好了"的信号。
         if (!usesVideo && !transitioning && width > 0 && height > 0) maybeStartIdle()
+    }
+
+    private fun bakeBrand() {
+        if (brand != null || width <= 0 || height <= 0) return
+        brand = runCatching {
+            Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { b ->
+                art.drawBrand(Canvas(b), width.toFloat(), height.toFloat(), 1f)
+            }
+        }.getOrNull()
     }
 
     private fun measure() {
@@ -504,6 +522,8 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
         removed = true
         still?.recycle()
         still = null
+        brand?.recycle()
+        brand = null
         runCatching { releasePlayer() }
         videoView = null
         BootVeil.revealed = true
@@ -531,8 +551,10 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
                 zoom = 1f + 2.2f * e                  // 1 → 3.2: 标志/画面往你脸上推
                 // 标志和文字先把自己淡成透明的(0 → 55%), 黑幕留到最后 45% 才收 —— 这样看着是
                 // "字透掉了、然后黑幕也开了", 而不是整块画面一起变暗。
-                brandFade = 1f - smooth01(0f, 0.55f, t)
-                blackFade = 1f - smooth01(0.45f, 1f, t)
+                // 先把黑幕开掉(桌面露出来), 再让放大中的图标和文字在桌面上淡成透明的 ——
+                // 这样是"透过标志看见桌面", 而不是"标志消失在一片黑里"(后者看着就像没透明)。
+                blackFade = 1f - smooth01(0f, 0.35f, t)
+                brandFade = 1f - smooth01(0.25f, 1f, t)
                 videoView?.let { v ->
                     v.scaleX = zoom
                     v.scaleY = zoom
@@ -550,6 +572,8 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
         removed = true
         still?.recycle()
         still = null
+        brand?.recycle()
+        brand = null
         runCatching { releasePlayer() }
         videoView = null
         BootVeil.revealed = true
@@ -578,11 +602,15 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
                 canvas.drawBitmap(frameBitmap, null, RectF(0f, 0f, w, h), framePaint)
                 canvas.restore()
             }
-        } else if (brandFade > 0f) {
-            canvas.save()
-            canvas.scale(zoom, zoom, pivotX, pivotY)
-            art.drawBrand(canvas, w, h, brandFade)
-            canvas.restore()
+        } else {
+            val b = brand
+            if (b != null && brandFade > 0f) {
+                framePaint.alpha = (brandFade * 255).toInt().coerceIn(0, 255)
+                canvas.save()
+                canvas.scale(zoom, zoom, pivotX, pivotY)
+                canvas.drawBitmap(b, 0f, 0f, framePaint)
+                canvas.restore()
+            }
         }
     }
 
@@ -594,6 +622,9 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
     companion object {
         /** 开机影片放在 assets 里: 有它就放影片, 没有就走自己画的标志。 */
         const val VIDEO_ASSET = "boot.mp4"
+
+        /** 从挂上遮罩算起, 最多等这么久就必须开始收尾。 */
+        private const val HARD_CAP_MS = 7500L
 
         /** 影片迟迟不出第一帧就认为它坏了。 */
         private const val VIDEO_FIRST_FRAME_MS = 2500L
