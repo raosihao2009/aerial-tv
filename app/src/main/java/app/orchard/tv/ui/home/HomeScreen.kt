@@ -379,32 +379,25 @@ fun HomeScreen(
         animationSpec = androidx.compose.animation.core.tween(UI_FADE_MS, easing = Motion.EaseInOut), label = "uiAlpha")
     LaunchedEffect(channelPreviewVisible) { vm.livePlaying = channelPreviewVisible; liveReadyState.value = false }
 
-    // 揭罩轮询: 直接复用直播预览功能自己的可见条件(channelPreviewVisible 那一组 State),
-    // 不再另写一套包名判断。每 150ms 看一次现场:
-    //   * 预览在跑且出帧(ready=1) → 300ms 后撤;
-    //   * 不是预览、且卡片已经上屏(apps 非空)过 0.8s → 500ms 后撤。
-    // 热启动遮罩重挂时 generation 变了, 这个协程会重新跑。
+    // 揭罩轮询: 不看焦点、不看第几行、不看首格, 只看当前网格里有没有被上下文菜单
+    // 标记成「直播预览应用」的卡片(标识就是菜单写进 liveAppPackages 的那张卡片 key):
+    //   * 有标记卡片: 等直播预览真出帧(ready=1) → 300ms 后撤; 最长等 8s 兜底;
+    //   * 没有标记卡片: 卡片上屏(apps 非空)过 0.8s → 500ms 后撤。
+    // 每 150ms 读一次现场 State; 遮罩重挂时 generation 变了, 这个协程会重新跑。
     LaunchedEffect(BootVeil.generation) {
         val start = System.currentTimeMillis()
+        val LIVE_CAP_MS = 8000L
         while (!BootVeil.hasArmed()) {
             BootVeil.revealContent()
-            val pkg = focusedPkg
-            val previewUp = AerialSettings.livePreviewEnabled &&
-                pkg in AerialSettings.liveAppPackages &&
-                focusedRow == 0 &&
-                !vm.screensaverVisible &&
-                vm.movingKey == null
+            val marked = apps.count { it.packageName in AerialSettings.liveAppPackages }
             val ready = liveReadyState.value
-            val a0 = apps.firstOrNull()?.packageName.orEmpty().take(14)
+            val elapsed = System.currentTimeMillis() - start
             BootVeil.debugNote =
-                "p=${pkg.take(16)} r=$focusedRow " +
-                "e=${if (AerialSettings.livePreviewEnabled) 1 else 0} " +
-                "l=${if (pkg in AerialSettings.liveAppPackages) 1 else 0} " +
-                "up=${if (previewUp) 1 else 0} ready=${if (ready) 1 else 0} " +
-                "a0=$a0 t=${System.currentTimeMillis() - start}"
+                "liveMarkCount=$marked ready=${if (ready) 1 else 0} t=$elapsed"
             when {
-                previewUp && ready -> BootVeil.arm(300)
-                !previewUp && apps.isNotEmpty() && System.currentTimeMillis() - start > 800 -> BootVeil.arm(500)
+                marked > 0 && ready -> BootVeil.arm(300)
+                marked > 0 && elapsed > LIVE_CAP_MS -> BootVeil.arm(400)
+                marked == 0 && apps.isNotEmpty() && elapsed > 800 -> BootVeil.arm(500)
             }
             if (BootVeil.hasArmed()) break
             delay(150)
