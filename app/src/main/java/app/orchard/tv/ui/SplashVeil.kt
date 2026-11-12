@@ -35,6 +35,7 @@ import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.roundToInt
+import kotlin.math.cos
 import kotlin.math.sin
 
 /**
@@ -230,8 +231,9 @@ private class SplashArt(context: Context) {
     /**
      * 开屏的底色: 斜向的深色渐变(墨黑蓝 → 靛青 → 暗紫), 中间压一层冷色辉光, 四角再压一点
      * 暗角。不用纯黑 —— 纯黑看着像"没画东西", 渐变才像一块有光的面。
+     * [phase] 是已播放秒数: 两块辉光缓慢漂移、亮度轻微呼吸, 背景是活的, 标志和小字不动。
      */
-    fun drawBackdrop(canvas: Canvas, w: Float, h: Float) {
+    fun drawBackdrop(canvas: Canvas, w: Float, h: Float, phase: Float = 0f) {
         val key = "$w/$h"
         if (bgShader == null || bgKey != key) {
             bgKey = key
@@ -252,20 +254,28 @@ private class SplashArt(context: Context) {
         }
         bgPaint.shader = bgShader
         canvas.drawRect(0f, 0f, w, h, bgPaint)
-        // 中心偏上的冷色辉光: 让标志那一块"有光", 渐变不至于平。
+
+        // 缓慢漂移的相位: 暖红光在下偏左, 冷紫光在上偏右, 各自沿小椭圆浮, 亮度呼吸。
+        val warmX = w * 0.30f + w * 0.035f * sin(phase * 0.50f)
+        val warmY = h * 0.66f + h * 0.025f * cos(phase * 0.38f)
+        val warmA = (110 + 18 * sin(phase * 0.50f)).toInt().coerceIn(70, 130)
         // 两块光: 标志左下一点暖红的光(像被灯从下面打亮), 右上一点冷紫的辉光, 中间偏亮、
         // 四角压暗 —— 就是那种"通透的高级渐变"。
         val warm = android.graphics.RadialGradient(
-            w * 0.30f, h * 0.66f, maxOf(w, h) * 0.40f,
-            intArrayOf(Color.argb(110, 210, 74, 52), Color.argb(40, 170, 52, 90), Color.argb(0, 30, 12, 20)),
+            warmX, warmY, maxOf(w, h) * 0.40f,
+            intArrayOf(Color.argb(warmA, 210, 74, 52), Color.argb(40, 170, 52, 90), Color.argb(0, 30, 12, 20)),
             floatArrayOf(0f, 0.55f, 1f),
             android.graphics.Shader.TileMode.CLAMP,
         )
         bgPaint.shader = warm
         canvas.drawRect(0f, 0f, w, h, bgPaint)
+
+        val coolX = w * 0.72f - w * 0.035f * cos(phase * 0.42f)
+        val coolY = h * 0.34f + h * 0.025f * sin(phase * 0.36f)
+        val coolA = (80 + 14 * cos(phase * 0.42f)).toInt().coerceIn(50, 100)
         val glow = android.graphics.RadialGradient(
-            w * 0.72f, h * 0.34f, maxOf(w, h) * 0.45f,
-            intArrayOf(Color.argb(80, 108, 96, 226), Color.argb(34, 78, 62, 170), Color.argb(0, 12, 10, 20)),
+            coolX, coolY, maxOf(w, h) * 0.45f,
+            intArrayOf(Color.argb(coolA, 108, 96, 226), Color.argb(34, 78, 62, 170), Color.argb(0, 12, 10, 20)),
             floatArrayOf(0f, 0.55f, 1f),
             android.graphics.Shader.TileMode.CLAMP,
         )
@@ -397,6 +407,15 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
     private var finishing = false
     private var removed = false
 
+    // 背景辉光的缓动动画: 不走 ValueAnimator(盒子上动画缩放可能被关成 0), 主线程 Handler 逐帧 invalidate。
+    private var animStart = 0L
+    private var animScheduled = false
+    private val animTick: Runnable = Runnable {
+        if (finished()) { animScheduled = false; return@Runnable }
+        invalidate()
+        handler.postDelayed(animTick, 33)
+    }
+
     init {
         setWillNotDraw(false)
     }
@@ -409,8 +428,10 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
             hardCapArmed = true
             handler.postDelayed({ if (!finished()) finishSoon(force = true) }, HARD_CAP_MS)
         }
-        if (!usesVideo) {
-            // 没有影片就一直停在这张图上, 由桌面报"好了"/兜底来撤。
+        if (!usesVideo && !animScheduled) {
+            animStart = SystemClock.elapsedRealtime()
+            animScheduled = true
+            handler.post(animTick)
         }
     }
 
@@ -562,6 +583,8 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
         if (removed) return
         removed = true
         finishing = true
+        animScheduled = false
+        handler.removeCallbacks(animTick)
         runCatching { releasePlayer() }
         videoView = null
         BootVeil.revealed = true
@@ -578,7 +601,8 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
         if (w <= 0f || h <= 0f) return
         // 影片真的出帧了: 画面在 TextureView 里, 这里让开。
         if (usesVideo && !broken && videoFrameSeen && videoView != null) return
-        art.drawBackdrop(canvas, w, h)
+        val phase = if (animStart == 0L) 0f else (SystemClock.elapsedRealtime() - animStart) / 1000f
+        art.drawBackdrop(canvas, w, h, phase)
         art.drawBrand(canvas, w, h, 1f)
         drawHint(canvas, w, h)
         BootVeil.debugNote?.let {
