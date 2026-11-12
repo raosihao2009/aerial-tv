@@ -223,6 +223,52 @@ private class SplashArt(context: Context) {
         }
     }
 
+    private var bgShader: android.graphics.Shader? = null
+    private var bgKey = ""
+    private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    /**
+     * 开屏的底色: 斜向的深色渐变(墨黑蓝 → 靛青 → 暗紫), 中间压一层冷色辉光, 四角再压一点
+     * 暗角。不用纯黑 —— 纯黑看着像"没画东西", 渐变才像一块有光的面。
+     */
+    fun drawBackdrop(canvas: Canvas, w: Float, h: Float) {
+        val key = "$w/$h"
+        if (bgShader == null || bgKey != key) {
+            bgKey = key
+            bgShader = android.graphics.LinearGradient(
+                0f, 0f, w, h,
+                intArrayOf(Color.rgb(7, 10, 18), Color.rgb(15, 24, 42), Color.rgb(28, 38, 62), Color.rgb(38, 28, 54)),
+                floatArrayOf(0f, 0.45f, 0.75f, 1f),
+                android.graphics.Shader.TileMode.CLAMP,
+            )
+        }
+        bgPaint.shader = bgShader
+        canvas.drawRect(0f, 0f, w, h, bgPaint)
+        // 中心偏上的冷色辉光: 让标志那一块"有光", 渐变不至于平。
+        val glow = android.graphics.RadialGradient(
+            w / 2f, h * 0.42f, maxOf(w, h) * 0.55f,
+            intArrayOf(
+                Color.argb(66, 96, 156, 226),
+                Color.argb(28, 70, 110, 180),
+                Color.argb(0, 10, 12, 20),
+            ),
+            floatArrayOf(0f, 0.45f, 1f),
+            android.graphics.Shader.TileMode.CLAMP,
+        )
+        bgPaint.shader = glow
+        canvas.drawRect(0f, 0f, w, h, bgPaint)
+        // 暗角: 四边压暗, 中间那一块更亮, 像被打了光。
+        val vignette = android.graphics.RadialGradient(
+            w / 2f, h / 2f, maxOf(w, h) * 0.78f,
+            intArrayOf(Color.argb(0, 0, 0, 0), Color.argb(0, 0, 0, 0), Color.argb(120, 0, 0, 0)),
+            floatArrayOf(0f, 0.55f, 1f),
+            android.graphics.Shader.TileMode.CLAMP,
+        )
+        bgPaint.shader = vignette
+        canvas.drawRect(0f, 0f, w, h, bgPaint)
+        bgPaint.shader = null
+    }
+
     /** 屏幕下方那行小字: 桌面还在准备。图标/字下面偏下, 水平居中。 */
     fun drawHint(canvas: Canvas, w: Float, h: Float, text: String) {
         relayout(w, h)
@@ -260,9 +306,9 @@ class SplashBackground(context: Context) : Drawable() {
         if (alpha <= 0) return
         // 窗口背景在整棵视图树后面, 它画的标志不可能压住遮罩层 —— 它只负责"内容视图还没建好"的
         // 那几帧(冷启动开机最先看到的那一下)。过渡动画的标志仍只由 MarkView 一份负责。
-        canvas.drawColor(Color.BLACK)
         val w = bounds.width().toFloat()
         val h = bounds.height().toFloat()
+        art.drawBackdrop(canvas, w, h)
         art.drawBrand(canvas, w, h, 1f)
         art.drawHint(canvas, w, h, "桌面正在准备中")
     }
@@ -327,7 +373,6 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
 
     init {
         setWillNotDraw(false)
-        setBackgroundColor(Color.BLACK)
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -507,7 +552,7 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
         if (w <= 0f || h <= 0f) return
         // 影片真的出帧了: 画面在 TextureView 里, 这里让开。
         if (usesVideo && !broken && videoFrameSeen && videoView != null) return
-        canvas.drawColor(Color.BLACK)
+        art.drawBackdrop(canvas, w, h)
         art.drawBrand(canvas, w, h, 1f)
         drawHint(canvas, w, h)
     }

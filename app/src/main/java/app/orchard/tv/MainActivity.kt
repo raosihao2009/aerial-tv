@@ -314,10 +314,9 @@ class MainActivity : ComponentActivity() {
         if (coldBoot) {
             // 冷启动: 窗口背景直接画开屏图(黑底+图标+Aerial字)。窗口一可见就是它, 不用等
             // 内容视图和 Compose 组合 —— 以前这里放的是上次烘焙的壁纸, 于是先看两秒壁纸才黑下来。
-            // 有开机影片时这里只铺纯黑: 影片自己有第一帧, 别先闪一下我们自己的标志。
-            window.setBackgroundDrawable(
-                if (SplashVeil.hasBootVideo(this)) ColorDrawable(Color.BLACK) else SplashBackground(this),
-            )
+            // 直接铺开屏那页(渐变底 + 横排标志 + 一行小字): 窗口一可见就是它, 和遮罩画的是
+            // 同一份几何与同一层渐变, 中间不会有颜色跳变。
+            window.setBackgroundDrawable(SplashBackground(this))
             DiagLog.i("boot-debug: window background is the splash at +${SystemClock.elapsedRealtime()}ms")
         } else if (baked != null) {
             window.setBackgroundDrawable(BitmapDrawable(resources, baked.asAndroidBitmap()))
