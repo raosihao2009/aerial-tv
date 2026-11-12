@@ -381,37 +381,29 @@ fun HomeScreen(
 
     // 开屏遮罩的揭罩时机: 底板画完之后 ——
     //   * 第一排第一列不是直播预览卡片: 再等 0.5 秒撤;
-    //   * 是直播预览卡片: 等直播真出帧(liveReadyState)再撤, 否则撤早了只剩一张空底板。
-    // "第一排第一列"按网格的第 0 个算(apps[0] = 第 0 行第 0 列), 不跟着焦点走 ——
-    // 焦点是后到的, 而且可能被恢复到别的卡片上, 拿焦点判会在冷启动前几帧误判。
+    //   * 是直播预览卡片: 等直播真的出帧(liveReadyState)再撤 —— 撤早了只剩一张空底板。
+    // 判"是不是直播预览"只看现场: 直播预览真的起来了(channelPreviewVisible 那组条件成立),
+    // 不看网格索引(apps[0] 和实际焦点不一定对应, 实测会误判成"非直播")。
+    // snapshotFlow 里必须直接读 State, 不能读提前算好的 Boolean(它永远不会变)。
     LaunchedEffect(Unit) {
         while (!vm.loaded) delay(50)
         BootVeil.revealContent()
-        val firstPkg = apps.getOrNull(0)?.packageName.orEmpty()
-        val liveFirst = AerialSettings.livePreviewEnabled && firstPkg in AerialSettings.liveAppPackages
-        BootVeil.debugNote = if (liveFirst) "首列:直播 $firstPkg" else "首列:非直播 $firstPkg"
-        if (liveFirst) {
-            // 预览是整屏影片, 要等它出帧。但它得焦点落在首列才会起播: 先给它 2 秒,
-            // 若一直没看到预览(焦点在别处), 就直接按"底板好了"撤, 不白等。
-            val visible = withTimeoutOrNull(2000) {
-                snapshotFlow {
-                    AerialSettings.livePreviewEnabled &&
-                        focusedPkg in AerialSettings.liveAppPackages &&
-                        focusedRow == 0 &&
-                        !vm.screensaverVisible &&
-                        moving == null
-                }.first { it }
-            } != null
-            if (visible) {
-                val ready = withTimeoutOrNull(7000) {
-                    snapshotFlow { liveReadyState.value }.first { it }
-                } != null
-                BootVeil.debugNote = if (ready) "直播已出帧, 撤" else "等直播超时, 撤"
-                BootVeil.arm(300)
-            } else {
-                BootVeil.debugNote = "预览未起播, 撤"
-                BootVeil.arm(500)
-            }
+        val liveNow = {
+            AerialSettings.livePreviewEnabled &&
+                focusedPkg in AerialSettings.liveAppPackages &&
+                focusedRow == 0 &&
+                !vm.screensaverVisible &&
+                moving == null
+        }
+        // 先等焦点落定(冷启动焦点是后到的), 再看直播预览有没有起来。
+        withTimeoutOrNull(1500) { snapshotFlow { focusedPkg }.first { it.isNotEmpty() } }
+        delay(200)
+        val previewUp = withTimeoutOrNull(2500) { snapshotFlow { liveNow() }.first { it } } != null
+        BootVeil.debugNote = if (previewUp) "直播预览在跑, 等出帧" else "无直播预览, 底板好了"
+        if (previewUp) {
+            val ready = withTimeoutOrNull(6000) { snapshotFlow { liveReadyState.value }.first { it } } != null
+            BootVeil.debugNote = if (ready) "直播已出帧, 撤" else "等直播超时, 撤"
+            BootVeil.arm(300)
         } else {
             BootVeil.arm(500)
         }

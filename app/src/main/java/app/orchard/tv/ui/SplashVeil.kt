@@ -241,10 +241,10 @@ private class SplashArt(context: Context) {
             bgShader = android.graphics.LinearGradient(
                 0f, 0f, w, h,
                 intArrayOf(
-                    Color.rgb(9, 8, 14),      // 石墨黑, 带一点暖
-                    Color.rgb(17, 13, 24),    // 深紫墨
-                    Color.rgb(23, 17, 33),    // 紫墨再亮一档
-                    Color.rgb(31, 20, 38),    // 偏酒红的紫
+                    Color.rgb(38, 12, 16),    // 左下: 暖红的暗面
+                    Color.rgb(46, 14, 34),    // 转紫
+                    Color.rgb(38, 16, 52),    // 深紫
+                    Color.rgb(22, 16, 60),    // 右: 蓝紫
                 ),
                 floatArrayOf(0f, 0.4f, 0.75f, 1f),
                 android.graphics.Shader.TileMode.CLAMP,
@@ -253,15 +253,20 @@ private class SplashArt(context: Context) {
         bgPaint.shader = bgShader
         canvas.drawRect(0f, 0f, w, h, bgPaint)
         // 中心偏上的冷色辉光: 让标志那一块"有光", 渐变不至于平。
-        // 辉光只罩在标志那一小片(不是整屏), 图标里的青绿到蓝, 低不透明度, 边缘很快淡出。
+        // 两块光: 标志左下一点暖红的光(像被灯从下面打亮), 右上一点冷紫的辉光, 中间偏亮、
+        // 四角压暗 —— 就是那种"通透的高级渐变"。
+        val warm = android.graphics.RadialGradient(
+            w * 0.30f, h * 0.66f, maxOf(w, h) * 0.40f,
+            intArrayOf(Color.argb(110, 210, 74, 52), Color.argb(40, 170, 52, 90), Color.argb(0, 30, 12, 20)),
+            floatArrayOf(0f, 0.55f, 1f),
+            android.graphics.Shader.TileMode.CLAMP,
+        )
+        bgPaint.shader = warm
+        canvas.drawRect(0f, 0f, w, h, bgPaint)
         val glow = android.graphics.RadialGradient(
-            w * 0.45f, h * 0.52f, maxOf(w, h) * 0.42f,
-            intArrayOf(
-                Color.argb(72, 150, 112, 214),   // 紫罗兰
-                Color.argb(30, 196, 132, 178),   // 一点暖玫瑰
-                Color.argb(0, 12, 10, 16),
-            ),
-            floatArrayOf(0f, 0.5f, 1f),
+            w * 0.72f, h * 0.34f, maxOf(w, h) * 0.45f,
+            intArrayOf(Color.argb(80, 108, 96, 226), Color.argb(34, 78, 62, 170), Color.argb(0, 12, 10, 20)),
+            floatArrayOf(0f, 0.55f, 1f),
             android.graphics.Shader.TileMode.CLAMP,
         )
         bgPaint.shader = glow
