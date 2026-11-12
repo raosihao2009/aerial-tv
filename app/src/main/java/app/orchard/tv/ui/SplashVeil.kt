@@ -110,6 +110,31 @@ private class SplashArt(context: Context) {
         return path
     }
 
+    private val textRectF = RectF()
+    /** "Aerial" 在屏幕上的矩形(图标下面那一块)。 */
+    internal fun textRect(w: Float, h: Float): RectF {
+        relayout(w, h)
+        val fm = word.fontMetrics
+        textRectF.set(textLeft, baseline + fm.ascent, textLeft + textW, baseline + fm.descent)
+        return textRectF
+    }
+
+    /** 图标 + 文字合在一起的外形: 字退场时桌面也从字形里透出来, 和图标一样"变透明", 不是变黑。 */
+    internal fun unionSilhouette(w: Float, h: Float): android.graphics.Path {
+        relayout(w, h)
+        val key = "u$w/$h"
+        if (union != null && unionKey == key) return union!!
+        val path = android.graphics.Path(silhouette(w, h))
+        val fm = word.fontMetrics
+        word.getTextPath(BRAND, 0, BRAND.length, textLeft, baseline, path)
+        union = path
+        unionKey = key
+        return path
+    }
+
+    private var union: android.graphics.Path? = null
+    private var unionKey = ""
+
     private val iconRectF = RectF()
     /** 图标在屏幕上的矩形(上下排版后: 中间偏上那一块)。 */
     internal fun iconRect(w: Float, h: Float): RectF {
@@ -434,6 +459,33 @@ private class MarkView(context: Context) : View(context) {
         veilPaint.alpha = a
         veilPaint.isAntiAlias = false
         val rect = art.iconRect(w, h)
+        if (wordAlpha > 0f) {
+            // 字还在: 洞取"图标+字"的合体, 桌面从字形里透出来 —— 否则字是在黑幕上淡掉的,
+            // 看着就是"字变黑了"。这一段 scale 还是 1(合体包围盒只有几百像素), 很便宜。
+            val box = RectF(art.iconRect(w, h))
+            val t = art.textRect(w, h)
+            box.union(t)
+            val sil = android.graphics.Path(art.unionSilhouette(w, h)).also {
+                val m = android.graphics.Matrix()
+                m.setScale(scale, scale, pivotX, pivotY)
+                it.transform(m)
+            }
+            val l = pivotX + (box.left - pivotX) * scale
+            val tp = pivotY + (box.top - pivotY) * scale
+            val r = l + box.width() * scale
+            val b = tp + box.height() * scale
+            band(canvas, 0f, 0f, w, tp)
+            band(canvas, 0f, b, w, h)
+            band(canvas, 0f, tp, l, b)
+            band(canvas, r, tp, w, b)
+            canvas.save()
+            canvas.clipRect(l, tp, r, b)
+            canvas.clipOutPath(sil)
+            veilPaint.alpha = a
+            canvas.drawRect(l, tp, r, b, veilPaint)
+            canvas.restore()
+            return
+        }
         val sx = pivotX + (rect.left - pivotX) * scale
         val sy = pivotY + (rect.top - pivotY) * scale
         val sw = rect.width() * scale
