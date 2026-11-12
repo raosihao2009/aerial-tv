@@ -38,8 +38,11 @@ import kotlin.math.sin
  * 字用包内的 Inter(和桌面同一套字体), 图标用应用图标, 圆角取卡片圆角的半径: 卡片画在设计稿 960
  * 宽的画布上、圆角 12dp, 也就是屏宽的 1/80, 这里按同一个比例切。
  */
-/** 卡片圆角 12dp / 设计画布 960 = 1/80: 图标、卡片、开屏都按这个比例切。 */
+/** 卡片圆角 12dp / 设计画布 960 = 1/80: 卡片按这个比例切。 */
 private const val CARD_CORNER_RATIO = 1f / 80f
+
+/** 开屏图标自己的圆角, 按图标边长取: 比卡片圆角圆一档, 独看时不显得"方"。 */
+private const val ICON_CORNER_RATIO = 0.22f
 
 /** 连续圆角的 smoothing, 和 [AppleSmoothing] 一致。 */
 private const val CORNER_SMOOTHING = 0.6f
@@ -100,7 +103,7 @@ private class SplashArt(context: Context) {
         if (silhouette != null && silhouetteKey == key) return silhouette!!
         val path = smoothRectPath(
             androidx.compose.ui.geometry.Rect(left, top, left + iconSide, top + iconSide),
-            w * CARD_CORNER_RATIO,
+            iconSide * ICON_CORNER_RATIO,
         ).asAndroidPath()
         silhouette = path
         silhouetteKey = key
@@ -145,7 +148,8 @@ private class SplashArt(context: Context) {
         top = h / 2f - total / 2f
         left = w / 2f - iconSide / 2f
         textLeft = w / 2f - textW / 2f
-        baseline = top + iconSide + gap + fm.ascent
+        // ascent 是负值, 基线在"图标底 + 间距"再抬高 -ascent; 之前写成 +ascent, 字就压到图标上了。
+        baseline = top + iconSide + gap - fm.ascent
         bakeWord(w, h)
     }
 
@@ -177,7 +181,7 @@ private class SplashArt(context: Context) {
     fun drawBrand(canvas: Canvas, w: Float, h: Float, fade: Float, wordFade: Float = fade) {
         if (fade <= 0f && wordFade <= 0f) return
         relayout(w, h)
-        val radius = w * CARD_CORNER_RATIO
+        val radius = iconSide * ICON_CORNER_RATIO
         val bmp = roundedIcon(iconSide.roundToInt(), radius)
         if (bmp != null && fade > 0f) {
             iconPaint.alpha = (fade * 255).toInt().coerceIn(0, 255)
@@ -439,7 +443,7 @@ private class MarkView(context: Context) : View(context) {
         band(canvas, 0f, sy, sx, sy + sw)
         band(canvas, sx + sw, sy, w, sy + sw)
         // 四个角: 在洞矩形四角的小方块里, 黑的地方是"方块减去图标的外形"
-        val reach = rect.width() * CARD_CORNER_RATIO * (1f + CORNER_SMOOTHING) * scale * 1.1f
+        val reach = rect.width() * ICON_CORNER_RATIO * (1f + CORNER_SMOOTHING) * scale * 1.15f
         val sil = art.silhouette(w, h)
         val moved = android.graphics.Path(sil).also {
             val m = android.graphics.Matrix()
@@ -523,13 +527,14 @@ private class MarkView(context: Context) : View(context) {
 
     private companion object {
         /** 文字先淡到透明(0.7 秒)。 */
-        const val WORD_MS = 500f
+        /** 字和图标一起退完: 先退图标、字后走两帧, 会被看成"字还挂在那儿"。 */
+        const val WORD_MS = 320f
         /** 标志的颜色要在放大起步之前退干净: 之前 ink 拖到 1 秒才没, 放大 0.5 秒就开始了,
          * 一个越放越大的实色渐变方块压在洞口上 —— 就是"LOGO 挡住过渡"的原因。现在 0→0.35 秒退完。 */
         const val INK_DELAY_MS = 0f
-        const val INK_MS = 300f
+        const val INK_MS = 320f
         /** 放大: 0.35 秒起步, 走到 2.25 秒。 */
-        const val ZOOM_DELAY_MS = 500f
+        const val ZOOM_DELAY_MS = 420f
         const val ZOOM_MS = 1900f
         /** 黑幕: 1.9 秒才收, 2.5 秒全开。 */
         const val VEIL_DELAY_MS = 1900f

@@ -25,6 +25,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 # A plain rounded_rectangle here would give the clip a bigger, circular corner, and the icon would
 # change its rounding between the clip and the view behind it.
 APPLE_SMOOTHING = 0.6
+ICON_CORNER_RATIO = 0.22  # 和 SplashVeil 的 ICON_CORNER_RATIO 一致
 
 
 def _corner(radius, smoothing, budget):
@@ -130,8 +131,8 @@ def mark():
 
     layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
 
-    radius = W * CARD_CORNER_RATIO
     side = int(icon_side)
+    radius = side * ICON_CORNER_RATIO
     # 和运行时同一张图(drawable-nodpi/splash_icon.png)、同一套连续圆角。
     icon = Image.open(ICON).convert("RGBA").resize((side, side), Image.LANCZOS)
     icon.putalpha(smooth_rect_mask(side, side, radius, APPLE_SMOOTHING))
