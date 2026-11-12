@@ -393,10 +393,13 @@ fun HomeScreen(
             val ready = liveReadyState.value
             val elapsed = System.currentTimeMillis() - start
             BootVeil.setNote(
-                "liveMarkCount=$marked ready=${if (ready) 1 else 0} t=$elapsed"
+                "mark=$marked ready=${if (ready) 1 else 0} " +
+                "n=${apps.size} m=${AerialSettings.liveAppPackages.size} " +
+                "loaded=${if (vm.loaded) 1 else 0} t=$elapsed"
             )
             when {
-                marked > 0 && ready -> BootVeil.arm(300)
+                // 预览真的出帧了(不管角标怎么数): 这就是"直播已经出画面", 300ms 后撤。
+                ready -> BootVeil.arm(300)
                 marked > 0 && elapsed > LIVE_CAP_MS -> BootVeil.arm(400)
                 marked == 0 && apps.isNotEmpty() && elapsed > 800 -> BootVeil.arm(500)
             }
