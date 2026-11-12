@@ -379,11 +379,11 @@ fun HomeScreen(
         animationSpec = androidx.compose.animation.core.tween(UI_FADE_MS, easing = Motion.EaseInOut), label = "uiAlpha")
     LaunchedEffect(channelPreviewVisible) { vm.livePlaying = channelPreviewVisible; liveReadyState.value = false }
 
-    // 揭罩轮询: 不看焦点、不看第几行、不看首格, 只看当前网格里有没有被上下文菜单
-    // 标记成「直播预览应用」的卡片(标识就是菜单写进 liveAppPackages 的那张卡片 key):
-    //   * 有标记卡片: 预览在跑且"直播正在加载中"那张加载图消失(loading=false) → 300ms 后撤;
+    // 揭罩轮询(方案 B: 只看开机焦点落在哪):
+    //   * 焦点就在直播预览卡片上(vm.livePlaying=预览已激活): 等加载图消失再撤;
     //     出帧回调先到也一样撤; 10s 兜底;
-    //   * 没有标记卡片: 卡片上屏过 0.8s → 500ms 后撤。
+    //   * 焦点不在直播卡片上: 不论网格里有没有被标记的直播卡, 都按普通卡片处理,
+    //     数据加载完、网格上屏过 1s → 500ms 后撤; 加载图在撤罩之后再弹是可接受的。
     // 预览在遮罩后面已经放开起播(revealContent), 等加载结束不会死锁。
     // 每 150ms 读一次现场 State; 遮罩重挂时 generation 变了, 这个协程会重新跑。
     LaunchedEffect(BootVeil.generation) {
@@ -398,6 +398,7 @@ fun HomeScreen(
             // 那是最初的空 List, vm.apps 更新后协程里看不到新列表(n 永远是 0)。
             val grid = vm.apps
             val marked = grid.count { it.packageName in AerialSettings.liveAppPackages }
+            val liveActive = vm.livePlaying
             val ready = liveReadyState.value
             val loading = liveLoadingState.value
             if (loading) sawLoading = true
@@ -405,18 +406,19 @@ fun HomeScreen(
             val markKey = AerialSettings.liveAppPackages.firstOrNull().orEmpty().take(16)
             BootVeil.setNote(
                 "mark=$marked ready=${if (ready) 1 else 0} " +
-                "ld=${if (loading) 1 else 0} playing=${if (vm.livePlaying) 1 else 0} " +
+                "ld=${if (loading) 1 else 0} playing=${if (liveActive) 1 else 0} " +
                 "n=${grid.size} m=${AerialSettings.liveAppPackages.size} k=$markKey " +
                 "loaded=${if (vm.loaded) 1 else 0} t=$elapsed"
             )
             when {
                 // 预览真出帧了: 300ms 后撤。
                 ready -> BootVeil.arm(300)
-                // 预览在跑、加载图已经消失(出帧或回退完成): 300ms 后撤。
-                marked > 0 && vm.livePlaying && sawLoading && !loading -> BootVeil.arm(300)
+                // 焦点在直播卡片: 加载图已经消失(出帧或回退完成): 300ms 后撤。
+                liveActive && sawLoading && !loading -> BootVeil.arm(300)
                 // 直播兜底: 等了 10s 还没结束加载, 不再把用户挡在开屏上。
-                marked > 0 && elapsed > LIVE_CAP_MS -> BootVeil.arm(400)
-                marked == 0 && grid.isNotEmpty() && elapsed > 800 -> BootVeil.arm(500)
+                liveActive && elapsed > LIVE_CAP_MS -> BootVeil.arm(400)
+                // 焦点不在直播卡片: 普通分支, 加载完、网格上屏过 1s 后撤。
+                !liveActive && vm.loaded && grid.isNotEmpty() && elapsed > 1000 -> BootVeil.arm(500)
             }
             if (BootVeil.hasArmed()) break
             delay(150)
