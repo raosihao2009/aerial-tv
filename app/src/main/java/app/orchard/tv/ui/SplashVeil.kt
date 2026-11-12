@@ -299,9 +299,10 @@ class SplashVeil(context: Context) : FrameLayout(context) {
         override fun run() {
             val e = (SystemClock.uptimeMillis() - startAt).toFloat()
             mark.frame(e)
-            // 背景那块黑只负责"揭开前的第一帧"; 揭开后黑幕由 curtain 承担, 它自己是透明的(alpha 0)。
+            // 背景那块黑只负责"揭开前的第一帧保护"。curtain 一烤好, 黑幕就由它自己承担(洞是真透明),
+            // 这层背景必须立刻透明 —— 不然 curtain 的洞透下去看到的还是这块黑(上一版"过渡还是黑色"的原因)。
             // curtain 没赶出来(极少): 退回"整层黑幕跟着 blackAlpha 淡掉", 至少不会一直黑着。
-            if (!mark.curtainOk) background?.alpha = (mark.blackAlpha * 255).toInt().coerceIn(0, 255)
+            background?.alpha = if (mark.curtainOk) 0 else (mark.blackAlpha * 255).toInt().coerceIn(0, 255)
             if (e < TOTAL_MS) postOnAnimation(this) else finish()
         }
     }
@@ -459,9 +460,7 @@ private class MarkView(context: Context) : View(context) {
             post {
                 curtain = a
                 curtainReady = a != null
-                // 黑幕有了自己的载体, 这层那块"第一帧保护"的黑底就该让开了, 不然洞背后还是黑的。
-                // 只在揭开之后才让 —— 揭开前 onDraw 什么都不画, 得靠这块黑底挡住桌面。
-                if (a != null && started) background?.alpha = 0
+                // 这层(SplashVeil)的黑底由 tick 每帧按 curtainOk 透明, 这里不用管。
                 building = false
                 invalidate()
             }

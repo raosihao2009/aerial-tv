@@ -374,7 +374,7 @@ class MainActivity : ComponentActivity() {
             )
             BootVeil.attach(veil)
             // 桌面万一没能报"好了"(没有卡片、数据读失败), 也别让黑幕一直盖着。
-            veil.postDelayed({ BootVeil.reveal() }, 4500)
+            veil.postDelayed({ BootVeil.reveal() }, 8000)
         }
         setContentView(root)
         DiagLog.i("boot-debug: setContent returned at +${SystemClock.elapsedRealtime()}ms")
