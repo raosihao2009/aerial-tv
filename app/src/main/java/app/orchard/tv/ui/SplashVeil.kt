@@ -292,6 +292,8 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
     private var reveal: IntroReveal? = null
     private var revealAt = 0L
     private var videoEnded = false
+    /** 已经从视图树上撤掉了: finish/forceFinish 只做一次。 */
+    private var removed = false
     private var fadingOut = false
     /** 影片起不来(编码不支持/文件坏了/超时): 之后一律走标志动画, 不能再"等影片"。 */
     private var videoBroken = false
@@ -411,6 +413,12 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
     }
 
     private fun startReveal() {
+        // 飞进去的洞必须透出桌面, 不能透出影片的最后一帧(那还是"黑底上的标志", 于是看起来
+        // 只有图标在放大、字变黑)。先把影片层和这块黑底撤掉, 飞入层自己会画黑幕 + 标志颜色。
+        releasePlayer()
+        videoView?.let { v -> (v.parent as? android.view.ViewGroup)?.removeView(v) }
+        videoView = null
+        setBackgroundColor(Color.TRANSPARENT)
         val l = logo
         if (l == null) {
             // 抠不出来(影片收在纯黑/纯白上): 直接淡出, 不能把用户挡在开屏上。
@@ -452,6 +460,18 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
         })
     }
 
+    /** 兜底: 不管动画走到哪一步, 到期就把自己和影片层一起撤掉, 把桌面让出来。 */
+    fun forceFinish() {
+        if (removed) return
+        removed = true
+        runCatching { releasePlayer() }
+        reveal = null
+        videoView = null
+        BootVeil.revealed = true
+        (parent as? android.view.ViewGroup)?.removeView(this)
+        onRevealed?.invoke()
+    }
+
     private fun finishVideo() {
         releasePlayer()
         reveal = null
@@ -485,7 +505,7 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
 
     /** 桌面报"好了"之后再等一会儿才揭开: 底板和卡片刚上屏的那一下不算好光学, 停半秒更稳。 */
     fun armReveal(delayMs: Long) {
-        if (started || pending) return
+        if (started) return
         postDelayed({ revealNow() }, delayMs)
     }
 
@@ -496,12 +516,15 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
             desktopReady = true
             return
         }
-        if (started || pending) return
+        if (started) return
         if (width == 0 || height == 0) {
             // 内容视图还没量过: 现在开始的话连中心点都还是 0, 等于没有过渡。
+            // 量好之后 onSizeChanged 会再来一次。注意这里不能"pending 就 return" —— 那等于
+            // 自己把自己锁死(上一版热启动黑屏、进不去桌面就是这个)。
             pending = true
             return
         }
+        pending = false
         start()
     }
 
@@ -524,6 +547,8 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
     }
 
     private fun finish() {
+        if (removed) return
+        removed = true
         (parent as? android.view.ViewGroup)?.removeView(this)
         // 黑幕已经收起、桌面完全可见, 但"这一帧"不抢解码器: 视频壁纸和直播预览都在等 revealed,
         // 之前它在动画结束的同一刻翻 true, 1080p 解码 + 拉流正好压在淡出尾巴上。让桌面先静

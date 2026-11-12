@@ -378,8 +378,13 @@ class MainActivity : ComponentActivity() {
                 FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT),
             )
             BootVeil.attach(veil)
-            // 桌面万一没能报"好了"(没有卡片、数据读失败), 也别让黑幕一直盖着。
-            veil.postDelayed({ BootVeil.reveal() }, 8000)
+            if (!coldBoot) {
+                // 热启动: 桌面本来就在, 不用等它报"画好了", 直接起动画 —— 免得等一个永远不来的信号。
+                veil.postDelayed({ veil.revealNow() }, 600L)
+            }
+            // 无论如何都给自己留条后路: 桌面没能报"好了"(没有卡片/数据读失败)、影片解码卡住、
+            // 抠标志失败, 到期直接把遮罩撤掉, 绝不把用户挡在开屏上。
+            veil.postDelayed({ veil.forceFinish() }, if (coldBoot) 11_000L else 6_000L)
         }
         setContentView(root)
         DiagLog.i("boot-debug: setContent returned at +${SystemClock.elapsedRealtime()}ms")
