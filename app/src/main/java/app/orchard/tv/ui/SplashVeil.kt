@@ -629,6 +629,10 @@ object BootVeil {
     /** 桌面画完第一帧: 记下"显示过了", 并约好 [delayMs] 之后揭开。 */
     fun arm(delayMs: Long) {
         desktopShown = true
+        // 先把壁纸/预览放起来: 遮罩还盖着(看不见), 但这 1.5 秒足够解码器出第一帧。否则过渡时
+        // "洞"里透出来的是一块还没起播的黑 SurfaceView —— 图标淡掉像在黑底上放大, 文字淡掉就像
+        // "变成黑字"。要"镜头从图标穿过去", 洞后面必须有真画面。
+        revealed = true
         if (armed || signaled) return
         armed = true
         veil?.armReveal(delayMs)
