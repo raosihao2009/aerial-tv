@@ -316,6 +316,7 @@ private class SplashArt(context: Context) {
  */
 class SplashBackground(context: Context) : Drawable() {
     private val art = SplashArt(context)
+    private val d = context.resources.displayMetrics.density
     private val framePaint = Paint(Paint.FILTER_BITMAP_FLAG)
     /** 0 时整张都不画: 遮罩盖上来之后每帧再画一遍这张字, 就是白花的钱。 */
     private var alpha = 255
@@ -329,6 +330,13 @@ class SplashBackground(context: Context) : Drawable() {
         art.drawBackdrop(canvas, w, h)
         art.drawBrand(canvas, w, h, 1f)
         art.drawHint(canvas, w, h, "桌面正在准备中")
+        BootVeil.debugNote?.let {
+            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(255, 226, 92)
+                textSize = 16f * d
+            }
+            canvas.drawText(it, 24f * d, 48f * d, p)
+        }
     }
 
     override fun setAlpha(alpha: Int) {
@@ -574,13 +582,13 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
         art.drawBrand(canvas, w, h, 1f)
         drawHint(canvas, w, h)
         BootVeil.debugNote?.let {
-            notePaint.textSize = 12f * resources.displayMetrics.density
-            canvas.drawText(it, 24f * resources.displayMetrics.density, 40f * resources.displayMetrics.density, notePaint)
+            notePaint.textSize = 16f * resources.displayMetrics.density
+            canvas.drawText(it, 24f * resources.displayMetrics.density, 48f * resources.displayMetrics.density, notePaint)
         }
     }
 
     private val notePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(150, 255, 255, 255)
+        color = Color.rgb(255, 226, 92)
         textSize = 24f
     }
 

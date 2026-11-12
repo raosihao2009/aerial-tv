@@ -369,7 +369,9 @@ class MainActivity : ComponentActivity() {
         // 每一次进桌面都盖: 冷启动放开机影片 + 飞入, 热启动/重进放那 2.5 秒的标志动画。
         // 热启动不加遮罩的话, Compose 重建的那一两秒直接露在用户眼前(半张桌面、焦点框乱跳)。
         run {
-            val veil = SplashVeil(this, withVideo = coldBoot)
+            // 影片层在这台盒子上从来不出画面, 而且它会用一块 TextureView 把遮罩自己的绘制整块
+            // 盖住(看起来像"开屏页不是遮罩画的")。开屏已经定成纯静态页, 影片不再挂。
+            val veil = SplashVeil(this, withVideo = false)
             // 揭开之后窗口背景换成纯黑: 内容视图盖在上面看不见它, 但不用每帧再画一遍字。
             veil.onRevealed = { window.setBackgroundDrawable(ColorDrawable(Color.BLACK)) }
             root.addView(

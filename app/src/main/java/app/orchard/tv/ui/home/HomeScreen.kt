@@ -381,12 +381,18 @@ fun HomeScreen(
 
     // 开屏遮罩的揭罩时机: 底板画完之后 ——
     //   * 第一排第一列不是直播预览卡片: 再等 0.5 秒撤;
-    //   * 是直播预览卡片: 等直播真的出帧(liveReadyState)再撤 —— 撤早了只剩一张空底板。
-    // 判"是不是直播预览"只看现场: 直播预览真的起来了(channelPreviewVisible 那组条件成立),
-    // 不看网格索引(apps[0] 和实际焦点不一定对应, 实测会误判成"非直播")。
-    // snapshotFlow 里必须直接读 State, 不能读提前算好的 Boolean(它永远不会变)。
+    //   * 是直播预览卡片: 等直播真的出帧(liveReadyState)再撤。
+    // 判"是不是直播预览"只看现场(预览真的起来了), 不看网格索引。
+    // 左上角的黄色字是临时调试用: 按步骤序号写, 方便一眼看出卡在哪一步。
     LaunchedEffect(Unit) {
+        val steps = StringBuilder()
+        fun step(tag: String) {
+            steps.append(tag).append(" ")
+            BootVeil.debugNote = steps.toString()
+        }
+        step("A")
         while (!vm.loaded) delay(50)
+        step("B")
         BootVeil.revealContent()
         val liveNow = {
             AerialSettings.livePreviewEnabled &&
@@ -395,18 +401,19 @@ fun HomeScreen(
                 !vm.screensaverVisible &&
                 moving == null
         }
-        // 先等焦点落定(冷启动焦点是后到的), 再看直播预览有没有起来。
         withTimeoutOrNull(1500) { snapshotFlow { focusedPkg }.first { it.isNotEmpty() } }
+        step("C")
         delay(200)
         val previewUp = withTimeoutOrNull(2500) { snapshotFlow { liveNow() }.first { it } } != null
-        BootVeil.debugNote = if (previewUp) "直播预览在跑, 等出帧" else "无直播预览, 底板好了"
+        step(if (previewUp) "D1" else "D0")
         if (previewUp) {
             val ready = withTimeoutOrNull(6000) { snapshotFlow { liveReadyState.value }.first { it } } != null
-            BootVeil.debugNote = if (ready) "直播已出帧, 撤" else "等直播超时, 撤"
+            step(if (ready) "E1" else "E0")
             BootVeil.arm(300)
         } else {
             BootVeil.arm(500)
         }
+        step("F")
     }
 
     // 焦点在IPTV卡片时立即检测一次直播状态, 然后每30秒刷新; 其他场景刷新后重置计时
