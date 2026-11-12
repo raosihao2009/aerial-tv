@@ -379,6 +379,38 @@ fun HomeScreen(
         animationSpec = androidx.compose.animation.core.tween(UI_FADE_MS, easing = Motion.EaseInOut), label = "uiAlpha")
     LaunchedEffect(channelPreviewVisible) { vm.livePlaying = channelPreviewVisible; liveReadyState.value = false }
 
+    // 揭罩轮询: 直接复用直播预览功能自己的可见条件(channelPreviewVisible 那一组 State),
+    // 不再另写一套包名判断。每 150ms 看一次现场:
+    //   * 预览在跑且出帧(ready=1) → 300ms 后撤;
+    //   * 不是预览、且卡片已经上屏(apps 非空)过 0.8s → 500ms 后撤。
+    // 热启动遮罩重挂时 generation 变了, 这个协程会重新跑。
+    LaunchedEffect(BootVeil.generation) {
+        val start = System.currentTimeMillis()
+        while (!BootVeil.hasArmed()) {
+            BootVeil.revealContent()
+            val pkg = focusedPkg
+            val previewUp = AerialSettings.livePreviewEnabled &&
+                pkg in AerialSettings.liveAppPackages &&
+                focusedRow == 0 &&
+                !vm.screensaverVisible &&
+                vm.movingKey == null
+            val ready = liveReadyState.value
+            val a0 = apps.firstOrNull()?.packageName.orEmpty().take(14)
+            BootVeil.debugNote =
+                "p=${pkg.take(16)} r=$focusedRow " +
+                "e=${if (AerialSettings.livePreviewEnabled) 1 else 0} " +
+                "l=${if (pkg in AerialSettings.liveAppPackages) 1 else 0} " +
+                "up=${if (previewUp) 1 else 0} ready=${if (ready) 1 else 0} " +
+                "a0=$a0 t=${System.currentTimeMillis() - start}"
+            when {
+                previewUp && ready -> BootVeil.arm(300)
+                !previewUp && apps.isNotEmpty() && System.currentTimeMillis() - start > 800 -> BootVeil.arm(500)
+            }
+            if (BootVeil.hasArmed()) break
+            delay(150)
+        }
+    }
+
     // 焦点在IPTV卡片时立即检测一次直播状态, 然后每30秒刷新; 其他场景刷新后重置计时
     // 抽到独立 composable 里读 liveStatusTickState，tick 变化只重组这个小节点，不带动整棵树。
     LiveStatusPollingEffect(channelPreviewVisible, liveStatusTickState, vm)
@@ -659,40 +691,10 @@ fun HomeScreen(
     BackHandler(enabled = channelPreviewVisible && vm.uiHidden && overlay == Overlay.None && focusedPkg in AerialSettings.liveAppPackages) {
         vm.uiHidden = false
     }
-    // 揭罩的第一帧时间戳: 逐帧判定, 给焦点落定留一点缓冲。
-    val frameAt = remember { mutableStateOf(0L) }
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
-            // 冷/热启动的揭罩都在这里判: 这段代码每帧都跑, 所以不依赖协程(热启动协程不会重跑),
-            // 也不等 vm.loaded(冷启动它会晚到, 之前卡在 A 就是卡在这个等待上)。
-            .drawWithContent {
-                drawContent()
-                val now = System.currentTimeMillis()
-                if (frameAt.value == 0L) frameAt.value = now
-                // 先把壁纸/直播预览放开起播, 遮罩还盖着。
-                BootVeil.revealContent()
-                val previewUp = AerialSettings.livePreviewEnabled &&
-                    focusedPkg in AerialSettings.liveAppPackages &&
-                    focusedRow == 0 &&
-                    !vm.screensaverVisible &&
-                    moving == null
-                val ready = liveReadyState.value
-                val inList = focusedPkg in AerialSettings.liveAppPackages
-                val a0 = apps.firstOrNull()?.packageName.orEmpty().take(14)
-                BootVeil.debugNote =
-                    "p=${focusedPkg.take(16)} r=$focusedRow " +
-                    "e=${if (AerialSettings.livePreviewEnabled) 1 else 0} " +
-                    "l=${if (inList) 1 else 0} " +
-                    "up=${if (previewUp) 1 else 0} ready=${if (ready) 1 else 0} " +
-                    "a0=$a0 t=${now - frameAt.value}"
-                when {
-                    // 直播预览在跑、且真出帧了: 再停 300ms 撤。
-                    previewUp && ready -> BootVeil.arm(300)
-                    // 不是直播预览: 第一帧过后 0.8 秒(给焦点落定的缓冲), 底板已画, 再 500ms 撤。
-                    !previewUp && now - frameAt.value > 800 -> BootVeil.arm(500)
-                }
-            }
+            .drawWithContent { drawContent() }
             .onPreviewKeyEvent { e ->
                 lastKeyTime = System.currentTimeMillis()
                 // ===== UI隐藏时按键逻辑 =====

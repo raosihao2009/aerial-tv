@@ -630,6 +630,9 @@ object BootVeil {
     /** 临时调试角标: 首列是直播/非直播、走到哪个分支(打在开屏左上角)。 */
     var debugNote: String? = null
 
+    /** 每挂一次遮罩 +1: HomeScreen 里的揭罩轮询按它重启, 热启动也会重新跑一遍。 */
+    var generation by mutableStateOf(0)
+
     private var veil: SplashVeil? = null
     private var armed = false
     private var signaled = false
@@ -652,7 +655,10 @@ object BootVeil {
         veil = v
         armed = false
         signaled = false
+        generation++
     }
+
+    fun hasArmed(): Boolean = armed
 
     /** 桌面画完第一帧: 记下"显示过了", 并约好 [delayMs] 之后揭开。 */
     fun arm(delayMs: Long) {
