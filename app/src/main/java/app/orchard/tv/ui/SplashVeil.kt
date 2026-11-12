@@ -293,6 +293,8 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
     var onRevealed: (() -> Unit)? = null
 
     private var player: MediaPlayer? = null
+    /** setSurface 传出去的 Surface 必须留个引用: 只传一个临时对象, 它可能被回收, 之后一帧都不再来。 */
+    private var playerSurface: Surface? = null
     private var videoView: TextureView? = null
     private var videoFrameSeen = false
     private var videoEnded = false
@@ -306,14 +308,15 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
     private var pivotX = 0f
     private var pivotY = 0f
 
-    /** 这一层整体的不透明度: 推进的时候按它淡出。 */
-    private var veilAlpha = 1f
+    /** 标志和文字的不透明度: 推进时先把自己淡成透明, 桌面从字缝里透出来。 */
+    private var brandFade = 1f
+    /** 黑幕的不透明度: 最后才收, 收完桌面就全露出来。 */
+    private var blackFade = 1f
     /** 画面(影片或标志)的缩放: 1 = 原样, 越大越"贴脸"。 */
     private var zoom = 1f
 
     init {
         setWillNotDraw(false)
-        setBackgroundColor(Color.BLACK)
         if (usesVideo) {
             // 影片层等量出尺寸再挂(见 onSizeChanged), 在它出第一帧之前就是纯黑。
         }
@@ -340,6 +343,9 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
 
     private fun attachVideo() {
         val tv = TextureView(ctx)
+        // 不透明的话, 影片还没出帧时它就是一块死黑, 把下面我们自己画的标志盖掉(上一版冷启动
+        // "logo 没了变黑屏"就是这么来的)。
+        tv.isOpaque = false
         videoView = tv
         tv.pivotX = width / 2f
         tv.pivotY = height / 2f
@@ -352,10 +358,7 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
                 return true
             }
             override fun onSurfaceTextureUpdated(st: SurfaceTexture) {
-                if (!videoFrameSeen) {
-                    videoFrameSeen = true
-                    fitVideo(tv)
-                }
+                if (!videoFrameSeen) markFrameSeen()
             }
         }
         // 2.5 秒还没出第一帧就别耗着: 当它坏了, 走标志那套。
@@ -370,16 +373,30 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
         }, VIDEO_FIRST_FRAME_MS)
     }
 
+    private fun markFrameSeen() {
+        if (videoFrameSeen) return
+        videoFrameSeen = true
+        videoView?.let { fitVideo(it) }
+        invalidate()
+    }
+
     private fun startPlayer(tv: TextureView) {
         val st = tv.surfaceTexture ?: return
         releasePlayer()
         val mp = MediaPlayer()
         player = mp
         runCatching {
+            st.setDefaultBufferSize(1920, 1080)
             ctx.assets.openFd(VIDEO_ASSET).use { afd ->
                 mp.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
             }
-            mp.setSurface(Surface(st))
+            val sf = Surface(st)
+            playerSurface = sf
+            mp.setSurface(sf)
+            mp.setOnInfoListener { _, what, _ ->
+                if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) markFrameSeen()
+                false
+            }
             mp.setVolume(0f, 0f)
             mp.isLooping = false
             mp.setOnPreparedListener { p ->
@@ -426,13 +443,15 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
     }
 
     private fun releasePlayer() {
-        val p = player ?: return
+        val p = player
         player = null
-        runCatching {
+        if (p != null) runCatching {
             p.setSurface(null)
             p.reset()
             p.release()
         }
+        runCatching { playerSurface?.release() }
+        playerSurface = null
     }
 
     // ---------------------------------------------------------------- 时间线
@@ -477,12 +496,15 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
                 val t = ((SystemClock.uptimeMillis() - at).toFloat() / ZOOM_MS).coerceIn(0f, 1f)
                 val e = t * t * (3f - 2f * t)          // smoothstep: 起手不突兀, 落点不急刹
                 zoom = 1f + 2.2f * e                  // 1 → 3.2: 标志/画面往你脸上推
-                veilAlpha = 1f - e                    // 同时整层淡出, 桌面在下面露出来
+                // 标志和文字先把自己淡成透明的(0 → 55%), 黑幕留到最后 45% 才收 —— 这样看着是
+                // "字透掉了、然后黑幕也开了", 而不是整块画面一起变暗。
+                brandFade = 1f - smooth01(0f, 0.55f, t)
+                blackFade = 1f - smooth01(0.45f, 1f, t)
                 videoView?.let { v ->
                     v.scaleX = zoom
                     v.scaleY = zoom
+                    v.alpha = 1f - smooth01(0.1f, 0.85f, t)
                 }
-                alpha = veilAlpha
                 invalidate()
                 if (t < 1f) handler.postDelayed(this, 8L) else done()
             }
@@ -502,20 +524,26 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        // 有影片时画面在 TextureView 里, 这里不画(黑底由背景色给)。
-        if (usesVideo && !broken && videoView != null) return
         val w = width.toFloat()
         val h = height.toFloat()
         if (w <= 0f || h <= 0f) return
-        canvas.drawColor(Color.BLACK)
-        if (zoom <= 1f) {
-            art.drawBrand(canvas, w, h, 1f)
-        } else {
+        // 影片出第一帧之前不空着: 先画自己的标志(视频那边还没画面), 出帧之后自然盖过去。
+        val videoShown = usesVideo && !broken && videoFrameSeen && videoView != null
+        if (videoShown) return
+        if (blackFade > 0f) {
+            canvas.drawColor(Color.argb((blackFade * 255).toInt().coerceIn(0, 255), 0, 0, 0))
+        }
+        if (brandFade > 0f) {
             canvas.save()
             canvas.scale(zoom, zoom, pivotX, pivotY)
-            art.drawBrand(canvas, w, h, 1f)
+            art.drawBrand(canvas, w, h, brandFade)
             canvas.restore()
         }
+    }
+
+    private fun smooth01(a: Float, b: Float, x: Float): Float {
+        val t = ((x - a) / (b - a)).coerceIn(0f, 1f)
+        return t * t * (3f - 2f * t)
     }
 
     companion object {
