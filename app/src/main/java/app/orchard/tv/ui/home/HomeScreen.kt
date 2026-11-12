@@ -389,19 +389,23 @@ fun HomeScreen(
         val LIVE_CAP_MS = 8000L
         while (!BootVeil.hasArmed()) {
             BootVeil.revealContent()
-            val marked = apps.count { it.packageName in AerialSettings.liveAppPackages }
+            // 循环里直接读 vm.apps: 不能用组合阶段抓下来的局部 apps 引用,
+            // 那是最初的空 List, vm.apps 更新后协程里看不到新列表(n 永远是 0)。
+            val grid = vm.apps
+            val marked = grid.count { it.packageName in AerialSettings.liveAppPackages }
             val ready = liveReadyState.value
             val elapsed = System.currentTimeMillis() - start
+            val markKey = AerialSettings.liveAppPackages.firstOrNull().orEmpty().take(16)
             BootVeil.setNote(
                 "mark=$marked ready=${if (ready) 1 else 0} " +
-                "n=${apps.size} m=${AerialSettings.liveAppPackages.size} " +
+                "n=${grid.size} m=${AerialSettings.liveAppPackages.size} k=$markKey " +
                 "loaded=${if (vm.loaded) 1 else 0} t=$elapsed"
             )
             when {
                 // 预览真的出帧了(不管角标怎么数): 这就是"直播已经出画面", 300ms 后撤。
                 ready -> BootVeil.arm(300)
                 marked > 0 && elapsed > LIVE_CAP_MS -> BootVeil.arm(400)
-                marked == 0 && apps.isNotEmpty() && elapsed > 800 -> BootVeil.arm(500)
+                marked == 0 && grid.isNotEmpty() && elapsed > 800 -> BootVeil.arm(500)
             }
             if (BootVeil.hasArmed()) break
             delay(150)
