@@ -164,8 +164,9 @@ class SplashBackground(context: Context) : Drawable() {
 
     override fun draw(canvas: Canvas) {
         if (alpha <= 0) return
+        // 只有纯黑: 标志只由 MarkView 画这一份。之前这里也画一张 logo, 靠 curtainOk 才淡出,
+        // 一旦烤洞慢了/失败, 这张不淡的 logo 就一直挂在最前面 —— "LOGO 挡住过渡"。
         canvas.drawColor(Color.BLACK)
-        art.drawBrand(canvas, bounds.width().toFloat(), bounds.height().toFloat(), 1f)
     }
 
     override fun setAlpha(alpha: Int) {
@@ -206,10 +207,7 @@ class SplashVeil(context: Context) : FrameLayout(context) {
         // 内容视图刚挂上、短片还没出第一帧之前, 这块背景就是窗口背景那张开屏静图(黑底+图标+Aerial)。
         // 以前这里铺的是纯黑: 窗口的静图先被它盖住, 短片又要等媒体服务冷启动几秒, 于是
         // "先看到 logo → 黑掉几秒 → logo 又出来"。静图和短片画的是同一份几何, 第一帧一到就无缝接上。
-        // 背景就是那张静图(黑底+图标+Aerial): 短片改成完全静止之后, 再开一个 1080p 的硬件解码器
-        // 只为放一张静图就是亏本的 —— 冷启动时它正好和 Compose 首棵树、壁纸解码器抢同一个解码芯片。
-        // 静图由窗口背景和这层背景直接画, 不再有 MediaPlayer。
-        setBackgroundDrawable(SplashBackground(context))
+        // 不挂背景: 纯黑由 MarkView 自己画, logo 也只由它画一份。窗口背景是纯黑(见 MainActivity)。
         addView(mark, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
 
@@ -249,10 +247,6 @@ class SplashVeil(context: Context) : FrameLayout(context) {
         override fun run() {
             val e = (SystemClock.uptimeMillis() - startAt).toFloat()
             mark.frame(e)
-            // 背景那块黑只负责"揭开前的第一帧保护"。curtain 一烤好, 黑幕就由它自己承担(洞是真透明),
-            // 这层背景必须立刻透明 —— 不然 curtain 的洞透下去看到的还是这块黑(上一版"过渡还是黑色"的原因)。
-            // curtain 没赶出来(极少): 退回"整层黑幕跟着 blackAlpha 淡掉", 至少不会一直黑着。
-            background?.alpha = if (mark.curtainOk) 0 else (mark.blackAlpha * 255).toInt().coerceIn(0, 255)
             if (e < TOTAL_MS) postOnAnimation(this) else finish()
         }
     }
@@ -348,12 +342,13 @@ private class MarkView(context: Context) : View(context) {
         val h = height.toFloat()
         if (w <= 0f || h <= 0f) return
         if (!started) {
-            if (showsStill) {
-                canvas.drawColor(Color.BLACK)
-                art.drawBrand(canvas, w, h, 1f)
-            }
+            // 停留阶段: 纯黑 + logo。logo 只在这一层画, 不依赖任何别的背景。
+            canvas.drawColor(Color.BLACK)
+            art.drawBrand(canvas, w, h, 1f)
             return
         }
+        // 烤洞还没好的那一两帧: 自己先铺黑, 别把桌面漏出来。
+        if (curtain == null) canvas.drawColor(Color.BLACK)
         // 黑幕连洞一起是一张现成的位图(黑底, 标志形状处真透明), 整张贴上去、按 blackAlpha 淡出。
         // 不能在这层的画布上直接 DST_OUT 抠洞: 那样抠掉的是黑色, 洞背后还是这层自己的黑底, 洞就变黑了;
         // 也不开整屏 saveLayer —— 视频壁纸解码时每帧一次 8MB 离屏是这台盒子上卡顿的主因。
