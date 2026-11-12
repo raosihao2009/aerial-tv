@@ -51,7 +51,7 @@ private class SplashArt(context: Context) {
      * 取不到就不画。
      */
     val icon: Bitmap? = runCatching {
-        val d: Drawable = ResourcesCompat.getDrawable(context, R.drawable.splash_icon, null)!!
+        val d: Drawable = context.resources.getDrawable(R.drawable.splash_icon, null)!!
         val w = d.intrinsicWidth.takeIf { it > 0 } ?: 96
         val h = d.intrinsicHeight.takeIf { it > 0 } ?: 96
         Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { bmp ->
