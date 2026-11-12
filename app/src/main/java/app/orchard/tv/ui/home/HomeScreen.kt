@@ -389,6 +389,9 @@ fun HomeScreen(
     LaunchedEffect(BootVeil.generation) {
         val start = System.currentTimeMillis()
         val LIVE_CAP_MS = 10000L
+        // 预览刚挂载时存在一小段 livePlaying=1、loading 还没置 true 的窗口;
+        // 必须先看到加载图出现过(sawLoading), 再等它消失, 避免这个窗口里提前撤罩。
+        var sawLoading = false
         while (!BootVeil.hasArmed()) {
             BootVeil.revealContent()
             // 循环里直接读 vm.apps: 不能用组合阶段抓下来的局部 apps 引用,
@@ -397,6 +400,7 @@ fun HomeScreen(
             val marked = grid.count { it.packageName in AerialSettings.liveAppPackages }
             val ready = liveReadyState.value
             val loading = liveLoadingState.value
+            if (loading) sawLoading = true
             val elapsed = System.currentTimeMillis() - start
             val markKey = AerialSettings.liveAppPackages.firstOrNull().orEmpty().take(16)
             BootVeil.setNote(
@@ -409,7 +413,7 @@ fun HomeScreen(
                 // 预览真出帧了: 300ms 后撤。
                 ready -> BootVeil.arm(300)
                 // 预览在跑、加载图已经消失(出帧或回退完成): 300ms 后撤。
-                marked > 0 && vm.livePlaying && !loading -> BootVeil.arm(300)
+                marked > 0 && vm.livePlaying && sawLoading && !loading -> BootVeil.arm(300)
                 // 直播兜底: 等了 10s 还没结束加载, 不再把用户挡在开屏上。
                 marked > 0 && elapsed > LIVE_CAP_MS -> BootVeil.arm(400)
                 marked == 0 && grid.isNotEmpty() && elapsed > 800 -> BootVeil.arm(500)
