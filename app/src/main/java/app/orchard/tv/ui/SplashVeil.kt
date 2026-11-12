@@ -310,6 +310,14 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
         }
     }
 
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        // 影片层要等量出尺寸才挂上去: TextureView 一挂上就要 surface, 尺寸为 0 时铺不满屏幕。
+        if (usesVideo && videoView == null && !videoBroken && !fadingOut) setupVideo()
+        videoView?.let { fitVideo(it) }
+        if (pending) revealNow()
+    }
+
     private fun setupVideo() {
         val tv = TextureView(context)
         videoView = tv
@@ -594,13 +602,9 @@ private class MarkView(context: Context) : View(context) {
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        // 影片这层要等到量出尺寸才挂上去(TextureView 一挂上就开始要 surface, 尺寸为 0 时铺不满)。
-        if (usesVideo && videoView == null && !videoBroken && !fadingOut) setupVideo()
-        videoView?.let { fitVideo(it) }
         measure()
         buildMask()
         invalidate()
-        if (pending) revealNow()
     }
 
     /**
