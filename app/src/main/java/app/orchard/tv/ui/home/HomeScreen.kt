@@ -381,24 +381,33 @@ fun HomeScreen(
 
     // 开屏遮罩的揭罩时机: 底板画完之后 ——
     //   * 首排首列不是直播预览卡片: 再等 0.5 秒撤;
-    //   * 是直播预览卡片: 等直播真出帧(liveReadyState)再撤;
-    // 冷启动前 1.5 秒内焦点可能还没落到首列, 所以不读某一帧的快照值, 而是 snapshotFlow 轮询。
+    //   * 是直播预览卡片: 等直播真出帧(liveReadyState)再撤, 否则撤早了只有一张空底板。
+    // 注意: snapshotFlow 里必须直接读 State, 不能读 channelPreviewVisible 那个提前算好的
+    // Boolean —— 它是在 composition 阶段求值的普通值, 永远不变, 会导致一直判成"不是直播"。
     LaunchedEffect(Unit) {
         while (!vm.loaded) delay(50)
         BootVeil.revealContent()
-        val liveFirst = withTimeoutOrNull(1500) {
-            snapshotFlow { channelPreviewVisible }.first { it }
+        // 冷启动焦点是后到的: 先等它落到某个卡片上, 再判首列是什么。
+        withTimeoutOrNull(1500) { snapshotFlow { focusedPkg }.first { it.isNotEmpty() } }
+        delay(150)
+        val liveFirst = withTimeoutOrNull(1200) {
+            snapshotFlow {
+                AerialSettings.livePreviewEnabled &&
+                    focusedPkg in AerialSettings.liveAppPackages &&
+                    focusedRow == 0 &&
+                    !vm.screensaverVisible &&
+                    moving == null
+            }.first { it }
         } == true
         if (liveFirst) {
-            // 直播出帧; 一直不出也兜底, 不在这一步等满 7.5s 硬期限。
-            withTimeoutOrNull(8000) {
-                snapshotFlow { liveReadyState.value }.first { it }
-            }
+            // 等直播出帧; 一直不出也兜底, 不在这里等到天荒地老。
+            withTimeoutOrNull(7000) { snapshotFlow { liveReadyState.value }.first { it } }
             BootVeil.arm(300)
         } else {
             BootVeil.arm(500)
         }
     }
+
     // 焦点在IPTV卡片时立即检测一次直播状态, 然后每30秒刷新; 其他场景刷新后重置计时
     // 抽到独立 composable 里读 liveStatusTickState，tick 变化只重组这个小节点，不带动整棵树。
     LiveStatusPollingEffect(channelPreviewVisible, liveStatusTickState, vm)

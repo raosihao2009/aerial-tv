@@ -241,10 +241,10 @@ private class SplashArt(context: Context) {
             bgShader = android.graphics.LinearGradient(
                 0f, 0f, w, h,
                 intArrayOf(
-                    Color.rgb(5, 10, 18),
-                    Color.rgb(8, 15, 26),
-                    Color.rgb(10, 16, 28),
-                    Color.rgb(16, 12, 26),
+                    Color.rgb(9, 8, 14),      // 石墨黑, 带一点暖
+                    Color.rgb(17, 13, 24),    // 深紫墨
+                    Color.rgb(23, 17, 33),    // 紫墨再亮一档
+                    Color.rgb(31, 20, 38),    // 偏酒红的紫
                 ),
                 floatArrayOf(0f, 0.4f, 0.75f, 1f),
                 android.graphics.Shader.TileMode.CLAMP,
@@ -257,9 +257,9 @@ private class SplashArt(context: Context) {
         val glow = android.graphics.RadialGradient(
             w * 0.45f, h * 0.52f, maxOf(w, h) * 0.42f,
             intArrayOf(
-                Color.argb(78, 38, 180, 168),
-                Color.argb(32, 60, 130, 200),
-                Color.argb(0, 10, 12, 20),
+                Color.argb(72, 150, 112, 214),   // 紫罗兰
+                Color.argb(30, 196, 132, 178),   // 一点暖玫瑰
+                Color.argb(0, 12, 10, 16),
             ),
             floatArrayOf(0f, 0.5f, 1f),
             android.graphics.Shader.TileMode.CLAMP,
@@ -282,7 +282,7 @@ private class SplashArt(context: Context) {
     fun drawHint(canvas: Canvas, w: Float, h: Float, text: String) {
         relayout(w, h)
         val d = density
-        head.textSize = 22f * d
+        head.textSize = 18f * d
         head.alpha = 255
         val fm = head.fontMetrics
         canvas.drawText(text, w / 2f - head.measureText(text) / 2f, h - 38f * d - fm.descent, head)
@@ -577,7 +577,7 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
     private fun drawHint(canvas: Canvas, w: Float, h: Float) {
         val text = HINT
         val d = resources.displayMetrics.density
-        hint.textSize = 22f * d
+        hint.textSize = 18f * d
         val fm = hint.fontMetrics
         val baseline = h - (28f + 10f) * d - fm.descent
         canvas.drawText(text, w / 2f - hint.measureText(text) / 2f, baseline, hint)

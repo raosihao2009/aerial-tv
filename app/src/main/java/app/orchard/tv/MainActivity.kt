@@ -377,13 +377,12 @@ class MainActivity : ComponentActivity() {
                 FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT),
             )
             BootVeil.attach(veil)
-            if (!coldBoot) {
-                // 热启动: 桌面本来就在, 不用等它报"画好了", 直接起动画 —— 免得等一个永远不来的信号。
-                veil.postDelayed({ veil.revealNow() }, 600L)
-            }
+            // 热启动也不在这里定时撤: 撤罩要看"首排首列是不是直播", 那个判定在 HomeScreen
+            // 里(它知道焦点落在哪、直播有没有出帧)。这里写死 600ms 会绕过判定, 直播还没出画面
+            // 就被撤掉。兜底由下面那条 forceFinish 负责。
             // 无论如何都给自己留条后路: 桌面没能报"好了"(没有卡片/数据读失败)、影片解码卡住、
             // 抠标志失败, 到期直接把遮罩撤掉, 绝不把用户挡在开屏上。
-            veil.postDelayed({ veil.forceFinish() }, if (coldBoot) 11_000L else 6_000L)
+            veil.postDelayed({ veil.forceFinish() }, if (coldBoot) 11_000L else 9_000L)
         }
         setContentView(root)
         DiagLog.i("boot-debug: setContent returned at +${SystemClock.elapsedRealtime()}ms")
