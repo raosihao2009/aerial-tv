@@ -616,7 +616,7 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
         private const val VIDEO_FIRST_FRAME_MS = 2500L
 
         /** 从挂上遮罩算起, 最多停这么久。 */
-        private const val HARD_CAP_MS = 16_000L
+        private const val HARD_CAP_MS = 19_000L
 
         /** 放开桌面到撤掉遮罩之间留的时间: 给壁纸/卡片画第一帧。 */
         private const val LEAD_MS = 260L

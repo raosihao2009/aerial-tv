@@ -268,6 +268,8 @@ class FilmSlot(context: Context) : FrameLayout(context) {
     private val clear = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR) }
 
     init {
+        // 首帧渲染前 SurfaceView 默认透出白/透明, 先铺黑底, 避免开屏/切源瞬间画面发白
+        surface.setBackgroundColor(android.graphics.Color.BLACK)
         addView(surface, LayoutParams(MATCH_PARENT, MATCH_PARENT))
     }
 

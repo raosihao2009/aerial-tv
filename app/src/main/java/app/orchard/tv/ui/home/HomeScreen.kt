@@ -401,13 +401,13 @@ fun HomeScreen(
     // 揭罩轮询:
     //   * 网格里有被标记的直播预览卡(mark>0): 按直播场景等预览加载图出现再消失(或出帧) → 300ms 后撤;
     //     不依赖 playing 这个"焦点已注册"信号——冷启动焦点要等 loaded 之后才请求落到直播卡上,
-    //     遮罩期间 playing 可能还是 0, 用它判定会提前撤罩; 15s 兜底;
+    //     遮罩期间 playing 可能还是 0, 用它判定会提前撤罩; 18s 兜底;
     //   * 网格里没有标记卡: 普通分支, 数据加载完、网格上屏过 1s → 500ms 后撤。
     // 预览在遮罩后面已经放开起播(revealContent), 等加载结束不会死锁。
     // 每 150ms 读一次现场 State; 遮罩重挂时 generation 变了, 这个协程会重新跑。
     LaunchedEffect(BootVeil.generation) {
         val start = System.currentTimeMillis()
-        val LIVE_CAP_MS = 15000L
+        val LIVE_CAP_MS = 18000L
         // 预览刚挂载时存在一小段 loading 还没置 true 的窗口;
         // 必须先看到加载图出现过(sawLoading), 再等它消失, 避免这个窗口里提前撤罩。
         var sawLoading = false
@@ -433,7 +433,7 @@ fun HomeScreen(
                 ready -> BootVeil.arm(300)
                 // 有标记直播卡: 加载图已经消失(出帧或回退完成): 300ms 后撤。
                 marked > 0 && sawLoading && !loading -> BootVeil.arm(300)
-                // 直播兜底: 等了 15s 还没结束加载, 不再把用户挡在开屏上。
+                // 直播兜底: 等了 18s 还没结束加载, 不再把用户挡在开屏上。
                 marked > 0 && elapsed > LIVE_CAP_MS -> BootVeil.arm(400)
                 // 没有标记卡: 普通分支, 加载完、网格上屏过 1s 后撤。
                 marked == 0 && vm.loaded && grid.isNotEmpty() && elapsed > 1000 -> BootVeil.arm(500)
