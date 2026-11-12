@@ -392,8 +392,9 @@ fun HomeScreen(
             val marked = apps.count { it.packageName in AerialSettings.liveAppPackages }
             val ready = liveReadyState.value
             val elapsed = System.currentTimeMillis() - start
-            BootVeil.debugNote =
+            BootVeil.setNote(
                 "liveMarkCount=$marked ready=${if (ready) 1 else 0} t=$elapsed"
+            )
             when {
                 marked > 0 && ready -> BootVeil.arm(300)
                 marked > 0 && elapsed > LIVE_CAP_MS -> BootVeil.arm(400)

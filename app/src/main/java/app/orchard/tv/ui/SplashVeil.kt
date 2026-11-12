@@ -660,6 +660,12 @@ object BootVeil {
 
     fun hasArmed(): Boolean = armed
 
+    /** 更新调试角标并让遮罩重绘: 否则协程里改了字段, 屏幕上还停留在第一帧的旧角标。 */
+    fun setNote(text: String?) {
+        debugNote = text
+        veil?.invalidate()
+    }
+
     /** 桌面画完第一帧: 记下"显示过了", 并约好 [delayMs] 之后揭开。 */
     fun arm(delayMs: Long) {
         desktopShown = true
