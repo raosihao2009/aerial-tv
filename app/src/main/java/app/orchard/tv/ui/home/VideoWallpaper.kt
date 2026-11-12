@@ -30,7 +30,6 @@ import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import app.orchard.tv.ui.components.FilmSlot
 import app.orchard.tv.settings.AerialSettings
-import app.orchard.tv.ui.BootVeil
 import app.orchard.tv.system.DiagLog
 import app.orchard.tv.ui.theme.Motion
 import app.orchard.tv.wallpaper.AerialStream
@@ -135,9 +134,9 @@ fun VideoWallpaper(
         delay(START_AFTER_MS)
         idle = true
     }
-    // 冷启动那 3-4 秒里不起播: 让开屏动画独占盒子(它同时在解码视频壁纸+直播预览时就是卡的)。
-    // 揭开之后 BootVeil.revealed 翻 true, 这里才开始 open()。
-    val play = ((moving && (idle || AerialSettings.wallpaperAlwaysMoves)) || hold) && BootVeil.revealed
+    // 不跟开屏抢: 视频壁纸照常起播(它得在揭开时就已经有画面, 否则揭开后是一片黑 SurfaceView),
+    // 真正和动画抢硬件解码的是焦点上的直播预览, 那道门在 ChannelFocusPreview 里。
+    val play = moving && (idle || AerialSettings.wallpaperAlwaysMoves) || hold
     val keepNow by rememberUpdatedState(keep)
     val standInNow by rememberUpdatedState(standIn)
     val lastInputNow by rememberUpdatedState(lastInputAt)

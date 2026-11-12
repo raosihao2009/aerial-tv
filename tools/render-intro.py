@@ -12,12 +12,129 @@ seamlessly and can be cut into at any point.
 The reveal itself is not in here: it needs the live desktop behind it, so the app draws that
 (ui/SplashVeil.kt) once this clip has played.
 """
+import math
 import os
 import subprocess
 import sys
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
+# --- continuous (Apple/Figma) corners, the same path SmoothCorners.kt draws -------------------
+# The app cuts the launcher icon with smoothCut(), i.e. Apple's continuous corner at smoothing 0.6.
+# A plain rounded_rectangle here would give the clip a bigger, circular corner, and the icon would
+# change its rounding between the clip and the view behind it.
+APPLE_SMOOTHING = 0.6
+
+
+def _corner(radius, smoothing, budget):
+    """SmoothCorner in ui/components/SmoothCorners.kt, as numbers."""
+    r = min(radius, budget)
+    sm = smoothing
+    if radius > 0 and (1 + sm) * radius > budget:
+        sm = max(0.0, min(sm, budget / radius - 1))
+    p = min((1 + sm) * r, budget)
+    arc = math.pi / 2 * (1 - sm)
+    arc_len = math.sin(arc / 2) * r * math.sqrt(2)
+    alpha = (math.pi / 2 - arc) / 2
+    p3p4 = r * math.tan(alpha / 2)
+    beta = math.pi / 4 * sm
+    c = p3p4 * math.cos(beta)
+    d = c * math.tan(beta)
+    b = (p - arc_len - c - d) / 3
+    a = 2 * b
+    return r, p, arc, a, b, c, d
+
+
+def _cubic(p0, p1, p2, p3, steps=20):
+    out = []
+    for i in range(1, steps + 1):
+        t = i / steps
+        mt = 1 - t
+        x = mt ** 3 * p0[0] + 3 * mt ** 2 * t * p1[0] + 3 * mt * t ** 2 * p2[0] + t ** 3 * p3[0]
+        y = mt ** 3 * p0[1] + 3 * mt ** 2 * t * p1[1] + 3 * mt * t ** 2 * p2[1] + t ** 3 * p3[1]
+        out.append((x, y))
+    return out
+
+
+def _round_corner(points, vertex, u, v, geo):
+    r, p, arc, a, b, c, d = geo
+
+    def at(x, y):
+        return (vertex[0] + u[0] * x + v[0] * y, vertex[1] + u[1] * x + v[1] * y)
+
+    if r <= 0:
+        points.append(vertex)
+        return
+    points.append(at(-p, 0))
+
+    def cubic(x1, y1, x2, y2, x3, y3):
+        points.extend(_cubic(points[-1], at(x1, y1), at(x2, y2), at(x3, y3)))
+
+    cubic(-p + a, 0, -p + a + b, 0, -p + a + b + c, d)
+    f0 = -math.pi / 4 - arc / 2
+    f1 = -math.pi / 4 + arc / 2
+    k = 4 / 3 * math.tan(arc / 4) * r
+    e0 = (-r + r * math.cos(f0), r + r * math.sin(f0))
+    e1 = (-r + r * math.cos(f1), r + r * math.sin(f1))
+    cubic(e0[0] - k * math.sin(f0), e0[1] + k * math.cos(f0),
+          e1[0] + k * math.sin(f1), e1[1] - k * math.cos(f1), e1[0], e1[1])
+    cubic(0, p - a - b, 0, p - a, 0, p)
+
+
+def brand_icon(side, radius):
+    """The launcher icon as the app draws it: the adaptive icon's two vectors (gradient, arc), full
+    bleed, cut to the same continuous corner the runtime uses.
+
+    docs/brand/icon.png carries its own transparent margin, so using it (and replacing its alpha) left
+    a black wedge inside the cut and made the clip's icon smaller and rounder than the view's.
+    """
+    ss = 4  # supersample, so the glyph's stroke stays clean
+    n = side * ss
+    # android:startX/Y=18 endX/Y=90 of a 108 viewport: a linear gradient along the diagonal.
+    img = Image.new("RGB", (n, n))
+    px = img.load()
+    start = (0x2F, 0xD0, 0xA5)
+    end = (0x5B, 0x5B, 0xF0)
+    k = n / 108.0
+    for y in range(n):
+        for x in range(n):
+            t = (x / k + y / k - 36.0) / 144.0
+            t = 0.0 if t < 0 else (1.0 if t > 1 else t)
+            px[x, y] = (
+                int(start[0] + (end[0] - start[0]) * t),
+                int(start[1] + (end[1] - start[1]) * t),
+                int(start[2] + (end[2] - start[2]) * t),
+            )
+    img = img.convert("RGBA")
+    # M33.75,65.25 c6.75,-13.5 13.5,-20.25 20.25,-20.25 s13.5,6.75 20.25,20.25, stroked 5.4
+    pts = []
+    p0 = (33.75, 65.25)
+    pts += _cubic(p0, (40.5, 51.75), (47.25, 45.0), (54.0, 45.0), 24)
+    pts += _cubic((54.0, 45.0), (60.75, 45.0), (67.5, 51.75), (74.25, 65.25), 24)
+    draw = ImageDraw.Draw(img)
+    draw.line([(x * ss, y * ss) for x, y in pts], fill=(255, 255, 255, 255), width=int(round(5.4 * ss)), joint="curve")
+    for x, y in (pts[0], pts[-1]):
+        r = 5.4 / 2
+        draw.ellipse(((x - r) * ss, (y - r) * ss, (x + r) * ss, (y + r) * ss), fill=(255, 255, 255, 255))
+    img = img.resize((side, side), Image.LANCZOS)
+    img.putalpha(smooth_rect_mask(side, side, radius, APPLE_SMOOTHING))
+    return img
+
+def smooth_rect_mask(w, h, radius, smoothing=APPLE_SMOOTHING, supersample=4):
+    """White inside a w×h rect with continuous corners, clear outside (an L-mode mask)."""
+    budget = min(w, h) / 2
+    geo = _corner(radius, smoothing, budget)
+    pts = []
+    _round_corner(pts, (w, 0), (1, 0), (0, 1), geo)           # top right
+    _round_corner(pts, (w, h), (0, 1), (-1, 0), geo)          # bottom right
+    _round_corner(pts, (0, h), (-1, 0), (0, -1), geo)         # bottom left
+    _round_corner(pts, (0, 0), (0, -1), (1, 0), geo)          # top left
+    big = [(x * supersample, y * supersample) for x, y in pts]
+    mask = Image.new("L", (w * supersample, h * supersample), 0)
+    ImageDraw.Draw(mask).polygon(big, fill=255)
+    return mask.resize((w, h), Image.LANCZOS)
+
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ICON = os.path.join(ROOT, "docs/brand/icon.png")
@@ -54,13 +171,9 @@ def mark():
 
     layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
 
-    icon = Image.open(ICON).convert("RGBA").resize((int(icon_side), int(icon_side)), Image.LANCZOS)
     radius = W * CARD_CORNER_RATIO
-    mask = Image.new("L", (int(icon_side) * 4, int(icon_side) * 4), 0)
-    ImageDraw.Draw(mask).rounded_rectangle(
-        (0, 0, int(icon_side) * 4 - 1, int(icon_side) * 4 - 1), radius=radius * 4, fill=255
-    )
-    icon.putalpha(mask.resize((int(icon_side), int(icon_side)), Image.LANCZOS))
+    side = int(icon_side)
+    icon = brand_icon(side, radius)
     top = (H - icon_side) / 2
     layer.alpha_composite(icon, (int(round(left)), int(round(top))))
 
