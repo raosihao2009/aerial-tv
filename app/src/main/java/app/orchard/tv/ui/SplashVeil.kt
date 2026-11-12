@@ -12,6 +12,7 @@ import android.graphics.RectF
 import android.graphics.SurfaceTexture
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
+import android.os.Build
 import android.os.SystemClock
 import android.view.Surface
 import android.view.View
@@ -20,6 +21,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.res.ResourcesCompat
+import androidx.compose.ui.graphics.asAndroidPath
+import app.orchard.tv.ui.components.smoothRectPath
 import app.orchard.tv.R
 import app.orchard.tv.ui.components.smoothCut
 import kotlin.math.hypot
@@ -74,6 +77,29 @@ private class SplashArt(context: Context) {
     /** 图标在屏幕上的位置, 整组横排在屏幕中线上时。 */
     class Box(val side: Float, val left: Float) {
         val centerX: Float get() = left + side / 2
+    }
+
+    private var silhouette: android.graphics.Path? = null
+    private var silhouetteKey = ""
+
+    /** 整组(图标+字)的外形轮廓。放大时用它当"洞", 路径在设备分辨率下光栅, 边缘始终干净。 */
+    internal fun silhouette(w: Float, h: Float): android.graphics.Path {
+        relayout(w, h)
+        val key = "$w/$h"
+        if (silhouette != null && silhouetteKey == key) return silhouette!!
+        val radius = w * CARD_CORNER_RATIO
+        val path = smoothRectPath(
+            androidx.compose.ui.geometry.Rect(left, h / 2f - iconSide / 2f, left + iconSide, h / 2f + iconSide / 2f),
+            radius,
+        ).asAndroidPath()
+        val fm = word.fontMetrics
+        val baseline = wordTop + 2f - fm.top
+        val text = android.graphics.Path()
+        word.getTextPath(BRAND, 0, BRAND.length, left + room, baseline, text)
+        path.addPath(text)
+        silhouette = path
+        silhouetteKey = key
+        return path
     }
 
     private var cachedW = -1f
@@ -164,9 +190,10 @@ class SplashBackground(context: Context) : Drawable() {
 
     override fun draw(canvas: Canvas) {
         if (alpha <= 0) return
-        // 只有纯黑: 标志只由 MarkView 画这一份。之前这里也画一张 logo, 靠 curtainOk 才淡出,
-        // 一旦烤洞慢了/失败, 这张不淡的 logo 就一直挂在最前面 —— "LOGO 挡住过渡"。
+        // 窗口背景在整棵视图树后面, 它画的标志不可能压住遮罩层 —— 它只负责"内容视图还没建好"的
+        // 那几帧(冷启动开机最先看到的那一下)。过渡动画的标志仍只由 MarkView 一份负责。
         canvas.drawColor(Color.BLACK)
+        art.drawBrand(canvas, bounds.width().toFloat(), bounds.height().toFloat(), 1f)
     }
 
     override fun setAlpha(alpha: Int) {
@@ -285,12 +312,15 @@ private class MarkView(context: Context) : View(context) {
         private set
 
     /** 黑幕(带洞)已经就绪: 这层就不再需要自己那块黑底了。 */
-    val curtainOk: Boolean get() = curtainReady
+    val curtainOk: Boolean get() = (usePathCurtain && Build.VERSION.SDK_INT >= 26) || curtainReady
     private var inkAlpha = 1f
     private var wordAlpha = 1f
     private var scale = 1f
 
     /** 黑幕+洞, 一次烤好: 洞是真的透明, 不是抠在黑色上。 */
+    private val veilPaint = Paint().apply { color = Color.BLACK }
+    /** 26 以上用矢量路径挖洞(边缘干净); 老系统仍用烤好的位图。 */
+    private val usePathCurtain = true
     private var curtain: Bitmap? = null
     private var curtainReady = false
     private val curtainPaint = Paint(Paint.FILTER_BITMAP_FLAG)
@@ -347,17 +377,29 @@ private class MarkView(context: Context) : View(context) {
             art.drawBrand(canvas, w, h, 1f)
             return
         }
-        // 烤洞还没好的那一两帧: 自己先铺黑, 别把桌面漏出来。
-        if (curtain == null) canvas.drawColor(Color.BLACK)
-        // 黑幕连洞一起是一张现成的位图(黑底, 标志形状处真透明), 整张贴上去、按 blackAlpha 淡出。
-        // 不能在这层的画布上直接 DST_OUT 抠洞: 那样抠掉的是黑色, 洞背后还是这层自己的黑底, 洞就变黑了;
-        // 也不开整屏 saveLayer —— 视频壁纸解码时每帧一次 8MB 离屏是这台盒子上卡顿的主因。
-        curtain?.let { c ->
-            canvas.save()
-            canvas.scale(scale, scale, pivotX, pivotY)
-            curtainPaint.alpha = (blackAlpha * 255).toInt().coerceIn(0, 255)
-            canvas.drawBitmap(c, null, RectF(0f, 0f, w, h), curtainPaint)
-            canvas.restore()
+        // 黑幕 = 一整块黑, 挖掉"标志形状"那块(clipOutPath)。路径每一帧都按当前放大倍数在设备
+        // 分辨率下光栅化, 所以洞边缘始终干净 —— 之前是把一张半分辨率的黑幕位图放大十几倍, 边缘
+        // 的 1 像素过渡被放大成几十像素的台阶, 就是"洞边锯齿"。
+        // 也不再需要 saveLayer / 离屏: 一次实心填充 + 一条裁剪路径, 比整屏贴一张大位图还便宜。
+        val backed = Build.VERSION.SDK_INT >= 26 && usePathCurtain
+        if (backed) {
+            if (blackAlpha > 0f) {
+                canvas.save()
+                canvas.scale(scale, scale, pivotX, pivotY)
+                canvas.clipOutPath(art.silhouette(w, h))
+                veilPaint.alpha = (blackAlpha * 255).toInt().coerceIn(0, 255)
+                canvas.drawRect(0f, 0f, w, h, veilPaint)
+                canvas.restore()
+            }
+        } else {
+            if (curtain == null) canvas.drawColor(Color.BLACK)
+            curtain?.let { c ->
+                canvas.save()
+                canvas.scale(scale, scale, pivotX, pivotY)
+                curtainPaint.alpha = (blackAlpha * 255).toInt().coerceIn(0, 255)
+                canvas.drawBitmap(c, null, RectF(0f, 0f, w, h), curtainPaint)
+                canvas.restore()
+            }
         }
         // 标志自己的颜色先退, 只留下形状的开口 —— 放大到几倍的字会糊成一片, 不该留到最后。
         if (inkAlpha > 0f || wordAlpha > 0f) {
@@ -385,6 +427,7 @@ private class MarkView(context: Context) : View(context) {
      * 靠这层自己的黑底顶着, 所以看不到半成品。
      */
     private fun buildMask() {
+        if (usePathCurtain && Build.VERSION.SDK_INT >= 26) return
         if (curtain != null || building || width <= 0 || height <= 0) return
         building = true
         val w = width.toFloat()
