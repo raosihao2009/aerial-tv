@@ -542,6 +542,15 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
         if (transitioning || removed) return
         transitioning = true
         started = true
+        // 关键顺序: 先把 revealed 放开, 让桌面(壁纸/底板/卡片)在遮罩后面真正画出来, 再开始
+        // 淡出。以前这一步拖到动画"结束"才翻, 于是淡出时遮罩后面还是一块没画的黑色桌面 ——
+        // 黑淡成黑, 看起来就是"没有过渡", 最后 veil 一走桌面才突然出现。
+        BootVeil.revealed = true
+        handler.postDelayed({ runFade() }, LEAD_MS)
+    }
+
+    private fun runFade() {
+        if (removed) return
         val at = SystemClock.uptimeMillis()
         val frame = object : Runnable {
             override fun run() {
@@ -631,6 +640,9 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
 
         /** 没有影片时停留多久再推进。 */
         private const val IDLE_MS = 900L
+
+        /** 放开桌面到开始淡出之间留的时间: 给壁纸/卡片画第一帧。 */
+        private const val LEAD_MS = 320L
 
         /** 推进(缩放 + 淡出)的时长。 */
         private const val ZOOM_MS = 720f
