@@ -427,12 +427,13 @@ private class MarkView(context: Context) : View(context) {
 
     private companion object {
         /** 文字先淡到透明(0.7 秒)。 */
-        const val WORD_MS = 700f
-        /** 标志的颜色在放大途中退掉(0.1 → 1.0 秒)。 */
-        const val INK_DELAY_MS = 100f
-        const val INK_MS = 900f
-        /** 放大: 0.5 秒起步, 走到 2.4 秒。 */
-        const val ZOOM_DELAY_MS = 500f
+        const val WORD_MS = 600f
+        /** 标志的颜色要在放大起步之前退干净: 之前 ink 拖到 1 秒才没, 放大 0.5 秒就开始了,
+         * 一个越放越大的实色渐变方块压在洞口上 —— 就是"LOGO 挡住过渡"的原因。现在 0→0.35 秒退完。 */
+        const val INK_DELAY_MS = 0f
+        const val INK_MS = 350f
+        /** 放大: 0.35 秒起步, 走到 2.25 秒。 */
+        const val ZOOM_DELAY_MS = 350f
         const val ZOOM_MS = 1900f
         /** 黑幕: 1.9 秒才收, 2.5 秒全开。 */
         const val VEIL_DELAY_MS = 1900f
