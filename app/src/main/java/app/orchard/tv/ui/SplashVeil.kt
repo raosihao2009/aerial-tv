@@ -12,10 +12,8 @@ import android.graphics.RectF
 import android.graphics.SurfaceTexture
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
-import android.media.MediaPlayer
 import android.os.SystemClock
 import android.view.Surface
-import android.view.TextureView
 import android.view.View
 import android.widget.FrameLayout
 import androidx.compose.runtime.getValue
@@ -30,8 +28,8 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
- * 开屏的静态图: 纯黑, 中间横排着 Aerial 的图标和白色字。窗口背景([SplashBackground])、短片
- * ([SplashVideo])和遮罩([MarkView])画的是同一份几何, 所以从窗口一可见到揭开, 中间不会有接缝。
+ * 开屏的静态图: 纯黑, 中间横排着 Aerial 的图标和白色字。窗口背景([SplashBackground])和
+ * 遮罩([MarkView])画的是同一份几何, 所以从窗口一可见到揭开, 中间不会有接缝。
  *
  * 字用包内的 Inter(和桌面同一套字体), 图标用应用图标, 圆角取卡片圆角的半径: 卡片画在设计稿 960
  * 宽的画布上、圆角 12dp, 也就是屏宽的 1/80, 这里按同一个比例切。
@@ -179,101 +177,6 @@ class SplashBackground(context: Context) : Drawable() {
 }
 
 /**
- * 开屏短片: 纯黑底上一张"圆角图标 + 横向 Aerial 白字", 一道微光扫过标志(素材见
- * tools/render-intro.py)。它是一块普通的 [TextureView], 不是 Compose。
- *
- * 短片的首帧和 [SplashArt] 画的是同一份几何, 所以窗口背景的静图、短片、揭开用的遮罩之间
- * 接得上。短片循环播放: 桌面准备得慢就多循环一轮, 首尾帧一样, 看不出接缝。
- */
-private class SplashVideo(context: Context) : TextureView(context) {
-    private var player: MediaPlayer? = null
-    private var surface: Surface? = null
-    private var failed = false
-    var onFail: (() -> Unit)? = null
-    /** 短片已经出画: 盖在下面的那张静图可以让开了(同一份几何, 换过去看不出)。 */
-    var onFirstFrame: (() -> Unit)? = null
-
-    init {
-        isOpaque = false
-        surfaceTextureListener = object : SurfaceTextureListener {
-            override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) = open(st)
-            override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) = Unit
-            override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
-                release()
-                return true
-            }
-
-            override fun onSurfaceTextureUpdated(st: SurfaceTexture) = Unit
-        }
-    }
-
-    private fun open(st: SurfaceTexture) {
-        if (player != null || failed) return
-        // 软件图层上 TextureView 是空的(见 MainActivity 的 softLayer), 那时退回静态图。
-        if (!isHardwareAccelerated) {
-            fail()
-            return
-        }
-        val mp = MediaPlayer()
-        player = mp
-        try {
-            context.assets.openFd(CLIP).use { fd ->
-                mp.setDataSource(fd.fileDescriptor, fd.startOffset, fd.length)
-            }
-            mp.isLooping = true
-            // 开屏不该有声音: 电视盒子刚上电就响比静音更糟。
-            mp.setVolume(0f, 0f)
-            surface = Surface(st)
-            mp.setSurface(surface)
-            mp.setOnPreparedListener { it.start() }
-            // 只报一次: 循环播放每轮都会回调, 不必每次重设背景。
-            mp.setOnInfoListener { _, what, _ ->
-                if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) {
-                    mp.setOnInfoListener(null)
-                    onFirstFrame?.invoke()
-                }
-                false
-            }
-            mp.setOnErrorListener { _, _, _ ->
-                fail()
-                true
-            }
-            mp.prepareAsync()
-        } catch (e: Exception) {
-            fail()
-        }
-    }
-
-    private fun fail() {
-        if (failed) return
-        failed = true
-        release()
-        onFail?.invoke()
-    }
-
-    /** 揭开时用: 先把画面藏起来, 再把解码器还掉, 免得和桌面抢显存。 */
-    fun stop() {
-        visibility = GONE
-        release()
-    }
-
-    private fun release() {
-        val mp = player ?: return
-        player = null
-        runCatching { mp.setOnErrorListener(null) }
-        runCatching { mp.setOnPreparedListener(null) }
-        // release 会停一会儿, 别压在主线程上。
-        Thread { runCatching { mp.release() } }.start()
-        surface?.let { runCatching { it.release() } }
-        surface = null
-    }
-
-    private companion object {
-        const val CLIP = "intro.mp4"
-    }
-}
-
-/**
  * 冷启动遮罩: 短片在上, 桌面在黑幕后面先把壁纸、底板、卡片画好; 桌面报"好了"再等半秒, 然后:
  *   ① 文字"Aerial"由白渐变为透明;
  *   ② 图标与这一组整体放大(向观众推近), 标志本身渐渐只剩形状, 桌面从标志的形状里透出来;
@@ -289,7 +192,6 @@ private class SplashVideo(context: Context) : TextureView(context) {
  */
 class SplashVeil(context: Context) : FrameLayout(context) {
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
-    private val video = SplashVideo(context)
     private val mark = MarkView(context)
 
     /** 揭开之后叫一声: 窗口背景换回纯黑, 不用每帧再画一遍字。 */
@@ -304,10 +206,10 @@ class SplashVeil(context: Context) : FrameLayout(context) {
         // 内容视图刚挂上、短片还没出第一帧之前, 这块背景就是窗口背景那张开屏静图(黑底+图标+Aerial)。
         // 以前这里铺的是纯黑: 窗口的静图先被它盖住, 短片又要等媒体服务冷启动几秒, 于是
         // "先看到 logo → 黑掉几秒 → logo 又出来"。静图和短片画的是同一份几何, 第一帧一到就无缝接上。
+        // 背景就是那张静图(黑底+图标+Aerial): 短片改成完全静止之后, 再开一个 1080p 的硬件解码器
+        // 只为放一张静图就是亏本的 —— 冷启动时它正好和 Compose 首棵树、壁纸解码器抢同一个解码芯片。
+        // 静图由窗口背景和这层背景直接画, 不再有 MediaPlayer。
         setBackgroundDrawable(SplashBackground(context))
-        video.onFail = { mark.showStill() }
-        video.onFirstFrame = { background?.alpha = 0 }
-        addView(video, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         addView(mark, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
 
@@ -337,8 +239,7 @@ class SplashVeil(context: Context) : FrameLayout(context) {
         if (started) return
         pending = false
         started = true
-        // 短片让位给遮罩: 同一帧里遮罩就把黑幕和标志画上, 所以不会有闪白。
-        video.stop()
+        // 遮罩同一帧就把黑幕和标志画上, 背景这块黑/静图在 tick 里让开, 不会闪白。
         mark.reveal()
         startAt = SystemClock.uptimeMillis()
         postOnAnimation(tick)
@@ -357,7 +258,6 @@ class SplashVeil(context: Context) : FrameLayout(context) {
     }
 
     private fun finish() {
-        video.stop()
         (parent as? android.view.ViewGroup)?.removeView(this)
         // 黑幕已经收起、桌面完全可见, 但"这一帧"不抢解码器: 视频壁纸和直播预览都在等 revealed,
         // 之前它在动画结束的同一刻翻 true, 1080p 解码 + 拉流正好压在淡出尾巴上。让桌面先静
