@@ -269,7 +269,7 @@ class SplashBackground(context: Context) : Drawable() {
  * 它是普通的 View, 不是 Compose: 早前在 setContent 前先挂一个 ComposeView 预热, 抢走了窗口
  * 唯一的 Recomposer, 摘掉之后主界面再也拿不到帧, 于是永远黑屏。
  */
-class SplashVeil(context: Context) : FrameLayout(context) {
+class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(context) {
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     private val mark = MarkView(context)
 
@@ -282,7 +282,7 @@ class SplashVeil(context: Context) : FrameLayout(context) {
     private var startAt = 0L
 
     /** 有开机影片就放影片(苹果 TV 那段), 没有就走自己画的那套标志动画。 */
-    val usesVideo: Boolean = hasBootVideo(context)
+    val usesVideo: Boolean = withVideo && hasBootVideo(context)
 
     private var player: MediaPlayer? = null
     private var videoView: TextureView? = null
@@ -293,10 +293,10 @@ class SplashVeil(context: Context) : FrameLayout(context) {
     private var revealAt = 0L
     private var videoEnded = false
     private var fadingOut = false
+    /** 影片起不来(编码不支持/文件坏了/超时): 之后一律走标志动画, 不能再"等影片"。 */
+    private var videoBroken = false
     /** 桌面画好了(视频模式下只作记录)。 */
     private var desktopReady = false
-    /** 影片打不开, 已经退回自绘的标志动画。 */
-    private var videoFailed = false
 
     init {
         if (usesVideo) {
@@ -339,7 +339,7 @@ class SplashVeil(context: Context) : FrameLayout(context) {
             mp.setVolume(0f, 0f)
             mp.isLooping = false
             // 影片迟迟不出第一帧(解码器忙/文件有问题): 8 秒后照样退回标志动画, 不能一直黑着。
-            handler.postDelayed({ if (player === mp && !videoEnded && !videoFailed) fallbackToMark() }, 8000L)
+            handler.postDelayed({ if (player === mp && !videoEnded && !videoBroken) fallbackToMark() }, 8000L)
             mp.setOnPreparedListener { p ->
                 p.start()
                 // 影片尾巴前 1.2 秒放壁纸/预览开工: 等镜头飞进去的时候, 洞后面已经是真画面。
@@ -455,7 +455,7 @@ class SplashVeil(context: Context) : FrameLayout(context) {
 
     private fun fallbackToMark() {
         if (fadingOut || videoEnded) return
-        videoFailed = true
+        videoBroken = true
         releasePlayer()
         videoView?.let { (it.parent as? ViewGroup)?.removeView(it) }
         videoView = null
@@ -463,7 +463,9 @@ class SplashVeil(context: Context) : FrameLayout(context) {
             addView(mark, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         }
         setBackgroundColor(Color.TRANSPARENT)
-        if (pending) start() else if (desktopReady) revealNow()
+        // 影片坏了也不能把用户晾在黑幕里: 壁纸/预览立刻开工, 标志动画接手。
+        BootVeil.revealed = true
+        if (width == 0 || height == 0) pending = true else start()
         invalidate()
     }
 
@@ -481,7 +483,7 @@ class SplashVeil(context: Context) : FrameLayout(context) {
 
     /** 桌面首帧到了: 收起短片, 文字淡到透明, 标志放大, 黑幕收起。只做一次。 */
     fun revealNow() {
-        if (usesVideo && !videoFailed) {
+        if (usesVideo && !videoBroken) {
             // 有影片时桌面报"好了"只记一笔: 影片该放完, 飞进去收尾。
             desktopReady = true
             return
@@ -592,9 +594,13 @@ private class MarkView(context: Context) : View(context) {
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
+        // 影片这层要等到量出尺寸才挂上去(TextureView 一挂上就开始要 surface, 尺寸为 0 时铺不满)。
+        if (usesVideo && videoView == null && !videoBroken && !fadingOut) setupVideo()
+        videoView?.let { fitVideo(it) }
         measure()
         buildMask()
         invalidate()
+        if (pending) revealNow()
     }
 
     /**

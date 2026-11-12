@@ -367,8 +367,10 @@ class MainActivity : ComponentActivity() {
             host,
             FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT),
         )
-        if (coldBoot) {
-            val veil = SplashVeil(this)
+        // 每一次进桌面都盖: 冷启动放开机影片 + 飞入, 热启动/重进放那 2.5 秒的标志动画。
+        // 热启动不加遮罩的话, Compose 重建的那一两秒直接露在用户眼前(半张桌面、焦点框乱跳)。
+        run {
+            val veil = SplashVeil(this, withVideo = coldBoot)
             // 揭开之后窗口背景换成纯黑: 内容视图盖在上面看不见它, 但不用每帧再画一遍字。
             veil.onRevealed = { window.setBackgroundDrawable(ColorDrawable(Color.BLACK)) }
             root.addView(
