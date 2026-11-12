@@ -357,9 +357,14 @@ class SplashVeil(context: Context) : FrameLayout(context) {
 
     private fun finish() {
         video.stop()
-        BootVeil.revealed = true
-        onRevealed?.invoke()
+        // 黑幕已经收起、桌面完全可见, 但"这一帧"不抢解码器: 视频壁纸和直播预览都在等 revealed,
+        // 之前它在动画结束的同一刻翻 true, 1080p 解码 + 拉流正好压在 600ms 的淡出尾巴上 —— 就是
+        // "最后那几秒特别卡"的来源。让桌面先静 800ms, 再放这些重活开工。
         (parent as? android.view.ViewGroup)?.removeView(this)
+        postDelayed({
+            BootVeil.revealed = true
+            onRevealed?.invoke()
+        }, 800L)
     }
 
     private companion object {
@@ -427,7 +432,9 @@ private class MarkView(context: Context) : View(context) {
         val w = width.toFloat()
         val h = height.toFloat()
         val box = art.box(w, h)
-        pivotX = box.centerX
+        // 整组横排, 中心本来就在屏幕中线 (SplashArt 按整组居中排的), 绕它放大:
+        // 图标和字一起从中心往外长, 字不会被带着左右跑。上一版钉在图标中心, 字在淡出时横移。
+        pivotX = w / 2f
         pivotY = h / 2f
         val far = maxOf(hypot(pivotX, pivotY), hypot(w - pivotX, pivotY), hypot(pivotX, h - pivotY), hypot(w - pivotX, h - pivotY))
         endScale = (far / (box.side / 2f) * 1.15f).coerceIn(4f, 24f)
