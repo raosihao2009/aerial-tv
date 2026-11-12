@@ -379,35 +379,16 @@ fun HomeScreen(
         animationSpec = androidx.compose.animation.core.tween(UI_FADE_MS, easing = Motion.EaseInOut), label = "uiAlpha")
     LaunchedEffect(channelPreviewVisible) { vm.livePlaying = channelPreviewVisible; liveReadyState.value = false }
 
-    // 开机预挂载: 遮罩还盖着、网格里存在被标记的直播预览卡时, 不等焦点落上去就先把
-    // ChannelFocusPreview 挂上, 让它在遮罩后面开始解析/缓冲, 产生 loading 状态。
-    // 否则焦点要等 loaded 之后才请求落到直播卡, 遮罩期间预览根本没挂载, ld 一直是 0。
-    val bootLiveMarked = vm.apps.any { it.packageName in AerialSettings.liveAppPackages }
-    // 预挂载在撤罩瞬间不立刻卸载: 焦点驱动的挂载接手之前先保留这个已在缓冲的 player,
-    // 避免解码器被释放后从头重载(桌面先露出、加载提示后弹)。焦点真正落到直播卡上后释放保留。
-    var preMountKept by remember { mutableStateOf(false) }
-    LaunchedEffect(BootVeil.generation) {
-        preMountKept = true
-        // 撤罩后只保留一小段交接窗口, 焦点驱动挂载接手; 超时仍未接手就释放,
-        // 避免离开直播卡后预挂载的 player 一直挂在后台。
-        while (BootVeil.covering) kotlinx.coroutines.delay(100)
-        kotlinx.coroutines.delay(800)
-        preMountKept = false
-    }
-    LaunchedEffect(channelPreviewVisible) { if (channelPreviewVisible) preMountKept = false }
-    val preMountLive = !channelPreviewVisible && bootLiveMarked &&
-        AerialSettings.livePreviewEnabled && (BootVeil.covering || preMountKept)
-
     // 揭罩轮询:
     //   * 网格里有被标记的直播预览卡(mark>0): 按直播场景等预览加载图出现再消失(或出帧) → 300ms 后撤;
     //     不依赖 playing 这个"焦点已注册"信号——冷启动焦点要等 loaded 之后才请求落到直播卡上,
-    //     遮罩期间 playing 可能还是 0, 用它判定会提前撤罩; 18s 兜底;
+    //     遮罩期间 playing 可能还是 0, 用它判定会提前撤罩; 10s 兜底;
     //   * 网格里没有标记卡: 普通分支, 数据加载完、网格上屏过 1s → 500ms 后撤。
     // 预览在遮罩后面已经放开起播(revealContent), 等加载结束不会死锁。
     // 每 150ms 读一次现场 State; 遮罩重挂时 generation 变了, 这个协程会重新跑。
     LaunchedEffect(BootVeil.generation) {
         val start = System.currentTimeMillis()
-        val LIVE_CAP_MS = 18000L
+        val LIVE_CAP_MS = 10000L
         // 预览刚挂载时存在一小段 loading 还没置 true 的窗口;
         // 必须先看到加载图出现过(sawLoading), 再等它消失, 避免这个窗口里提前撤罩。
         var sawLoading = false
@@ -433,7 +414,7 @@ fun HomeScreen(
                 ready -> BootVeil.arm(300)
                 // 有标记直播卡: 加载图已经消失(出帧或回退完成): 300ms 后撤。
                 marked > 0 && sawLoading && !loading -> BootVeil.arm(300)
-                // 直播兜底: 等了 18s 还没结束加载, 不再把用户挡在开屏上。
+                // 直播兜底: 等了 10s 还没结束加载, 不再把用户挡在开屏上。
                 marked > 0 && elapsed > LIVE_CAP_MS -> BootVeil.arm(400)
                 // 没有标记卡: 普通分支, 加载完、网格上屏过 1s 后撤。
                 marked == 0 && vm.loaded && grid.isNotEmpty() && elapsed > 1000 -> BootVeil.arm(500)
@@ -1035,14 +1016,14 @@ fun HomeScreen(
             // ===== 二创：直播预览，只在焦点选中第一排目标应用时组合 =====
             // 用 remember 缓存当前源的查找结果：HomeScreen 因 now 分钟 tick / 焦点变化等
             // 重组时，不必每次都重新遍历 liveSources 列表找 firstOrNull。
-            val previewSource = remember(channelPreviewVisible || preMountLive, vm.liveSources, vm.pendingLiveSourceId, vm.currentLiveSourceId) {
-                if (channelPreviewVisible || preMountLive) {
+            val previewSource = remember(channelPreviewVisible, vm.liveSources, vm.pendingLiveSourceId, vm.currentLiveSourceId) {
+                if (channelPreviewVisible) {
                     vm.liveSources.firstOrNull {
                         it.id == (vm.pendingLiveSourceId ?: vm.currentLiveSourceId)
                     }
                 } else null
             }
-            if (channelPreviewVisible || preMountLive) {
+            if (channelPreviewVisible) {
                 ChannelFocusPreview(
                     source = previewSource,
                     onFallback = {

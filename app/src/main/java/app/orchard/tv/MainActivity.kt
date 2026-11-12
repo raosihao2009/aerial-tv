@@ -384,7 +384,7 @@ class MainActivity : ComponentActivity() {
             // 就被撤掉。兜底由下面那条 forceFinish 负责。
             // 无论如何都给自己留条后路: 桌面没能报"好了"(没有卡片/数据读失败)、影片解码卡住、
             // 抠标志失败, 到期直接把遮罩撤掉, 绝不把用户挡在开屏上。
-            veil.postDelayed({ veil.forceFinish() }, if (coldBoot) 19_000L else 9_500L)
+            veil.postDelayed({ veil.forceFinish() }, if (coldBoot) 11_500L else 9_500L)
         }
         setContentView(root)
         DiagLog.i("boot-debug: setContent returned at +${SystemClock.elapsedRealtime()}ms")
