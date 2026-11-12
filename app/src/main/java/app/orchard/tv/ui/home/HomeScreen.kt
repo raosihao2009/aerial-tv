@@ -665,8 +665,19 @@ fun HomeScreen(
             // 所以揭开时壁纸、底板、卡片都已经在屏幕上了, 不会露出还没画好的桌面。
             .drawWithContent {
                 drawContent()
-                // 底板和卡片都画上去了, 再等半秒才揭开(见 SplashVeil.armReveal)
-                if (vm.loaded) BootVeil.arm(1500)
+                // 揭开时机看首排首列是什么:
+                // - 不是直播预览卡片: 底板和卡片都画上去了, 再等 0.5 秒就撤;
+                // - 是直播预览卡片: 预览是整屏影片, 撤早了会先看到一张空底板, 所以等直播真的出画
+                //   (liveReadyState)再撤。预览本身要等 BootVeil.revealed 才起播, 所以这里先把
+                //   revealed 放开(内容照旧被遮罩盖着), 等它出帧。
+                if (vm.loaded) {
+                    if (channelPreviewVisible) {
+                        BootVeil.revealContent()
+                        if (liveReadyState.value) BootVeil.arm(400)
+                    } else {
+                        BootVeil.arm(500)
+                    }
+                }
             }
             .onPreviewKeyEvent { e ->
                 lastKeyTime = System.currentTimeMillis()

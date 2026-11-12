@@ -235,10 +235,17 @@ private class SplashArt(context: Context) {
         val key = "$w/$h"
         if (bgShader == null || bgKey != key) {
             bgKey = key
+            // 底色直接取图标那套配色(青绿 → 蓝 → 靛紫), 压到很低的亮度当"背光面":
+            // 这样开屏和图标是同一个色彩家族, 不会一块蓝一块紫地打架。
             bgShader = android.graphics.LinearGradient(
                 0f, 0f, w, h,
-                intArrayOf(Color.rgb(7, 10, 18), Color.rgb(15, 24, 42), Color.rgb(28, 38, 62), Color.rgb(38, 28, 54)),
-                floatArrayOf(0f, 0.45f, 0.75f, 1f),
+                intArrayOf(
+                    Color.rgb(9, 22, 24),   // 青绿的暗面
+                    Color.rgb(10, 20, 30),  // 蓝的暗面
+                    Color.rgb(11, 17, 33),  // 再深一档
+                    Color.rgb(18, 14, 29),  // 靛紫的暗面
+                ),
+                floatArrayOf(0f, 0.38f, 0.72f, 1f),
                 android.graphics.Shader.TileMode.CLAMP,
             )
         }
@@ -248,8 +255,8 @@ private class SplashArt(context: Context) {
         val glow = android.graphics.RadialGradient(
             w / 2f, h * 0.42f, maxOf(w, h) * 0.55f,
             intArrayOf(
-                Color.argb(66, 96, 156, 226),
-                Color.argb(28, 70, 110, 180),
+                Color.argb(88, 52, 194, 174),   // 图标左上那抹青绿
+                Color.argb(52, 69, 150, 203),   // 图标中段的蓝
                 Color.argb(0, 10, 12, 20),
             ),
             floatArrayOf(0f, 0.45f, 1f),
@@ -272,10 +279,14 @@ private class SplashArt(context: Context) {
     /** 屏幕下方那行小字: 桌面还在准备。图标/字下面偏下, 水平居中。 */
     fun drawHint(canvas: Canvas, w: Float, h: Float, text: String) {
         relayout(w, h)
-        head.textSize = word.textSize * 0.40f
-        head.alpha = 150
-        canvas.drawText(text, w / 2f - head.measureText(text) / 2f, h / 2f + iconSide * 0.9f + word.textSize * 0.9f, head)
+        val d = density
+        head.textSize = 14f * d
+        head.alpha = 255
+        val fm = head.fontMetrics
+        canvas.drawText(text, w / 2f - head.measureText(text) / 2f, h - 38f * d - fm.descent, head)
     }
+
+    private val density = context.resources.displayMetrics.density
 
     private val head = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
@@ -557,11 +568,17 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
         drawHint(canvas, w, h)
     }
 
-    /** "桌面正在准备中": 图标和字下面偏下、水平居中。 */
+    /**
+     * "桌面正在准备中": 放在桌面的轻提示(直播切换/回退那种玻璃胶囊)同一高度 —— 底部 28dp 再加
+     * 10dp 内边距, 水平居中、14sp。这样开屏撤掉时那行字和桌面的提示是同一条线, 不会有跳动。
+     */
     private fun drawHint(canvas: Canvas, w: Float, h: Float) {
         val text = HINT
-        hint.textSize = min(w * 0.018f, h * 0.034f).coerceAtLeast(22f)
-        canvas.drawText(text, w / 2f - hint.measureText(text) / 2f, h * 0.62f, hint)
+        val d = resources.displayMetrics.density
+        hint.textSize = 14f * d
+        val fm = hint.fontMetrics
+        val baseline = h - (28f + 10f) * d - fm.descent
+        canvas.drawText(text, w / 2f - hint.measureText(text) / 2f, baseline, hint)
     }
 
     companion object {
@@ -620,6 +637,11 @@ object BootVeil {
         if (armed || signaled) return
         armed = true
         veil?.armReveal(delayMs)
+    }
+
+    /** 只放开桌面内容(壁纸/直播预览开工), 遮罩还盖着 —— 直播预览要出帧才能判断撤的时机。 */
+    fun revealContent() {
+        if (!revealed) revealed = true
     }
 
     /** 兜底: 桌面一直没报"好了"也把黑幕揭开。 */
