@@ -381,9 +381,10 @@ fun HomeScreen(
 
     // 揭罩轮询: 不看焦点、不看第几行、不看首格, 只看当前网格里有没有被上下文菜单
     // 标记成「直播预览应用」的卡片(标识就是菜单写进 liveAppPackages 的那张卡片 key):
-    //   * 有标记卡片: 等预览真出帧(ready=1) → 300ms 后撤; 10s 兜底;
+    //   * 有标记卡片: 预览在跑且"直播正在加载中"那张加载图消失(loading=false) → 300ms 后撤;
+    //     出帧回调先到也一样撤; 10s 兜底;
     //   * 没有标记卡片: 卡片上屏过 0.8s → 500ms 后撤。
-    // 预览在遮罩后面已经放开起播(revealContent), 等出帧不会死锁。
+    // 预览在遮罩后面已经放开起播(revealContent), 等加载结束不会死锁。
     // 每 150ms 读一次现场 State; 遮罩重挂时 generation 变了, 这个协程会重新跑。
     LaunchedEffect(BootVeil.generation) {
         val start = System.currentTimeMillis()
@@ -395,17 +396,21 @@ fun HomeScreen(
             val grid = vm.apps
             val marked = grid.count { it.packageName in AerialSettings.liveAppPackages }
             val ready = liveReadyState.value
+            val loading = liveLoadingState.value
             val elapsed = System.currentTimeMillis() - start
             val markKey = AerialSettings.liveAppPackages.firstOrNull().orEmpty().take(16)
             BootVeil.setNote(
                 "mark=$marked ready=${if (ready) 1 else 0} " +
+                "ld=${if (loading) 1 else 0} playing=${if (vm.livePlaying) 1 else 0} " +
                 "n=${grid.size} m=${AerialSettings.liveAppPackages.size} k=$markKey " +
                 "loaded=${if (vm.loaded) 1 else 0} t=$elapsed"
             )
             when {
                 // 预览真出帧了: 300ms 后撤。
                 ready -> BootVeil.arm(300)
-                // 直播兜底: 等了 10s 还没出帧, 不再把用户挡在开屏上。
+                // 预览在跑、加载图已经消失(出帧或回退完成): 300ms 后撤。
+                marked > 0 && vm.livePlaying && !loading -> BootVeil.arm(300)
+                // 直播兜底: 等了 10s 还没结束加载, 不再把用户挡在开屏上。
                 marked > 0 && elapsed > LIVE_CAP_MS -> BootVeil.arm(400)
                 marked == 0 && grid.isNotEmpty() && elapsed > 800 -> BootVeil.arm(500)
             }
