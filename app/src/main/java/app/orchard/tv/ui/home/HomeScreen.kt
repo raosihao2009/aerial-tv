@@ -381,8 +381,8 @@ fun HomeScreen(
 
     // 揭罩轮询: 不看焦点、不看第几行、不看首格, 只看当前网格里有没有被上下文菜单
     // 标记成「直播预览应用」的卡片(标识就是菜单写进 liveAppPackages 的那张卡片 key):
-    //   * 有标记卡片: 等直播预览真出帧(ready=1) → 300ms 后撤; 最长等 8s 兜底;
-    //   * 没有标记卡片: 卡片上屏(apps 非空)过 0.8s → 500ms 后撤。
+    //   * 有标记卡片: 数据加载完、卡片上屏 → 300ms 后撤; 出帧回调先到就更早撤; 8s 兜底;
+    //   * 没有标记卡片: 卡片上屏过 0.8s → 500ms 后撤。
     // 每 150ms 读一次现场 State; 遮罩重挂时 generation 变了, 这个协程会重新跑。
     LaunchedEffect(BootVeil.generation) {
         val start = System.currentTimeMillis()
@@ -402,8 +402,11 @@ fun HomeScreen(
                 "loaded=${if (vm.loaded) 1 else 0} t=$elapsed"
             )
             when {
-                // 预览真的出帧了(不管角标怎么数): 这就是"直播已经出画面", 300ms 后撤。
+                // 预览真出帧了: 300ms 后撤。
                 ready -> BootVeil.arm(300)
+                // 直播分支不再等出帧回调(冷启动预览要等遮罩放开才起播, 等回调会死锁):
+                // 加载完且标记卡片已在网格里, 300ms 后撤。
+                marked > 0 && vm.loaded && grid.isNotEmpty() -> BootVeil.arm(300)
                 marked > 0 && elapsed > LIVE_CAP_MS -> BootVeil.arm(400)
                 marked == 0 && grid.isNotEmpty() && elapsed > 800 -> BootVeil.arm(500)
             }
