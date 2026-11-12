@@ -350,8 +350,9 @@ class SplashVeil(context: Context) : FrameLayout(context) {
 
     /** 影片按"铺满屏幕、居中裁切"缩放, 不是拉伸。 */
     private fun fitVideo(tv: TextureView) {
-        val vw = player?.videoWidth?.takeIf { it > 0 } ?: return
-        val vh = player.videoHeight
+        val p = player ?: return
+        val vw = p.videoWidth.takeIf { it > 0 } ?: return
+        val vh = p.videoHeight
         if (vh <= 0) return
         val s = maxOf(width.toFloat() / vw, height.toFloat() / vh)
         val m = android.graphics.Matrix()
