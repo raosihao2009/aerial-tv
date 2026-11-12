@@ -237,29 +237,31 @@ private class SplashArt(context: Context) {
             bgKey = key
             // 底色直接取图标那套配色(青绿 → 蓝 → 靛紫), 压到很低的亮度当"背光面":
             // 这样开屏和图标是同一个色彩家族, 不会一块蓝一块紫地打架。
+            // 底色压到接近黑: 真正的高级感来自"暗", 不是来自一块发亮的彩色。
             bgShader = android.graphics.LinearGradient(
                 0f, 0f, w, h,
                 intArrayOf(
-                    Color.rgb(9, 22, 24),   // 青绿的暗面
-                    Color.rgb(10, 20, 30),  // 蓝的暗面
-                    Color.rgb(11, 17, 33),  // 再深一档
-                    Color.rgb(18, 14, 29),  // 靛紫的暗面
+                    Color.rgb(5, 10, 18),
+                    Color.rgb(8, 15, 26),
+                    Color.rgb(10, 16, 28),
+                    Color.rgb(16, 12, 26),
                 ),
-                floatArrayOf(0f, 0.38f, 0.72f, 1f),
+                floatArrayOf(0f, 0.4f, 0.75f, 1f),
                 android.graphics.Shader.TileMode.CLAMP,
             )
         }
         bgPaint.shader = bgShader
         canvas.drawRect(0f, 0f, w, h, bgPaint)
         // 中心偏上的冷色辉光: 让标志那一块"有光", 渐变不至于平。
+        // 辉光只罩在标志那一小片(不是整屏), 图标里的青绿到蓝, 低不透明度, 边缘很快淡出。
         val glow = android.graphics.RadialGradient(
-            w / 2f, h * 0.42f, maxOf(w, h) * 0.55f,
+            w * 0.45f, h * 0.52f, maxOf(w, h) * 0.42f,
             intArrayOf(
-                Color.argb(88, 52, 194, 174),   // 图标左上那抹青绿
-                Color.argb(52, 69, 150, 203),   // 图标中段的蓝
+                Color.argb(78, 38, 180, 168),
+                Color.argb(32, 60, 130, 200),
                 Color.argb(0, 10, 12, 20),
             ),
-            floatArrayOf(0f, 0.45f, 1f),
+            floatArrayOf(0f, 0.5f, 1f),
             android.graphics.Shader.TileMode.CLAMP,
         )
         bgPaint.shader = glow
@@ -280,7 +282,7 @@ private class SplashArt(context: Context) {
     fun drawHint(canvas: Canvas, w: Float, h: Float, text: String) {
         relayout(w, h)
         val d = density
-        head.textSize = 14f * d
+        head.textSize = 22f * d
         head.alpha = 255
         val fm = head.fontMetrics
         canvas.drawText(text, w / 2f - head.measureText(text) / 2f, h - 38f * d - fm.descent, head)
@@ -359,7 +361,7 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
     private val art = SplashArt(context)
     private val handler = Handler(Looper.getMainLooper())
     private val hint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(150, 150, 150)
+        color = Color.rgb(180, 185, 195)
         textSize = 30f
         typeface = Typeface.create("sans-serif", Typeface.NORMAL)
     }
@@ -575,7 +577,7 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
     private fun drawHint(canvas: Canvas, w: Float, h: Float) {
         val text = HINT
         val d = resources.displayMetrics.density
-        hint.textSize = 14f * d
+        hint.textSize = 22f * d
         val fm = hint.fontMetrics
         val baseline = h - (28f + 10f) * d - fm.descent
         canvas.drawText(text, w / 2f - hint.measureText(text) / 2f, baseline, hint)

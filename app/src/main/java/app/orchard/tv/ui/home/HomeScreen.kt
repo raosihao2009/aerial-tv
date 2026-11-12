@@ -378,6 +378,27 @@ fun HomeScreen(
         },
         animationSpec = androidx.compose.animation.core.tween(UI_FADE_MS, easing = Motion.EaseInOut), label = "uiAlpha")
     LaunchedEffect(channelPreviewVisible) { vm.livePlaying = channelPreviewVisible; liveReadyState.value = false }
+
+    // 开屏遮罩的揭罩时机: 底板画完之后 ——
+    //   * 首排首列不是直播预览卡片: 再等 0.5 秒撤;
+    //   * 是直播预览卡片: 等直播真出帧(liveReadyState)再撤;
+    // 冷启动前 1.5 秒内焦点可能还没落到首列, 所以不读某一帧的快照值, 而是 snapshotFlow 轮询。
+    LaunchedEffect(Unit) {
+        while (!vm.loaded) delay(50)
+        BootVeil.revealContent()
+        val liveFirst = withTimeoutOrNull(1500) {
+            snapshotFlow { channelPreviewVisible }.first { it }
+        } == true
+        if (liveFirst) {
+            // 直播出帧; 一直不出也兜底, 不在这一步等满 7.5s 硬期限。
+            withTimeoutOrNull(8000) {
+                snapshotFlow { liveReadyState.value }.first { it }
+            }
+            BootVeil.arm(300)
+        } else {
+            BootVeil.arm(500)
+        }
+    }
     // 焦点在IPTV卡片时立即检测一次直播状态, 然后每30秒刷新; 其他场景刷新后重置计时
     // 抽到独立 composable 里读 liveStatusTickState，tick 变化只重组这个小节点，不带动整棵树。
     LiveStatusPollingEffect(channelPreviewVisible, liveStatusTickState, vm)
@@ -665,19 +686,8 @@ fun HomeScreen(
             // 所以揭开时壁纸、底板、卡片都已经在屏幕上了, 不会露出还没画好的桌面。
             .drawWithContent {
                 drawContent()
-                // 揭开时机看首排首列是什么:
-                // - 不是直播预览卡片: 底板和卡片都画上去了, 再等 0.5 秒就撤;
-                // - 是直播预览卡片: 预览是整屏影片, 撤早了会先看到一张空底板, 所以等直播真的出画
-                //   (liveReadyState)再撤。预览本身要等 BootVeil.revealed 才起播, 所以这里先把
-                //   revealed 放开(内容照旧被遮罩盖着), 等它出帧。
-                if (vm.loaded) {
-                    if (channelPreviewVisible) {
-                        BootVeil.revealContent()
-                        if (liveReadyState.value) BootVeil.arm(400)
-                    } else {
-                        BootVeil.arm(500)
-                    }
-                }
+                // 揭罩时机不在这里判: 冷启动前几帧焦点还没落到首列, 在这里读 channelPreviewVisible
+                // 会把"首列其实是直播"误判成"不是直播"而早早撤罩, 见下面的 LaunchEffect。
             }
             .onPreviewKeyEvent { e ->
                 lastKeyTime = System.currentTimeMillis()
