@@ -678,7 +678,14 @@ fun HomeScreen(
                     !vm.screensaverVisible &&
                     moving == null
                 val ready = liveReadyState.value
-                BootVeil.debugNote = "up=${if (previewUp) 1 else 0} ready=${if (ready) 1 else 0} t=${now - frameAt.value}"
+                val inList = focusedPkg in AerialSettings.liveAppPackages
+                val a0 = apps.firstOrNull()?.packageName.orEmpty().take(14)
+                BootVeil.debugNote =
+                    "p=${focusedPkg.take(16)} r=$focusedRow " +
+                    "e=${if (AerialSettings.livePreviewEnabled) 1 else 0} " +
+                    "l=${if (inList) 1 else 0} " +
+                    "up=${if (previewUp) 1 else 0} ready=${if (ready) 1 else 0} " +
+                    "a0=$a0 t=${now - frameAt.value}"
                 when {
                     // 直播预览在跑、且真出帧了: 再停 300ms 撤。
                     previewUp && ready -> BootVeil.arm(300)
