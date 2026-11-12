@@ -1,6 +1,7 @@
 package app.orchard.tv.ui
 
 import android.content.Context
+import android.media.MediaPlayer
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -15,6 +16,8 @@ import android.graphics.drawable.Drawable
 import android.os.Build
 import android.os.SystemClock
 import android.view.Surface
+import android.view.TextureView
+import android.view.ViewGroup
 import android.view.View
 import android.widget.FrameLayout
 import androidx.compose.runtime.getValue
@@ -28,6 +31,7 @@ import app.orchard.tv.R
 import app.orchard.tv.ui.components.smoothCut
 import kotlin.math.hypot
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
@@ -277,17 +281,186 @@ class SplashVeil(context: Context) : FrameLayout(context) {
     private var pending = false
     private var startAt = 0L
 
+    /** 有开机影片就放影片(苹果 TV 那段), 没有就走自己画的那套标志动画。 */
+    val usesVideo: Boolean = hasBootVideo(context)
+
+    private var player: MediaPlayer? = null
+    private var videoView: TextureView? = null
+    private var logo: IntroLogo? = null
+    private var cutting = false
+    private var cut = false
+    private var reveal: IntroReveal? = null
+    private var revealAt = 0L
+    private var videoEnded = false
+    private var fadingOut = false
+    /** 桌面画好了(视频模式下只作记录)。 */
+    private var desktopReady = false
+
     init {
-        // 内容视图刚挂上、短片还没出第一帧之前, 这块背景就是窗口背景那张开屏静图(黑底+图标+Aerial)。
-        // 以前这里铺的是纯黑: 窗口的静图先被它盖住, 短片又要等媒体服务冷启动几秒, 于是
-        // "先看到 logo → 黑掉几秒 → logo 又出来"。静图和短片画的是同一份几何, 第一帧一到就无缝接上。
-        // 不挂背景: 纯黑由 MarkView 自己画, logo 也只由它画一份。窗口背景是纯黑(见 MainActivity)。
-        addView(mark, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        if (!usesVideo) {
+            // 内容视图刚挂上、短片还没出第一帧之前, 这块背景就是窗口背景那张开屏静图(黑底+图标+Aerial)。
+            // 不挂背景: 纯黑由 MarkView 自己画, logo 也只由它画一份。窗口背景是纯黑(见 MainActivity)。
+            addView(mark, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        }
     }
 
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        if (pending) start()
+    private fun setupVideo() {
+        val tv = TextureView(context)
+        videoView = tv
+        setBackgroundColor(Color.BLACK)
+        addView(tv, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        tv.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+            override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) = startPlayer(tv)
+            override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) = fitVideo(tv)
+            override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
+                releasePlayer()
+                return true
+            }
+            override fun onSurfaceTextureUpdated(st: SurfaceTexture) = Unit
+        }
+    }
+
+    private fun startPlayer(tv: TextureView) {
+        val st = tv.surfaceTexture ?: return
+        releasePlayer()
+        val mp = MediaPlayer()
+        player = mp
+        runCatching {
+            context.assets.openFd(VIDEO_ASSET).use { afd ->
+                mp.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+            }
+            mp.setSurface(Surface(st))
+            mp.setVolume(0f, 0f)
+            mp.isLooping = false
+            mp.setOnPreparedListener { p ->
+                p.start()
+                // 影片尾巴前 1.2 秒放壁纸/预览开工: 等镜头飞进去的时候, 洞后面已经是真画面。
+                val tail = (p.duration - 1200).coerceAtLeast(0)
+                handler.postDelayed({ BootVeil.revealed = true }, tail.toLong())
+            }
+            mp.setOnCompletionListener { endVideo() }
+            mp.setOnErrorListener { _, _, _ ->
+                // 影片打不开(编码不支持/文件坏了): 退回标志动画, 别让用户对着黑屏。
+                fallbackToMark()
+                true
+            }
+            mp.prepareAsync()
+        }.onFailure { fallbackToMark() }
+    }
+
+    /** 影片按"铺满屏幕、居中裁切"缩放, 不是拉伸。 */
+    private fun fitVideo(tv: TextureView) {
+        val vw = player?.videoWidth?.takeIf { it > 0 } ?: return
+        val vh = player.videoHeight
+        if (vh <= 0) return
+        val s = maxOf(width.toFloat() / vw, height.toFloat() / vh)
+        val m = android.graphics.Matrix()
+        m.setScale(s, s, vw / 2f, vh / 2f)
+        m.postTranslate((width - vw * s) / 2f, (height - vh * s) / 2f)
+        tv.setTransform(m)
+    }
+
+    /**
+     * 影片放完: 最后那帧停在那儿, 后台从这一帧里把"黑底上最亮的那块"抠出来当标志 ——
+     * 这样飞进去的洞就是影片收尾时那个标志的形状, 不用事先知道它长什么样。
+     */
+    private fun endVideo() {
+        if (videoEnded) return
+        videoEnded = true
+        cutLogo()
+    }
+
+    private fun cutLogo() {
+        if (cutting || cut) return
+        cutting = true
+        val frame = videoView?.takeIf { it.isAvailable }
+            ?.let { runCatching { it.getBitmap(width, height) }.getOrNull() }
+        if (frame == null) {
+            cutDone(null)
+            return
+        }
+        Thread {
+            val l = runCatching { IntroLogo.from(frame) }.getOrNull()
+            frame.recycle()
+            handler.post { cutDone(l) }
+        }.start()
+    }
+
+    private fun cutDone(l: IntroLogo?) {
+        logo = l
+        cutting = false
+        cut = true
+        if (videoEnded) startReveal()
+    }
+
+    private fun startReveal() {
+        val l = logo
+        if (l == null) {
+            // 抠不出来(影片收在纯黑/纯白上): 直接淡出, 不能把用户挡在开屏上。
+            fadeOut()
+            return
+        }
+        val rv = IntroReveal(context, l)
+        reveal = rv
+        addView(rv, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        revealAt = SystemClock.uptimeMillis()
+        postOnAnimation(revealTick)
+    }
+
+    private val revealTick = object : Runnable {
+        override fun run() {
+            val t = ((SystemClock.uptimeMillis() - revealAt).toFloat() / REVEAL_MS).coerceIn(0f, 1f)
+            val l = logo ?: return
+            val r = reveal ?: return
+            // 起手先轻轻回拉一点, 再越放越快(对数尺度上也看得出加速)。
+            val pull = 1f - 0.05f * sin(Math.PI * min(t / 0.28f, 1f).toDouble()).toFloat()
+            r.progress = t
+            r.scale = l.endScale.pow(t.pow(1.6f)) * pull
+            r.invalidate()
+            if (t < 1f) postOnAnimation(this) else finishVideo()
+        }
+    }
+
+    private fun fadeOut() {
+        if (fadingOut) return
+        fadingOut = true
+        if (reveal == null) alpha = 1f
+        postOnAnimation(object : Runnable {
+            val at = SystemClock.uptimeMillis()
+            override fun run() {
+                val e = ((SystemClock.uptimeMillis() - at).toFloat() / FADE_MS).coerceIn(0f, 1f)
+                alpha = 1f - e
+                if (e < 1f) postOnAnimation(this) else finishVideo()
+            }
+        })
+    }
+
+    private fun finishVideo() {
+        releasePlayer()
+        reveal = null
+        videoView = null
+        BootVeil.revealed = true
+        (parent as? ViewGroup)?.removeView(this)
+        onRevealed?.invoke()
+    }
+
+    private fun fallbackToMark() {
+        if (fadingOut || videoEnded) return
+        releasePlayer()
+        videoView?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        videoView = null
+        if (mark.parent == null) {
+            addView(mark, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        }
+        setBackgroundColor(Color.TRANSPARENT)
+        if (pending) start() else if (desktopReady) revealNow()
+        invalidate()
+    }
+
+    private fun releasePlayer() {
+        val p = player ?: return
+        player = null
+        runCatching { p.setSurface(null); p.reset(); p.release() }
     }
 
     /** 桌面报"好了"之后再等一会儿才揭开: 底板和卡片刚上屏的那一下不算好光学, 停半秒更稳。 */
@@ -298,6 +471,11 @@ class SplashVeil(context: Context) : FrameLayout(context) {
 
     /** 桌面首帧到了: 收起短片, 文字淡到透明, 标志放大, 黑幕收起。只做一次。 */
     fun revealNow() {
+        if (usesVideo) {
+            // 有影片时桌面报"好了"只记一笔: 影片该放完, 飞进去收尾。
+            desktopReady = true
+            return
+        }
         if (started || pending) return
         if (width == 0 || height == 0) {
             // 内容视图还没量过: 现在开始的话连中心点都还是 0, 等于没有过渡。
@@ -338,9 +516,21 @@ class SplashVeil(context: Context) : FrameLayout(context) {
         }, 800L)
     }
 
-    private companion object {
-        const val TOTAL_MS = 2500f
+    companion object {
+        /** 开机影片放在 assets 里: 有它就放影片, 没有就走自己画的标志动画。 */
+        const val VIDEO_ASSET = "boot.mp4"
+        private const val FADE_MS = 450f
+
+        /** 影片收尾后"飞进去"的时长。 */
+        private const val REVEAL_MS = 1100f
+
+        /** 标志动画走完的总时长(没有影片时才用)。 */
+        private const val TOTAL_MS = 2500f
+
+        fun hasBootVideo(context: Context): Boolean =
+            runCatching { context.assets.list("")?.contains(VIDEO_ASSET) == true }.getOrDefault(false)
     }
+
 }
 
 /** 黑幕 + 标志 + 开口。揭开时唯一还在动的东西。 */
@@ -594,6 +784,146 @@ private class MarkView(context: Context) : View(context) {
     }
 }
 
+/** 放大时被掀开的那张黑幕: 黑底 + 标志形状的洞, 标志自己的颜色先退, 露出桌面。 */
+private class IntroReveal(context: Context, private val logo: IntroLogo) : View(context) {
+    var progress = 0f
+    var scale = 1f
+    private val cut = Paint(Paint.FILTER_BITMAP_FLAG).apply {
+        xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+    }
+    private val ink = Paint(Paint.FILTER_BITMAP_FLAG)
+
+    override fun onDraw(c: Canvas) {
+        // 黑幕只在最后收薄: 一开始是"整屏黑, 只有标志那块透光", 和影片最后一帧无缝接上。
+        val layer = c.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null)
+        c.drawColor(Color.argb((255 * (1f - smooth01(0.78f, 1f, progress))).toInt(), 0, 0, 0))
+        c.save()
+        c.scale(scale, scale, logo.pivotX, logo.pivotY)
+        c.drawBitmap(logo.mask, 0f, 0f, cut)
+        c.restore()
+        c.restoreToCount(layer)
+        // 标志本身的颜色先退, 只留下它开出来的窗。
+        ink.alpha = (255 * (1f - smooth01(0.05f, 0.5f, progress))).toInt().coerceIn(0, 255)
+        if (ink.alpha > 0) {
+            c.save()
+            c.scale(scale, scale, logo.pivotX, logo.pivotY)
+            c.drawBitmap(logo.color, 0f, 0f, ink)
+            c.restore()
+        }
+    }
+}
+
+/** 在 [a]–[b] 之间做 smoothstep。 */
+private fun smooth01(a: Float, b: Float, x: Float): Float {
+    val t = ((x - a) / (b - a)).coerceIn(0f, 1f)
+    return t * t * (3f - 2f * t)
+}
+
+/**
+ * 从影片最后一帧里抠出来的标志: [mask] 是它的形状(ALPHA_8), [color] 是它本身的颜色。
+ * 影片是"黑底上的一个亮标志", 所以"够亮"的地方就是标志; 放大绕它最厚的那一块(标志的实体,
+ * 不是字母之间的缝), 放到洞能盖住最远的屏幕角。
+ */
+private class IntroLogo(
+    val mask: Bitmap,
+    val color: Bitmap,
+    val pivotX: Float,
+    val pivotY: Float,
+    val endScale: Float,
+) {
+    companion object {
+        fun from(frame: Bitmap): IntroLogo? {
+            val w = frame.width
+            val h = frame.height
+            val px = IntArray(w * h)
+            frame.getPixels(px, 0, w, 0, 0, w, h)
+            val alpha = ByteArray(w * h)
+            var any = false
+            for (i in px.indices) {
+                val c = px[i]
+                val r = (c shr 16) and 255
+                val g = (c shr 8) and 255
+                val b = c and 255
+                val m = maxOf(r, g, b)
+                // 接近黑的是背景; 标志的辉光在这之后 ~90 级里淡出。
+                val a = ((m - 14) * 255 / 90).coerceIn(0, 255)
+                alpha[i] = a.toByte()
+                if (a == 0) {
+                    px[i] = 0
+                    continue
+                }
+                any = true
+                // 帧是"标志盖在黑上", 把黑从颜色里减回去。
+                px[i] = (a shl 24) or
+                    ((min(255, r * 255 / a)) shl 16) or
+                    ((min(255, g * 255 / a)) shl 8) or
+                    min(255, b * 255 / a)
+            }
+            if (!any) return null
+            val color = Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888)
+            return of(alphaBitmap(alpha, w, h), color, alpha, w, h)
+        }
+
+        private fun alphaBitmap(alpha: ByteArray, w: Int, h: Int): Bitmap {
+            val b = Bitmap.createBitmap(w, h, Bitmap.Config.ALPHA_8)
+            val stride = b.rowBytes
+            val buf = if (stride == w) alpha else ByteArray(stride * h).also { out ->
+                for (y in 0 until h) System.arraycopy(alpha, y * w, out, y * stride, w)
+            }
+            b.copyPixelsFromBuffer(java.nio.ByteBuffer.wrap(buf))
+            return b
+        }
+
+        /** 放大绕标志最厚的那块, 放大到洞能盖住最远的屏幕角。 */
+        private fun of(mask: Bitmap, color: Bitmap, alpha: ByteArray, w: Int, h: Int): IntroLogo {
+            val k = 6
+            val gw = w / k
+            val gh = h / k
+            val inf = 1 shl 20
+            val d = IntArray(gw * gh) { i ->
+                val x = (i % gw) * k + k / 2
+                val y = (i / gw) * k + k / 2
+                if ((alpha[y * w + x].toInt() and 255) > 200) inf else 0
+            }
+            // 两遍 chamfer 距离: 到标志外面最近一点的距离(越往里越厚)。
+            for (y in 0 until gh) for (x in 0 until gw) {
+                val i = y * gw + x
+                if (d[i] == 0) continue
+                var v = d[i]
+                if (x > 0) v = min(v, d[i - 1] + 3)
+                if (y > 0) v = min(v, d[i - gw] + 3)
+                if (x > 0 && y > 0) v = min(v, d[i - gw - 1] + 4)
+                if (x < gw - 1 && y > 0) v = min(v, d[i - gw + 1] + 4)
+                if (x == 0 || y == 0 || x == gw - 1 || y == gh - 1) v = min(v, 3)
+                d[i] = v
+            }
+            var best = 0
+            var bi = 0
+            for (y in gh - 1 downTo 0) for (x in gw - 1 downTo 0) {
+                val i = y * gw + x
+                if (d[i] == 0) continue
+                var v = d[i]
+                if (x < gw - 1) v = min(v, d[i + 1] + 3)
+                if (y < gh - 1) v = min(v, d[i + gw] + 3)
+                if (x < gw - 1 && y < gh - 1) v = min(v, d[i + gw + 1] + 4)
+                if (x > 0 && y < gh - 1) v = min(v, d[i + gw - 1] + 4)
+                d[i] = v
+                if (v > best) {
+                    best = v
+                    bi = i
+                }
+            }
+            val px = ((bi % gw) * k + k / 2).toFloat()
+            val py = ((bi / gw) * k + k / 2).toFloat()
+            val radius = maxOf(best / 3f * k, 4f)
+            val far = maxOf(
+                hypot(px, py), hypot(w - px, py), hypot(px, h - py), hypot(w - px, h - py),
+            )
+            return IntroLogo(mask, color, px, py, (far / radius * 1.25f).coerceIn(4f, 120f))
+        }
+    }
+}
+
 /** 两端都放慢的 smoothstep: 起手不突兀, 落点不急刹。 */
 private fun smooth(p: Float): Float = p * p * (3f - 2f * p)
 
@@ -629,10 +959,10 @@ object BootVeil {
     /** 桌面画完第一帧: 记下"显示过了", 并约好 [delayMs] 之后揭开。 */
     fun arm(delayMs: Long) {
         desktopShown = true
-        // 先把壁纸/预览放起来: 遮罩还盖着(看不见), 但这 1.5 秒足够解码器出第一帧。否则过渡时
-        // "洞"里透出来的是一块还没起播的黑 SurfaceView —— 图标淡掉像在黑底上放大, 文字淡掉就像
-        // "变成黑字"。要"镜头从图标穿过去", 洞后面必须有真画面。
-        revealed = true
+        // 没有影片时: 先把壁纸/预览放起来, 遮罩还盖着(看不见), 这 1.5 秒足够解码器出第一帧。
+        // 否则过渡时"洞"里透出来的是一块还没起播的黑 SurfaceView —— 图标淡掉像在黑底上放大。
+        // 有影片时不能提前起: 两个解码器一起跑, 影片会卡; 影片自己在尾巴前 1.2 秒才放它们开工。
+        if (veil?.usesVideo != true) revealed = true
         if (armed || signaled) return
         armed = true
         veil?.armReveal(delayMs)
