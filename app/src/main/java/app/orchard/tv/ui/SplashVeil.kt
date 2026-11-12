@@ -568,6 +568,15 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
         art.drawBackdrop(canvas, w, h)
         art.drawBrand(canvas, w, h, 1f)
         drawHint(canvas, w, h)
+        BootVeil.debugNote?.let {
+            notePaint.textSize = 12f * resources.displayMetrics.density
+            canvas.drawText(it, 24f * resources.displayMetrics.density, 40f * resources.displayMetrics.density, notePaint)
+        }
+    }
+
+    private val notePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(150, 255, 255, 255)
+        textSize = 24f
     }
 
     /**
@@ -594,7 +603,7 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
         private const val VIDEO_FIRST_FRAME_MS = 2500L
 
         /** 从挂上遮罩算起, 最多停这么久。 */
-        private const val HARD_CAP_MS = 7500L
+        private const val HARD_CAP_MS = 10_000L
 
         /** 放开桌面到撤掉遮罩之间留的时间: 给壁纸/卡片画第一帧。 */
         private const val LEAD_MS = 260L
@@ -605,6 +614,9 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
 }
 
 object BootVeil {
+    /** 临时调试角标: 首列是直播/非直播、走到哪个分支(打在开屏左上角)。 */
+    var debugNote: String? = null
+
     private var veil: SplashVeil? = null
     private var armed = false
     private var signaled = false
