@@ -644,6 +644,10 @@ object BootVeil {
      */
     var revealed by mutableStateOf(false)
 
+    /** 遮罩是否还盖在桌面上(尚未约定揭开)。和 revealed 分开: revealed 只放开内容起播,
+     *  covering 才代表屏幕上还被遮罩盖着 —— 开机预挂载直播预览只在 covering 期间做。 */
+    var covering by mutableStateOf(true)
+
     /**
      * 开机时 Activity 会先后建两次(先解锁前那次只铺一张图, 解锁后再真正启动), 所以不能靠
      * savedInstanceState 判断要不要盖开屏 —— 看这个标志: 还没显示过桌面就盖。
@@ -655,6 +659,7 @@ object BootVeil {
         veil = v
         armed = false
         signaled = false
+        covering = true
         generation++
     }
 
@@ -669,6 +674,7 @@ object BootVeil {
     /** 桌面画完第一帧: 记下"显示过了", 并约好 [delayMs] 之后揭开。 */
     fun arm(delayMs: Long) {
         desktopShown = true
+        covering = false
         // 没有影片时: 先把壁纸/预览放起来, 遮罩还盖着(看不见), 这 1.5 秒足够解码器出第一帧。
         // 否则过渡时"洞"里透出来的是一块还没起播的黑 SurfaceView —— 图标淡掉像在黑底上放大。
         // 有影片时不能提前起: 两个解码器一起跑, 影片会卡; 影片自己在尾巴前 1.2 秒才放它们开工。
@@ -687,6 +693,7 @@ object BootVeil {
     fun reveal() {
         if (signaled) return
         signaled = true
+        covering = false
         veil?.revealNow()
     }
 }

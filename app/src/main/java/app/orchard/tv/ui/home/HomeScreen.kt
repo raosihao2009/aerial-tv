@@ -379,6 +379,12 @@ fun HomeScreen(
         animationSpec = androidx.compose.animation.core.tween(UI_FADE_MS, easing = Motion.EaseInOut), label = "uiAlpha")
     LaunchedEffect(channelPreviewVisible) { vm.livePlaying = channelPreviewVisible; liveReadyState.value = false }
 
+    // 开机预挂载: 遮罩还盖着、网格里存在被标记的直播预览卡时, 不等焦点落上去就先把
+    // ChannelFocusPreview 挂上, 让它在遮罩后面开始解析/缓冲, 产生 loading 状态。
+    // 否则焦点要等 loaded 之后才请求落到直播卡, 遮罩期间预览根本没挂载, ld 一直是 0。
+    val bootLiveMarked = vm.apps.any { it.packageName in AerialSettings.liveAppPackages }
+    val preMountLive = BootVeil.covering && bootLiveMarked && AerialSettings.livePreviewEnabled
+
     // 揭罩轮询:
     //   * 网格里有被标记的直播预览卡(mark>0): 按直播场景等预览加载图出现再消失(或出帧) → 300ms 后撤;
     //     不依赖 playing 这个"焦点已注册"信号——冷启动焦点要等 loaded 之后才请求落到直播卡上,
@@ -1016,14 +1022,14 @@ fun HomeScreen(
             // ===== 二创：直播预览，只在焦点选中第一排目标应用时组合 =====
             // 用 remember 缓存当前源的查找结果：HomeScreen 因 now 分钟 tick / 焦点变化等
             // 重组时，不必每次都重新遍历 liveSources 列表找 firstOrNull。
-            val previewSource = remember(channelPreviewVisible, vm.liveSources, vm.pendingLiveSourceId, vm.currentLiveSourceId) {
-                if (channelPreviewVisible) {
+            val previewSource = remember(channelPreviewVisible || preMountLive, vm.liveSources, vm.pendingLiveSourceId, vm.currentLiveSourceId) {
+                if (channelPreviewVisible || preMountLive) {
                     vm.liveSources.firstOrNull {
                         it.id == (vm.pendingLiveSourceId ?: vm.currentLiveSourceId)
                     }
                 } else null
             }
-            if (channelPreviewVisible) {
+            if (channelPreviewVisible || preMountLive) {
                 ChannelFocusPreview(
                     source = previewSource,
                     onFallback = {
