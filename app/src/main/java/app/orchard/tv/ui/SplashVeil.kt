@@ -295,9 +295,15 @@ class SplashVeil(context: Context) : FrameLayout(context) {
     private var fadingOut = false
     /** 桌面画好了(视频模式下只作记录)。 */
     private var desktopReady = false
+    /** 影片打不开, 已经退回自绘的标志动画。 */
+    private var videoFailed = false
 
     init {
-        if (!usesVideo) {
+        if (usesVideo) {
+            // 影片出第一帧之前(媒体服务冷启动可能一两秒), 这块必须是黑的: 上一版这里没背景、
+            // 又没挂 MarkView, 于是遮罩整个是透明的 —— 开机直接看见桌面, 像"没有开屏"。
+            setBackgroundColor(Color.BLACK)
+        } else {
             // 内容视图刚挂上、短片还没出第一帧之前, 这块背景就是窗口背景那张开屏静图(黑底+图标+Aerial)。
             // 不挂背景: 纯黑由 MarkView 自己画, logo 也只由它画一份。窗口背景是纯黑(见 MainActivity)。
             addView(mark, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
@@ -332,6 +338,8 @@ class SplashVeil(context: Context) : FrameLayout(context) {
             mp.setSurface(Surface(st))
             mp.setVolume(0f, 0f)
             mp.isLooping = false
+            // 影片迟迟不出第一帧(解码器忙/文件有问题): 8 秒后照样退回标志动画, 不能一直黑着。
+            handler.postDelayed({ if (player === mp && !videoEnded && !videoFailed) fallbackToMark() }, 8000L)
             mp.setOnPreparedListener { p ->
                 p.start()
                 // 影片尾巴前 1.2 秒放壁纸/预览开工: 等镜头飞进去的时候, 洞后面已经是真画面。
@@ -447,6 +455,7 @@ class SplashVeil(context: Context) : FrameLayout(context) {
 
     private fun fallbackToMark() {
         if (fadingOut || videoEnded) return
+        videoFailed = true
         releasePlayer()
         videoView?.let { (it.parent as? ViewGroup)?.removeView(it) }
         videoView = null
@@ -472,7 +481,7 @@ class SplashVeil(context: Context) : FrameLayout(context) {
 
     /** 桌面首帧到了: 收起短片, 文字淡到透明, 标志放大, 黑幕收起。只做一次。 */
     fun revealNow() {
-        if (usesVideo) {
+        if (usesVideo && !videoFailed) {
             // 有影片时桌面报"好了"只记一笔: 影片该放完, 飞进去收尾。
             desktopReady = true
             return
