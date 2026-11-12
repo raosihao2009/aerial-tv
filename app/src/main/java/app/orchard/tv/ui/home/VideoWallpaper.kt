@@ -30,6 +30,7 @@ import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import app.orchard.tv.ui.components.FilmSlot
 import app.orchard.tv.settings.AerialSettings
+import app.orchard.tv.ui.BootVeil
 import app.orchard.tv.system.DiagLog
 import app.orchard.tv.ui.theme.Motion
 import app.orchard.tv.wallpaper.AerialStream
@@ -307,7 +308,9 @@ fun VideoWallpaper(
             DiagLog.i("video wallpaper starts (${p.currentMediaItem?.mediaId} at ${p.currentPosition} ms, idle $idle)")
             Wallpapers.dropFilmFrost()
             if (p.playbackState == Player.STATE_IDLE) p.prepare()
-            p.playWhenReady = true
+            // 冷启动: 准备好、渲出第一帧就停住 —— 屏幕上已经有画面(不会揭开时是一片黑 SurfaceView),
+            // 但解码器不转, 不和开屏动画抢 GPU/解码器。遮罩揭开的那一刻再放它走。
+            p.playWhenReady = BootVeil.revealed
             // In over the picture each time frames come: at the start, and again after a failure
             // took it down (onPlayerError).
             snapshotFlow { showing }.collect { if (it && cover.targetValue < 1f) cover.animateTo(1f, tween(1200, easing = Motion.EaseOut)) }
@@ -346,6 +349,10 @@ fun VideoWallpaper(
             delay(KEEP_STOPPED_MS)
             release()
         }
+    }
+    // 开屏遮罩揭开: 停滞的影片接着走(此前只渲了第一帧)。
+    LaunchedEffect(BootVeil.revealed) {
+        if (BootVeil.revealed) player?.let { if (it.playWhenReady.not()) it.playWhenReady = true }
     }
     LaunchedEffect(keep) {
         if (!keep && !play && player != null && cover.value == 0f) letGo()

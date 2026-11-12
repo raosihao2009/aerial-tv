@@ -82,45 +82,6 @@ def _round_corner(points, vertex, u, v, geo):
     cubic(0, p - a - b, 0, p - a, 0, p)
 
 
-def brand_icon(side, radius):
-    """The launcher icon as the app draws it: the adaptive icon's two vectors (gradient, arc), full
-    bleed, cut to the same continuous corner the runtime uses.
-
-    docs/brand/icon.png carries its own transparent margin, so using it (and replacing its alpha) left
-    a black wedge inside the cut and made the clip's icon smaller and rounder than the view's.
-    """
-    ss = 4  # supersample, so the glyph's stroke stays clean
-    n = side * ss
-    # android:startX/Y=18 endX/Y=90 of a 108 viewport: a linear gradient along the diagonal.
-    img = Image.new("RGB", (n, n))
-    px = img.load()
-    start = (0x2F, 0xD0, 0xA5)
-    end = (0x5B, 0x5B, 0xF0)
-    k = n / 108.0
-    for y in range(n):
-        for x in range(n):
-            t = (x / k + y / k - 36.0) / 144.0
-            t = 0.0 if t < 0 else (1.0 if t > 1 else t)
-            px[x, y] = (
-                int(start[0] + (end[0] - start[0]) * t),
-                int(start[1] + (end[1] - start[1]) * t),
-                int(start[2] + (end[2] - start[2]) * t),
-            )
-    img = img.convert("RGBA")
-    # M33.75,65.25 c6.75,-13.5 13.5,-20.25 20.25,-20.25 s13.5,6.75 20.25,20.25, stroked 5.4
-    pts = []
-    p0 = (33.75, 65.25)
-    pts += _cubic(p0, (40.5, 51.75), (47.25, 45.0), (54.0, 45.0), 24)
-    pts += _cubic((54.0, 45.0), (60.75, 45.0), (67.5, 51.75), (74.25, 65.25), 24)
-    draw = ImageDraw.Draw(img)
-    draw.line([(x * ss, y * ss) for x, y in pts], fill=(255, 255, 255, 255), width=int(round(5.4 * ss)), joint="curve")
-    for x, y in (pts[0], pts[-1]):
-        r = 5.4 / 2
-        draw.ellipse(((x - r) * ss, (y - r) * ss, (x + r) * ss, (y + r) * ss), fill=(255, 255, 255, 255))
-    img = img.resize((side, side), Image.LANCZOS)
-    img.putalpha(smooth_rect_mask(side, side, radius, APPLE_SMOOTHING))
-    return img
-
 def smooth_rect_mask(w, h, radius, smoothing=APPLE_SMOOTHING, supersample=4):
     """White inside a w×h rect with continuous corners, clear outside (an L-mode mask)."""
     budget = min(w, h) / 2
@@ -137,7 +98,7 @@ def smooth_rect_mask(w, h, radius, smoothing=APPLE_SMOOTHING, supersample=4):
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ICON = os.path.join(ROOT, "docs/brand/icon.png")
+ICON = os.path.join(ROOT, "app/src/main/res/drawable-nodpi/splash_icon.png")
 FONT = os.path.join(ROOT, "app/src/main/res/font/inter.ttf")
 OUT = os.path.join(ROOT, "app/src/main/assets/intro.mp4")
 
@@ -173,7 +134,9 @@ def mark():
 
     radius = W * CARD_CORNER_RATIO
     side = int(icon_side)
-    icon = brand_icon(side, radius)
+    # 和运行时同一张图(drawable-nodpi/splash_icon.png)、同一套连续圆角。
+    icon = Image.open(ICON).convert("RGBA").resize((side, side), Image.LANCZOS)
+    icon.putalpha(smooth_rect_mask(side, side, radius, APPLE_SMOOTHING))
     top = (H - icon_side) / 2
     layer.alpha_composite(icon, (int(round(left)), int(round(top))))
 

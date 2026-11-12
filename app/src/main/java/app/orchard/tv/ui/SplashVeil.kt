@@ -45,9 +45,13 @@ private class SplashArt(context: Context) {
     }
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
 
-    /** 图标; 取不到就不画(有的电视把 leanback banner 当图标, 尺寸很小)。 */
+    /**
+     * 图标: 用包里那张(品牌图标铺满整格的那一版, 见 drawable-nodpi/splash_icon.png), 不用
+     * PackageManager 返回的自适应图标 —— 那个前景只占 108 画布的 37%, 放到开屏里比品牌图形小一圈。
+     * 取不到就不画。
+     */
     val icon: Bitmap? = runCatching {
-        val d: Drawable = context.packageManager.getApplicationIcon(context.packageName)
+        val d: Drawable = ResourcesCompat.getDrawable(context, R.drawable.splash_icon, null)!!
         val w = d.intrinsicWidth.takeIf { it > 0 } ?: 96
         val h = d.intrinsicHeight.takeIf { it > 0 } ?: 96
         Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { bmp ->
