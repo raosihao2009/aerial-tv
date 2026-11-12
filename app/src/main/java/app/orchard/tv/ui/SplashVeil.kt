@@ -332,7 +332,6 @@ private class SplashArt(context: Context) {
  */
 class SplashBackground(context: Context) : Drawable() {
     private val art = SplashArt(context)
-    private val d = context.resources.displayMetrics.density
     private val framePaint = Paint(Paint.FILTER_BITMAP_FLAG)
     /** 0 时整张都不画: 遮罩盖上来之后每帧再画一遍这张字, 就是白花的钱。 */
     private var alpha = 255
@@ -346,13 +345,6 @@ class SplashBackground(context: Context) : Drawable() {
         art.drawBackdrop(canvas, w, h)
         art.drawBrand(canvas, w, h, 1f)
         art.drawHint(canvas, w, h, "桌面正在准备中")
-        BootVeil.debugNote?.let {
-            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.rgb(255, 226, 92)
-                textSize = 16f * d
-            }
-            canvas.drawText(it, 24f * d, 48f * d, p)
-        }
     }
 
     override fun setAlpha(alpha: Int) {
@@ -611,15 +603,6 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
         art.drawBackdrop(canvas, w, h, phase)
         art.drawBrand(canvas, w, h, 1f)
         drawHint(canvas, w, h)
-        BootVeil.debugNote?.let {
-            notePaint.textSize = 16f * resources.displayMetrics.density
-            canvas.drawText(it, 24f * resources.displayMetrics.density, 48f * resources.displayMetrics.density, notePaint)
-        }
-    }
-
-    private val notePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(255, 226, 92)
-        textSize = 24f
     }
 
     /**
@@ -657,9 +640,6 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
 }
 
 object BootVeil {
-    /** 临时调试角标: 首列是直播/非直播、走到哪个分支(打在开屏左上角)。 */
-    var debugNote: String? = null
-
     /** 每挂一次遮罩 +1: HomeScreen 里的揭罩轮询按它重启, 热启动也会重新跑一遍。 */
     var generation by mutableStateOf(0)
 
@@ -689,12 +669,6 @@ object BootVeil {
     }
 
     fun hasArmed(): Boolean = armed
-
-    /** 更新调试角标并让遮罩重绘: 否则协程里改了字段, 屏幕上还停留在第一帧的旧角标。 */
-    fun setNote(text: String?) {
-        debugNote = text
-        veil?.invalidate()
-    }
 
     /** 桌面画完第一帧: 记下"显示过了", 并约好 [delayMs] 之后揭开。 */
     fun arm(delayMs: Long) {

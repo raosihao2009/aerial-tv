@@ -389,17 +389,8 @@ fun HomeScreen(
             // 循环里直接读 vm.apps: 不能用组合阶段抓下来的局部 apps 引用,
             // 那是最初的空 List, vm.apps 更新后协程里看不到新列表(n 永远是 0)。
             val grid = vm.apps
-            val marked = grid.count { it.packageName in AerialSettings.liveAppPackages }
             val ready = liveReadyState.value
-            val loading = liveLoadingState.value
             val elapsed = System.currentTimeMillis() - start
-            val markKey = AerialSettings.liveAppPackages.firstOrNull().orEmpty().take(16)
-            BootVeil.setNote(
-                "mark=$marked ready=${if (ready) 1 else 0} " +
-                "ld=${if (loading) 1 else 0} playing=${if (vm.livePlaying) 1 else 0} " +
-                "n=${grid.size} m=${AerialSettings.liveAppPackages.size} k=$markKey " +
-                "loaded=${if (vm.loaded) 1 else 0} t=$elapsed"
-            )
             when {
                 // 预览已经出帧: 提前一点撤。
                 ready -> BootVeil.arm(300)
