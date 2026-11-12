@@ -170,17 +170,12 @@ def frames():
     rgb, alpha = a[:, :, :3], a[:, :, 3:] / 255.0
     glow = np.asarray(base.filter(ImageFilter.GaussianBlur(W / 90))).astype(np.float32)[:, :, :3]
 
-    for i in range(FRAMES):
-        t = i / FRAMES
-        # The gleam is in and out well inside the clip so frame 0 and the last frame are identical.
-        env = smooth(0.0, 0.18, t) * (1 - smooth(0.82, 1.0, t))
-        sweep = smooth(0.0, 1.0, t) * 1.0
-        lit = gleam(sweep) * env * 0.55
-        pixels = rgb + (255.0 * lit)[:, :, None] * alpha
-        # A barely-there bloom that breathes once, under the mark.
-        b = 0.05 + 0.02 * np.sin(np.pi * t)
-        pixels = np.clip(pixels + glow * b, 0, 255)
-        yield np.dstack([pixels * alpha, np.full((H, W, 1), 255.0)]).astype(np.uint8)[:, :, :3]
+    # 完全静止: 同一帧重复。之前那道左右扫过的微光 + 呼吸光晕, 在白字上会被读成"字在左右跑",
+    # 而它对开机观感毫无用处 —— 开屏只是一个等着的标志, 不该自己动。
+    pixels = np.clip(rgb + glow * 0.05, 0, 255)
+    frame = np.dstack([pixels * alpha, np.full((H, W, 1), 255.0)]).astype(np.uint8)[:, :, :3]
+    for _ in range(FRAMES):
+        yield frame.copy()
 
 
 def main():

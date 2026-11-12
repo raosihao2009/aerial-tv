@@ -288,6 +288,7 @@ private class SplashVideo(context: Context) : TextureView(context) {
  * 唯一的 Recomposer, 摘掉之后主界面再也拿不到帧, 于是永远黑屏。
  */
 class SplashVeil(context: Context) : FrameLayout(context) {
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     private val video = SplashVideo(context)
     private val mark = MarkView(context)
 
@@ -357,11 +358,13 @@ class SplashVeil(context: Context) : FrameLayout(context) {
 
     private fun finish() {
         video.stop()
-        // 黑幕已经收起、桌面完全可见, 但"这一帧"不抢解码器: 视频壁纸和直播预览都在等 revealed,
-        // 之前它在动画结束的同一刻翻 true, 1080p 解码 + 拉流正好压在 600ms 的淡出尾巴上 —— 就是
-        // "最后那几秒特别卡"的来源。让桌面先静 800ms, 再放这些重活开工。
         (parent as? android.view.ViewGroup)?.removeView(this)
-        postDelayed({
+        // 黑幕已经收起、桌面完全可见, 但"这一帧"不抢解码器: 视频壁纸和直播预览都在等 revealed,
+        // 之前它在动画结束的同一刻翻 true, 1080p 解码 + 拉流正好压在淡出尾巴上。让桌面先静
+        // 800ms 再放这些重活开工。
+        // 注意不能用这个 View 的 postDelayed: 上面已经把它从视图树摘了, detached View 的 post 进
+        // 了永不回调的队列 —— 上一版就是这样 revealed 永远不翻, 壁纸停在第一帧、直播一直转圈。
+        handler.postDelayed({
             BootVeil.revealed = true
             onRevealed?.invoke()
         }, 800L)
