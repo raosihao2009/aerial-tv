@@ -117,18 +117,16 @@ def smooth(a, b, x):
 
 
 def mark():
-    """The icon and the word, as an RGBA layer the size of the screen."""
+    """The icon and the word, stacked: icon on top, the word under it, the pair centred."""
     text_size = min(W * 0.082, H * 0.175)
-    icon_side = text_size
-    gap = text_size * 0.42
+    icon_side = text_size * 1.45
+    gap = text_size * 0.30
     spacing = text_size * 0.04
     font = ImageFont.truetype(FONT, int(round(text_size)))
     ascent, descent = font.getmetrics()
     text = "Aerial"
     advances = [font.getlength(ch) + spacing for ch in text]
     text_w = sum(advances)  # Android counts the trailing letter spacing too
-    icon_room = icon_side + gap
-    left = W / 2 - (icon_room + text_w) / 2
 
     layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
 
@@ -137,12 +135,14 @@ def mark():
     # 和运行时同一张图(drawable-nodpi/splash_icon.png)、同一套连续圆角。
     icon = Image.open(ICON).convert("RGBA").resize((side, side), Image.LANCZOS)
     icon.putalpha(smooth_rect_mask(side, side, radius, APPLE_SMOOTHING))
-    top = (H - icon_side) / 2
+    total = icon_side + gap + (ascent + descent)
+    top = (H - total) / 2
+    left = W / 2 - icon_side / 2
     layer.alpha_composite(icon, (int(round(left)), int(round(top))))
 
     draw = ImageDraw.Draw(layer)
-    baseline = H / 2 + (ascent - descent) / 2
-    x = left + icon_room
+    baseline = top + icon_side + gap + ascent
+    x = W / 2 - text_w / 2
     for ch, adv in zip(text, advances):
         draw.text((x, baseline), ch, font=font, fill=(255, 255, 255, 255), anchor="ls")
         x += adv

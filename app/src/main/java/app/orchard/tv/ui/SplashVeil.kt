@@ -37,6 +37,12 @@ import kotlin.math.sin
  * 字用包内的 Inter(和桌面同一套字体), 图标用应用图标, 圆角取卡片圆角的半径: 卡片画在设计稿 960
  * 宽的画布上、圆角 12dp, 也就是屏宽的 1/80, 这里按同一个比例切。
  */
+/** 卡片圆角 12dp / 设计画布 960 = 1/80: 图标、卡片、开屏都按这个比例切。 */
+private const val CARD_CORNER_RATIO = 1f / 80f
+
+/** 连续圆角的 smoothing, 和 [AppleSmoothing] 一致。 */
+private const val CORNER_SMOOTHING = 0.6f
+
 private class SplashArt(context: Context) {
     val word = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
@@ -74,40 +80,48 @@ private class SplashArt(context: Context) {
             .getOrNull()
     }
 
-    /** 图标在屏幕上的位置, 整组横排在屏幕中线上时。 */
-    class Box(val side: Float, val left: Float) {
+    /** 图标在屏幕上的位置: 上下排版, 图标在上、字在下, 整组在屏幕中线上。 */
+    class Box(val side: Float, val left: Float, val top: Float) {
         val centerX: Float get() = left + side / 2
+        val centerY: Float get() = top + side / 2
     }
 
     private var silhouette: android.graphics.Path? = null
     private var silhouetteKey = ""
 
-    /** 整组(图标+字)的外形轮廓。放大时用它当"洞", 路径在设备分辨率下光栅, 边缘始终干净。 */
+    /**
+     * 图标的外形轮廓: 放大时"镜头从图标里穿过去", 洞就是这个图标。路径每帧按当前倍数在设备
+     * 分辨率下光栅, 边缘干净, 不会像放大位图那样出锯齿。
+     */
     internal fun silhouette(w: Float, h: Float): android.graphics.Path {
         relayout(w, h)
         val key = "$w/$h"
         if (silhouette != null && silhouetteKey == key) return silhouette!!
-        val radius = w * CARD_CORNER_RATIO
         val path = smoothRectPath(
-            androidx.compose.ui.geometry.Rect(left, h / 2f - iconSide / 2f, left + iconSide, h / 2f + iconSide / 2f),
-            radius,
+            androidx.compose.ui.geometry.Rect(left, top, left + iconSide, top + iconSide),
+            w * CARD_CORNER_RATIO,
         ).asAndroidPath()
-        val fm = word.fontMetrics
-        val baseline = wordTop + 2f - fm.top
-        val text = android.graphics.Path()
-        word.getTextPath(BRAND, 0, BRAND.length, left + room, baseline, text)
-        path.addPath(text)
         silhouette = path
         silhouetteKey = key
         return path
+    }
+
+    private val iconRectF = RectF()
+    /** 图标在屏幕上的矩形(上下排版后: 中间偏上那一块)。 */
+    internal fun iconRect(w: Float, h: Float): RectF {
+        relayout(w, h)
+        iconRectF.set(left, top, left + iconSide, top + iconSide)
+        return iconRectF
     }
 
     private var cachedW = -1f
     private var cachedH = -1f
     private var textW = 0f
     private var iconSide = 0f
-    private var room = 0f
     private var left = 0f
+    private var top = 0f
+    private var textLeft = 0f
+    private var baseline = 0f
 
     /** "Aerial" 烤成一张白色位图: 每帧带不同 alpha 去 drawText 会让 Skia 每帧重新光栅化字形。 */
     private var wordBitmap: Bitmap? = null
@@ -121,9 +135,16 @@ private class SplashArt(context: Context) {
         word.textSize = sizeOf(w, h)
         // 每帧都 measureText 要重新 shaping 一遍, 弱 GPU 上就是一卡一卡的原因; 尺寸没变就算一次。
         textW = word.measureText(BRAND)
-        iconSide = word.textSize
-        room = if (icon != null) iconSide * 1.42f else 0f
-        left = w / 2f - (room + textW) / 2f
+        // 上下排版: 图标是主角, 比字大一圈; 字在图标下面, 中间留一点气。
+        iconSide = word.textSize * 1.45f
+        val gap = word.textSize * 0.30f
+        val fm = word.fontMetrics
+        val textH = fm.descent - fm.ascent
+        val total = iconSide + gap + textH
+        top = h / 2f - total / 2f
+        left = w / 2f - iconSide / 2f
+        textLeft = w / 2f - textW / 2f
+        baseline = top + iconSide + gap + fm.ascent
         bakeWord(w, h)
     }
 
@@ -142,13 +163,13 @@ private class SplashArt(context: Context) {
         }.getOrNull() ?: return
         wordBitmap?.recycle()
         wordBitmap = bmp
-        // 直接 drawText 的基线: h/2 - (descent+ascent)/2; 位图的 top 就按同一条基线反推。
-        wordTop = h / 2f - (fm.descent + fm.ascent) / 2f + fm.top - 2f
+        // 位图的 top 按基线反推(位图里画的基线是 2f - ascent)。
+        wordTop = baseline + fm.top - 2f
     }
 
     fun box(w: Float, h: Float): Box {
         relayout(w, h)
-        return Box(iconSide, left)
+        return Box(iconSide, left, top)
     }
 
     /** [fade] 管图标, [wordFade] 管文字: 开屏时文字先淡到透明, 图标留到整体放大那一段。 */
@@ -159,13 +180,11 @@ private class SplashArt(context: Context) {
         val bmp = roundedIcon(iconSide.roundToInt(), radius)
         if (bmp != null && fade > 0f) {
             iconPaint.alpha = (fade * 255).toInt().coerceIn(0, 255)
-            val top = h / 2f - iconSide / 2f
             canvas.drawBitmap(bmp, null, RectF(left, top, left + iconSide, top + iconSide), iconPaint)
         }
-        // 纵向居中对齐图标: 字的中线压在屏幕中线上
         wordBitmap?.let { b ->
             wordPaint.alpha = (wordFade * 255).toInt().coerceIn(0, 255)
-            canvas.drawBitmap(b, left + room, wordTop, wordPaint)
+            canvas.drawBitmap(b, textLeft, wordTop, wordPaint)
         }
     }
 
@@ -173,8 +192,6 @@ private class SplashArt(context: Context) {
 
     private companion object {
         const val BRAND = "Aerial"
-        /** 卡片圆角 12dp / 设计画布 960 = 1/80。 */
-        const val CARD_CORNER_RATIO = 1f / 80f
     }
 }
 
@@ -359,10 +376,9 @@ private class MarkView(context: Context) : View(context) {
         val w = width.toFloat()
         val h = height.toFloat()
         val box = art.box(w, h)
-        // 整组横排, 中心本来就在屏幕中线 (SplashArt 按整组居中排的), 绕它放大:
-        // 图标和字一起从中心往外长, 字不会被带着左右跑。上一版钉在图标中心, 字在淡出时横移。
-        pivotX = w / 2f
-        pivotY = h / 2f
+        // 上下排版之后, 镜头是从图标里穿过去的: 绕图标中心放大, 洞也就是这个图标。
+        pivotX = box.centerX
+        pivotY = box.centerY
         val far = maxOf(hypot(pivotX, pivotY), hypot(w - pivotX, pivotY), hypot(pivotX, h - pivotY), hypot(w - pivotX, h - pivotY))
         endScale = (far / (box.side / 2f) * 1.15f).coerceIn(4f, 24f)
     }
@@ -383,14 +399,7 @@ private class MarkView(context: Context) : View(context) {
         // 也不再需要 saveLayer / 离屏: 一次实心填充 + 一条裁剪路径, 比整屏贴一张大位图还便宜。
         val backed = Build.VERSION.SDK_INT >= 26 && usePathCurtain
         if (backed) {
-            if (blackAlpha > 0f) {
-                canvas.save()
-                canvas.scale(scale, scale, pivotX, pivotY)
-                canvas.clipOutPath(art.silhouette(w, h))
-                veilPaint.alpha = (blackAlpha * 255).toInt().coerceIn(0, 255)
-                canvas.drawRect(0f, 0f, w, h, veilPaint)
-                canvas.restore()
-            }
+            if (blackAlpha > 0f) drawCurtain(canvas, w, h)
         } else {
             if (curtain == null) canvas.drawColor(Color.BLACK)
             curtain?.let { c ->
@@ -408,6 +417,54 @@ private class MarkView(context: Context) : View(context) {
             art.drawBrand(canvas, w, h, inkAlpha, wordAlpha)
             canvas.restore()
         }
+    }
+
+    /**
+     * 带洞的黑幕。洞 = 缩放后的图标(连续圆角)。黑幕拆成"屏幕减去洞的矩形"的四条直边带, 再加上
+     * 四个圆角小块 —— 只有这几个角需要曲线, 每帧要算覆盖率的面积从整屏缩到半径大小的方块。
+     * 之前整屏贴一条巨大曲线路径, 放大到最后覆盖率要按整屏算, 就是末段卡顿的来源。
+     */
+    private fun drawCurtain(canvas: Canvas, w: Float, h: Float) {
+        val a = (blackAlpha * 255).toInt().coerceIn(0, 255)
+        veilPaint.alpha = a
+        veilPaint.isAntiAlias = false
+        val rect = art.iconRect(w, h)
+        val sx = pivotX + (rect.left - pivotX) * scale
+        val sy = pivotY + (rect.top - pivotY) * scale
+        val sw = rect.width() * scale
+        // 四条直边: 屏幕减去洞矩形
+        band(canvas, 0f, 0f, w, sy)
+        band(canvas, 0f, sy + sw, w, h)
+        band(canvas, 0f, sy, sx, sy + sw)
+        band(canvas, sx + sw, sy, w, sy + sw)
+        // 四个角: 在洞矩形四角的小方块里, 黑的地方是"方块减去图标的外形"
+        val reach = rect.width() * CARD_CORNER_RATIO * (1f + CORNER_SMOOTHING) * scale * 1.1f
+        val sil = art.silhouette(w, h)
+        val moved = android.graphics.Path(sil).also {
+            val m = android.graphics.Matrix()
+            m.setScale(scale, scale, pivotX, pivotY)
+            it.transform(m)
+        }
+        for (cx in floatArrayOf(sx, sx + sw - reach)) {
+            for (cy in floatArrayOf(sy, sy + sw - reach)) {
+                canvas.save()
+                canvas.clipRect(cx, cy, cx + reach, cy + reach)
+                canvas.clipOutPath(moved)
+                veilPaint.alpha = a
+                canvas.drawRect(cx, cy, cx + reach, cy + reach, veilPaint)
+                canvas.restore()
+            }
+        }
+    }
+
+    /** 一块矩形黑带(可为空); 不做抗锯齿, 边缘就是屏幕像素。 */
+    private fun band(canvas: Canvas, l: Float, t: Float, r: Float, b: Float) {
+        val left = maxOf(l, 0f)
+        val top = maxOf(t, 0f)
+        val right = minOf(r, width.toFloat())
+        val bottom = minOf(b, height.toFloat())
+        if (right <= left || bottom <= top) return
+        canvas.drawRect(left, top, right, bottom, veilPaint)
     }
 
     /** 每帧的透明度与放大倍数, 由 [SplashVeil] 的时钟推。 */
