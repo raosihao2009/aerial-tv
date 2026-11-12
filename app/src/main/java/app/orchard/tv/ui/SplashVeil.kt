@@ -237,55 +237,61 @@ private class SplashArt(context: Context) {
         val key = "$w/$h"
         if (bgShader == null || bgKey != key) {
             bgKey = key
-            // 底色直接取图标那套配色(青绿 → 蓝 → 靛紫), 压到很低的亮度当"背光面":
-            // 这样开屏和图标是同一个色彩家族, 不会一块蓝一块紫地打架。
-            // 底色压到接近黑: 真正的高级感来自"暗", 不是来自一块发亮的彩色。
+            // 底色: 左下暖橙红 → 中段品粉 → 右上紫蓝, 参考品牌宣传那套极光渐变, 整体偏亮通透。
             bgShader = android.graphics.LinearGradient(
                 0f, 0f, w, h,
                 intArrayOf(
-                    Color.rgb(38, 12, 16),    // 左下: 暖红的暗面
-                    Color.rgb(46, 14, 34),    // 转紫
-                    Color.rgb(38, 16, 52),    // 深紫
-                    Color.rgb(22, 16, 60),    // 右: 蓝紫
+                    Color.rgb(214, 66, 50),   // 左下: 暖橙红
+                    Color.rgb(196, 76, 118),  // 中段: 品粉
+                    Color.rgb(120, 70, 184),  // 转紫
+                    Color.rgb(52, 60, 176),   // 右上: 蓝紫
                 ),
-                floatArrayOf(0f, 0.4f, 0.75f, 1f),
+                floatArrayOf(0f, 0.38f, 0.72f, 1f),
                 android.graphics.Shader.TileMode.CLAMP,
             )
         }
         bgPaint.shader = bgShader
         canvas.drawRect(0f, 0f, w, h, bgPaint)
 
-        // 缓慢漂移的相位: 暖红光在下偏左, 冷紫光在上偏右, 各自沿小椭圆浮, 亮度呼吸。
-        val warmX = w * 0.30f + w * 0.035f * sin(phase * 0.50f)
-        val warmY = h * 0.66f + h * 0.025f * cos(phase * 0.38f)
-        val warmA = (110 + 18 * sin(phase * 0.50f)).toInt().coerceIn(70, 130)
-        // 两块光: 标志左下一点暖红的光(像被灯从下面打亮), 右上一点冷紫的辉光, 中间偏亮、
-        // 四角压暗 —— 就是那种"通透的高级渐变"。
+        // 三块大柔光色团各自沿小椭圆缓慢漂移、亮度轻微呼吸; 标志和小字不动。
+        // 暖橙红在下偏左, 品粉压在中间, 冷蓝紫在上偏右。
+        val warmX = w * 0.28f + w * 0.040f * sin(phase * 0.45f)
+        val warmY = h * 0.72f + h * 0.030f * cos(phase * 0.34f)
         val warm = android.graphics.RadialGradient(
-            warmX, warmY, maxOf(w, h) * 0.40f,
-            intArrayOf(Color.argb(warmA, 210, 74, 52), Color.argb(40, 170, 52, 90), Color.argb(0, 30, 12, 20)),
+            warmX, warmY, maxOf(w, h) * 0.52f,
+            intArrayOf(Color.argb(96, 255, 150, 80), Color.argb(28, 232, 96, 96), Color.argb(0, 232, 96, 96)),
             floatArrayOf(0f, 0.55f, 1f),
             android.graphics.Shader.TileMode.CLAMP,
         )
         bgPaint.shader = warm
         canvas.drawRect(0f, 0f, w, h, bgPaint)
 
-        val coolX = w * 0.72f - w * 0.035f * cos(phase * 0.42f)
-        val coolY = h * 0.34f + h * 0.025f * sin(phase * 0.36f)
-        val coolA = (80 + 14 * cos(phase * 0.42f)).toInt().coerceIn(50, 100)
+        val pinkX = w * 0.50f + w * 0.035f * cos(phase * 0.38f)
+        val pinkY = h * 0.52f + h * 0.028f * sin(phase * 0.30f)
+        val pink = android.graphics.RadialGradient(
+            pinkX, pinkY, maxOf(w, h) * 0.42f,
+            intArrayOf(Color.argb(72, 234, 124, 178), Color.argb(24, 206, 104, 160), Color.argb(0, 206, 104, 160)),
+            floatArrayOf(0f, 0.55f, 1f),
+            android.graphics.Shader.TileMode.CLAMP,
+        )
+        bgPaint.shader = pink
+        canvas.drawRect(0f, 0f, w, h, bgPaint)
+
+        val coolX = w * 0.74f - w * 0.040f * cos(phase * 0.40f)
+        val coolY = h * 0.30f + h * 0.030f * sin(phase * 0.32f)
         val glow = android.graphics.RadialGradient(
-            coolX, coolY, maxOf(w, h) * 0.45f,
-            intArrayOf(Color.argb(coolA, 108, 96, 226), Color.argb(34, 78, 62, 170), Color.argb(0, 12, 10, 20)),
+            coolX, coolY, maxOf(w, h) * 0.52f,
+            intArrayOf(Color.argb(104, 96, 112, 238), Color.argb(30, 80, 70, 180), Color.argb(0, 80, 70, 180)),
             floatArrayOf(0f, 0.55f, 1f),
             android.graphics.Shader.TileMode.CLAMP,
         )
         bgPaint.shader = glow
         canvas.drawRect(0f, 0f, w, h, bgPaint)
-        // 暗角: 四边压暗, 中间那一块更亮, 像被打了光。
+        // 轻暗角: 只把最外四边压一点, 中间保持亮。
         val vignette = android.graphics.RadialGradient(
-            w / 2f, h / 2f, maxOf(w, h) * 0.78f,
-            intArrayOf(Color.argb(0, 0, 0, 0), Color.argb(0, 0, 0, 0), Color.argb(120, 0, 0, 0)),
-            floatArrayOf(0f, 0.55f, 1f),
+            w / 2f, h / 2f, maxOf(w, h) * 0.80f,
+            intArrayOf(Color.argb(0, 0, 0, 0), Color.argb(0, 0, 0, 0), Color.argb(56, 0, 0, 0)),
+            floatArrayOf(0f, 0.6f, 1f),
             android.graphics.Shader.TileMode.CLAMP,
         )
         bgPaint.shader = vignette
@@ -384,7 +390,7 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
     private val art = SplashArt(context)
     private val handler = Handler(Looper.getMainLooper())
     private val hint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(180, 185, 195)
+        color = Color.rgb(230, 232, 240)
         textSize = 30f
         typeface = Typeface.create("sans-serif", Typeface.NORMAL)
     }
