@@ -48,7 +48,7 @@ import kotlin.math.sin
 private const val CARD_CORNER_RATIO = 1f / 80f
 
 /** 开屏图标自己的圆角, 按图标边长取: 比卡片圆角圆一档, 独看时不显得"方"。 */
-private const val ICON_CORNER_RATIO = 0.22f
+private const val ICON_CORNER_RATIO = 0.24f
 
 /** 连续圆角的 smoothing, 和 [AppleSmoothing] 一致。 */
 private const val CORNER_SMOOTHING = 0.6f
@@ -170,17 +170,16 @@ private class SplashArt(context: Context) {
         word.textSize = sizeOf(w, h)
         // 每帧都 measureText 要重新 shaping 一遍, 弱 GPU 上就是一卡一卡的原因; 尺寸没变就算一次。
         textW = word.measureText(BRAND)
-        // 上下排版: 图标是主角, 比字大一圈; 字在图标下面, 中间留一点气。
-        iconSide = word.textSize * 1.45f
-        val gap = word.textSize * 0.30f
+        // 横排: 图标在左、字在右, 整组在屏幕正中间; 两者垂直居中对齐。
+        iconSide = word.textSize * 1.15f
+        val gap = word.textSize * 0.42f
+        val total = iconSide + gap + textW
+        left = w / 2f - total / 2f
+        textLeft = left + iconSide + gap
+        top = h / 2f - iconSide / 2f
         val fm = word.fontMetrics
-        val textH = fm.descent - fm.ascent
-        val total = iconSide + gap + textH
-        top = h / 2f - total / 2f
-        left = w / 2f - iconSide / 2f
-        textLeft = w / 2f - textW / 2f
-        // ascent 是负值, 基线在"图标底 + 间距"再抬高 -ascent; 之前写成 +ascent, 字就压到图标上了。
-        baseline = top + iconSide + gap - fm.ascent
+        // 让文字的大写中线对齐图标中线: 基线 = 中线 + (ascent + descent) / 2 的相反数。
+        baseline = h / 2f - (fm.ascent + fm.descent) / 2f
         bakeWord(w, h)
     }
 
@@ -224,6 +223,21 @@ private class SplashArt(context: Context) {
         }
     }
 
+    /** 屏幕下方那行小字: 桌面还在准备。图标/字下面偏下, 水平居中。 */
+    fun drawHint(canvas: Canvas, w: Float, h: Float, text: String) {
+        relayout(w, h)
+        head.textSize = word.textSize * 0.40f
+        head.alpha = 150
+        canvas.drawText(text, w / 2f - head.measureText(text) / 2f, h / 2f + iconSide * 0.9f + word.textSize * 0.9f, head)
+    }
+
+    private val head = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        typeface = runCatching { ResourcesCompat.getFont(context, R.font.inter) }.getOrNull()
+            ?: Typeface.create("sans-serif", Typeface.NORMAL)
+        letterSpacing = 0.06f
+    }
+
     private fun sizeOf(w: Float, h: Float): Float = min(w * 0.082f, h * 0.175f).coerceAtLeast(28f)
 
     private companion object {
@@ -247,7 +261,10 @@ class SplashBackground(context: Context) : Drawable() {
         // 窗口背景在整棵视图树后面, 它画的标志不可能压住遮罩层 —— 它只负责"内容视图还没建好"的
         // 那几帧(冷启动开机最先看到的那一下)。过渡动画的标志仍只由 MarkView 一份负责。
         canvas.drawColor(Color.BLACK)
-        art.drawBrand(canvas, bounds.width().toFloat(), bounds.height().toFloat(), 1f)
+        val w = bounds.width().toFloat()
+        val h = bounds.height().toFloat()
+        art.drawBrand(canvas, w, h, 1f)
+        art.drawHint(canvas, w, h, "桌面正在准备中")
     }
 
     override fun setAlpha(alpha: Int) {
@@ -273,105 +290,66 @@ class SplashBackground(context: Context) : Drawable() {
  * 唯一的 Recomposer, 摘掉之后主界面再也拿不到帧, 于是永远黑屏。
  */
 /**
- * 开屏遮罩: 一块黑 + 标志(或一段开机影片), 最后"镜头推进"地把桌面让出来。
+ * 开屏遮罩: 一块黑 + 横排的图标与字 + 一行"桌面正在准备中"。影片放完(或到硬期限)就直接
+ * 让开桌面, 不做任何转场动画。
  *
- * 这里刻意只用一条时间线, 全部在主线程上、只靠 alpha 和 scale 两个量:
- * 影片放完 → 画面往你脸上推(scale 1→3) 同时这一层整体淡出 → 桌面在下面自然露出来;
- * 没有影片 → 同一个动作, 只是推的是自己画的那个标志。
- *
- * 以前那套"黑幕上挖一个标志形状的洞 + 后台线程从影片帧里抠标志"在盒子上去过一次:
- * 洞后面是还没起播的 SurfaceView(黑), 抠帧失败/影片不出帧时整条链路就停在黑屏上。
- * alpha + scale 不会"卡住", 最坏也只是淡出一块静止的黑幕。
+ * 这里刻意不依赖任何"过渡"机制: 没有挖洞、没有后台抠帧、没有位图 alpha、没有缩放动画。
+ * 之前那些做法在盒子上反复出现"洞后面是黑"、"淡出的是还没画的黑桌面", 于是看起来要么卡住
+ * 要么没有过渡。现在只剩"画"和"撤"两个动作。
  */
 class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(context) {
     private val ctx = context
     private val art = SplashArt(context)
-    private val framePaint = Paint(Paint.FILTER_BITMAP_FLAG)
     private val handler = Handler(Looper.getMainLooper())
+    private val hint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(150, 150, 150)
+        textSize = 30f
+        typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+    }
 
-    /** 有开机影片就放影片(苹果 TV 那段), 没有就走自己画的标志。 */
+    /** 有开机影片就放影片(苹果 TV 那段), 没有就只停在这张图上。 */
     val usesVideo: Boolean = withVideo && hasBootVideo(context)
 
     var onRevealed: (() -> Unit)? = null
 
     private var player: MediaPlayer? = null
-    /** setSurface 传出去的 Surface 必须留个引用: 只传一个临时对象, 它可能被回收, 之后一帧都不再来。 */
     private var playerSurface: Surface? = null
     private var videoView: TextureView? = null
     private var videoFrameSeen = false
-    /** 影片停下来的那一帧(取成位图自己画: TextureView 自己的 alpha 在盒子上不可靠)。 */
-    private var still: Bitmap? = null
-    /** 我们自己画的标志 + 文字, 烤成一张透明底位图: 透明用 paint.alpha, 绕开绘制里任何 alpha 损耗。 */
-    private var brand: Bitmap? = null
     private var videoEnded = false
     /** 影片起不来(编码不支持/文件坏了/迟迟不出帧)。 */
     private var broken = false
     private var removingVideo = false
     private var hardCapArmed = false
 
-    private var started = false
-    private var transitioning = false
+    private var finishing = false
     private var removed = false
-
-    private var pivotX = 0f
-    private var pivotY = 0f
-
-    /** 标志和文字的不透明度: 推进时先把自己淡成透明, 桌面从字缝里透出来。 */
-    private var brandFade = 1f
-    /** 黑幕的不透明度: 最后才收, 收完桌面就全露出来。 */
-    private var blackFade = 1f
-    /** 画面(影片或标志)的缩放: 1 = 原样, 越大越"贴脸"。 */
-    private var zoom = 1f
 
     init {
         setWillNotDraw(false)
-        if (usesVideo) {
-            // 影片层等量出尺寸再挂(见 onSizeChanged), 在它出第一帧之前就是纯黑。
+        setBackgroundColor(Color.BLACK)
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        if (usesVideo && videoView == null && !broken && !finishing) attachVideo()
+        // 全局硬期限: 不管影片准没准备起来, 到点就撤。
+        if (!hardCapArmed) {
+            hardCapArmed = true
+            handler.postDelayed({ if (!finished()) finishSoon(force = true) }, HARD_CAP_MS)
+        }
+        if (!usesVideo) {
+            // 没有影片就一直停在这张图上, 由桌面报"好了"/兜底来撤。
         }
     }
 
     // ---------------------------------------------------------------- 影片
 
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        measure()
-        bakeBrand()
-        // 全局硬期限: 不管影片准没准备起来, 7.5 秒必须开始收尾。
-        if (!hardCapArmed) {
-            hardCapArmed = true
-            handler.postDelayed({ if (!transitioning && !removed) endVideo() }, HARD_CAP_MS)
-        }
-        if (usesVideo && videoView == null && !broken && !transitioning) attachVideo()
-        // 没有影片: 量好就自己开始走时间线, 不依赖任何"桌面画好了"的信号。
-        if (!usesVideo && !transitioning && width > 0 && height > 0) maybeStartIdle()
-    }
-
-    private fun bakeBrand() {
-        if (brand != null || width <= 0 || height <= 0) return
-        brand = runCatching {
-            Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { b ->
-                art.drawBrand(Canvas(b), width.toFloat(), height.toFloat(), 1f)
-            }
-        }.getOrNull()
-    }
-
-    private fun measure() {
-        if (width <= 0 || height <= 0) return
-        val box = art.box(width.toFloat(), height.toFloat())
-        pivotX = box.centerX
-        pivotY = box.centerY
-        videoView?.pivotX = width / 2f
-        videoView?.pivotY = height / 2f
-    }
-
     private fun attachVideo() {
         val tv = TextureView(ctx)
-        // 不透明的话, 影片还没出帧时它就是一块死黑, 把下面我们自己画的标志盖掉(上一版冷启动
-        // "logo 没了变黑屏"就是这么来的)。
+        // 不透明的话, 影片还没出帧时它就是一块死黑, 把下面我们画的标志盖掉。
         tv.isOpaque = false
         videoView = tv
-        tv.pivotX = width / 2f
-        tv.pivotY = height / 2f
         addView(tv, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         tv.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
             override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) = startPlayer(tv)
@@ -381,26 +359,22 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
                 return true
             }
             override fun onSurfaceTextureUpdated(st: SurfaceTexture) {
-                if (!videoFrameSeen) markFrameSeen()
+                if (!videoFrameSeen) {
+                    videoFrameSeen = true
+                    fitVideo(tv)
+                }
             }
         }
-        // 2.5 秒还没出第一帧就别耗着: 当它坏了, 走标志那套。
+        // 2.5 秒还没出第一帧就别耗着: 当它坏了, 直接露出桌面。
         handler.postDelayed({
-            if (!videoFrameSeen && !videoEnded && !transitioning) {
+            if (!videoFrameSeen && !videoEnded && !finishing) {
                 broken = true
                 releasePlayer()
                 videoView?.let { removeView(it) }
                 videoView = null
-                maybeStartIdle()
+                finishSoon(force = true)
             }
         }, VIDEO_FIRST_FRAME_MS)
-    }
-
-    private fun markFrameSeen() {
-        if (videoFrameSeen) return
-        videoFrameSeen = true
-        videoView?.let { fitVideo(it) }
-        invalidate()
     }
 
     private fun startPlayer(tv: TextureView) {
@@ -417,65 +391,28 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
             playerSurface = sf
             mp.setSurface(sf)
             mp.setOnInfoListener { _, what, _ ->
-                if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) markFrameSeen()
+                if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) videoFrameSeen = true
                 false
             }
             mp.setVolume(0f, 0f)
             mp.isLooping = false
             mp.setOnPreparedListener { p ->
                 p.start()
-                // 影片尾巴前 1.2 秒先让壁纸/预览开工: 等镜头推进时, 后面已经是真画面而不是黑。
+                // 影片尾巴前 1.2 秒先让壁纸/预览开工: 撤遮罩时后面已经是真画面。
                 val tail = (p.duration - 1200).coerceAtLeast(0)
                 handler.postDelayed({ BootVeil.revealed = true }, tail.toLong())
-                measure()
                 fitVideo(tv)
             }
             mp.setOnCompletionListener { endVideo() }
-            // 硬期限: 影片的 completion 回调在某些盒子上不回来, 到点自己收尾, 绝不干等。
+            // 硬期限: completion 回调在某些盒子上不回来, 到点自己收。
             val hold = (runCatching { mp.duration }.getOrDefault(5000) + 400).coerceIn(1500, 8000)
-            handler.postDelayed({ if (!videoEnded && !removed) endVideo() }, hold.toLong())
-            mp.setOnErrorListener { _, _, _ ->
-                broken = true
-                runCatching { releasePlayer() }
-                videoView?.let { removeView(it) }
-                videoView = null
-                maybeStartIdle()
-                true
-            }
+            handler.postDelayed({ if (!videoEnded && !finished()) endVideo() }, hold.toLong())
             mp.prepareAsync()
         }.onFailure {
             broken = true
             videoView = null
-            maybeStartIdle()
+            finishSoon(force = true)
         }
-    }
-
-    /**
-     * 影片放完(或到硬期限): 把停在屏幕上的最后一帧取成位图, 撤掉影片层, 之后就用这张位图
-     * 走"贴脸 + 淡成透明"。不再依赖 TextureView 自己的 alpha, 也不依赖影片层的任何回调。
-     */
-    private fun endVideo() {
-        if (videoEnded || removingVideo) return
-        removingVideo = true
-        videoEnded = true
-        val tv = videoView
-        if (tv != null && videoFrameSeen && width > 0 && height > 0) {
-            still = runCatching { tv.getBitmap(width, height) }.getOrNull()
-        }
-        player?.let { p ->
-            player = null
-            runCatching { p.setSurface(null) }
-            // release 可能阻塞几十毫秒: 放后台线程, 屏幕上这时是 still 那张图。
-            Thread { runCatching { p.release() } }.start()
-        }
-        runCatching { playerSurface?.release() }
-        playerSurface = null
-        videoView?.let { v ->
-            (v.parent as? ViewGroup)?.removeView(v)
-        }
-        videoView = null
-        removingVideo = false
-        beginTransition()
     }
 
     /** 影片按"铺满屏幕、居中裁切"缩放, 不是拉伸。 */
@@ -503,27 +440,57 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
         playerSurface = null
     }
 
-    // ---------------------------------------------------------------- 时间线
-
-    /** 桌面报"好了": 有影片就等它放完, 没有就马上推进。 */
-    fun revealNow() {
-        if (removed) return
-        if (usesVideo && !broken && !videoEnded) return
-        beginTransition()
+    private fun endVideo() {
+        if (videoEnded || removingVideo) return
+        removingVideo = true
+        videoEnded = true
+        player?.let { p ->
+            player = null
+            runCatching { p.setSurface(null) }
+            Thread { runCatching { p.release() } }.start()
+        }
+        runCatching { playerSurface?.release() }
+        playerSurface = null
+        // 影片停的那一帧就停在那儿, 直接撤掉遮罩。
+        videoView?.let { v -> (v.parent as? ViewGroup)?.removeView(v) }
+        videoView = null
+        removingVideo = false
+        finishSoon(force = true)
     }
 
-    /** 桌面报"好了"之后再等一会儿才推进: 底板和卡片刚上屏的那一下不算好光学, 停半秒更稳。 */
+    // ---------------------------------------------------------------- 撤
+
+    private fun finished(): Boolean = removed || finishing
+
+    /** 桌面报"好了"(或影片放完): 放开桌面, 留一帧时间, 撤。 */
+    fun revealNow() {
+        if (finished()) return
+        finishSoon()
+    }
+
+    /** 桌面报"好了"之后再等一会儿才撤: 底板和卡片刚上屏的那一下不算好光学。 */
     fun armReveal(delayMs: Long) {
         handler.postDelayed({ revealNow() }, delayMs)
     }
 
     fun forceFinish() {
+        finishNow()
+    }
+
+    private fun finishSoon(force: Boolean = false) {
+        if (finishing || removed) return
+        // 有影片正在放的时候, 桌面报"好了"只是记一笔: 影片该放完再撤, 不然看半段就被切了。
+        if (!force && usesVideo && !videoEnded && !broken) return
+        finishing = true
+        // 先把桌面放开, 让它在我们还盖着的时候画出来, 撤的时候才不会先看到一块黑。
+        BootVeil.revealed = true
+        handler.postDelayed({ finishNow() }, LEAD_MS)
+    }
+
+    private fun finishNow() {
         if (removed) return
         removed = true
-        still?.recycle()
-        still = null
-        brand?.recycle()
-        brand = null
+        finishing = true
         runCatching { releasePlayer() }
         videoView = null
         BootVeil.revealed = true
@@ -531,127 +498,47 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
         onRevealed?.invoke()
     }
 
-    /** 没有影片时: 静静地停一小会儿再推进, 免得一闪而过。 */
-    private fun maybeStartIdle() {
-        if (started || removed) return
-        started = true
-        handler.postDelayed({ if (!removed && !transitioning) beginTransition() }, IDLE_MS)
-    }
-
-    private fun beginTransition() {
-        if (transitioning || removed) return
-        transitioning = true
-        started = true
-        // 关键顺序: 先把 revealed 放开, 让桌面(壁纸/底板/卡片)在遮罩后面真正画出来, 再开始
-        // 淡出。以前这一步拖到动画"结束"才翻, 于是淡出时遮罩后面还是一块没画的黑色桌面 ——
-        // 黑淡成黑, 看起来就是"没有过渡", 最后 veil 一走桌面才突然出现。
-        BootVeil.revealed = true
-        handler.postDelayed({ runFade() }, LEAD_MS)
-    }
-
-    private fun runFade() {
-        if (removed) return
-        val at = SystemClock.uptimeMillis()
-        val frame = object : Runnable {
-            override fun run() {
-                if (removed) return
-                val t = ((SystemClock.uptimeMillis() - at).toFloat() / ZOOM_MS).coerceIn(0f, 1f)
-                val e = t * t * (3f - 2f * t)          // smoothstep: 起手不突兀, 落点不急刹
-                zoom = 1f + 2.2f * e                  // 1 → 3.2: 标志/画面往你脸上推
-                // 标志和文字先把自己淡成透明的(0 → 55%), 黑幕留到最后 45% 才收 —— 这样看着是
-                // "字透掉了、然后黑幕也开了", 而不是整块画面一起变暗。
-                // 先把黑幕开掉(桌面露出来), 再让放大中的图标和文字在桌面上淡成透明的 ——
-                // 这样是"透过标志看见桌面", 而不是"标志消失在一片黑里"(后者看着就像没透明)。
-                blackFade = 1f - smooth01(0f, 0.35f, t)
-                brandFade = 1f - smooth01(0.25f, 1f, t)
-                videoView?.let { v ->
-                    v.scaleX = zoom
-                    v.scaleY = zoom
-                    v.alpha = 1f - smooth01(0.1f, 0.85f, t)
-                }
-                invalidate()
-                if (t < 1f) handler.postDelayed(this, 8L) else done()
-            }
-        }
-        handler.postDelayed(frame, 8L)
-    }
-
-    private fun done() {
-        if (removed) return
-        removed = true
-        still?.recycle()
-        still = null
-        brand?.recycle()
-        brand = null
-        runCatching { releasePlayer() }
-        videoView = null
-        BootVeil.revealed = true
-        (parent as? ViewGroup)?.removeView(this)
-        onRevealed?.invoke()
-    }
+    // ---------------------------------------------------------------- 画
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val w = width.toFloat()
         val h = height.toFloat()
         if (w <= 0f || h <= 0f) return
-        // 影片出第一帧之前不空着: 先画自己的标志(视频那边还没画面), 出帧之后自然盖过去。
-        val videoShown = usesVideo && !broken && videoFrameSeen && videoView != null && still == null
-        if (videoShown) return
-        if (blackFade > 0f) {
-            canvas.drawColor(Color.argb((blackFade * 255).toInt().coerceIn(0, 255), 0, 0, 0))
-        }
-        val frameBitmap = still
-        if (frameBitmap != null) {
-            // 影片的最后一帧: 位图按 zoom 放大、按 brandFade 淡成透明 —— 和品牌那条走同一条曲线。
-            if (brandFade > 0f) {
-                framePaint.alpha = (brandFade * 255).toInt().coerceIn(0, 255)
-                canvas.save()
-                canvas.scale(zoom, zoom, pivotX, pivotY)
-                canvas.drawBitmap(frameBitmap, null, RectF(0f, 0f, w, h), framePaint)
-                canvas.restore()
-            }
-        } else {
-            val b = brand
-            if (b != null && brandFade > 0f) {
-                framePaint.alpha = (brandFade * 255).toInt().coerceIn(0, 255)
-                canvas.save()
-                canvas.scale(zoom, zoom, pivotX, pivotY)
-                canvas.drawBitmap(b, 0f, 0f, framePaint)
-                canvas.restore()
-            }
-        }
+        // 影片真的出帧了: 画面在 TextureView 里, 这里让开。
+        if (usesVideo && !broken && videoFrameSeen && videoView != null) return
+        canvas.drawColor(Color.BLACK)
+        art.drawBrand(canvas, w, h, 1f)
+        drawHint(canvas, w, h)
     }
 
-    private fun smooth01(a: Float, b: Float, x: Float): Float {
-        val t = ((x - a) / (b - a)).coerceIn(0f, 1f)
-        return t * t * (3f - 2f * t)
+    /** "桌面正在准备中": 图标和字下面偏下、水平居中。 */
+    private fun drawHint(canvas: Canvas, w: Float, h: Float) {
+        val text = HINT
+        hint.textSize = min(w * 0.018f, h * 0.034f).coerceAtLeast(22f)
+        canvas.drawText(text, w / 2f - hint.measureText(text) / 2f, h * 0.62f, hint)
     }
 
     companion object {
-        /** 开机影片放在 assets 里: 有它就放影片, 没有就走自己画的标志。 */
+        /** 开机影片放在 assets 里: 有它就放影片, 没有就只停在静态图上。 */
         const val VIDEO_ASSET = "boot.mp4"
 
-        /** 从挂上遮罩算起, 最多等这么久就必须开始收尾。 */
-        private const val HARD_CAP_MS = 7500L
+        /** 桌面下方那行小字。 */
+        private const val HINT = "桌面正在准备中"
 
         /** 影片迟迟不出第一帧就认为它坏了。 */
         private const val VIDEO_FIRST_FRAME_MS = 2500L
 
-        /** 没有影片时停留多久再推进。 */
-        private const val IDLE_MS = 900L
+        /** 从挂上遮罩算起, 最多停这么久。 */
+        private const val HARD_CAP_MS = 7500L
 
-        /** 放开桌面到开始淡出之间留的时间: 给壁纸/卡片画第一帧。 */
-        private const val LEAD_MS = 320L
-
-        /** 推进(缩放 + 淡出)的时长。 */
-        private const val ZOOM_MS = 720f
+        /** 放开桌面到撤掉遮罩之间留的时间: 给壁纸/卡片画第一帧。 */
+        private const val LEAD_MS = 260L
 
         fun hasBootVideo(context: Context): Boolean =
             runCatching { context.assets.list("")?.contains(VIDEO_ASSET) == true }.getOrDefault(false)
     }
 }
-
 
 object BootVeil {
     private var veil: SplashVeil? = null
