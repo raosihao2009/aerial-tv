@@ -238,6 +238,7 @@ private class SplashArt(context: Context) {
  */
 class SplashBackground(context: Context) : Drawable() {
     private val art = SplashArt(context)
+    private val framePaint = Paint(Paint.FILTER_BITMAP_FLAG)
     /** 0 时整张都不画: 遮罩盖上来之后每帧再画一遍这张字, 就是白花的钱。 */
     private var alpha = 255
 
@@ -285,6 +286,7 @@ class SplashBackground(context: Context) : Drawable() {
 class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(context) {
     private val ctx = context
     private val art = SplashArt(context)
+    private val framePaint = Paint(Paint.FILTER_BITMAP_FLAG)
     private val handler = Handler(Looper.getMainLooper())
 
     /** 有开机影片就放影片(苹果 TV 那段), 没有就走自己画的标志。 */
@@ -297,9 +299,12 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
     private var playerSurface: Surface? = null
     private var videoView: TextureView? = null
     private var videoFrameSeen = false
+    /** 影片停下来的那一帧(取成位图自己画: TextureView 自己的 alpha 在盒子上不可靠)。 */
+    private var still: Bitmap? = null
     private var videoEnded = false
     /** 影片起不来(编码不支持/文件坏了/迟迟不出帧)。 */
     private var broken = false
+    private var removingVideo = false
 
     private var started = false
     private var transitioning = false
@@ -407,12 +412,10 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
                 measure()
                 fitVideo(tv)
             }
-            mp.setOnCompletionListener {
-                videoEnded = true
-                videoFrameSeen = true
-                // 停最后一帧, 然后由它来"贴脸"。
-                beginTransition()
-            }
+            mp.setOnCompletionListener { endVideo() }
+            // 硬期限: 影片的 completion 回调在某些盒子上不回来, 到点自己收尾, 绝不干等。
+            val hold = (runCatching { mp.duration }.getOrDefault(5000) + 400).coerceIn(1500, 8000)
+            handler.postDelayed({ if (!videoEnded && !removed) endVideo() }, hold.toLong())
             mp.setOnErrorListener { _, _, _ ->
                 broken = true
                 runCatching { releasePlayer() }
@@ -427,6 +430,34 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
             videoView = null
             maybeStartIdle()
         }
+    }
+
+    /**
+     * 影片放完(或到硬期限): 把停在屏幕上的最后一帧取成位图, 撤掉影片层, 之后就用这张位图
+     * 走"贴脸 + 淡成透明"。不再依赖 TextureView 自己的 alpha, 也不依赖影片层的任何回调。
+     */
+    private fun endVideo() {
+        if (videoEnded || removingVideo) return
+        removingVideo = true
+        videoEnded = true
+        val tv = videoView
+        if (tv != null && videoFrameSeen && width > 0 && height > 0) {
+            still = runCatching { tv.getBitmap(width, height) }.getOrNull()
+        }
+        player?.let { p ->
+            player = null
+            runCatching { p.setSurface(null) }
+            // release 可能阻塞几十毫秒: 放后台线程, 屏幕上这时是 still 那张图。
+            Thread { runCatching { p.release() } }.start()
+        }
+        runCatching { playerSurface?.release() }
+        playerSurface = null
+        videoView?.let { v ->
+            (v.parent as? ViewGroup)?.removeView(v)
+        }
+        videoView = null
+        removingVideo = false
+        beginTransition()
     }
 
     /** 影片按"铺满屏幕、居中裁切"缩放, 不是拉伸。 */
@@ -471,6 +502,8 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
     fun forceFinish() {
         if (removed) return
         removed = true
+        still?.recycle()
+        still = null
         runCatching { releasePlayer() }
         videoView = null
         BootVeil.revealed = true
@@ -515,6 +548,8 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
     private fun done() {
         if (removed) return
         removed = true
+        still?.recycle()
+        still = null
         runCatching { releasePlayer() }
         videoView = null
         BootVeil.revealed = true
@@ -528,12 +563,22 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
         val h = height.toFloat()
         if (w <= 0f || h <= 0f) return
         // 影片出第一帧之前不空着: 先画自己的标志(视频那边还没画面), 出帧之后自然盖过去。
-        val videoShown = usesVideo && !broken && videoFrameSeen && videoView != null
+        val videoShown = usesVideo && !broken && videoFrameSeen && videoView != null && still == null
         if (videoShown) return
         if (blackFade > 0f) {
             canvas.drawColor(Color.argb((blackFade * 255).toInt().coerceIn(0, 255), 0, 0, 0))
         }
-        if (brandFade > 0f) {
+        val frameBitmap = still
+        if (frameBitmap != null) {
+            // 影片的最后一帧: 位图按 zoom 放大、按 brandFade 淡成透明 —— 和品牌那条走同一条曲线。
+            if (brandFade > 0f) {
+                framePaint.alpha = (brandFade * 255).toInt().coerceIn(0, 255)
+                canvas.save()
+                canvas.scale(zoom, zoom, pivotX, pivotY)
+                canvas.drawBitmap(frameBitmap, null, RectF(0f, 0f, w, h), framePaint)
+                canvas.restore()
+            }
+        } else if (brandFade > 0f) {
             canvas.save()
             canvas.scale(zoom, zoom, pivotX, pivotY)
             art.drawBrand(canvas, w, h, brandFade)
