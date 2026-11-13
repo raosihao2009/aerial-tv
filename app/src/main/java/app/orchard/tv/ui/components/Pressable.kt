@@ -16,6 +16,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
@@ -139,7 +140,9 @@ fun Pressable(
                     else -> false
                 }
             }
-            .focusable(enabled)
+            .focusProperties { canFocus = enabled }
+            // 焦点节点始终保留, 仅用 canFocus 排除; 否则节点摘除会触发整棵焦点树失效重搜。
+            .focusable()
             // After the focusable: the bounds a scroll container brings into view are then the
             // card's own, not the 8% larger ones of the focus animation, which made a sheet or
             // list shift a few pixels with every move of focus and settle back.

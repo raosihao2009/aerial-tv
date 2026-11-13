@@ -652,8 +652,14 @@ fun HomeScreen(
                 tries++
             }
         } else {
-            // 没有卡片可回: 回右上角按钮, 绝不落到首卡。
-            runCatching { pillRequester.requestFocus() }
+            // 没有卡片可回: 回右上角按钮, 绝不落到首卡。胶囊请求也补两帧, 避开节点还没使能
+            // 那一帧请求被吞、随后首卡 autoFocus/焦点重搜把焦点抢走。
+            var tries = 0
+            while (tries < 3) {
+                runCatching { pillRequester.requestFocus() }
+                withFrameNanos { }
+                tries++
+            }
         }
         restoringFocus = false
         savedOverlayKey = null

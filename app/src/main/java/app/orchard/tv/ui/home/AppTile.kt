@@ -188,8 +188,10 @@ fun AppTile(
     val click by rememberUpdatedState(onClick)
     val longPress by rememberUpdatedState(onLongPress)
 
+    // 冷启动首卡只在挂载时抢一次焦点: 不能按 enabled 做键, 否则浮层关闭后卡片重新使能时
+    // 这个 effect 会再跑一遍, 把焦点从恢复目标(原卡/胶囊)上抢回首卡。
     if (autoFocus) {
-        LaunchedEffect(enabled) {
+        LaunchedEffect(Unit) {
             if (enabled) runCatching { focusRequester.requestFocus() }
         }
     }
@@ -429,8 +431,13 @@ fun AppTile(
                         },
                     )
                 }
-                .focusProperties { if (rowEnd) right = FocusRequester.Cancel }
-                .focusable(enabled),
+                .focusProperties {
+                    canFocus = enabled
+                    if (rowEnd) right = FocusRequester.Cancel
+                }
+                // 保留焦点节点, 只用 canFocus 排除: 改成 .focusable(false) 会把节点摘掉,
+                // 摘除那一帧触发 owner 焦点失效重搜, 焦点落到组合顺序最靠前的胶囊上。
+                .focusable(),
         ) {
             Spacer(Modifier.fillMaxSize().drawWithCache {
                 val art = app.art

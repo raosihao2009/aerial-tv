@@ -227,7 +227,6 @@ fun LiveSourceMenu(
     // - 打开: 先把焦点放到当前直播卡片上, 等它的缩放演完(showing 之前菜单还没淡入, 全不可见),
     //   再淡入 —— 看不到卡片放大。justOpened 让除当前卡片外的节点(含右上角控制中心)不可聚焦。
     // - 关闭: 淡出全程保持焦点和选中尺寸不变, 菜单完全看不见之后才把焦点挪走 —— 看不到缩小。
-    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     LaunchedEffect(visible) {
         if (visible) {
             // 一律落在当前直播卡片上。之前"从控制中心回来就落 pill"的那一支会失败:
@@ -241,11 +240,12 @@ fun LiveSourceMenu(
             snapshotFlow { alpha }.first { it >= 0.99f }
             justOpened = false
         } else {
-            // 立刻开始淡出(animateFloatAsState 自己会演 500ms), 看不见之后再放掉焦点
+            // 立刻开始淡出(animateFloatAsState 自己会演 500ms)。这里不再 clearFocus:
+            // 焦点在关闭那一刻已经由 HomeScreen 恢复到原卡/胶囊; 淡出结束再强制清焦点,
+            // 会把已落位的卡片打掉, owner 失效重搜后焦点落到组合顺序最靠前的胶囊上。
             showing = false
             snapshotFlow { alpha }.first { it <= 0.01f }
             justOpened = true
-            runCatching { focusManager.clearFocus(force = true) }
         }
     }
 
