@@ -224,82 +224,127 @@ private class SplashArt(context: Context) {
         }
     }
 
-    private var bgShader: android.graphics.Shader? = null
-    private var bgKey = ""
+    // 底色/暗角这类不动的层只烤一次; 每帧的变化都画在一张低分辨率的小图上, 最后整张放大铺屏。
+    // 全屏渐变很吃填充率: 这台盒子(Mali-G31)上原来一帧要画四张 1080p 的径向渐变, 一帧几十毫秒,
+    // 逐帧动画看起来就是"一格一格"的。缩到 1/3 分辨率画同一套几何, 铺开时视觉上分辨不出来。
+    private var lowW = 0
+    private var lowH = 0
+    private var scene: Bitmap? = null
+    private var sceneCanvas: Canvas? = null
+    private var base: Bitmap? = null
+    private var baseCanvas: Canvas? = null
+    private val blitPaint = Paint(Paint.FILTER_BITMAP_FLAG)
     private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    /** 铺屏的目标矩形: 每帧复用, 不留垃圾给 GC。 */
+    private val blitDst = RectF()
 
-    /**
-     * 开屏的底色: 斜向的深色渐变(墨黑蓝 → 靛青 → 暗紫), 中间压一层冷色辉光, 四角再压一点
-     * 暗角。不用纯黑 —— 纯黑看着像"没画东西", 渐变才像一块有光的面。
-     * [phase] 是已播放秒数: 两块辉光缓慢漂移、亮度轻微呼吸, 背景是活的, 标志和小字不动。
-     */
-    fun drawBackdrop(canvas: Canvas, w: Float, h: Float, phase: Float = 0f) {
-        val key = "$w/$h"
-        if (bgShader == null || bgKey != key) {
-            bgKey = key
-            // 底色: 左下暖橙红 → 中段品粉 → 右上紫蓝, 参考品牌宣传那套极光渐变, 整体偏亮通透。
-            bgShader = android.graphics.LinearGradient(
-                0f, 0f, w, h,
-                intArrayOf(
-                    Color.rgb(214, 66, 50),   // 左下: 暖橙红
-                    Color.rgb(196, 76, 118),  // 中段: 品粉
-                    Color.rgb(120, 70, 184),  // 转紫
-                    Color.rgb(52, 60, 176),   // 右上: 蓝紫
-                ),
-                floatArrayOf(0f, 0.38f, 0.72f, 1f),
-                android.graphics.Shader.TileMode.CLAMP,
-            )
+    /** 离屏小图按屏宽的 [LOW_SCALE] 取; 底色 + 暗角烤进 [base], 每帧先拷它再画色团。 */
+    private fun ensureLow(w: Float, h: Float): Boolean {
+        val lw = (w * LOW_SCALE).toInt().coerceAtLeast(2)
+        val lh = (h * LOW_SCALE).toInt().coerceAtLeast(2)
+        if (scene != null && base != null && lowW == lw && lowH == lh) return true
+        runCatching {
+            scene?.recycle(); base?.recycle()
+            scene = Bitmap.createBitmap(lw, lh, Bitmap.Config.ARGB_8888)
+            base = Bitmap.createBitmap(lw, lh, Bitmap.Config.ARGB_8888)
+            sceneCanvas = Canvas(scene!!)
+            baseCanvas = Canvas(base!!)
+            lowW = lw
+            lowH = lh
+            bakeBase(lw, lh)
+        }.onFailure {
+            scene = null; base = null; sceneCanvas = null; baseCanvas = null
         }
-        bgPaint.shader = bgShader
-        canvas.drawRect(0f, 0f, w, h, bgPaint)
+        return scene != null && base != null && sceneCanvas != null && baseCanvas != null
+    }
 
-        // 三块大柔光色团沿较大椭圆漂移、亮度呼吸; 标志和小字不动。
-        // 暖橙红在下偏左, 品粉压在中间, 冷蓝紫在上偏右。
-        val warmX = w * 0.28f + w * 0.085f * sin(phase * 0.62f)
-        val warmY = h * 0.72f + h * 0.055f * cos(phase * 0.48f)
-        val warmA = (88 + 26 * sin(phase * 0.50f)).toInt().coerceIn(40, 130)
-        val warm = android.graphics.RadialGradient(
-            warmX, warmY, maxOf(w, h) * 0.52f,
-            intArrayOf(Color.argb(warmA, 255, 150, 80), Color.argb(28, 232, 96, 96), Color.argb(0, 232, 96, 96)),
-            floatArrayOf(0f, 0.55f, 1f),
-            android.graphics.Shader.TileMode.CLAMP,
-        )
-        bgPaint.shader = warm
-        canvas.drawRect(0f, 0f, w, h, bgPaint)
-
-        val pinkX = w * 0.50f + w * 0.075f * cos(phase * 0.55f)
-        val pinkY = h * 0.52f + h * 0.050f * sin(phase * 0.44f)
-        val pinkA = (66 + 22 * cos(phase * 0.42f)).toInt().coerceIn(30, 100)
-        val pink = android.graphics.RadialGradient(
-            pinkX, pinkY, maxOf(w, h) * 0.42f,
-            intArrayOf(Color.argb(pinkA, 234, 124, 178), Color.argb(24, 206, 104, 160), Color.argb(0, 206, 104, 160)),
-            floatArrayOf(0f, 0.55f, 1f),
-            android.graphics.Shader.TileMode.CLAMP,
-        )
-        bgPaint.shader = pink
-        canvas.drawRect(0f, 0f, w, h, bgPaint)
-
-        val coolX = w * 0.74f - w * 0.085f * cos(phase * 0.58f)
-        val coolY = h * 0.30f + h * 0.055f * sin(phase * 0.46f)
-        val coolA = (96 + 28 * sin(phase * 0.52f + 1.2f)).toInt().coerceIn(40, 130)
-        val glow = android.graphics.RadialGradient(
-            coolX, coolY, maxOf(w, h) * 0.52f,
-            intArrayOf(Color.argb(coolA, 96, 112, 238), Color.argb(30, 80, 70, 180), Color.argb(0, 80, 70, 180)),
-            floatArrayOf(0f, 0.55f, 1f),
-            android.graphics.Shader.TileMode.CLAMP,
-        )
-        bgPaint.shader = glow
-        canvas.drawRect(0f, 0f, w, h, bgPaint)
-        // 轻暗角: 只把最外四边压一点, 中间保持亮。
-        val vignette = android.graphics.RadialGradient(
-            w / 2f, h / 2f, maxOf(w, h) * 0.80f,
+    /** 不动的那层: 四角轻暗角。底色渐变要跟着时间滑动, 所以不烤在这一层里。 */
+    private fun bakeBase(lw: Int, lh: Int) {
+        val c = baseCanvas ?: return
+        val sf = lw.toFloat()
+        val tf = lh.toFloat()
+        val radius = maxOf(sf, tf)
+        bgPaint.shader = android.graphics.RadialGradient(
+            sf / 2f, tf / 2f, radius * 0.80f,
             intArrayOf(Color.argb(0, 0, 0, 0), Color.argb(0, 0, 0, 0), Color.argb(56, 0, 0, 0)),
             floatArrayOf(0f, 0.6f, 1f),
             android.graphics.Shader.TileMode.CLAMP,
         )
-        bgPaint.shader = vignette
-        canvas.drawRect(0f, 0f, w, h, bgPaint)
+        c.drawRect(0f, 0f, sf, tf, bgPaint)
         bgPaint.shader = null
+    }
+
+    /**
+     * 开屏的底色: 斜向的品牌渐变(暖橙红 → 品粉 → 紫 → 蓝紫), 上面压三块大柔光色团, 四角轻暗角。
+     * [phase] 是已播放秒数: 三块色团各走一条不同周期的椭圆弧、亮度同时呼吸 —— 周期彼此不可通约,
+     * 60 秒内不会回到同一张画面。标志和小字不动, 动的是背景的光。
+     */
+    fun drawBackdrop(canvas: Canvas, w: Float, h: Float, phase: Float = 0f) {
+        if (!ensureLow(w, h)) return
+        val c = sceneCanvas ?: return
+        val sc = scene ?: return
+        val sf = lowW.toFloat()
+        val tf = lowH.toFloat()
+        val radius = maxOf(sf, tf)
+
+        // 底色: 斜向的品牌渐变, 整块颜色沿着对角线缓慢来回滑动 —— 这是"色彩流动"的主调,
+        // 色团只是在它上面加光。滑到画面外的那几段由 CLAMP 兜住, 边角不会突然变黑。
+        val slide = 0.20f * sin(phase * 0.58f)
+        bgPaint.shader = android.graphics.LinearGradient(
+            -slide * sf, -slide * tf, sf + slide * sf, tf + slide * tf,
+            intArrayOf(
+                Color.rgb(214, 66, 50),   // 左下: 暖橙红
+                Color.rgb(196, 76, 118),  // 中段: 品粉
+                Color.rgb(120, 70, 184),  // 转紫
+                Color.rgb(52, 60, 176),   // 右上: 蓝紫
+            ),
+            floatArrayOf(0.08f, 0.42f, 0.74f, 0.94f),
+            android.graphics.Shader.TileMode.CLAMP,
+        )
+        c.drawRect(0f, 0f, sf, tf, bgPaint)
+
+        // 暖橙红: 下偏左, 走一个宽椭圆的弧, 周期约 6.6 秒
+        val warmX = sf * (0.26f + 0.14f * sin(phase * 0.95f))
+        val warmY = tf * (0.74f + 0.09f * cos(phase * 1.30f))
+        val warmA = (92 + 34 * sin(phase * 0.78f)).toInt().coerceIn(50, 140)
+        bgPaint.shader = android.graphics.RadialGradient(
+            warmX, warmY, radius * 0.52f,
+            intArrayOf(Color.argb(warmA, 255, 150, 80), Color.argb(28, 232, 96, 96), Color.argb(0, 232, 96, 96)),
+            floatArrayOf(0f, 0.55f, 1f),
+            android.graphics.Shader.TileMode.CLAMP,
+        )
+        c.drawRect(0f, 0f, sf, tf, bgPaint)
+
+        // 品粉: 压在中间, 周期约 5.5 秒
+        val pinkX = sf * (0.50f + 0.11f * cos(phase * 1.15f))
+        val pinkY = tf * (0.54f + 0.08f * sin(phase * 1.42f))
+        val pinkA = (70 + 28 * cos(phase * 0.92f)).toInt().coerceIn(40, 110)
+        bgPaint.shader = android.graphics.RadialGradient(
+            pinkX, pinkY, radius * 0.42f,
+            intArrayOf(Color.argb(pinkA, 234, 124, 178), Color.argb(24, 206, 104, 160), Color.argb(0, 206, 104, 160)),
+            floatArrayOf(0f, 0.55f, 1f),
+            android.graphics.Shader.TileMode.CLAMP,
+        )
+        c.drawRect(0f, 0f, sf, tf, bgPaint)
+
+        // 冷蓝紫: 上偏右, 周期约 7.4 秒
+        val coolX = sf * (0.74f - 0.13f * cos(phase * 0.85f))
+        val coolY = tf * (0.30f + 0.08f * sin(phase * 1.24f))
+        val coolA = (100 + 36 * sin(phase * 0.88f + 1.2f)).toInt().coerceIn(50, 140)
+        bgPaint.shader = android.graphics.RadialGradient(
+            coolX, coolY, radius * 0.52f,
+            intArrayOf(Color.argb(coolA, 96, 112, 238), Color.argb(30, 80, 70, 180), Color.argb(0, 80, 70, 180)),
+            floatArrayOf(0f, 0.55f, 1f),
+            android.graphics.Shader.TileMode.CLAMP,
+        )
+        c.drawRect(0f, 0f, sf, tf, bgPaint)
+        bgPaint.shader = null
+        // 最后压暗角: 只把最外四边压一点, 中间保持亮。
+        base?.let { c.drawBitmap(it, 0f, 0f, null) }
+
+        // 整张放大铺屏: 双线性放大把 1/3 分辨率的台阶磨平, 边缘也不会出锯齿。
+        blitDst.set(0f, 0f, w, h)
+        canvas.drawBitmap(sc, null, blitDst, blitPaint)
     }
 
     /** 屏幕下方那行小字: 桌面还在准备。图标/字下面偏下, 水平居中。 */
@@ -325,6 +370,8 @@ private class SplashArt(context: Context) {
 
     private companion object {
         const val BRAND = "Aerial"
+        /** 底色离屏渲染的分辨率比例: 1/3 屏宽, 铺开后看不出差别。 */
+        const val LOW_SCALE = 0.34f
     }
 }
 
@@ -415,7 +462,7 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
     private val animTick: Runnable = Runnable {
         if (finished()) { animScheduled = false; return@Runnable }
         invalidate()
-        handler.postDelayed(animTick, 33)
+        handler.postDelayed(animTick, FRAME_MS_TICK)
     }
 
     init {
@@ -430,7 +477,10 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
             hardCapArmed = true
             handler.postDelayed({ if (!finished()) finishSoon(force = true) }, HARD_CAP_MS)
         }
-        if (!usesVideo && !animScheduled) {
+        // 背景的流动和有没有影片无关: 影片出帧后 onDraw 早退, 这里是给"影片没出帧、画的是
+        // 我们这套渐变"的时候跑的 —— 原来只在 !usesVideo 时启动, 这台盒子带着 boot.mp4,
+        // 于是 phase 一直是 0, 背景完全静止(用户反馈"色彩流动不明显、不丝滑")。
+        if (!animScheduled) {
             animStart = SystemClock.elapsedRealtime()
             animScheduled = true
             handler.post(animTick)
@@ -628,6 +678,9 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
 
         /** 桌面下方那行小字。 */
         private const val HINT = "桌面正在准备中"
+
+        /** 背景流动的逐帧间隔: 30fps。离屏 1/3 分辨率渲染, 这个间隔撑得住。 */
+        private const val FRAME_MS_TICK = 33L
 
         /** 影片迟迟不出第一帧就认为它坏了。 */
         private const val VIDEO_FIRST_FRAME_MS = 2500L
