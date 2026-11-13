@@ -194,7 +194,9 @@ fun ChannelFocusPreview(
                             DiagLog.i("channel preview: ${stalled.id} stalled $times times in 30 s, watchdog switched to $target")
                         } else {
                             reloadTick++
-                            showToast("正在尝试重新加载「${stalled.name}」")
+                            // 30 秒内反复卡住时, 第 2、3 次不再弹同一条: 加载图已经在说"正在重载",
+                            // 同一条提示连刷只会盖住画面; 第 4 次升级成第 9 条"卡顿严重"。
+                            if (times <= 1) showToast("正在尝试重新加载「${stalled.name}」")
                             DiagLog.i("channel preview: ${stalled.id} still live, reloading ($times in 30 s)")
                         }
                     }
@@ -250,13 +252,11 @@ fun ChannelFocusPreview(
             st.loading = false
             if (player != null) {
                 // 切换源失败：看旧源是否还在直播
-                val target = playingSourceId?.let { onRevert(it) }
-                showToast(if (target != null) {
-                    "「${source.name}」暂时无法观看，已切换至「$target」"
-                } else {
-                    "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
-                })
-                if (target == null) onRevertFail()
+                // onRevert 恒返回 null(旧源就是还在播的那个, 不用切回去), 所以只剩"请继续观看"这条。
+                // 原来那条「暂时无法观看，已切换至「Y」」永远不会出现, 删掉免得日后误读。
+                playingSourceId?.let { onRevert(it) }
+                showToast("「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: "上一个源"}」")
+                onRevertFail()
             } else {
                 // 首次加载失败: 切换到备用源
                 DiagLog.i("channel preview: first load failed, switching to fallback")
@@ -354,13 +354,11 @@ fun ChannelFocusPreview(
                         if (hasOld) {
                             // 切换源失败: 看旧源是否还在直播
                             st.loading = false
-                            val target = playingSourceId?.let { onRevert(it) }
-                            showToast(if (target != null) {
-                                "「${source.name}」暂时无法观看，已切换至「$target」"
-                            } else {
-                                "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
-                            })
-                            if (target == null) onRevertFail()
+                            // onRevert 恒返回 null(旧源就是还在播的那个, 不用切回去), 所以只剩"请继续观看"这条。
+                            // 原来那条「暂时无法观看，已切换至「Y」」永远不会出现, 删掉免得日后误读。
+                            playingSourceId?.let { onRevert(it) }
+                            showToast("「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: "上一个源"}」")
+                            onRevertFail()
                             onStatusRefresh()
                         } else {
                             // 当前源下播: 切换到备用源
@@ -454,13 +452,11 @@ fun ChannelFocusPreview(
             if (player != null) {
                 // 切换源失败：看旧源是否还在直播
                 st.loading = false
-                val target = playingSourceId?.let { onRevert(it) }
-                showToast(if (target != null) {
-                    "「${source.name}」暂时无法观看，已切换至「$target」"
-                } else {
-                    "「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: ""}」"
-                })
-                if (target == null) onRevertFail()
+                // onRevert 恒返回 null(旧源就是还在播的那个, 不用切回去), 所以只剩"请继续观看"这条。
+                // 原来那条「暂时无法观看，已切换至「Y」」永远不会出现, 删掉免得日后误读。
+                playingSourceId?.let { onRevert(it) }
+                showToast("「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: "上一个源"}」")
+                onRevertFail()
             } else {
                 // 开机首次加载超时：持续重试直到成功
                 st.loading = true

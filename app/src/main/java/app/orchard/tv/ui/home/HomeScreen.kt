@@ -1100,7 +1100,8 @@ fun HomeScreen(
                         fb?.name
                     },
                     onRevert = { oldId ->
-                        // 新源失败: 丢弃挂起, 选中态和高亮留在旧源(本来就在播)
+                        // 新源失败: 丢弃挂起, 选中态和高亮留在旧源(本来就在播)。
+                        // 恒返回 null: 旧源就是还在播的那个, 不需要"切回去", 预览侧只提示"请继续观看"。
                         vm.cancelPendingLiveSource()
                         null
                     },

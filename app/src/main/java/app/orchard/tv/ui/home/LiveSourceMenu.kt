@@ -140,7 +140,8 @@ fun LiveSourceMenu(
     var bannerMsg by remember { mutableStateOf<String?>(null) }
     var ignoreMenuKeyUp by remember { mutableStateOf(true) }
     LaunchedEffect(bannerMsg) {
-        if (bannerMsg != null) { kotlinx.coroutines.delay(2500); bannerMsg = null }
+        // 4 秒: 这条要读两个专名(「源名」+「在看的源名」), 2.5 秒读不完, 和预览胶囊统一。
+        if (bannerMsg != null) { kotlinx.coroutines.delay(4000); bannerMsg = null }
     }
     LaunchedEffect(visible) {
         if (visible) ignoreMenuKeyUp = true
