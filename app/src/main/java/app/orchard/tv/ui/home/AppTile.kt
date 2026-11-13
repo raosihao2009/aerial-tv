@@ -348,6 +348,9 @@ fun AppTile(
                         else -> null
                     }
                     if (dir != null) {
+                        // 记录方向键与 repeatCount: 复测时能区分"一次按一下跳多格"是长按连发
+                        // (repeatCount 递增) 还是焦点搜索选错了相邻卡片。
+                        if (down) DiagLog.i("Tile-debug: ${app.key} nav $dir repeat=${e.nativeKeyEvent.repeatCount}")
                         // A held key repeats: the wall is told once, on the first press, or the tile
                         // stayed pushed and leaning and the limit sound ran on while the key was held.
                         if (down && !focusManager.moveFocus(dir) && e.nativeKeyEvent.repeatCount == 0) {

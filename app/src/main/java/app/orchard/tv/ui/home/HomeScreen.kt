@@ -1743,12 +1743,29 @@ private fun LiveLoadingOverlay(visible: Boolean, loading: androidx.compose.runti
         label = "liveLoading",
     )
     if (alpha > 0.01f) {
-        androidx.compose.foundation.Image(
-            painter = androidx.compose.ui.res.painterResource(R.drawable.live_loading),
-            contentDescription = "直播加载中",
-            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-            alpha = alpha,
-        )
+        // 加载图 PNG 大面积透明: 不先铺一层不透明底, 直播 SurfaceView 未出帧时的黑底会从
+        // 透明区透出来, 切源/重载时看到"黑屏一下"。底先用壁纸静帧, 取不到静帧再用深色。
+        val still = Wallpapers.backdrop ?: Wallpapers.frosted
+        Box(Modifier.fillMaxSize()) {
+            if (still != null) {
+                Canvas(Modifier.fillMaxSize()) {
+                    drawImage(
+                        still,
+                        dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+                        alpha = alpha,
+                        filterQuality = FilterQuality.Low,
+                    )
+                }
+            } else {
+                Box(Modifier.fillMaxSize().background(Color(0xFF111418).copy(alpha = alpha)))
+            }
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(R.drawable.live_loading),
+                contentDescription = "直播加载中",
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                alpha = alpha,
+            )
+        }
     }
 }

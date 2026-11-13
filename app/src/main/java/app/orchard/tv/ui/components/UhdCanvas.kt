@@ -15,6 +15,7 @@ import android.view.Display
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
+import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewTreeObserver
 import android.widget.FrameLayout
@@ -269,6 +270,11 @@ class FilmSlot(context: Context) : FrameLayout(context) {
 
     init {
         addView(surface, LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        // 同 SourceWallpaper: 播放器视图在部分固件(TCL amlogic)上会被当成可聚焦节点,
+        // 抢走卡片的方向键, 表现为从直播预览卡按一下跳到好几张之外。显式屏蔽焦点并封锁后代。
+        isFocusable = false
+        isFocusableInTouchMode = false
+        descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
     }
 
     override fun onAttachedToWindow() {
