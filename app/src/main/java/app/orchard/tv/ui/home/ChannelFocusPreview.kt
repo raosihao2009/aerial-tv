@@ -119,6 +119,10 @@ fun ChannelFocusPreview(
         // 时过渡一卡一卡; 把预览挪到第≥2列就顺, 就是因为起播时机错开了)。等揭开后再走下面。
         while (!BootVeil.revealed) kotlinx.coroutines.delay(100)
 
+        // 新聚焦到直播卡时, 卡片焦点缩放动画还在跑; 主线程紧接着就建 ExoPlayer/挂解码会和缩放
+        // 抢主线程, 低端盒子上缩放动画掉帧。先等缩放弹簧落定(~180ms)再起播, 让出前一两帧。
+        if (player == null) kotlinx.coroutines.delay(180)
+
         // 加载遮罩：始终显示加载图, 直到新流就绪
         st.loading = true
 

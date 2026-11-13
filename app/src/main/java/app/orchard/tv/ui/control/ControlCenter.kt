@@ -177,8 +177,17 @@ fun ControlCenter(
         AnimatedVisibility(
             visible = visible,
             // Grows out of the corner where the status pill lives; leaves faster than it came.
-            enter = fadeIn(tween(200, easing = Motion.EaseOut)) + scaleIn(tween(280, easing = Motion.Drawer), initialScale = 0.9f, transformOrigin = TransformOrigin(1f, 0f)),
-            exit = fadeOut(tween(160, easing = Motion.EaseOut)) + scaleOut(tween(160, easing = Motion.EaseOut), targetScale = 0.95f, transformOrigin = TransformOrigin(1f, 0f)),
+            // Lite/低端盒子: 只做淡入淡出, 不跑缩放动画, 省掉弹出期间每帧的变换与合成开销。
+            enter = if (AerialSettings.lite) {
+                fadeIn(tween(160, easing = Motion.EaseOut))
+            } else {
+                fadeIn(tween(200, easing = Motion.EaseOut)) + scaleIn(tween(280, easing = Motion.Drawer), initialScale = 0.9f, transformOrigin = TransformOrigin(1f, 0f))
+            },
+            exit = if (AerialSettings.lite) {
+                fadeOut(tween(140, easing = Motion.EaseOut))
+            } else {
+                fadeOut(tween(160, easing = Motion.EaseOut)) + scaleOut(tween(160, easing = Motion.EaseOut), targetScale = 0.95f, transformOrigin = TransformOrigin(1f, 0f))
+            },
         ) {
             Column(
                 Modifier

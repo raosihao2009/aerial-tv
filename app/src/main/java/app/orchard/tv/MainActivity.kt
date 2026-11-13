@@ -167,10 +167,20 @@ class MainActivity : ComponentActivity() {
 
     private fun showLocked() {
         locked = true
-        DiagLog.i("boot-debug: showLocked at +${SystemClock.elapsedRealtime()}ms; splash")
-        // 解锁前这一屏本来就什么也读不到, 与其铺上次的静图(开机后会先看到几秒壁纸), 不如直接
-        // 铺开屏图: 解锁后真正启动时接的是同一张, 视觉上连成一次开屏。
-        window.setBackgroundDrawable(SplashBackground(this))
+        // 解锁前读不到完整的 AerialSettings(它在 startReal 里 init), 直接读 SharedPreferences;
+        // 读不到(直加密存储尚未挂载)时按默认开, 与之前行为一致。
+        val veilPref = runCatching {
+            getSharedPreferences("settings", Context.MODE_PRIVATE).getBoolean("splash_veil", true)
+        }.getOrDefault(true)
+        DiagLog.i("boot-debug: showLocked at +${SystemClock.elapsedRealtime()}ms; splash veil=$veilPref")
+        if (veilPref) {
+            // 解锁前这一屏本来就什么也读不到, 与其铺上次的静图(开机后会先看到几秒壁纸), 不如直接
+            // 铺开屏图: 解锁后真正启动时接的是同一张, 视觉上连成一次开屏。
+            window.setBackgroundDrawable(SplashBackground(this))
+        } else {
+            // 用户关掉启动遮罩: 解锁前也不铺开屏静图, 给一块黑底, 避免冷启动还留一张开屏页。
+            window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.BLACK))
+        }
         ContextCompat.registerReceiver(this, unlocked, IntentFilter(Intent.ACTION_USER_UNLOCKED), ContextCompat.RECEIVER_EXPORTED)
         // Unlocked between the check and the registration.
         if (GuardSetup.isUserUnlocked(this)) startReal(null)
