@@ -944,9 +944,9 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     color = Color.White,
                     shadow = shadow,
                     letterSpacing = 0.em,
-                    // 厚度对齐控制中心的正文字重: 700/600 在 52sp 上仍然发粗(半粗一样显粗),
-                    // 落到常规 400。数字轮廓是 OPPO Sans 4.0@400, 等宽 570, 3 已修好。
-                    fontWeight = FontWeight.Normal,
+                    // 700/600 在 52sp 上仍然发粗, 400 又偏细: 取中间档 500。
+                    // 数字轮廓是 OPPO Sans 4.0 可变字体按 wght=500 实例化, 等宽 570, 3 已修好。
+                    fontWeight = FontWeight.W500,
                     fontFamily = OppoSans,
                 ),
                 modifier = Modifier.toSaverClock(toSaver, 52.sp, 52.sp.value.dp * CAP_TOP, drift),
@@ -1125,7 +1125,10 @@ fun VpnBadge(color: Color, modifier: Modifier = Modifier, fontSize: TextUnit = 1
 @Composable
 fun StatusPill(
     now: LocalDateTime,
-    network: NetworkStatus,
+    // 传取值函数而不是值: 网络状态现在每 5 秒刷新一次, 在 HomeScreen 的组合里直接读
+    // vm.network 会让整棵桌面树每 5 秒重组一次(低端盒子上会掉帧), 读放在胶囊自己身上,
+    // 失效范围就只有这颗胶囊。
+    network: () -> NetworkStatus,
     showTime: Boolean,
     enabled: Boolean,
     focusRequester: FocusRequester,
@@ -1141,6 +1144,7 @@ fun StatusPill(
         modifier = modifier,
     ) { state ->
         LaunchedEffect(state.focused) { onFocused(state.focused) }
+        val net = network()
         val bg by animateColorAsState(
             if (state.focused) Palette.Focus else Color.Transparent,
             tween(160, easing = Motion.EaseOut), label = "pill-bg",
@@ -1155,13 +1159,13 @@ fun StatusPill(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            val glyph = when (network.kind) {
+            val glyph = when (net.kind) {
                 NetKind.Wifi -> Glyph.Wifi
                 NetKind.Ethernet -> Glyph.Ethernet
                 NetKind.Offline -> Glyph.Offline
             }
-            GlyphIcon(glyph, fg, 17.dp, level = network.level)
-            if (network.vpn) VpnBadge(fg)
+            GlyphIcon(glyph, fg, 17.dp, level = net.level)
+            if (net.vpn) VpnBadge(fg)
             if (showTime) {
                 BasicText(timeText(now), style = Type.Headline.copy(color = fg))
             }

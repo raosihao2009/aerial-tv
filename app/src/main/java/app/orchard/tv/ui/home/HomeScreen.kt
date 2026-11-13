@@ -97,6 +97,7 @@ import app.orchard.tv.ui.control.ControlCenter
 import app.orchard.tv.ui.wallpaper.SheetCovers
 import app.orchard.tv.ui.wallpaper.WallpaperSheet
 import app.orchard.tv.wallpaper.AerialFormats
+import app.orchard.tv.wallpaper.GlassPulse
 import app.orchard.tv.wallpaper.ScreensaverMode
 import app.orchard.tv.wallpaper.Wallpapers
 import app.orchard.tv.ui.components.liquidGlass
@@ -300,6 +301,13 @@ internal const val CLOCK_BACK_MS = 1000
 /** How long Control Center takes to come in before a picture of Home stands in for it. */
 private const val HOME_SHOT_AFTER_MS = 450L
 
+/**
+ * 冷启动揭罩的兜底: 首卡一直没拿到焦点时, 最多等这么久就照撤。
+ * 这台盒子(DBBOX-A2)实测 setContent 后约 8.8-9.4s 才落首卡焦点, 旧的 3s 兜底必然早于首卡,
+ * 撤开时露出的是一张壁纸。10.5s 留约 1s 余量, 又必须小于 MainActivity 的冷启动 forceFinish(13s)。
+ */
+private const val BOOT_STEADY_FALLBACK_MS = 10_500L
+
 /** How often that picture is taken again while Control Center stays open, for the clock. */
 private const val HOME_SHOT_EVERY_MS = 30_000L
 
@@ -400,8 +408,8 @@ fun HomeScreen(
         animationSpec = androidx.compose.animation.core.tween(UI_FADE_MS, easing = Motion.EaseInOut), label = "uiAlpha")
     LaunchedEffect(channelPreviewVisible) { vm.livePlaying = channelPreviewVisible; liveReadyState.value = false }
 
-    // 揭罩轮询: 不管网格里有没有标记的直播预览卡, 都按普通节奏撤——数据加载完、网格上屏过 1s
-    // → 500ms 后撤; 直播预览在桌面里自行加载(浮层提示), 不再用遮罩等它出帧(这台盒子上预挂载
+    // 揭罩轮询: 不管网格里有没有标记的直播预览卡, 都按普通节奏撤——数据加载完、首卡真的拿到
+    // 焦点后才撤。直播预览在桌面里自行加载(浮层提示), 不再用遮罩等它出帧(这台盒子上预挂载
     // 会抢解码器/盖住壁纸, 已证伪)。每 150ms 读一次现场 State; 遮罩重挂时 generation 变了重启。
     LaunchedEffect(BootVeil.generation) {
         val start = System.currentTimeMillis()
@@ -413,20 +421,30 @@ fun HomeScreen(
             val ready = liveReadyState.value
             val elapsed = System.currentTimeMillis() - start
             // 首排真的拿到焦点了(卡片节点已上屏)才撤; 否则撤开遮罩先露出的是一张壁纸,
-            // 卡片要再晚半秒才画出来 —— "冷启动最开始是壁纸"就是这么来的。
-            // 慢机上有兜底: 3 秒还没焦点就照撤, 绝不把用户挡在开屏上。
+            // 卡片要再晚一下才画出来 —— "冷启动最开始是壁纸"就是这么来的。
+            // 这台盒子(DBBOX-A2)实测 setContent 后约 8.8s 才落首卡焦点, 之前 3s 的兜底必然
+            // 早于首卡, 这就是"有概率在落首卡之前就撤下"的来源: 兜底必须长于落焦时间,
+            // 又不能顶到 MainActivity 的 forceFinish(冷启动 13s), 故取 9.5s。
             val cardsOnScreen = focusedKey != null
-            val steady = cardsOnScreen || elapsed > 3000
+            val steady = cardsOnScreen || elapsed > BOOT_STEADY_FALLBACK_MS
             when {
                 // 预览已经出帧: 提前一点撤。
                 ready -> BootVeil.arm(300)
-                // 普通分支: 加载完、网格上屏过 1s 后撤(有直播卡也是这个节奏)。
-                vm.loaded && grid.isNotEmpty() && elapsed > 1000 && steady -> BootVeil.arm(500)
+                // 普通分支: 加载完、首卡落焦后撤(有直播卡也是这个节奏)。
+                vm.loaded && grid.isNotEmpty() && elapsed > 1000 && steady -> {
+                    DiagLog.i("boot-debug: veil arming at +${elapsed}ms focused=${focusedKey ?: "none"}")
+                    BootVeil.arm(500)
+                }
             }
             if (BootVeil.hasArmed()) break
             delay(150)
         }
     }
+
+    // 磨砂背景: 打开控制中心/个性化/二级菜单/文件夹这些面板时, 立刻按当前影片画面补一帧,
+    // 之后由采样循环每 5 秒跟着走。不这样的话, 面板后面那块玻璃要等到下一个 5 秒才变,
+    // 打开的一瞬间还是几秒前的颜色。
+    LaunchedEffect(overlay) { if (overlay != Overlay.None) GlassPulse.request() }
 
     // 焦点在IPTV卡片时立即检测一次直播状态, 然后每30秒刷新; 其他场景刷新后重置计时
     // 抽到独立 composable 里读 liveStatusTickState，tick 变化只重组这个小节点，不带动整棵树。
@@ -894,6 +912,9 @@ fun HomeScreen(
         val maxScroll = with(density) { metrics.scrollFor(rows - 1, rows).toPx() }.coerceAtLeast(0f)
         LaunchedEffect(maxScroll) { scroll.updateBounds(0f, maxScroll) }
         val pastShelf by remember(collapsePx) { derivedStateOf { scroll.value > collapsePx / 2 } }
+        // 一级菜单往下(滚过书架、进网格)时也补一帧磨砂: 那块玻璃这时才露出大片屏幕, 停在
+        // 上个 5 秒的颜色会被一眼看出来。
+        LaunchedEffect(pastShelf, inGrid) { if (pastShelf || inGrid) GlassPulse.request() }
         val decay = rememberSplineBasedDecay<Float>()
         LaunchedEffect(target, dragged) {
             if (dragged) return@LaunchedEffect
@@ -980,7 +1001,14 @@ fun HomeScreen(
         }
         // 二创保留：Control Center 打开时用 home 快照 + 磨砂面板替代实时 Home
         homeShot?.let { shot -> Canvas(Modifier.fillMaxSize()) { drawImage(shot) } }
-        PanelBackdrop(Wallpapers.frosted.takeIf { Wallpapers.backdrop != null }, { backdropFrost }, { backdropVeil })
+        // 面板后面那块磨砂: 影片在动的时候用采样循环最新的一帧(filmFrost), 跟着画面每 5 秒走,
+        // 打开面板时另有 GlassPulse 立刻补一帧; 影片不在动才退回壁纸静态磨砂。
+        PanelBackdrop(
+            (if (Wallpapers.moves()) Wallpapers.filmFrost ?: Wallpapers.frosted else Wallpapers.frosted)
+                .takeIf { Wallpapers.backdrop != null },
+            { backdropFrost },
+            { backdropVeil },
+        )
         Box(
             Modifier
                 .fillMaxSize()
@@ -1336,7 +1364,7 @@ fun HomeScreen(
             }
             StatusPill(
                 now = now,
-                network = vm.network,
+                network = { vm.network },
                 showTime = if (dragged) pastShelf else inGrid,
                 // 恢复窗口里按钮也要可聚焦: 从按钮打开的控制中心关掉后就回按钮, 否则会在
                 // 这一两帧里谁都没有焦点。卡片排在前面, 从卡片打开时焦点搜索仍先命中卡片。
@@ -1600,7 +1628,7 @@ fun HomeScreen(
             onMovingChange = { liveMoving = it },
             onOpenControlCenter = { vm.ccFromLiveMenu = true; vm.overlay = Overlay.ControlCenter() },
             controlCenterOpen = overlay is Overlay.ControlCenter,
-            network = vm.network,
+            network = { vm.network },
         )
 
         ControlCenter(

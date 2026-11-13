@@ -98,10 +98,17 @@ object SystemProbe {
             caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> NetworkStatus(NetKind.Ethernet, vpn = vpn)
             caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> {
                 val wm = context.applicationContext.getSystemService<WifiManager>()
+                // 用当前 Network 的 WifiInfo: wm.connectionInfo 是缓存过的旧值(Android 12 上
+                // 换 AP / 信号变化后能滞后十几秒), 图标就跟着滞后。transportInfo 来自这次
+                // 探测读到的 NetworkCapabilities, 与信号同步(API 29 起有)。
+                val live = if (Build.VERSION.SDK_INT >= 29) {
+                    @Suppress("DEPRECATION")
+                    (caps.transportInfo as? android.net.wifi.WifiInfo)
+                } else null
                 @Suppress("DEPRECATION")
-                val info = wm?.connectionInfo
+                val info = live ?: wm?.connectionInfo
                 val ssid = info?.ssid?.trim('"')?.takeUnless { it.isBlank() || it == WifiManager.UNKNOWN_SSID.trim('<', '>') || it == "<unknown ssid>" }
-                val level = if (info == null) 1f else if (Build.VERSION.SDK_INT >= 30) {
+                val level = if (info == null) 1f else if (Build.VERSION.SDK_INT >= 30 && wm != null) {
                     wm.calculateSignalLevel(info.rssi) / wm.maxSignalLevel.coerceAtLeast(1).toFloat()
                 } else {
                     @Suppress("DEPRECATION")

@@ -131,7 +131,8 @@ fun LiveSourceMenu(
     onMovingChange: (Boolean) -> Unit = {},
     onOpenControlCenter: () -> Unit = {},
     controlCenterOpen: Boolean = false,
-    network: app.orchard.tv.system.NetworkStatus = app.orchard.tv.system.NetworkStatus(),
+    // 取值函数: 网络状态每 5 秒刷新, 在这里直接读值会让整棵菜单重组。
+    network: () -> app.orchard.tv.system.NetworkStatus = { app.orchard.tv.system.NetworkStatus() },
 ) {
     var focusedId by remember { mutableStateOf(currentId) }
     var menuForId by remember { mutableStateOf<String?>(null) }

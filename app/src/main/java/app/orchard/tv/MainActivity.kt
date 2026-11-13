@@ -430,7 +430,9 @@ class MainActivity : ComponentActivity() {
             // 就被撤掉。兜底由下面那条 forceFinish 负责。
             // 无论如何都给自己留条后路: 桌面没能报"好了"(没有卡片/数据读失败)、影片解码卡住、
             // 抠标志失败, 到期直接把遮罩撤掉, 绝不把用户挡在开屏上。
-            veil.postDelayed({ veil.forceFinish() }, if (coldBoot) 11_500L else 9_500L)
+            // 冷启动这条兜底必须晚于 HomeScreen 的落焦兜底(9.5s)再加 500ms 淡出: 这台盒子
+            // setContent 后约 8.8s 才落首卡焦点, 原来的 11.5s 太紧, 会在淡出中途被砍。
+            veil.postDelayed({ veil.forceFinish() }, if (coldBoot) 13_000L else 9_500L)
         } else {
             // 用户关掉启动遮罩: 不挂遮罩, 直接放开桌面, 壁纸/直播预览照常起播。
             DiagLog.i("boot-debug: splash veil disabled, skipping veil")
@@ -780,6 +782,19 @@ class MainActivity : ComponentActivity() {
 
     private val idleHandler = Handler(Looper.getMainLooper())
     private val showScreensaver = Runnable { if (vm.resumed) startScreensaver(asked = false) }
+
+    /**
+     * 网络图标每 5 秒跟一次。系统回调(onCapabilitiesChanged)只在网卡能力变化时才来, 换 AP、
+     * 信号在几格之间起伏、Wi-Fi 掉线后由别的网络接上, 都可能长时间不触发, 胶囊上的图标就停在
+     * 旧样子。只在 Home 在前台且没开屏保时跑, 一次读是几个 binder 调用, 很便宜。
+     */
+    private val networkTick = object : Runnable {
+        override fun run() {
+            if (!vm.resumed) return
+            if (!vm.screensaverVisible) vm.refreshNetwork()
+            idleHandler.postDelayed(this, NETWORK_EVERY_MS)
+        }
+    }
 
     /** The Dolby Vision screensaver's start, fetched to disk while Home is still up (AerialStart.prepareAhead). */
     private val prepareScreensaver = Runnable {
@@ -1131,6 +1146,10 @@ class MainActivity : ComponentActivity() {
         }
         Updates.onHomeResumed()
         vm.refreshSystem()
+        // 回到桌面(从 App、从开屏、从屏保)立刻读一次, 再交给 networkTick 每 5 秒跟。
+        vm.refreshNetwork()
+        idleHandler.removeCallbacks(networkTick)
+        idleHandler.postDelayed(networkTick, NETWORK_EVERY_MS)
         if (!resumedInProcess) {
             resumedInProcess = true
             val age = if (Build.VERSION.SDK_INT >= 24) SystemClock.elapsedRealtime() - android.os.Process.getStartElapsedRealtime() else -1L
@@ -1180,6 +1199,7 @@ class MainActivity : ComponentActivity() {
         }
         idleHandler.removeCallbacks(showScreensaver)
         idleHandler.removeCallbacks(dreamCheck)
+        idleHandler.removeCallbacks(networkTick)
         // From Android 11 the dream is an activity: paused while waiting for it, it showed, and its
         // first frame says whether in time (dreamShowedAfter).
         dreamChecking = false
@@ -1193,6 +1213,7 @@ class MainActivity : ComponentActivity() {
         SelfCompile.onHomeStopped()
         // Out of sight after all: no bounce to wait out (homeBounce).
         idleHandler.removeCallbacks(endHomeBounce)
+        idleHandler.removeCallbacks(networkTick)
         vm.homeBounce = false
         // An app, the screensaver or standby in front: the PIN is asked again, as in Lite (#718).
         AerialSettings.relock()
@@ -1374,6 +1395,9 @@ class MainActivity : ComponentActivity() {
          * Apple on Xiaomi MiTV-MFTR0, after the index.
          */
         private const val SAVER_AHEAD_MS = 8_000L
+
+        /** 网络状态轮询间隔: 系统回调不保证及时, 图标要自己跟(见 networkTick)。 */
+        private const val NETWORK_EVERY_MS = 5_000L
 
         /**
          * The system's dream did not show when asked (see dreamCheck): for the rest of the process,
