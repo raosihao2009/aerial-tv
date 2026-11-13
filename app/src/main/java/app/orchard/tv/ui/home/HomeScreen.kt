@@ -337,6 +337,8 @@ fun HomeScreen(
     var indexAfterOverlay by remember { mutableStateOf(0) }
     var pillFocused by remember { mutableStateOf(false) }
     var lastFocusedIndex by remember { mutableStateOf(0) }
+    // 组合第一次进入时记下是不是冷启动: 冷启动才让首卡自己抢焦点, 热启动保留原焦点。
+    val coldStart = remember { !BootVeil.desktopShown }
     val columns = AerialSettings.homeColumns
     // 用derivedStateOf避免每次重组都遍历apps列表
     val focusedIndex by remember(apps, focusedKey) {
@@ -664,6 +666,19 @@ fun HomeScreen(
                 tries++
             }
             initialFocusDone = true
+        }
+    }
+
+    // 遮罩揭开瞬间再补一次: 冷启动时焦点树在遮罩后面可能还没拿到窗口焦点, 提前的请求会落空;
+    // revealed 翻 true、卡片已就位后, 若仍没有卡片焦点, 再逐帧请求首卡。
+    LaunchedEffect(BootVeil.revealed, overlay, apps.size) {
+        if (!BootVeil.revealed || overlay != Overlay.None || apps.isEmpty()) return@LaunchedEffect
+        if (focusedKey != null) return@LaunchedEffect
+        var tries = 0
+        while (focusedKey == null && tries < 6) {
+            withFrameNanos { }
+            focusApp(0)
+            tries++
         }
     }
 
@@ -1165,6 +1180,7 @@ fun HomeScreen(
                             focusRequester = requester(app.key),
                             enabled = gridEnabled,
                             moving = moving == app.key,
+                            autoFocus = coldStart && index == 0,
                             opacity = { 1f - saverFade() },
                             onFocused = {
                                 focusedKey = app.key

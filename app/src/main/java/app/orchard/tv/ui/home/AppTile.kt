@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -169,6 +170,8 @@ fun AppTile(
     preFocus: Boolean = false,
     /** The name sits on the glass plate, which ends just under it: it does not step down past the focus frame. */
     nameOnPlate: Boolean = false,
+    /** 冷启动首卡: 节点挂载、可用后自己主动请求一次焦点, 不依赖外层轮询(外层请求早于节点挂上会落空)。 */
+    autoFocus: Boolean = false,
 ) {
     val reduced = LocalReducedMotion.current
     val scope = rememberCoroutineScope()
@@ -184,6 +187,12 @@ fun AppTile(
     var menuPressed by remember { mutableStateOf(false) }
     val click by rememberUpdatedState(onClick)
     val longPress by rememberUpdatedState(onLongPress)
+
+    if (autoFocus) {
+        LaunchedEffect(enabled) {
+            if (enabled) runCatching { focusRequester.requestFocus() }
+        }
+    }
 
     // Lean (degrees) and push (px) used by the edge nudge.
     val leanY = remember { Animatable(0f) }
