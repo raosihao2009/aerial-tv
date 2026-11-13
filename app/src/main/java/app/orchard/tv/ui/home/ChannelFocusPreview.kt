@@ -266,6 +266,11 @@ fun ChannelFocusPreview(
 
         // 加载遮罩：始终显示加载图, 直到新流就绪
         st.loading = true
+        // 首起播(冷启动/回到预览卡第一次, 还没有旧 player)与运行中切换分开计时:
+        // 冷启动要和壁纸影片、图标网格、状态轮询抢资源, 解码器也没热, 出帧天然慢; 用同一个
+        // 15s 窗口容易把"起播慢"误判成坏源。首起播放宽到 25s, 切换仍保持 15s。
+        val firstRun = player == null
+        val loadTimeoutMs = if (firstRun) 25_000L else 15_000L
 
         var streamUrl: String? = streamCache[source.url ?: ""]
         if (streamUrl == null) {
@@ -350,12 +355,12 @@ fun ChannelFocusPreview(
 
         // 等待新流READY且缓冲足够(至少3秒)再切换，避免开播后卡缓冲
         var ready = false
-        // 15秒超时, 避免永远卡住
+        // 超时兜底, 避免永远卡住; 窗口按首起播/切换分开(见 loadTimeoutMs)
         scope.launch {
-            kotlinx.coroutines.delay(15_000)
+            kotlinx.coroutines.delay(loadTimeoutMs)
             if (st.disposed) return@launch
             if (!ready) {
-                DiagLog.i("channel preview: load timeout 15s, switching to fallback")
+                DiagLog.i("channel preview: load timeout ${loadTimeoutMs / 1000}s (${if (firstRun) "first run" else "switch"}), switching to fallback")
                 st.loading = false
                 val offline = withContext(Dispatchers.IO) { checkIfOffline(source, context) }
                 val target = onFallback()
@@ -436,7 +441,7 @@ fun ChannelFocusPreview(
 
         // 等待新流READY且缓冲够(至少3秒)
         withContext(Dispatchers.Main) {
-            val deadline = System.currentTimeMillis() + 15_000
+            val deadline = System.currentTimeMillis() + loadTimeoutMs
             while (!ready && System.currentTimeMillis() < deadline) {
                 kotlinx.coroutines.delay(200)
             }
