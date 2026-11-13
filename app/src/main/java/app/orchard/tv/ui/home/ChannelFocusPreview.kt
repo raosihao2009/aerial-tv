@@ -391,7 +391,12 @@ fun ChannelFocusPreview(
                     val offline = withContext(Dispatchers.IO) { checkIfOffline(source, context) }
                     // 是否有旧源在播(player 还不是当前 exo)
                     val hasOld = player != null && player !== exo
-                    if (offline || retryCount >= 3) {
+                    // 解码器初始化失败/运行时检查失败: 硬解起不来, 同一路流重试和看门狗重载都不会
+                    // 恢复(日志实测反复 DECODER_INIT_FAILED, rendered=0/buf=0 无限循环)。直接按
+                    // 耗尽处理: 回退旧源或换备用源, 不再在这个源上重试。
+                    val fatalDecoder = error.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+                        error.errorCode == PlaybackException.ERROR_CODE_FAILED_RUNTIME_CHECK
+                    if (offline || retryCount >= 3 || fatalDecoder) {
                         // 下播或重试耗尽: 标记ready=true取消15s超时协程, 避免超时再触发一次onFallback
                         ready = true
                         // 新流没出帧就失败, 暂存的上一代旧 player 直接放掉, 别滞留解码器实例
