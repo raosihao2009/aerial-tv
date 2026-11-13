@@ -337,6 +337,10 @@ fun HomeScreen(
     var indexAfterOverlay by remember { mutableStateOf(0) }
     var pillFocused by remember { mutableStateOf(false) }
     var lastFocusedIndex by remember { mutableStateOf(0) }
+    // 浮层打开那一刻快照下原来停留的卡片: 浮层期间 focusedKey/lastFocusedIndex 可能被其它
+    // 焦点效果改写, 关闭时以这份快照为准, 避免回落到首卡。
+    var savedOverlayKey by remember { mutableStateOf<String?>(null) }
+    var savedOverlayIndex by remember { mutableStateOf(0) }
     // 组合第一次进入时记下是不是冷启动: 冷启动才让首卡自己抢焦点, 热启动保留原焦点。
     val coldStart = remember { !BootVeil.desktopShown }
     val columns = AerialSettings.homeColumns
@@ -564,8 +568,19 @@ fun HomeScreen(
         runCatching { requester(app.key).requestFocus() }
     }
 
-    // 记住上一个浮层: 从二级菜单回到一级时要用它判断焦点落点
-    LaunchedEffect(overlay) { if (overlay != Overlay.None) lastOverlay = overlay }
+    // 记住上一个浮层: 从二级菜单回到一级时要用它判断焦点落点; 进入浮层的那一刻快照下原卡片。
+    LaunchedEffect(overlay) {
+        if (overlay != Overlay.None) {
+            lastOverlay = overlay
+            if (savedOverlayKey == null) {
+                savedOverlayKey = focusedKey
+                savedOverlayIndex = lastFocusedIndex
+            }
+        } else {
+            savedOverlayKey = null
+            savedOverlayIndex = 0
+        }
+    }
 
     // First focus once the apps are in; afterwards, put focus back wherever it was when an overlay closes.
     LaunchedEffect(vm.loaded, overlay) {
@@ -587,14 +602,17 @@ fun HomeScreen(
         // 没有记住的位置才落首卡。逐帧重试, 等卡片挂上再请求, 避免冷启动撤罩时高亮还没到位。
         repeat(3) { withFrameNanos { } }
         val byKey = apps.indexOfFirst { it.key == focusedKey }
+        val savedByKey = apps.indexOfFirst { it.key == savedOverlayKey }
         val target = when {
             byKey >= 0 -> byKey
+            savedByKey >= 0 -> savedByKey
             wanted != null && indexAfterOverlay in 0 until apps.size -> indexAfterOverlay
+            savedOverlayIndex in 0 until apps.size -> savedOverlayIndex
             lastFocusedIndex in 0 until apps.size -> lastFocusedIndex
             else -> 0
         }.coerceIn(0, (apps.size - 1).coerceAtLeast(0))
         val targetKey = apps.getOrNull(target)?.key
-        DiagLog.i("CC-debug: overlay closed restore target=$target key=$targetKey focusedKey=$focusedKey last=$lastFocusedIndex lastOverlay=$lastOverlay")
+        DiagLog.i("CC-debug: overlay closed restore target=$target key=$targetKey focusedKey=$focusedKey saved=$savedOverlayKey last=$lastFocusedIndex lastOverlay=$lastOverlay")
         if (targetKey == null) return@LaunchedEffect
         // 浮层关闭时卡片刚重新使能, 单次 requestFocus 可能被吞掉而焦点停在 pill;
         // 逐帧重试, 直到焦点真的落回目标卡片。
@@ -1183,6 +1201,9 @@ fun HomeScreen(
                             focusRequester = requester(app.key),
                             enabled = gridEnabled,
                             moving = moving == app.key,
+                            // 浮层打开期间, 原来停留的卡片保持选中态: 否则焦点被浮层抢走后它会先缩回,
+                            // 关闭浮层再放大, 看到"短暂缩小一下"。
+                            preFocus = overlay != Overlay.None && app.key == focusedKey,
                             autoFocus = coldStart && index == 0,
                             opacity = { 1f - saverFade() },
                             onFocused = {

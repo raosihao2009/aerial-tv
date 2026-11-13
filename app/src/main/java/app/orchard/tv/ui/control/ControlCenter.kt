@@ -153,6 +153,8 @@ fun ControlCenter(
     // still waking, and the activity's polling (MainActivity) never ran: Xiaomi MiTV-AZFP0,
     // Android 9, whose log showed onCreate but no onStart for that instance (issue #892).
     LaunchedEffect(visible) { if (visible) vm.refreshPanel() }
+    // 信号格/网络类型在待机或切网络后不会主动回调, 打开控制中心时现取一次, 避免图标状态滞后。
+    LaunchedEffect(visible) { if (visible) vm.refreshNetwork() }
 
     AnimatedVisibility(
         visible = visible,
@@ -177,17 +179,8 @@ fun ControlCenter(
         AnimatedVisibility(
             visible = visible,
             // Grows out of the corner where the status pill lives; leaves faster than it came.
-            // Lite/低端盒子: 只做淡入淡出, 不跑缩放动画, 省掉弹出期间每帧的变换与合成开销。
-            enter = if (AerialSettings.lite) {
-                fadeIn(tween(160, easing = Motion.EaseOut))
-            } else {
-                fadeIn(tween(200, easing = Motion.EaseOut)) + scaleIn(tween(280, easing = Motion.Drawer), initialScale = 0.9f, transformOrigin = TransformOrigin(1f, 0f))
-            },
-            exit = if (AerialSettings.lite) {
-                fadeOut(tween(140, easing = Motion.EaseOut))
-            } else {
-                fadeOut(tween(160, easing = Motion.EaseOut)) + scaleOut(tween(160, easing = Motion.EaseOut), targetScale = 0.95f, transformOrigin = TransformOrigin(1f, 0f))
-            },
+            enter = fadeIn(tween(200, easing = Motion.EaseOut)) + scaleIn(tween(280, easing = Motion.Drawer), initialScale = 0.9f, transformOrigin = TransformOrigin(1f, 0f)),
+            exit = fadeOut(tween(160, easing = Motion.EaseOut)) + scaleOut(tween(160, easing = Motion.EaseOut), targetScale = 0.95f, transformOrigin = TransformOrigin(1f, 0f)),
         ) {
             Column(
                 Modifier

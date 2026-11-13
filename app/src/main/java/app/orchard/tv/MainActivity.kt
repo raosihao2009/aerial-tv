@@ -321,6 +321,7 @@ class MainActivity : ComponentActivity() {
         // baked at the last start, so the window never shows black while Compose sets up. Without
         // one, keep what the window already shows (the kept backdrop of a locked start).
         val baked = Wallpapers.backdrop
+        DiagLog.i("boot-debug: window background branch cold=$coldBoot splashVeil=${AerialSettings.splashVeilEnabled} baked=${baked != null}")
         if (coldBoot && AerialSettings.splashVeilEnabled) {
             // 冷启动: 窗口背景直接画开屏图(黑底+图标+Aerial字)。窗口一可见就是它, 不用等
             // 内容视图和 Compose 组合 —— 以前这里放的是上次烘焙的壁纸, 于是先看两秒壁纸才黑下来。
@@ -328,11 +329,15 @@ class MainActivity : ComponentActivity() {
             // 同一份几何与同一层渐变, 中间不会有颜色跳变。
             window.setBackgroundDrawable(SplashBackground(this))
             DiagLog.i("boot-debug: window background is the splash at +${SystemClock.elapsedRealtime()}ms")
+        } else if (coldBoot) {
+            // 关掉遮罩的冷启动: 不管上次烘焙的壁纸在不在, 都清掉解锁前可能铺的开屏静图, 给黑底,
+            // 不能让静图留在窗口背景上冒充遮罩。
+            window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.BLACK))
+            DiagLog.i("boot-debug: cold boot with veil off, window cleared to black")
         } else if (baked != null) {
             window.setBackgroundDrawable(BitmapDrawable(resources, baked.asAndroidBitmap()))
             DiagLog.i("boot-debug: window background set to baked backdrop at +${SystemClock.elapsedRealtime()}ms")
         } else {
-            // 遮罩关掉时: 清掉解锁前铺的那张开屏静图, 不能让它一直留在窗口背景上冒充遮罩。
             window.setBackgroundDrawable(null)
             DiagLog.i("boot-debug: no baked backdrop, window stays default")
         }
