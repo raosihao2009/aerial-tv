@@ -114,7 +114,7 @@ fun ChannelFocusPreview(
 
     // ===== 卡住时的统一救场 =====
     // 规矩是"先查开播/下播, 再决定怎么动":
-    //  - 还在开播: 重新加载本场。看门狗开着时, 30 秒内第 3 次救场才升级成看门狗换源;
+    //  - 还在开播: 重新加载本场。看门狗开着时, 30 秒内救场超过 3 次(第 4 次)才升级成换源;
     //  - 本场下播: 换到央视网快看;
     //  - 央视网快看也下播: 换到最近一个开播的源;
     //  - 一个开播的都没有: 焦点移出直播卡片, 去看壁纸。
@@ -181,26 +181,20 @@ fun ChannelFocusPreview(
                             DiagLog.i("channel preview: no live source left, focus moved off live cards")
                         }
                     }
-                    // 还在开播: 先重载; 看门狗开着且 30 秒内第 3 次, 才升级成换源
+                    // 还在开播: 先重载; 看门狗开着且 30 秒内救场超过 3 次(第 4 次起),
+                    // 才升级成真正的看门狗换源。央视网快看没有可换的备用源, 只重载。
                     else -> {
                         val escalate = sens != AerialSettings.JankSensitivity.Off && times >= STALL_ESCALATE_TIMES
-                        if (escalate && stalled.id != CCTV_ID) {
+                        val target = if (escalate && stalled.id != CCTV_ID) {
                             suppressSwitchToast = true
-                            val target = onFallback()
-                            if (target != null) {
-                                showToast("「${stalled.name}」卡顿严重，已切换至「$target」")
-                                DiagLog.i("channel preview: ${stalled.id} stalled $times times in 30 s, watchdog switched to $target")
-                            } else {
-                                reloadTick++
-                                showToast("正在尝试重新加载「${stalled.name}」")
-                            }
+                            onFallback()
+                        } else null
+                        if (target != null) {
+                            showToast("「${stalled.name}」卡顿严重，已切换至「$target」")
+                            DiagLog.i("channel preview: ${stalled.id} stalled $times times in 30 s, watchdog switched to $target")
                         } else {
                             reloadTick++
-                            if (escalate) {
-                                showToast("「$cctvName」也卡了，正在重新加载…")
-                            } else {
-                                showToast("正在尝试重新加载「${stalled.name}」")
-                            }
+                            showToast("正在尝试重新加载「${stalled.name}」")
                             DiagLog.i("channel preview: ${stalled.id} still live, reloading ($times in 30 s)")
                         }
                     }
@@ -688,8 +682,8 @@ private fun checkIfOffline(source: LiveSource, context: android.content.Context)
 /** 央视网快看(备用源)的固定 id: 本场下播时先换它。 */
 private const val CCTV_ID = "preset_2"
 
-/** 30 秒窗口内救场达到这么多次, 看门狗才升级成真正的换源。 */
-private const val STALL_ESCALATE_TIMES = 3
+/** 30 秒窗口内救场超过 3 次(即第 4 次起), 看门狗才升级成真正的换源。 */
+private const val STALL_ESCALATE_TIMES = 4
 
 /** 上面的滑动窗口长度。 */
 private const val STALL_WINDOW_MS = 30_000L
