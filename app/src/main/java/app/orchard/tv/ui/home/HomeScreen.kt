@@ -581,9 +581,17 @@ fun HomeScreen(
             if (i >= 0) { focusApp(i); focusedKey = apps[i].key }
             return@LaunchedEffect
         }
-        // 兜底: 几帧之后如果焦点还是不在任何卡片上(落到控制中心), 拉回首卡。
+        // 兜底: 几帧之后如果焦点还是不在任何卡片上(落到控制中心), 拉回首卡; 同样逐帧重试,
+        // 等首卡挂上再请求, 避免冷启动撤罩时高亮还没到位。
         repeat(3) { withFrameNanos { } }
-        if (focusedKey == null && apps.isNotEmpty()) { focusApp(0); focusedKey = apps.first().key }
+        if (focusedKey == null && apps.isNotEmpty()) {
+            var tries = 0
+            while (focusedKey == null && tries < 8) {
+                withFrameNanos { }
+                focusApp(0)
+                tries++
+            }
+        }
         val index = apps.indexOfFirst { it.key == focusedKey }
         // A tile that went while the overlay was up (hidden, put in a folder, a folder ungrouped)
         // leaves focus where it was.
@@ -646,9 +654,15 @@ fun HomeScreen(
             vm.homeFocusTarget = -1
             initialFocusDone = true
         } else if (windowFocused && vm.loaded && apps.isNotEmpty() && !initialFocusDone) {
-            // 启动时直接聚焦第一个卡片, 不要先聚焦右上角pill再跳过去
-            withFrameNanos { }
-            focusApp(0)
+            // 启动时直接聚焦第一个卡片, 不要先聚焦右上角pill再跳过去。
+            // 冷启动首卡可能还没挂上 FocusRequester, 一次 requestFocus 会被吞掉; 逐帧重试到真的
+            // 拿到焦点为止, 这样遮罩撤下时高亮已经在首卡上, 不会先空一下再跳过来。
+            var tries = 0
+            while (focusedKey == null && tries < 10) {
+                withFrameNanos { }
+                focusApp(0)
+                tries++
+            }
             initialFocusDone = true
         }
     }
