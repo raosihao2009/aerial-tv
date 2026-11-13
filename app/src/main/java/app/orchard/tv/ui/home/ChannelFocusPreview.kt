@@ -113,9 +113,6 @@ fun ChannelFocusPreview(
     // 否则 release 旧 player 会触发旧 listener 的 onPlayerError, 旧闭包还拿着旧 source 上下文,
     // 会误调 onFallback/onRevert)
     val playerListenerRef = remember { mutableStateOf<Player.Listener?>(null) }
-    // 旧 player 暂存: 新流首帧上来再 release。立刻 release 时 Amlogic(TCL) 解码器会把
-    // surface 清成黑帧, 新流出帧前就看到黑屏; 当贝解码器保留最后一帧所以不黑。
-    val pendingRelease = remember { mutableStateOf<ExoPlayer?>(null) }
 
     // ===== 卡住时的统一救场 =====
     // 规矩是"先查开播/下播, 再决定怎么动":
@@ -148,6 +145,7 @@ fun ChannelFocusPreview(
         hasOld: Boolean,
         fallbackLabel: String? = null,
         oldLabel: String? = null,
+        decodeFail: Boolean = false,
     ): String {
         val sourceName = source?.name ?: "该源"
         val netOffline = SystemProbe.network(context).kind == NetKind.Offline
@@ -155,11 +153,14 @@ fun ChannelFocusPreview(
         val keepWatching = oldLabel ?: "上一个源"
         val netMsg = if (hasOld) "网络未连接，「$sourceName」暂时无法观看，请继续观看「$keepWatching」" else "网络未连接，「$sourceName」暂时无法观看"
         val offMsg = if (hasOld) "「$sourceName」已下播，请继续观看「$keepWatching」" else "「$sourceName」已下播，请观看「${fallbackLabel ?: "备用源"}」"
+        // 解码失败不是地址问题: 源还在开播, 只是这台机器解不出画面, 不能说"地址可能失效"
+        val decMsg = if (hasOld) "「$sourceName」的画面暂时无法解码，请继续观看「$keepWatching」" else "「$sourceName」的画面暂时无法解码，请观看「${fallbackLabel ?: "备用源"}」"
         val badMsg = if (hasOld) "「$sourceName」的直播地址可能失效了，请继续观看「$keepWatching」" else "「$sourceName」的直播地址可能失效了，请检查"
         return when {
             netOffline -> netMsg
             offline -> offMsg
             urlEmpty -> "「$sourceName」暂未设置直播地址"
+            decodeFail -> decMsg
             else -> badMsg
         }
     }
@@ -311,6 +312,13 @@ fun ChannelFocusPreview(
             )
         }
         val exo = ExoPlayer.Builder(context)
+            // 硬解初始化失败时自动退到软解(下一个解码器)。TCL 上实测同一路低码率直播在硬解
+            // 上反复 DECODER_INIT_FAILED / FAILED_RUNTIME_CHECK, 一帧都不出; 允许回退后
+            // 还有软解这条路能播, 而不是整路源直接判失败。
+            .setRenderersFactory(
+                androidx.media3.exoplayer.DefaultRenderersFactory(context)
+                    .setEnableDecoderFallback(true)
+            )
             .setTrackSelector(trackSelector)
             .setLoadControl(
                 androidx.media3.exoplayer.DefaultLoadControl.Builder()
@@ -356,14 +364,6 @@ fun ChannelFocusPreview(
             }
         }
         readyListener = object : Player.Listener {
-            override fun onRenderedFirstFrame() {
-                // 新流首帧已上屏: 此刻再放掉旧 player, surface 由新帧盖住, 不会漏黑帧
-                val stale = pendingRelease.value
-                if (stale != null) {
-                    pendingRelease.value = null
-                    stale.release()
-                }
-            }
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_READY) {
                     retryCount = 0
@@ -399,21 +399,19 @@ fun ChannelFocusPreview(
                     if (offline || retryCount >= 3 || fatalDecoder) {
                         // 下播或重试耗尽: 标记ready=true取消15s超时协程, 避免超时再触发一次onFallback
                         ready = true
-                        // 新流没出帧就失败, 暂存的上一代旧 player 直接放掉, 别滞留解码器实例
-                        pendingRelease.value?.let { it.release(); pendingRelease.value = null }
                         if (hasOld) {
                             // 切换源失败: 回退到旧源(本来就在播)
                             st.loading = false
                             playingSourceId?.let { onRevert(it) }
-                            showToast(failureToast(offline = offline, hasOld = true, oldLabel = currentPlayingName))
+                            showToast(failureToast(offline = offline, hasOld = true, oldLabel = currentPlayingName, decodeFail = fatalDecoder))
                             onRevertFail()
                             onStatusRefresh()
                         } else {
-                            // 当前源下播/重试耗尽: 切换到备用源
+                            // 当前源播不了: 切换到备用源
                             st.loading = false
-                            DiagLog.i("player err: current source offline, switching to fallback")
+                            DiagLog.i("player err: current source failed, switching to fallback")
                             val target = onFallback()
-                            showToast(failureToast(offline = offline, hasOld = false, fallbackLabel = target))
+                            showToast(failureToast(offline = offline, hasOld = false, fallbackLabel = target, decodeFail = fatalDecoder))
                         }
                         suppressSwitchToast = false
                         return@launch
@@ -452,12 +450,11 @@ fun ChannelFocusPreview(
             // 旧闭包还拿着旧 source/retryCount/hls, 会误调 onFallback/onRevert
             playerListenerRef.value?.let { old?.removeListener(it) }
             playerListenerRef.value = readyListener!!
-            // 旧 player 不立刻 release: 停住输出后暂存, 等新流首帧上来再放。立刻 release 时
-            // Amlogic(TCL) 解码器会把 surface 清成黑帧, 新流出帧前就看到黑屏; 当贝解码器
-            // 保留最后一帧所以不黑。
-            old?.playWhenReady = false
-            pendingRelease.value?.release()
-            pendingRelease.value = old
+            // 旧 player 必须在绑新 surface 前释放: 这台 TCL 的硬解实例有限, 两个 player 同时
+            // 存活(旧的只是 playWhenReady=false)会占住解码器, 新源直接 DECODER_INIT_FAILED /
+            // FAILED_RUNTIME_CHECK, 一帧都出不来。曾试过"旧 player 留到新流首帧再放", 结果
+            // 就是切源起不来。无缝画面要靠解码器自己保留最后一帧, 不能靠并存两个 player。
+            old?.release()
             player = exo
             // 跳到直播边缘(缓冲末尾), 避免音视频从不同位置开始导致画面超前声音
             exo.seekTo(exo.bufferedPosition.coerceAtLeast(exo.currentPosition))
@@ -558,8 +555,6 @@ fun ChannelFocusPreview(
                     playerListenerRef.value?.let { player?.removeListener(it) }
                     player?.release()
                     player = null
-                    pendingRelease.value?.release()
-                    pendingRelease.value = null
                     st.loading = false
                     onActuallyPlayingChange(false)
                 }
@@ -585,8 +580,6 @@ fun ChannelFocusPreview(
             playerListenerRef.value?.let { p?.removeListener(it) }
             playerListenerRef.value = null
             p?.release()
-            pendingRelease.value?.release()
-            pendingRelease.value = null
         }
     }
 
