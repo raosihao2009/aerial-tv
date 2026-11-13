@@ -583,10 +583,11 @@ fun HomeScreen(
             if (i >= 0) { focusApp(i); focusedKey = apps[i].key }
             return@LaunchedEffect
         }
-        // 兜底: 几帧之后如果焦点还是不在任何卡片上(落到控制中心), 拉回首卡; 同样逐帧重试,
-        // 等首卡挂上再请求, 避免冷启动撤罩时高亮还没到位。
+        // 兜底: 几帧之后如果焦点还是不在任何卡片上(落到控制中心), 拉回上次停留的卡片;
+        // 没有记住的位置才落首卡。逐帧重试, 等卡片挂上再请求, 避免冷启动撤罩时高亮还没到位。
         repeat(3) { withFrameNanos { } }
-        if (focusedKey == null && apps.isNotEmpty()) {
+        val remembered = lastFocusedIndex in 0 until apps.size
+        if (focusedKey == null && apps.isNotEmpty() && !remembered) {
             var tries = 0
             while (focusedKey == null && tries < 8) {
                 withFrameNanos { }
@@ -596,10 +597,12 @@ fun HomeScreen(
         }
         val index = apps.indexOfFirst { it.key == focusedKey }
         // A tile that went while the overlay was up (hidden, put in a folder, a folder ungrouped)
-        // leaves focus where it was.
+        // leaves focus where it was. 控制中心关闭后焦点可能已被 pill 抢走, focusedKey 为空,
+        // 这时回到上次停留的卡片, 不要兜底落首卡。
         focusApp(when {
             index >= 0 -> index
             wanted != null -> indexAfterOverlay
+            lastFocusedIndex in 0 until apps.size -> lastFocusedIndex
             else -> 0
         })
     }

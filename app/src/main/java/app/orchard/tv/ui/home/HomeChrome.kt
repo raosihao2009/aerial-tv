@@ -111,8 +111,7 @@ import app.orchard.tv.ui.theme.Palette
 import app.orchard.tv.ui.theme.Type
 import app.orchard.tv.ui.theme.OutfitRegular
 import app.orchard.tv.ui.theme.OutfitMedium
-import app.orchard.tv.ui.theme.InterDisplay
-import app.orchard.tv.ui.theme.InterText
+import app.orchard.tv.ui.theme.OppoSans
 import app.orchard.tv.ui.components.diagLayer
 import app.orchard.tv.weather.Weather
 import app.orchard.tv.weather.WeatherKind
@@ -945,8 +944,8 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     color = Color.White,
                     shadow = shadow,
                     letterSpacing = 0.em,
-                    fontWeight = FontWeight.W700,
-                    fontFamily = InterDisplay,
+                    fontWeight = FontWeight.Normal,
+                    fontFamily = OppoSans,
                 ),
                 modifier = Modifier.toSaverClock(toSaver, 52.sp, 52.sp.value.dp * CAP_TOP, drift),
             )
@@ -990,7 +989,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                         shadow = shadow,
                         fontSize = 14.sp,
                         letterSpacing = 0.04.em,
-                        fontFamily = InterText,
+                        fontFamily = OppoSans,
                     ),
                 )
                 if (lunar != null) {
@@ -1026,7 +1025,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             ) {
                 val weatherStyle = Type.Caption.copy(
                     color = Color.White, shadow = shadow, fontSize = 16.sp,
-                    fontFamily = InterText, letterSpacing = 0.em,
+                    fontFamily = OppoSans, letterSpacing = 0.em,
                 )
                 val sepStyle = weatherStyle.copy(color = Color.White.copy(alpha = 0.4f))
                 BasicText("今天", style = weatherStyle)

@@ -322,6 +322,8 @@ class MainActivity : ComponentActivity() {
             window.setBackgroundDrawable(BitmapDrawable(resources, baked.asAndroidBitmap()))
             DiagLog.i("boot-debug: window background set to baked backdrop at +${SystemClock.elapsedRealtime()}ms")
         } else {
+            // 遮罩关掉时: 清掉解锁前铺的那张开屏静图, 不能让它一直留在窗口背景上冒充遮罩。
+            window.setBackgroundDrawable(null)
             DiagLog.i("boot-debug: no baked backdrop, window stays default")
         }
         // Dangbei H5: keeping the baked backdrop permanently (instead of switching to black after
@@ -369,6 +371,7 @@ class MainActivity : ComponentActivity() {
         // 每一次进桌面都盖: 冷启动放开机影片 + 飞入, 热启动/重进放那 2.5 秒的标志动画。
         // 热启动不加遮罩的话, Compose 重建的那一两秒直接露在用户眼前(半张桌面、焦点框乱跳)。
         if (AerialSettings.splashVeilEnabled) {
+            DiagLog.i("boot-debug: splash veil enabled, attaching veil")
             // 影片层在这台盒子上从来不出画面, 而且它会用一块 TextureView 把遮罩自己的绘制整块
             // 盖住(看起来像"开屏页不是遮罩画的")。开屏已经定成纯静态页, 影片不再挂。
             val veil = SplashVeil(this, withVideo = false)
@@ -387,6 +390,7 @@ class MainActivity : ComponentActivity() {
             veil.postDelayed({ veil.forceFinish() }, if (coldBoot) 11_500L else 9_500L)
         } else {
             // 用户关掉启动遮罩: 不挂遮罩, 直接放开桌面, 壁纸/直播预览照常起播。
+            DiagLog.i("boot-debug: splash veil disabled, skipping veil")
             BootVeil.revealed = true
         }
         setContentView(root)
