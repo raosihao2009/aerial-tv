@@ -572,29 +572,25 @@ fun HomeScreen(
         val wanted = focusAfterOverlay
         focusAfterOverlay = null
         if (wanted != null) { focusedKey = wanted; pillFocused = false }
-        // 从二级菜单回来、或者根本没有记住焦点: 焦点一律落在直播频道卡片上,
-        // 不要落到右上角的控制中心按钮(以前会偶发/经常落在那里)
+        // 从二级菜单回来才强制落直播卡片; 冷/热启动、从控制中心回来且没记住焦点时, 一律落首卡,
+        // 不要落到右上角的控制中心按钮(以前兜底把焦点拉到直播卡, 启动时不在第一张)。
         val liveIndex = apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages }
-        // 只有"从二级菜单回来"才强制落到直播卡片; 从控制中心回来要回到原来那张卡片
         if (lastOverlay is Overlay.LiveSourceMenu) {
             pillFocused = false
             val i = if (liveIndex >= 0) liveIndex else apps.indexOfFirst { it.key == focusedKey }
             if (i >= 0) { focusApp(i); focusedKey = apps[i].key }
             return@LaunchedEffect
         }
-        // 兜底: 几帧之后如果焦点还是不在任何卡片上(落到控制中心), 拉回直播卡片
+        // 兜底: 几帧之后如果焦点还是不在任何卡片上(落到控制中心), 拉回首卡。
         repeat(3) { withFrameNanos { } }
-        if (focusedKey == null && liveIndex >= 0) { focusApp(liveIndex); focusedKey = apps[liveIndex].key }
+        if (focusedKey == null && apps.isNotEmpty()) { focusApp(0); focusedKey = apps.first().key }
         val index = apps.indexOfFirst { it.key == focusedKey }
         // A tile that went while the overlay was up (hidden, put in a folder, a folder ungrouped)
         // leaves focus where it was.
-        // 兜底: 没记住焦点(首次进入/卡片消失)时优先落在直播频道卡片上, 避免焦点跑到右上角控制中心
-        val liveFallback = if (index < 0) apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages } else -1
         focusApp(when {
             index >= 0 -> index
-            liveFallback >= 0 -> liveFallback
             wanted != null -> indexAfterOverlay
-            else -> lastFocusedIndex
+            else -> 0
         })
     }
     // 二级菜单淡出结束后, 如果焦点还停在右上角控制中心, 拉回直播频道卡片
@@ -643,8 +639,8 @@ fun HomeScreen(
                     focusApp(0)
                 }
                 target == -2 -> {
-                    val liveIdx = apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages }
-                    focusApp(if (liveIdx >= 0) liveIdx else 0)
+                    scroll.snapTo(0f)
+                    focusApp(0)
                 }
             }
             vm.homeFocusTarget = -1
