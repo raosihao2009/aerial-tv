@@ -213,6 +213,9 @@ fun AppTile(
     var menuPressed by remember { mutableStateOf(false) }
     val click by rememberUpdatedState(onClick)
     val longPress by rememberUpdatedState(onLongPress)
+    // 直播预览卡: 背后挂着直播播放器, 连发快速进出会反复触发预览显示/隐藏和解码, 这张卡
+    // 只认首按; 普通卡片走全局连发节流(NavRepeatGate), 长按仍能连续移动。
+    val liveTile = app.key in AerialSettings.liveAppPackages
 
     // 冷启动首卡只在挂载时抢一次焦点: 不能按 enabled 做键, 否则浮层关闭后卡片重新使能时
     // 这个 effect 会再跑一遍, 把焦点从恢复目标(原卡/胶囊)上抢回首卡。
@@ -378,10 +381,13 @@ fun AppTile(
                         // (repeatCount 递增) 还是焦点搜索选错了相邻卡片。
                         if (down) DiagLog.i("Tile-debug: ${app.key} nav $dir repeat=${e.nativeKeyEvent.repeatCount}")
                         // 遥控器长按会自动连发, 这台 TCL 连发触发早、间隔短, 一下短按能顺着
-                        // 连发连跳好几格。但一律只认首按又会让按住不能连续移动, 所以按时间
-                        // 节流: 首按立即走, 连发帧之间至少隔 NAV_REPEAT_MS 才走一格。真实长按
-                        // 仍是逐格连续移动, 短按引发的连发只落一格。
-                        if (down && NavRepeatGate.allow(SystemClock.uptimeMillis(), e.nativeKeyEvent.repeatCount == 0)) {
+                        // 连发连跳好几格。普通卡片按时间节流: 首按立即走, 连发帧之间至少隔
+                        // NAV_REPEAT_MS 才走一格, 真实长按仍逐格连续移动。直播预览卡背后挂着
+                        // 播放器, 进出都牵动预览层显隐, 连发快速跳格会反复起播, 这张卡只认
+                        // 首按, 连发帧直接丢弃。
+                        val first = e.nativeKeyEvent.repeatCount == 0
+                        val allow = if (liveTile) first else NavRepeatGate.allow(SystemClock.uptimeMillis(), first)
+                        if (down && allow) {
                             if (!focusManager.moveFocus(dir)) {
                                 // 到墙的限音和抖动只在首按给一次, 连发帧不重复播
                                 if (e.nativeKeyEvent.repeatCount == 0) {
