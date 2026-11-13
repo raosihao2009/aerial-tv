@@ -341,6 +341,11 @@ fun HomeScreen(
     // 焦点效果改写, 关闭时以这份快照为准, 避免回落到首卡。
     var savedOverlayKey by remember { mutableStateOf<String?>(null) }
     var savedOverlayIndex by remember { mutableStateOf(0) }
+    // 打开浮层前焦点是否真的在某张卡片上(而不是右上角的控制中心按钮): 从按钮打开控制中心时,
+    // 不该让"上一次停留的卡片"突然亮起来。
+    var overlayFromCard by remember { mutableStateOf(false) }
+    // 浮层已关、焦点还没真正落回卡片的那一两帧: 卡片继续按选中画, 不缩回去。
+    var restoringFocus by remember { mutableStateOf(false) }
     // 组合第一次进入时记下是不是冷启动: 冷启动才让首卡自己抢焦点, 热启动保留原焦点。
     val coldStart = remember { !BootVeil.desktopShown }
     val columns = AerialSettings.homeColumns
@@ -577,57 +582,59 @@ fun HomeScreen(
             if (savedOverlayKey == null) {
                 savedOverlayKey = focusedKey
                 savedOverlayIndex = lastFocusedIndex
+                overlayFromCard = focusedKey != null && !pillFocused
             }
         }
     }
 
-    // First focus once the apps are in; afterwards, put focus back wherever it was when an overlay closes.
+    // 浮层关闭时把焦点放回原处: 要在关闭的这一帧就请求。以前先等几帧(等卡片重新使能),
+    // 那几帧里 Compose 已经把焦点放到首卡, 看到的就是"先跳到第一个卡片, 再被拉回来"。
     LaunchedEffect(vm.loaded, overlay) {
         if (!vm.loaded || overlay != Overlay.None) return@LaunchedEffect
-        withFrameNanos { }
         val wanted = focusAfterOverlay
         focusAfterOverlay = null
-        if (wanted != null) { focusedKey = wanted; pillFocused = false }
-        // 从二级菜单回来才强制落直播卡片; 冷/热启动、从控制中心回来且没记住焦点时, 一律落首卡,
-        // 不要落到右上角的控制中心按钮(以前兜底把焦点拉到直播卡, 启动时不在第一张)。
-        val liveIndex = apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages }
-        if (lastOverlay is Overlay.LiveSourceMenu) {
-            pillFocused = false
-            val i = if (liveIndex >= 0) liveIndex else apps.indexOfFirst { it.key == focusedKey }
-            if (i >= 0) { focusApp(i); focusedKey = apps[i].key }
-            savedOverlayKey = null; savedOverlayIndex = 0
-            return@LaunchedEffect
+        // 启动时的第一次对焦由下面两个 effect 负责; 这里只在"浮层刚关"时恢复焦点。
+        if (savedOverlayKey == null && lastOverlay == null && wanted == null) return@LaunchedEffect
+        restoringFocus = true
+        try {
+            if (wanted != null) { focusedKey = wanted; pillFocused = false }
+            // 从二级菜单回来才强制落直播卡片; 从控制中心回来落回打开前停留的卡片。
+            val liveIndex = apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages }
+            if (lastOverlay is Overlay.LiveSourceMenu) {
+                pillFocused = false
+                val i = if (liveIndex >= 0) liveIndex else apps.indexOfFirst { it.key == focusedKey }
+                if (i >= 0) { focusApp(i); focusedKey = apps[i].key }
+                savedOverlayKey = null; savedOverlayIndex = 0; overlayFromCard = false
+                return@LaunchedEffect
+            }
+            val byKey = apps.indexOfFirst { it.key == focusedKey }
+            val savedByKey = apps.indexOfFirst { it.key == savedOverlayKey }
+            // 快照优先: 浮层期间 focusedKey 可能被 Compose 自动回落到首卡直播包名, 不能以它为准。
+            val target = when {
+                savedByKey >= 0 -> savedByKey
+                byKey >= 0 -> byKey
+                wanted != null && indexAfterOverlay in 0 until apps.size -> indexAfterOverlay
+                savedOverlayIndex in 0 until apps.size -> savedOverlayIndex
+                lastFocusedIndex in 0 until apps.size -> lastFocusedIndex
+                else -> 0
+            }.coerceIn(0, (apps.size - 1).coerceAtLeast(0))
+            val targetKey = apps.getOrNull(target)?.key
+            DiagLog.i("CC-debug: overlay closed restore target=$target key=$targetKey focusedKey=$focusedKey saved=$savedOverlayKey last=$lastFocusedIndex lastOverlay=$lastOverlay fromCard=$overlayFromCard")
+            if (targetKey != null) {
+                focusApp(target)
+                // 卡片刚重新使能时这一次请求可能被吞掉; 被吞掉才逐帧补, 不再提前空等。
+                var tries = 0
+                while (focusedKey != targetKey && tries < 3) {
+                    withFrameNanos { }
+                    focusApp(target)
+                    tries++
+                }
+                DiagLog.i("CC-debug: overlay restore done focusedKey=$focusedKey tries=$tries")
+            }
+            savedOverlayKey = null; savedOverlayIndex = 0; overlayFromCard = false
+        } finally {
+            restoringFocus = false
         }
-        // 兜底: 几帧之后如果焦点还是不在任何卡片上(落到控制中心), 拉回上次停留的卡片;
-        // 没有记住的位置才落首卡。逐帧重试, 等卡片挂上再请求, 避免冷启动撤罩时高亮还没到位。
-        repeat(3) { withFrameNanos { } }
-        val byKey = apps.indexOfFirst { it.key == focusedKey }
-        val savedByKey = apps.indexOfFirst { it.key == savedOverlayKey }
-        // 快照优先: 浮层期间 focusedKey 可能被 Compose 自动回落到首卡直播包名, 不能以它为准。
-        val target = when {
-            savedByKey >= 0 -> savedByKey
-            byKey >= 0 -> byKey
-            wanted != null && indexAfterOverlay in 0 until apps.size -> indexAfterOverlay
-            savedOverlayIndex in 0 until apps.size -> savedOverlayIndex
-            lastFocusedIndex in 0 until apps.size -> lastFocusedIndex
-            else -> 0
-        }.coerceIn(0, (apps.size - 1).coerceAtLeast(0))
-        val targetKey = apps.getOrNull(target)?.key
-        DiagLog.i("CC-debug: overlay closed restore target=$target key=$targetKey focusedKey=$focusedKey saved=$savedOverlayKey last=$lastFocusedIndex lastOverlay=$lastOverlay")
-        if (targetKey == null) {
-            savedOverlayKey = null; savedOverlayIndex = 0
-            return@LaunchedEffect
-        }
-        // 浮层关闭时卡片刚重新使能, 单次 requestFocus 可能被吞掉而焦点停在 pill;
-        // 逐帧重试, 直到焦点真的落回目标卡片。
-        var tries = 0
-        while (focusedKey != targetKey && tries < 10) {
-            withFrameNanos { }
-            focusApp(target)
-            tries++
-        }
-        savedOverlayKey = null; savedOverlayIndex = 0
-        DiagLog.i("CC-debug: overlay restore done focusedKey=$focusedKey tries=$tries")
     }
     // 二级菜单淡出结束后, 如果焦点还停在右上角控制中心, 拉回直播频道卡片
     LaunchedEffect(overlay, vm.loaded) {
@@ -1206,10 +1213,13 @@ fun HomeScreen(
                             focusRequester = requester(app.key),
                             enabled = gridEnabled,
                             moving = moving == app.key,
-                            // 浮层打开期间, 原来停留的卡片保持选中态: 否则焦点被浮层抢走后它会先缩回,
-                            // 关闭浮层再放大, 看到"短暂缩小一下"。缩放也不演过渡, 状态跳变直接到位。
-                            preFocus = overlay != Overlay.None && app.key == focusedKey,
-                            snapScale = overlay != Overlay.None,
+                            // 二级菜单打开期间, 原来停留的那张卡片保持选中态: 否则焦点被浮层抢走后
+                            // 它会先缩回, 关掉菜单再放大, 看到"短暂缩小一下"。缩放也不演过渡,
+                            // 状态跳变直接到位。只在这种浮层是从卡片上打开时才算: 从右上角控制中心
+                            // 按钮打开的情况下, 上一次停留的卡片不该突然亮起来。
+                            preFocus = (overlay != Overlay.None || restoringFocus) && overlayFromCard &&
+                                app.key == savedOverlayKey,
+                            snapScale = overlay != Overlay.None || restoringFocus,
                             autoFocus = coldStart && index == 0,
                             opacity = { 1f - saverFade() },
                             onFocused = {

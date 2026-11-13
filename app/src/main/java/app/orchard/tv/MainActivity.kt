@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.Drawable
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkRequest
@@ -165,6 +166,18 @@ class MainActivity : ComponentActivity() {
         override fun onReceive(context: Context, intent: Intent) = startReal(null)
     }
 
+    /**
+     * 关掉启动遮罩时这一屏该显示的东西: 上次桌面那张壁纸。解锁前读不到正常存储, 只有
+     * Wallpapers 拷进设备加密区的那份; 连它都没有(第一次开机)才留给窗口自己。
+     */
+    private fun bootBackdrop(): Drawable? {
+        Wallpapers.backdrop?.let { return BitmapDrawable(resources, it.asAndroidBitmap()) }
+        val copy = Wallpapers.lockedBootBackdrop(this) ?: return null
+        if (!copy.exists()) return null
+        val bmp = runCatching { android.graphics.BitmapFactory.decodeFile(copy.path) }.getOrNull() ?: return null
+        return BitmapDrawable(resources, bmp)
+    }
+
     private fun showLocked() {
         locked = true
         // 解锁前读不到完整的 AerialSettings(它在 startReal 里 init), 直接读 SharedPreferences;
@@ -179,8 +192,11 @@ class MainActivity : ComponentActivity() {
             // 铺开屏图: 解锁后真正启动时接的是同一张, 视觉上连成一次开屏。
             window.setBackgroundDrawable(SplashBackground(this))
         } else {
-            // 用户关掉启动遮罩: 解锁前也不铺开屏静图, 给一块黑底, 避免冷启动还留一张开屏页。
-            window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.BLACK))
+            // 用户关掉启动遮罩: 解锁前这一屏就铺上上次桌面那张壁纸, 开机第一眼就是"已经在桌面",
+            // 既不能是开屏页, 也不该是一块黑底。
+            val bg = bootBackdrop()
+            DiagLog.i("boot-debug: showLocked veil off, backdrop=${bg != null}")
+            if (bg != null) window.setBackgroundDrawable(bg)
         }
         ContextCompat.registerReceiver(this, unlocked, IntentFilter(Intent.ACTION_USER_UNLOCKED), ContextCompat.RECEIVER_EXPORTED)
         // Unlocked between the check and the registration.
@@ -331,10 +347,16 @@ class MainActivity : ComponentActivity() {
             window.setBackgroundDrawable(SplashBackground(this))
             DiagLog.i("boot-debug: window background is the splash at +${SystemClock.elapsedRealtime()}ms")
         } else if (coldBoot) {
-            // 关掉遮罩的冷启动: 不管上次烘焙的壁纸在不在, 都清掉解锁前可能铺的开屏静图, 给黑底,
-            // 不能让静图留在窗口背景上冒充遮罩。
-            window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.BLACK))
-            DiagLog.i("boot-debug: cold boot with veil off, window cleared to black")
+            // 关掉遮罩的冷启动: 第一眼就该是上次那张壁纸, 一直铺到桌面画完为止。黑底不算"直接
+            // 进桌面", 也不该出现; 这里只把未解锁时可能留下的开屏静图换掉。
+            val bg = bootBackdrop()
+            if (bg != null) {
+                window.setBackgroundDrawable(bg)
+                DiagLog.i("boot-debug: cold boot with veil off, window shows the last wallpaper")
+            } else {
+                window.setBackgroundDrawable(null)
+                DiagLog.i("boot-debug: cold boot with veil off, no wallpaper to show yet")
+            }
         } else if (baked != null) {
             window.setBackgroundDrawable(BitmapDrawable(resources, baked.asAndroidBitmap()))
             DiagLog.i("boot-debug: window background set to baked backdrop at +${SystemClock.elapsedRealtime()}ms")

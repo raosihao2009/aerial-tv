@@ -944,7 +944,9 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     color = Color.White,
                     shadow = shadow,
                     letterSpacing = 0.em,
-                    fontWeight = FontWeight.Normal,
+                    // 回到遮罩/时钟一贯的厚度: 字体本身是常规字重, W700 由系统按字重合成加粗,
+                    // 数字 3 的轮廓已在字体里修好, 加粗不会再咬掉右下那一段。
+                    fontWeight = FontWeight.W700,
                     fontFamily = OppoSans,
                 ),
                 modifier = Modifier.toSaverClock(toSaver, 52.sp, 52.sp.value.dp * CAP_TOP, drift),
