@@ -42,6 +42,8 @@ import app.orchard.tv.ui.BootVeil
 import app.orchard.tv.settings.AerialSettings
 import app.orchard.tv.ui.components.FilmSlot
 import app.orchard.tv.system.DiagLog
+import app.orchard.tv.system.NetKind
+import app.orchard.tv.system.SystemProbe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancel
@@ -127,6 +129,36 @@ fun ChannelFocusPreview(
         recoverTimes.removeAll { now - it > STALL_WINDOW_MS }
         recoverTimes += now
         return recoverTimes.size
+    }
+
+    /**
+     * 失败原因归类与文案(判定顺序固定: 网络 → 下播 → 空地址 → 地址失效/播放失败)。
+     * 顺序很重要: 网络断的时候解析/播放同样会失败, 必须先判网络, 否则会把断网说成地址失效。
+     *
+     * @param offline 调用方已查过的下播结果(仅 B 站可判; 非 B 站传 false)
+     * @param hasOld  是否还有旧源在播(有旧则回退旧源, 文案带"请继续观看")
+     * @param fallbackLabel 无旧源时切过去的备用源名
+     * @param oldLabel 有旧源时仍在看的旧源名
+     */
+    fun failureToast(
+        offline: Boolean,
+        hasOld: Boolean,
+        fallbackLabel: String? = null,
+        oldLabel: String? = null,
+    ): String {
+        val sourceName = source?.name ?: "该源"
+        val netOffline = SystemProbe.network(context).kind == NetKind.Offline
+        val urlEmpty = source?.url?.trim().isNullOrEmpty()
+        val keepWatching = oldLabel ?: "上一个源"
+        val netMsg = if (hasOld) "网络未连接，「$sourceName」暂时无法观看，请继续观看「$keepWatching」" else "网络未连接，「$sourceName」暂时无法观看"
+        val offMsg = if (hasOld) "「$sourceName」已下播，请继续观看「$keepWatching」" else "「$sourceName」已下播，请观看「${fallbackLabel ?: "备用源"}」"
+        val badMsg = if (hasOld) "「$sourceName」的直播地址可能失效了，请继续观看「$keepWatching」" else "「$sourceName」的直播地址可能失效了，请检查"
+        return when {
+            netOffline -> netMsg
+            offline -> offMsg
+            urlEmpty -> "「$sourceName」暂未设置直播地址"
+            else -> badMsg
+        }
     }
 
     /** 离 [origin] 最近的开播源(排除 [exclude]); liveStatus==1 才算开播。 */
@@ -250,18 +282,17 @@ fun ChannelFocusPreview(
             // 解析失败(可能已下播或网络未就绪)
             DiagLog.i("channel preview: stream resolve failed")
             st.loading = false
+            val offline = withContext(Dispatchers.IO) { checkIfOffline(source, context) }
             if (player != null) {
-                // 切换源失败：看旧源是否还在直播
-                // onRevert 恒返回 null(旧源就是还在播的那个, 不用切回去), 所以只剩"请继续观看"这条。
-                // 原来那条「暂时无法观看，已切换至「Y」」永远不会出现, 删掉免得日后误读。
+                // 切换源失败：回退到旧源(本来就在播)
                 playingSourceId?.let { onRevert(it) }
-                showToast("「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: "上一个源"}」")
+                showToast(failureToast(offline = offline, hasOld = true, oldLabel = currentPlayingName))
                 onRevertFail()
             } else {
                 // 首次加载失败: 切换到备用源
                 DiagLog.i("channel preview: first load failed, switching to fallback")
                 val target = onFallback()
-                showToast("「${source?.name ?: ""}」暂时无法观看，已切换至「${target ?: "备用源"}」")
+                showToast(failureToast(offline = offline, hasOld = false, fallbackLabel = target))
             }
             // 失败路径没走到成功切换的 reset, 这里补回, 避免下次用户主动切源被 suppress
             suppressSwitchToast = false
@@ -315,8 +346,9 @@ fun ChannelFocusPreview(
             if (!ready) {
                 DiagLog.i("channel preview: load timeout 15s, switching to fallback")
                 st.loading = false
+                val offline = withContext(Dispatchers.IO) { checkIfOffline(source, context) }
                 val target = onFallback()
-                showToast("「${source?.name ?: ""}」暂时无法观看，已切换至「${target ?: "备用源"}」")
+                showToast(failureToast(offline = offline, hasOld = player != null, fallbackLabel = target, oldLabel = currentPlayingName))
                 suppressSwitchToast = false
             }
         }
@@ -352,20 +384,18 @@ fun ChannelFocusPreview(
                         // 下播或重试耗尽: 标记ready=true取消15s超时协程, 避免超时再触发一次onFallback
                         ready = true
                         if (hasOld) {
-                            // 切换源失败: 看旧源是否还在直播
+                            // 切换源失败: 回退到旧源(本来就在播)
                             st.loading = false
-                            // onRevert 恒返回 null(旧源就是还在播的那个, 不用切回去), 所以只剩"请继续观看"这条。
-                            // 原来那条「暂时无法观看，已切换至「Y」」永远不会出现, 删掉免得日后误读。
                             playingSourceId?.let { onRevert(it) }
-                            showToast("「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: "上一个源"}」")
+                            showToast(failureToast(offline = offline, hasOld = true, oldLabel = currentPlayingName))
                             onRevertFail()
                             onStatusRefresh()
                         } else {
-                            // 当前源下播: 切换到备用源
+                            // 当前源下播/重试耗尽: 切换到备用源
                             st.loading = false
                             DiagLog.i("player err: current source offline, switching to fallback")
                             val target = onFallback()
-                            showToast("「${source.name}」暂时无法观看，已切换至「${target ?: "备用源"}」")
+                            showToast(failureToast(offline = offline, hasOld = false, fallbackLabel = target))
                         }
                         suppressSwitchToast = false
                         return@launch
@@ -450,12 +480,11 @@ fun ChannelFocusPreview(
             exo.removeListener(readyListener!!)
             exo.release()
             if (player != null) {
-                // 切换源失败：看旧源是否还在直播
+                // 切换源失败: 回退到旧源(本来就在播)
                 st.loading = false
-                // onRevert 恒返回 null(旧源就是还在播的那个, 不用切回去), 所以只剩"请继续观看"这条。
-                // 原来那条「暂时无法观看，已切换至「Y」」永远不会出现, 删掉免得日后误读。
+                val offline = withContext(Dispatchers.IO) { checkIfOffline(source, context) }
                 playingSourceId?.let { onRevert(it) }
-                showToast("「${source.name}」暂时无法观看，请继续观看「${currentPlayingName ?: "上一个源"}」")
+                showToast(failureToast(offline = offline, hasOld = true, oldLabel = currentPlayingName))
                 onRevertFail()
             } else {
                 // 开机首次加载超时：持续重试直到成功
