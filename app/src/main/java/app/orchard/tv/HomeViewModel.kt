@@ -92,6 +92,9 @@ enum class CcPage { Main, Inputs, InputSettings, Update, Setup }
  */
 private const val LEADING_TILES = 13
 
+/** 首屏第一趟加载完成后, 再宽限这么久才算稳定: 期间直播预览错峰、方向键去重。 */
+private const val BOOT_SETTLE_MS = 2_000L
+
 /** Time since boot at which the app list is looked at again; see HomeViewModel.catchUpAfterBoot. */
 private val BOOT_CATCH_UP_MS = listOf(60_000L, 180_000L)
 
@@ -123,6 +126,13 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     /** A folder's tile picture with the apps it was made from, so it is redrawn only when they change. */
     private val folderArt = HashMap<String, Pair<List<TileArt>, TileArt>>()
     var loaded by mutableStateOf(false); private set
+
+    /**
+     * 冷启动首屏是否已稳定: 网格第一趟加载完成后再宽限 [BOOT_SETTLE_MS] 置真。
+     * 稳定前, 直播预览错峰起播、方向键连发帧丢弃, 避免和首帧/贴图/双解码器争抢时把交互拖卡。
+     * 非首启(从应用/屏保回桌面)一路置真, 不限制正常操作。
+     */
+    var bootStable by mutableStateOf(false); private set
 
     var overlay by mutableStateOf<Overlay>(Overlay.None)
     var movingKey by mutableStateOf<String?>(null); private set
@@ -568,14 +578,34 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             // kept in AppCatalog was cleared by the other one's second pass, leaving this Home's
             // placeholders on screen for good.
             val waiting = all.count { it.art.placeholder }
-            if (waiting > 0) {
-                val rest = SystemClock.uptimeMillis()
-                all = AppCatalog.load(ctx)
-                arrange()
-                prepareFaces()
-                DiagLog.i("$waiting more tiles in ${SystemClock.uptimeMillis() - rest} ms")
+            if (!wasLoaded) {
+                // 冷启动: 全量图标、第二趟选中态贴图、图标库刷新错到首屏稳定后再做, 不跟首帧、
+                // 焦点动画、壁纸与直播解码器抢 CPU/内存。bootStable 同时作为直播预览错峰起播
+                // 和方向键连发去重的闸门。
+                viewModelScope.launch {
+                    delay(BOOT_SETTLE_MS)
+                    bootStable = true
+                    if (waiting > 0) {
+                        val rest = SystemClock.uptimeMillis()
+                        all = AppCatalog.load(ctx)
+                        arrange()
+                        prepareFaces()
+                        DiagLog.i("$waiting more tiles in ${SystemClock.uptimeMillis() - rest} ms")
+                    }
+                    refreshIconLibrary()
+                }
+            } else {
+                // 非首启(从应用/屏保回桌面): 没有冷启动争抢, 直接补齐, 闸门放开。
+                bootStable = true
+                if (waiting > 0) {
+                    val rest = SystemClock.uptimeMillis()
+                    all = AppCatalog.load(ctx)
+                    arrange()
+                    prepareFaces()
+                    DiagLog.i("$waiting more tiles in ${SystemClock.uptimeMillis() - rest} ms")
+                }
+                refreshIconLibrary()
             }
-            refreshIconLibrary()
         }
     }
 

@@ -1094,6 +1094,7 @@ fun HomeScreen(
             if (channelPreviewVisible) {
                 ChannelFocusPreview(
                     source = previewSource,
+                    gateOpen = vm.bootStable,
                     onFallback = {
                         val fb = vm.liveSources.find { it.id == "preset_2" } ?: vm.liveSources.firstOrNull()
                         fb?.let { vm.pickLiveSource(it.id) }
@@ -1278,6 +1279,7 @@ fun HomeScreen(
                                 app.key == savedOverlayKey,
                             snapScale = overlay != Overlay.None || restoringFocus,
                             autoFocus = coldStart && index == 0,
+                            bootStable = vm.bootStable,
                             opacity = { 1f - saverFade() },
                             onFocused = {
                                 focusedKey = app.key

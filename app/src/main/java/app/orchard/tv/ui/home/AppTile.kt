@@ -198,6 +198,8 @@ fun AppTile(
     nameOnPlate: Boolean = false,
     /** 冷启动首卡: 节点挂载、可用后自己主动请求一次焦点, 不依赖外层轮询(外层请求早于节点挂上会落空)。 */
     autoFocus: Boolean = false,
+    /** 冷启动首屏是否稳定: 稳定前方向键只认首按, 丢弃积压的连发帧, 避免主线程忙完后连着跳格。 */
+    bootStable: Boolean = true,
 ) {
     val reduced = LocalReducedMotion.current
     val scope = rememberCoroutineScope()
@@ -386,7 +388,13 @@ fun AppTile(
                         // 播放器, 进出都牵动预览层显隐, 连发快速跳格会反复起播, 这张卡只认
                         // 首按, 连发帧直接丢弃。
                         val first = e.nativeKeyEvent.repeatCount == 0
-                        val allow = if (liveTile) first else NavRepeatGate.allow(SystemClock.uptimeMillis(), first)
+                        // 冷启动首屏未稳定: 主线程/解码器还在挤, 积压的连发帧忙完后会被连续消费
+                        // 造成跳格, 这期间只认首按; 稳定后普通卡片走时间节流, 直播卡只认首按。
+                        val allow = when {
+                            !bootStable -> first
+                            liveTile -> first
+                            else -> NavRepeatGate.allow(SystemClock.uptimeMillis(), first)
+                        }
                         if (down && allow) {
                             if (!focusManager.moveFocus(dir)) {
                                 // 到墙的限音和抖动只在首按给一次, 连发帧不重复播

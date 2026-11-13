@@ -48,12 +48,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.first
 import org.json.JSONObject
 
 @Composable
 fun ChannelFocusPreview(
     source: LiveSource?,
     modifier: Modifier = Modifier,
+    /** 冷启动首屏是否已稳定: 首起播等它放开再建播放器, 避免和壁纸影片同时冷启动抢解码器。 */
+    gateOpen: Boolean = true,
     onFallback: () -> String? = { null },
     onRevert: (String) -> String? = { null },
     onReadyChange: (Boolean) -> Unit = {},
@@ -271,6 +274,12 @@ fun ChannelFocusPreview(
         // 15s 窗口容易把"起播慢"误判成坏源。首起播放宽到 25s, 切换仍保持 15s。
         val firstRun = player == null
         val loadTimeoutMs = if (firstRun) 25_000L else 15_000L
+
+        // 冷启动首起播错峰: 等首屏稳定(网格/贴图落定、壁纸解码器先热起来)再建播放器, 避免
+        // 两路硬解同一秒冷启动把刚拉起的直播拖到卡住、触发看门狗重载。运行中切换不等。
+        if (firstRun && !gateOpen) {
+            androidx.compose.runtime.snapshotFlow { gateOpen }.first { it }
+        }
 
         var streamUrl: String? = streamCache[source.url ?: ""]
         if (streamUrl == null) {
