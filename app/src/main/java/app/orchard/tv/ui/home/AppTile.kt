@@ -223,7 +223,7 @@ fun AppTile(
     )
     val liftState = animateFloatAsState(
         targetValue = if (active) 1f else 0f,
-        animationSpec = if (snapFocus) androidx.compose.animation.core.snap() else spring(dampingRatio = 1f, stiffness = 380f),
+        animationSpec = if (snapFocus || snapScale) androidx.compose.animation.core.snap() else spring(dampingRatio = 1f, stiffness = 380f),
         label = "tile-lift",
     )
     val lift by liftState
@@ -238,7 +238,7 @@ fun AppTile(
     val ringInState = animateFloatAsState(
         targetValue = if (active) 1f else 0f,
         animationSpec = when {
-            snapFocus -> androidx.compose.animation.core.snap()
+            snapFocus || snapScale -> androidx.compose.animation.core.snap()
             active -> spring(dampingRatio = 1f, stiffness = 700f)
             else -> spring(dampingRatio = 1f, stiffness = 2400f)
         },
@@ -329,6 +329,7 @@ fun AppTile(
                 .onFocusChanged {
                     if (it.isFocused && !focused) Sounds.focusMoved()
                     focused = it.isFocused
+                    DiagLog.i("Tile-debug: ${app.key} focused=${it.isFocused}")
                     if (it.isFocused) onFocused() else {
                         pressed = false
                         longPressJob?.cancel()

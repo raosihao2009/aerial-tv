@@ -587,52 +587,40 @@ fun HomeScreen(
         }
     }
 
-    // 浮层关闭时把焦点放回原处: 要在关闭的这一帧就请求。以前先等几帧(等卡片重新使能),
-    // 那几帧里 Compose 已经把焦点放到首卡, 看到的就是"先跳到第一个卡片, 再被拉回来"。
+    // 浮层关闭时把焦点放回原处: 先等一帧让浮层节点退场、网格重新使能, 再请求焦点。
+    // 从右上角按钮打开的控制中心, 关闭后焦点回 pill(和上游一致), 不落任何卡片;
+    // 文件夹/卡片菜单关闭回原来那张卡片; 直播源二级菜单关闭回直播卡片。
     LaunchedEffect(vm.loaded, overlay) {
         if (!vm.loaded || overlay != Overlay.None) return@LaunchedEffect
+        // 先置位: 等帧等待和请求焦点的窗口里, 原卡片继续按选中画、缩放跳变不演过渡,
+        // 避免关闭瞬间先缩回再放大, 看到"短暂缩一下"。
+        restoringFocus = true
+        withFrameNanos { }
         val wanted = focusAfterOverlay
         focusAfterOverlay = null
-        // 启动时的第一次对焦由下面两个 effect 负责; 这里只在"浮层刚关"时恢复焦点。
-        if (savedOverlayKey == null && lastOverlay == null && wanted == null) return@LaunchedEffect
-        restoringFocus = true
+        if (wanted != null) { focusedKey = wanted; pillFocused = false }
         try {
-            if (wanted != null) { focusedKey = wanted; pillFocused = false }
-            // 从二级菜单回来才强制落直播卡片; 从控制中心回来落回打开前停留的卡片。
-            val liveIndex = apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages }
+            // 从二级菜单回来: 回到直播卡片, 不要落回右上角 pill 或首卡。
             if (lastOverlay is Overlay.LiveSourceMenu) {
                 pillFocused = false
+                val liveIndex = apps.indexOfFirst { it.packageName in AerialSettings.liveAppPackages }
                 val i = if (liveIndex >= 0) liveIndex else apps.indexOfFirst { it.key == focusedKey }
                 if (i >= 0) { focusApp(i); focusedKey = apps[i].key }
-                savedOverlayKey = null; savedOverlayIndex = 0; overlayFromCard = false
                 return@LaunchedEffect
             }
-            val byKey = apps.indexOfFirst { it.key == focusedKey }
-            val savedByKey = apps.indexOfFirst { it.key == savedOverlayKey }
-            // 快照优先: 浮层期间 focusedKey 可能被 Compose 自动回落到首卡直播包名, 不能以它为准。
-            val target = when {
-                savedByKey >= 0 -> savedByKey
-                byKey >= 0 -> byKey
-                wanted != null && indexAfterOverlay in 0 until apps.size -> indexAfterOverlay
-                savedOverlayIndex in 0 until apps.size -> savedOverlayIndex
-                lastFocusedIndex in 0 until apps.size -> lastFocusedIndex
-                else -> 0
-            }.coerceIn(0, (apps.size - 1).coerceAtLeast(0))
-            val targetKey = apps.getOrNull(target)?.key
-            DiagLog.i("CC-debug: overlay closed restore target=$target key=$targetKey focusedKey=$focusedKey saved=$savedOverlayKey last=$lastFocusedIndex lastOverlay=$lastOverlay fromCard=$overlayFromCard")
-            if (targetKey != null) {
-                focusApp(target)
-                // 卡片刚重新使能时这一次请求可能被吞掉; 被吞掉才逐帧补, 不再提前空等。
-                var tries = 0
-                while (focusedKey != targetKey && tries < 3) {
-                    withFrameNanos { }
-                    focusApp(target)
-                    tries++
-                }
-                DiagLog.i("CC-debug: overlay restore done focusedKey=$focusedKey tries=$tries")
+            val index = apps.indexOfFirst { it.key == focusedKey }
+            DiagLog.i("CC-debug: overlay closed restore pill=$pillFocused focused=$focusedKey saved=$savedOverlayKey last=$lastFocusedIndex lastOverlay=$lastOverlay")
+            if (pillFocused && focusedKey != null) {
+                runCatching { pillRequester.requestFocus() }
+            } else {
+                focusApp(when {
+                    index >= 0 -> index
+                    wanted != null && indexAfterOverlay in 0 until apps.size -> indexAfterOverlay
+                    else -> lastFocusedIndex.coerceIn(0, (apps.size - 1).coerceAtLeast(0))
+                })
             }
-            savedOverlayKey = null; savedOverlayIndex = 0; overlayFromCard = false
         } finally {
+            savedOverlayKey = null; savedOverlayIndex = 0; overlayFromCard = false
             restoringFocus = false
         }
     }
