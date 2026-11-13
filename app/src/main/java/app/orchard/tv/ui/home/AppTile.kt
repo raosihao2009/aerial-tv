@@ -351,15 +351,18 @@ fun AppTile(
                         // 记录方向键与 repeatCount: 复测时能区分"一次按一下跳多格"是长按连发
                         // (repeatCount 递增) 还是焦点搜索选错了相邻卡片。
                         if (down) DiagLog.i("Tile-debug: ${app.key} nav $dir repeat=${e.nativeKeyEvent.repeatCount}")
-                        // A held key repeats: the wall is told once, on the first press, or the tile
-                        // stayed pushed and leaning and the limit sound ran on while the key was held.
-                        if (down && !focusManager.moveFocus(dir) && e.nativeKeyEvent.repeatCount == 0) {
-                            Sounds.limit()
-                            when (dir) {
-                                FocusDirection.Left -> nudge(-1f, 0f)
-                                FocusDirection.Right -> nudge(1f, 0f)
-                                FocusDirection.Up -> nudge(0f, -1f)
-                                else -> nudge(0f, 1f)
+                        // 遥控器长按自动连发: 只响应首按, repeat 帧不重复移动。这台 TCL 连发
+                        // 触发早、间隔短, 短按一下焦点会顺着连发连跳好几格(实测首按到第2张,
+                        // repeat 1/2/3 一路顶到第5张)。按住期间停在当前卡, 松开再按才移下一格。
+                        if (down && e.nativeKeyEvent.repeatCount == 0) {
+                            if (!focusManager.moveFocus(dir)) {
+                                Sounds.limit()
+                                when (dir) {
+                                    FocusDirection.Left -> nudge(-1f, 0f)
+                                    FocusDirection.Right -> nudge(1f, 0f)
+                                    FocusDirection.Up -> nudge(0f, -1f)
+                                    else -> nudge(0f, 1f)
+                                }
                             }
                         }
                         return@onKeyEvent true
