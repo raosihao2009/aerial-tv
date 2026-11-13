@@ -536,9 +536,13 @@ fun LiveSourceMenu(
                 val isLastCol = colIndex == columns - 1 || index == sources.size - 1
                 val isLastRow = rowFromTop == (sources.size - 1) / columns && index >= sources.size - 1 - columns
                 Box(modifier = Modifier
+                    // 布局定位: 焦点搜索按布局 bounds 找相邻卡。graphicsLayer 只做动画位移、不参与
+                    // 布局; 之前所有卡片 bounds 都叠在原点, 方向键几何搜索会跳过中间那张
+                    // (实测 preset_1 按右键落到 preset_3, 跳过 preset_2)。
+                    .offset { IntOffset(xPx, yPx) }
                     .graphicsLayer {
-                        translationX = animX.toFloat()
-                        translationY = animY.toFloat() + cardFade * 18.dp.toPx()
+                        translationX = (animX - xPx).toFloat()
+                        translationY = (animY - yPx).toFloat() + cardFade * 18.dp.toPx()
                     }
                     .focusProperties {
                         if (isFirstCol) left = FocusRequester.Cancel

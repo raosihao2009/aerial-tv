@@ -285,6 +285,9 @@ class FilmSlot(context: Context) : FrameLayout(context) {
         val h = p as? UhdCanvas.Host ?: return
         host = h
         removeView(surface)
+        // 离开 FilmSlot 后它是 host.films 里的独立原生节点, 焦点封锁不再覆盖到它; 显式再关一次
+        surface.isFocusable = false
+        surface.isFocusableInTouchMode = false
         h.films.addView(surface, LayoutParams(0, 0))
         setWillNotDraw(false)
         viewTreeObserver.addOnPreDrawListener(follow)

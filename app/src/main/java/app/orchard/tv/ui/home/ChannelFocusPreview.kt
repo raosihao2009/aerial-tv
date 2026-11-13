@@ -113,6 +113,9 @@ fun ChannelFocusPreview(
     // 否则 release 旧 player 会触发旧 listener 的 onPlayerError, 旧闭包还拿着旧 source 上下文,
     // 会误调 onFallback/onRevert)
     val playerListenerRef = remember { mutableStateOf<Player.Listener?>(null) }
+    // 旧 player 暂存: 新流首帧上来再 release。立刻 release 时 Amlogic(TCL) 解码器会把
+    // surface 清成黑帧, 新流出帧前就看到黑屏; 当贝解码器保留最后一帧所以不黑。
+    val pendingRelease = remember { mutableStateOf<ExoPlayer?>(null) }
 
     // ===== 卡住时的统一救场 =====
     // 规矩是"先查开播/下播, 再决定怎么动":
@@ -353,6 +356,14 @@ fun ChannelFocusPreview(
             }
         }
         readyListener = object : Player.Listener {
+            override fun onRenderedFirstFrame() {
+                // 新流首帧已上屏: 此刻再放掉旧 player, surface 由新帧盖住, 不会漏黑帧
+                val stale = pendingRelease.value
+                if (stale != null) {
+                    pendingRelease.value = null
+                    stale.release()
+                }
+            }
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_READY) {
                     retryCount = 0
@@ -383,6 +394,8 @@ fun ChannelFocusPreview(
                     if (offline || retryCount >= 3) {
                         // 下播或重试耗尽: 标记ready=true取消15s超时协程, 避免超时再触发一次onFallback
                         ready = true
+                        // 新流没出帧就失败, 暂存的上一代旧 player 直接放掉, 别滞留解码器实例
+                        pendingRelease.value?.let { it.release(); pendingRelease.value = null }
                         if (hasOld) {
                             // 切换源失败: 回退到旧源(本来就在播)
                             st.loading = false
@@ -434,7 +447,12 @@ fun ChannelFocusPreview(
             // 旧闭包还拿着旧 source/retryCount/hls, 会误调 onFallback/onRevert
             playerListenerRef.value?.let { old?.removeListener(it) }
             playerListenerRef.value = readyListener!!
-            old?.release()
+            // 旧 player 不立刻 release: 停住输出后暂存, 等新流首帧上来再放。立刻 release 时
+            // Amlogic(TCL) 解码器会把 surface 清成黑帧, 新流出帧前就看到黑屏; 当贝解码器
+            // 保留最后一帧所以不黑。
+            old?.playWhenReady = false
+            pendingRelease.value?.release()
+            pendingRelease.value = old
             player = exo
             // 跳到直播边缘(缓冲末尾), 避免音视频从不同位置开始导致画面超前声音
             exo.seekTo(exo.bufferedPosition.coerceAtLeast(exo.currentPosition))
@@ -535,6 +553,8 @@ fun ChannelFocusPreview(
                     playerListenerRef.value?.let { player?.removeListener(it) }
                     player?.release()
                     player = null
+                    pendingRelease.value?.release()
+                    pendingRelease.value = null
                     st.loading = false
                     onActuallyPlayingChange(false)
                 }
@@ -560,6 +580,8 @@ fun ChannelFocusPreview(
             playerListenerRef.value?.let { p?.removeListener(it) }
             playerListenerRef.value = null
             p?.release()
+            pendingRelease.value?.release()
+            pendingRelease.value = null
         }
     }
 
