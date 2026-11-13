@@ -1,5 +1,6 @@
 package app.orchard.tv.ui.home
 
+import android.os.SystemClock
 import android.graphics.BitmapShader
 import android.graphics.BlurMaskFilter
 import android.graphics.ComposeShader
@@ -141,6 +142,31 @@ private val RingWidth = 3.dp
  * push against the edge of the grid. Adaptive icons keep their two layers, so the logo shifts
  * against its background when the tile leans.
  */
+/**
+ * 方向键连发的节流闸门。
+ *
+ * 焦点移动后按键由下一张卡片接手, 所以状态必须跨卡片共享, 不能放在单个 tile 里。
+ * 首按(repeatCount == 0)永远放行并重置计时; 连发帧只在距上次移动超过
+ * [NAV_REPEAT_MS] 时放行一格 —— 正常长按仍能一格一格连续移动, 而短按被遥控器
+ * 误判成连发时只会走一格。
+ */
+private object NavRepeatGate {
+    /** 连发帧的最小间隔。系统连发间隔常见 50~100ms, 取 150ms 让短按抖动被吃掉,
+     *  同时按住仍有约每 150ms 一格的移动速度。 */
+    private const val NAV_REPEAT_MS = 150L
+    private var lastAt = 0L
+
+    fun allow(now: Long, first: Boolean): Boolean {
+        if (first) {
+            lastAt = now
+            return true
+        }
+        if (now - lastAt < NAV_REPEAT_MS) return false
+        lastAt = now
+        return true
+    }
+}
+
 @Composable
 fun AppTile(
     app: AppEntry,
@@ -351,17 +377,21 @@ fun AppTile(
                         // 记录方向键与 repeatCount: 复测时能区分"一次按一下跳多格"是长按连发
                         // (repeatCount 递增) 还是焦点搜索选错了相邻卡片。
                         if (down) DiagLog.i("Tile-debug: ${app.key} nav $dir repeat=${e.nativeKeyEvent.repeatCount}")
-                        // 遥控器长按自动连发: 只响应首按, repeat 帧不重复移动。这台 TCL 连发
-                        // 触发早、间隔短, 短按一下焦点会顺着连发连跳好几格(实测首按到第2张,
-                        // repeat 1/2/3 一路顶到第5张)。按住期间停在当前卡, 松开再按才移下一格。
-                        if (down && e.nativeKeyEvent.repeatCount == 0) {
+                        // 遥控器长按会自动连发, 这台 TCL 连发触发早、间隔短, 一下短按能顺着
+                        // 连发连跳好几格。但一律只认首按又会让按住不能连续移动, 所以按时间
+                        // 节流: 首按立即走, 连发帧之间至少隔 NAV_REPEAT_MS 才走一格。真实长按
+                        // 仍是逐格连续移动, 短按引发的连发只落一格。
+                        if (down && NavRepeatGate.allow(SystemClock.uptimeMillis(), e.nativeKeyEvent.repeatCount == 0)) {
                             if (!focusManager.moveFocus(dir)) {
-                                Sounds.limit()
-                                when (dir) {
-                                    FocusDirection.Left -> nudge(-1f, 0f)
-                                    FocusDirection.Right -> nudge(1f, 0f)
-                                    FocusDirection.Up -> nudge(0f, -1f)
-                                    else -> nudge(0f, 1f)
+                                // 到墙的限音和抖动只在首按给一次, 连发帧不重复播
+                                if (e.nativeKeyEvent.repeatCount == 0) {
+                                    Sounds.limit()
+                                    when (dir) {
+                                        FocusDirection.Left -> nudge(-1f, 0f)
+                                        FocusDirection.Right -> nudge(1f, 0f)
+                                        FocusDirection.Up -> nudge(0f, -1f)
+                                        else -> nudge(0f, 1f)
+                                    }
                                 }
                             }
                         }
