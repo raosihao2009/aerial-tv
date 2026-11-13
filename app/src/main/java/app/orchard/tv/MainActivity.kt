@@ -168,10 +168,11 @@ class MainActivity : ComponentActivity() {
     private fun showLocked() {
         locked = true
         // 解锁前读不到完整的 AerialSettings(它在 startReal 里 init), 直接读 SharedPreferences;
-        // 读不到(直加密存储尚未挂载)时按默认开, 与之前行为一致。
-        val veilPref = runCatching {
-            getSharedPreferences("settings", Context.MODE_PRIVATE).getBoolean("splash_veil", true)
-        }.getOrDefault(true)
+        // 存储尚未挂载/读失败时按关处理(黑底), 不让没读过开关的开屏静图先铺上去。
+        var veilPref = false
+        runCatching {
+            veilPref = getSharedPreferences("settings", Context.MODE_PRIVATE).getBoolean("splash_veil", true)
+        }.onFailure { veilPref = false }
         DiagLog.i("boot-debug: showLocked at +${SystemClock.elapsedRealtime()}ms; splash veil=$veilPref")
         if (veilPref) {
             // 解锁前这一屏本来就什么也读不到, 与其铺上次的静图(开机后会先看到几秒壁纸), 不如直接
