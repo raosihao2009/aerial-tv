@@ -680,7 +680,9 @@ object BootVeil {
         // 没有影片时: 先把壁纸/预览放起来, 遮罩还盖着(看不见), 这 1.5 秒足够解码器出第一帧。
         // 否则过渡时"洞"里透出来的是一块还没起播的黑 SurfaceView —— 图标淡掉像在黑底上放大。
         // 有影片时不能提前起: 两个解码器一起跑, 影片会卡; 影片自己在尾巴前 1.2 秒才放它们开工。
-        if (veil?.usesVideo != true) revealed = true
+        // 没有遮罩时(解锁前那次窗口/关了遮罩)不动 revealed: 那一下会把状态留给真正的启动,
+        // 冷启动就跳过揭罩、提前起壁纸了。
+        if (veil != null && veil?.usesVideo != true) revealed = true
         if (armed || signaled) return
         armed = true
         veil?.armReveal(delayMs)

@@ -944,9 +944,9 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     color = Color.White,
                     shadow = shadow,
                     letterSpacing = 0.em,
-                    // 厚度对齐控制中心的 SmallClock(W600), 不用 700 真 Bold;
-                    // 数字 3 的轮廓已在字体里修好, 半粗也不会咬掉右下那一段。
-                    fontWeight = FontWeight.W600,
+                    // 厚度对齐控制中心的正文字重: 700/600 在 52sp 上仍然发粗(半粗一样显粗),
+                    // 落到常规 400。数字轮廓是 OPPO Sans 4.0@400, 等宽 570, 3 已修好。
+                    fontWeight = FontWeight.Normal,
                     fontFamily = OppoSans,
                 ),
                 modifier = Modifier.toSaverClock(toSaver, 52.sp, 52.sp.value.dp * CAP_TOP, drift),

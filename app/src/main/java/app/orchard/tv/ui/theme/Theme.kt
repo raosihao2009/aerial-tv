@@ -82,7 +82,7 @@ val OutfitRegular = FontFamily(Font(R.font.outfit_regular))
 val OutfitMedium = FontFamily(Font(R.font.outfit_medium))
 
 // OPPO Sans 4.0 for the home clock digits. 数字轮廓取自 4.0 并按等宽 570 居中;
-// 常规 400 与半粗 600 两档: 大时钟用 600, 厚度和控制中心的 SmallClock(InterText W600) 一致。
+// 常规 400 与半粗 600 两档: 大时钟用 400(600 在 52sp 上仍显粗), 600 留在家族里备用。
 val OppoSans = FontFamily(
     Font(R.font.opposans, FontWeight.Normal),
     Font(R.font.opposans_semi, FontWeight.W600),

@@ -181,12 +181,15 @@ class MainActivity : ComponentActivity() {
     private fun showLocked() {
         locked = true
         // 解锁前读不到完整的 AerialSettings(它在 startReal 里 init), 直接读 SharedPreferences;
-        // 存储尚未挂载/读失败时按关处理(黑底), 不让没读过开关的开屏静图先铺上去。
-        var veilPref = false
+        // 存储尚未挂载/读失败时按"开"处理(铺开屏图): 读不到开关就无从知道用户关没关, 而铺错
+        // 成壁纸会让"遮罩开着"的用户在冷启动第一眼看到壁纸; 铺开屏图最多是多一屏开屏, 解锁后
+        // startReal 会按真实开关再铺一次。
+        var veilPref = true
+        var readFailed = false
         runCatching {
             veilPref = getSharedPreferences("settings", Context.MODE_PRIVATE).getBoolean("splash_veil", true)
-        }.onFailure { veilPref = false }
-        DiagLog.i("boot-debug: showLocked at +${SystemClock.elapsedRealtime()}ms; splash veil=$veilPref")
+        }.onFailure { readFailed = true; veilPref = true }
+        DiagLog.i("boot-debug: showLocked at +${SystemClock.elapsedRealtime()}ms; splash veil=$veilPref readFailed=$readFailed")
         if (veilPref) {
             // 解锁前这一屏本来就什么也读不到, 与其铺上次的静图(开机后会先看到几秒壁纸), 不如直接
             // 铺开屏图: 解锁后真正启动时接的是同一张, 视觉上连成一次开屏。
@@ -313,7 +316,9 @@ class MainActivity : ComponentActivity() {
         // (铺一张静图), 再建真正的那次(savedInstanceState 往往不为 null), 所以不能只看 fresh。
         val coldBoot = !BootVeil.desktopShown
         // 非冷启动(进程还在、从应用/屏保回来)没有遮罩要跑, 让壁纸/预览照常起播。
-        if (!coldBoot) BootVeil.revealed = true
+        // 冷启动反过来要先按住: 解锁前那次窗口可能已经把 revealed 提前置真(那时还没有遮罩),
+        // 那样这次真正的启动既会跳过揭罩、又会提前把影片壁纸放起来 —— 遮罩开着却先看到壁纸。
+        if (!coldBoot) BootVeil.revealed = true else BootVeil.revealed = false
         FontWarmup.start(this)
         val uhd = UhdCanvas.scale(this)
         Wallpapers.init(this)
