@@ -27,8 +27,14 @@ class PlaybackWatchdog(
     private val streakNeeded: Int,
     /** 宿主组合是否仍应让看门狗工作：合并 disposed/paused/loading/sourceId 守卫。 */
     private val isActive: () -> Boolean,
-    /** 连续异常达到阈值后回调，由宿主决定切源或 reloadTick++。 */
+    /** 连续异常达到阈值后回调，由宿主决定重新加载、换源或升级成看门狗换源。 */
     private val onJank: (sourceId: String) -> Unit,
+    /**
+     * 只看"明显卡住"(真冻住: 没在播, 或 position 不走且 buffer 不涨), 不看低帧率/掉帧爆发。
+     * 看门狗设置为关时用这个: 关掉的是"卡了就换源"的自动动作, 不是"卡死了也不管"——
+     * 真冻住仍要交给宿主去查开播/下播, 只重载不换源。
+     */
+    private val frozenOnly: Boolean = false,
 ) {
     private var job: Job? = null
 
@@ -80,7 +86,8 @@ class PlaybackWatchdog(
                 // —— 这是正常的低帧率直播，rendered 少但内容在推进，不算 bad
                 val lowFpsLive = playing && !buffering && posDelta > LOWFPS_MIN_POS_DELTA_MS && bufDelta > 0L
                 val lowFps = !lowFpsLive && renderedDelta > 0L && renderedDelta < renderedThreshold
-                val bad = frozen || dropBurst || lowFps
+                // frozenOnly(看门狗关闭): 只认"真冻住", 不把掉帧爆发/低帧率算成卡死。
+                val bad = if (frozenOnly) frozen else frozen || dropBurst || lowFps
                 stuckStreak = if (bad) stuckStreak + 1 else 0
                 if (stuckStreak >= streakNeeded) {
                     DiagLog.i("channel preview: source $sourceId jank (frozen=$frozen dropped=$droppedDelta rendered=$renderedDelta pos=$posDelta buf=$bufDelta lowFpsLive=$lowFpsLive), handle")

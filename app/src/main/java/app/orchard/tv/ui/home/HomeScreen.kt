@@ -97,7 +97,6 @@ import app.orchard.tv.ui.control.ControlCenter
 import app.orchard.tv.ui.wallpaper.SheetCovers
 import app.orchard.tv.ui.wallpaper.WallpaperSheet
 import app.orchard.tv.wallpaper.AerialFormats
-import app.orchard.tv.wallpaper.GlassPulse
 import app.orchard.tv.wallpaper.ScreensaverMode
 import app.orchard.tv.wallpaper.Wallpapers
 import app.orchard.tv.ui.components.liquidGlass
@@ -440,11 +439,6 @@ fun HomeScreen(
             delay(150)
         }
     }
-
-    // 磨砂背景: 打开控制中心/个性化/二级菜单/文件夹这些面板时, 立刻按当前影片画面补一帧,
-    // 之后由采样循环每 5 秒跟着走。不这样的话, 面板后面那块玻璃要等到下一个 5 秒才变,
-    // 打开的一瞬间还是几秒前的颜色。
-    LaunchedEffect(overlay) { if (overlay != Overlay.None) GlassPulse.request() }
 
     // 焦点在IPTV卡片时立即检测一次直播状态, 然后每30秒刷新; 其他场景刷新后重置计时
     // 抽到独立 composable 里读 liveStatusTickState，tick 变化只重组这个小节点，不带动整棵树。
@@ -912,9 +906,6 @@ fun HomeScreen(
         val maxScroll = with(density) { metrics.scrollFor(rows - 1, rows).toPx() }.coerceAtLeast(0f)
         LaunchedEffect(maxScroll) { scroll.updateBounds(0f, maxScroll) }
         val pastShelf by remember(collapsePx) { derivedStateOf { scroll.value > collapsePx / 2 } }
-        // 一级菜单往下(滚过书架、进网格)时也补一帧磨砂: 那块玻璃这时才露出大片屏幕, 停在
-        // 上个 5 秒的颜色会被一眼看出来。
-        LaunchedEffect(pastShelf, inGrid) { if (pastShelf || inGrid) GlassPulse.request() }
         val decay = rememberSplineBasedDecay<Float>()
         LaunchedEffect(target, dragged) {
             if (dragged) return@LaunchedEffect
@@ -1001,14 +992,7 @@ fun HomeScreen(
         }
         // 二创保留：Control Center 打开时用 home 快照 + 磨砂面板替代实时 Home
         homeShot?.let { shot -> Canvas(Modifier.fillMaxSize()) { drawImage(shot) } }
-        // 面板后面那块磨砂: 影片在动的时候用采样循环最新的一帧(filmFrost), 跟着画面每 5 秒走,
-        // 打开面板时另有 GlassPulse 立刻补一帧; 影片不在动才退回壁纸静态磨砂。
-        PanelBackdrop(
-            (if (Wallpapers.moves()) Wallpapers.filmFrost ?: Wallpapers.frosted else Wallpapers.frosted)
-                .takeIf { Wallpapers.backdrop != null },
-            { backdropFrost },
-            { backdropVeil },
-        )
+        PanelBackdrop(Wallpapers.frosted.takeIf { Wallpapers.backdrop != null }, { backdropFrost }, { backdropVeil })
         Box(
             Modifier
                 .fillMaxSize()
@@ -1130,6 +1114,28 @@ fun HomeScreen(
                         focusApp(lastFocusedIndex)
                     },
                     onActuallyPlayingChange = { vm.liveActuallyPlaying = it },
+                    // 卡住救场: 切到指定源(和菜单点选同一套, 新流真开播才提交)
+                    onPickSource = { id -> vm.pickLiveSource(id) },
+                    sourcesNow = { vm.liveSources },
+                    // 所有直播源都下播: 焦点从直播卡移到同一排相邻的普通卡片(先右后左),
+                    // 这一排全是直播卡就往下挪一排, 让用户回到普通桌面而不是停在黑屏的直播卡上。
+                    onMoveOffLiveCard = {
+                        val liveKeys = apps.filter { it.key in AerialSettings.liveAppPackages }.map { it.key }
+                        fun normalNear(i: Int): Int? {
+                            val row = i / columns
+                            val start = row * columns
+                            val end = minOf(start + columns, apps.size) - 1
+                            val right = (i + 1..end).firstOrNull { apps[it].key !in liveKeys }
+                            val left = (i - 1 downTo start).firstOrNull { apps[it].key !in liveKeys }
+                            return right ?: left
+                        }
+                        val from = apps.indexOfFirst { it.key == focusedKey }.takeIf { it >= 0 } ?: 0
+                        val pick = normalNear(from)
+                            ?: (from + columns until apps.size).firstOrNull { apps[it].key !in liveKeys }
+                            ?: (0 until apps.size).firstOrNull { apps[it].key !in liveKeys }
+                        if (pick != null) focusApp(pick)
+                    },
+                    onGlobalToast = { msg -> vm.showToast(msg) },
                 )
             }
             // 静态壁纸: 直播画面还没出帧时 SurfaceView 是黑的, 先盖一层壁纸,

@@ -39,29 +39,6 @@ import kotlin.math.roundToInt
 
 enum class WallpaperKind { Daily, Builtin, Photo, Auto, Live, Video, Source }
 
-/**
- * 磨砂背景的"现在就跟一帧"请求。
- *
- * 影片壁纸的磨砂是采样循环按固定间隔(5 秒)取的, 但在打开控制中心/个性化/子界面、或从首排
- * 滚进网格的这一刻, 用户看的就是那块玻璃, 等固定间隔(最长 5 秒)才更新会明显滞后。这些时刻
- * 调一次 [request], 采样循环下一次等待立即结束, 马上取一帧, 之后的节奏不变。
- *
- * 计数用 @Volatile, 不接 Compose 状态: 采样循环在后台协程里跑, 只需要看到变化。
- */
-object GlassPulse {
-    @Volatile var count = 0; private set
-    private var lastAt = 0L
-    /** 两次请求至少隔这么久: 滚动时每跨一档都会叫, 连发只会白耗解码器。 */
-    private const val GAP_MS = 1_000L
-
-    fun request() {
-        val now = android.os.SystemClock.elapsedRealtime()
-        if (now - lastAt < GAP_MS) return
-        lastAt = now
-        count++
-    }
-}
-
 data class Wallpaper(
     val id: String,
     val kind: WallpaperKind,

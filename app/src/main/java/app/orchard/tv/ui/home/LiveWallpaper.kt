@@ -43,7 +43,6 @@ import app.orchard.tv.wallpaper.AerialQuality
 import app.orchard.tv.wallpaper.AerialSet
 import app.orchard.tv.wallpaper.AerialStream
 import app.orchard.tv.wallpaper.Aerials
-import app.orchard.tv.wallpaper.GlassPulse
 import app.orchard.tv.wallpaper.ScreensaverMode
 import app.orchard.tv.wallpaper.Wallpapers
 import kotlinx.coroutines.Dispatchers
@@ -751,11 +750,11 @@ internal fun filmGlassReport(context: android.content.Context): String {
 }
 
 /**
- * How often a small frame is taken for the glass while the film moves on Home: 5 秒, 磨砂背景跟着
- * 影片走的常态节奏(打开面板/滚进网格另有 GlassPulse 立刻补一帧)。Each is a key frame
- * decoded from the film's file on Xiaomi MiTV-MFTR0, 0.4-0.6 s of a core.
+ * How often a small frame is taken for the glass while the film moves on Home. Each is a key frame
+ * decoded from the film's file on Xiaomi MiTV-MFTR0, 0.4-0.6 s of a core: every 2.5 s (until
+ * issue #727) was more than the soft glass needs.
  */
-internal const val GLASS_EVERY_MS = 5_000L
+internal const val GLASS_EVERY_MS = 4_000L
 
 /** The same under the screensaver, where only the glass for wherever it stops is wanted. */
 private const val SAVER_GLASS_EVERY_MS = 10_000L
@@ -841,19 +840,13 @@ internal suspend fun sampleGlass(
     // The first soon, for a film stopped moments after it moved.
     var wait = 800L
     var costly = 0
-    var seen = GlassPulse.count
     while (glassFrames && canTake()) {
-        // In steps, so a shorter [every] (out of the screensaver) is kept to at once. A pulse
-        // (a panel opening, the grid coming in) ends the wait at once: the glass shows the frame
-        // on screen now, not the one from up to [every] ago.
+        // In steps, so a shorter [every] (out of the screensaver) is kept to at once.
         var waited = 0L
-        val target = minOf(wait, every())
-        while (waited < target) {
+        while (waited < minOf(wait, every())) {
             delay(250)
             waited += 250
-            if (GlassPulse.count != seen) break
         }
-        seen = GlassPulse.count
         wait = Long.MAX_VALUE
         val p = player() ?: return
         val before = droppedFrames(p)

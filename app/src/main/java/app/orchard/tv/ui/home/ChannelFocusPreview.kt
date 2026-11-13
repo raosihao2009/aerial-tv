@@ -61,6 +61,14 @@ fun ChannelFocusPreview(
     onActuallyPlayingChange: (Boolean) -> Unit = {},
     // 加载中(含切源): 由 HomeScreen 画在最上层, 盖住壁纸和预览影片
     onLoadingChange: (Boolean) -> Unit = {},
+    /** 切到指定源(和菜单里点选同一套: 先挂起, 新流真开播才提交)。 */
+    onPickSource: (String) -> Unit = {},
+    /** 当前全部直播源(带 liveStatus: 1 开播 / 2 下播 / 0 未知)。 */
+    sourcesNow: () -> List<LiveSource> = { emptyList() },
+    /** 所有直播源都下播时: 把焦点移出直播卡片, 落到相邻的普通卡片上。 */
+    onMoveOffLiveCard: () -> Unit = {},
+    /** 全局玻璃胶囊提示: 预览被销毁后还要看的提示走这个(焦点一移出直播卡, 预览就 dispose 了)。 */
+    onGlobalToast: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -103,6 +111,107 @@ fun ChannelFocusPreview(
     // 否则 release 旧 player 会触发旧 listener 的 onPlayerError, 旧闭包还拿着旧 source 上下文,
     // 会误调 onFallback/onRevert)
     val playerListenerRef = remember { mutableStateOf<Player.Listener?>(null) }
+
+    // ===== 卡住时的统一救场 =====
+    // 规矩是"先查开播/下播, 再决定怎么动":
+    //  - 还在开播: 重新加载本场。看门狗开着时, 30 秒内第 3 次救场才升级成看门狗换源;
+    //  - 本场下播: 换到央视网快看;
+    //  - 央视网快看也下播: 换到最近一个开播的源;
+    //  - 一个开播的都没有: 焦点移出直播卡片, 去看壁纸。
+    // 每个动作配一条磨砂提示(4 秒自动消失); 换源/重载都会走 st.loading, 加载图照常盖满全屏。
+    val recoverTimes = remember { mutableListOf<Long>() }
+    // 重组会重建这个局部变量, 用原子量把它钉在 remember 里, 免得两次救场撞在一起
+    val stallBusy = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
+    fun noteRecover(): Int {
+        val now = android.os.SystemClock.elapsedRealtime()
+        recoverTimes.removeAll { now - it > STALL_WINDOW_MS }
+        recoverTimes += now
+        return recoverTimes.size
+    }
+
+    /** 离 [origin] 最近的开播源(排除 [exclude]); liveStatus==1 才算开播。 */
+    fun nearestLive(exclude: Set<String>): LiveSource? {
+        val list = sourcesNow()
+        val origin = list.indexOfFirst { it.id == source?.id }.let { if (it < 0) 0 else it }
+        return list.withIndex()
+            .filter { (_, s) -> s.id !in exclude && s.liveStatus == 1 }
+            .minByOrNull { (i, _) -> kotlin.math.abs(i - origin) }
+            ?.value
+    }
+
+    fun handleStall(id: String) {
+        if (!stallBusy.compareAndSet(false, true)) return
+        val stalled = sourcesNow().firstOrNull { it.id == id } ?: source
+        if (stalled == null) {
+            stallBusy.set(false)
+            return
+        }
+        scope.launch {
+            try {
+                DiagLog.i("channel preview: ${stalled.id} stalled, checking whether it is still live")
+                val offline = withContext(Dispatchers.IO) { checkIfOffline(stalled, context) }
+                onStatusRefresh()
+                val cctv = sourcesNow().firstOrNull { it.id == CCTV_ID }
+                val cctvName = cctv?.name ?: "央视网快看"
+                val sens = AerialSettings.jankSensitivity
+                // 每次救场(重载或换源)都记一笔, 30 秒窗口内的次数决定要不要升级成看门狗换源
+                val times = noteRecover()
+                when {
+                    // 下播: 本场换央视网快看
+                    offline && stalled.id != CCTV_ID && cctv != null && cctv.liveStatus != 2 -> {
+                        onPickSource(CCTV_ID)
+                        showToast("「${stalled.name}」已下播，请观看「$cctvName」")
+                        DiagLog.i("channel preview: ${stalled.id} offline, switched to $CCTV_ID")
+                    }
+                    // 下播且本场就是央视网快看, 或它也已下播: 换最近一个开播的源
+                    offline -> {
+                        val next = nearestLive(exclude = setOf(stalled.id, CCTV_ID))
+                        if (next != null) {
+                            onPickSource(next.id)
+                            // 本场就是央视网快看, 或它也已下播: 提示里说的是"央视网快看已下播";
+                            // 列表里根本没有央视网快看时, 说本场自己下播更准确。
+                            val offName = if (stalled.id != CCTV_ID && cctv == null) stalled.name else cctvName
+                            showToast("「$offName」已下播，请观看「${next.name}」")
+                            DiagLog.i("channel preview: $CCTV_ID offline, switched to ${next.id}")
+                        } else {
+                            // 焦点一移出直播卡, 预览就 dispose, 挂在预览里的提示会立刻消失:
+                            // 这条必须走全局胶囊。
+                            onMoveOffLiveCard()
+                            onGlobalToast("所有直播卡片均未开播，请欣赏桌面壁纸")
+                            DiagLog.i("channel preview: no live source left, focus moved off live cards")
+                        }
+                    }
+                    // 还在开播: 先重载; 看门狗开着且 30 秒内第 3 次, 才升级成换源
+                    else -> {
+                        val escalate = sens != AerialSettings.JankSensitivity.Off && times >= STALL_ESCALATE_TIMES
+                        if (escalate && stalled.id != CCTV_ID) {
+                            suppressSwitchToast = true
+                            val target = onFallback()
+                            if (target != null) {
+                                showToast("「${stalled.name}」卡顿严重，已切换至「$target」")
+                                DiagLog.i("channel preview: ${stalled.id} stalled $times times in 30 s, watchdog switched to $target")
+                            } else {
+                                reloadTick++
+                                showToast("正在尝试重新加载「${stalled.name}」")
+                            }
+                        } else {
+                            reloadTick++
+                            if (escalate) {
+                                showToast("「$cctvName」也卡了，正在重新加载…")
+                            } else {
+                                showToast("正在尝试重新加载「${stalled.name}」")
+                            }
+                            DiagLog.i("channel preview: ${stalled.id} still live, reloading ($times in 30 s)")
+                        }
+                    }
+                }
+            } catch (t: Throwable) {
+                DiagLog.i("channel preview: stall handling failed: ${t.message}")
+            } finally {
+                stallBusy.set(false)
+            }
+        }
+    }
 
     LaunchedEffect(source?.url, restartSignal, reloadTick) {
         if (source == null) {
@@ -317,41 +426,32 @@ fun ChannelFocusPreview(
                 showToast("已经从「$oldName」切换至「${source.name}」")
             }
             suppressSwitchToast = false
-            // 卡顿看门狗: 根据设置的灵敏度调整阈值, 抽到独立类 PlaybackWatchdog
+            // 卡顿探测: 关掉看门狗也照样跑 —— 关掉的是"卡了就自动换源", 不是"卡死了也不管"。
+            // 关时只看真冻住(frozenOnly), 触发后走 handleStall 的救场流程(查开播/下播 → 重载或换源)。
             val sens = AerialSettings.jankSensitivity
-            if (sens != AerialSettings.JankSensitivity.Off) {
-                val warmupMs: Long; val dropThreshold: Long; val renderedThreshold: Long; val streakNeeded: Int
-                when (sens) {
-                    AerialSettings.JankSensitivity.Low -> { warmupMs = 12000L; dropThreshold = 80L; renderedThreshold = 12L; streakNeeded = 3 }
-                    AerialSettings.JankSensitivity.High -> { warmupMs = 4000L; dropThreshold = 20L; renderedThreshold = 28L; streakNeeded = 2 }
-                    else -> { warmupMs = 8000L; dropThreshold = 40L; renderedThreshold = 20L; streakNeeded = 2 }  // Medium
-                }
-                // 停掉旧看门狗(换源/重载), 再为新流起一个
-                watchdogRef.value?.stop()
-                val wd = PlaybackWatchdog(
-                    exo = exo,
-                    sourceId = source.id,
-                    warmupMs = warmupMs,
-                    dropThreshold = dropThreshold,
-                    renderedThreshold = renderedThreshold,
-                    streakNeeded = streakNeeded,
-                    isActive = {
-                        !st.disposed && !st.paused && !st.loading && playingSourceId == source.id
-                    },
-                    onJank = { id ->
-                        if (id == "preset_2") {
-                            showToast("「央视网快看」也卡了，正在重新加载…")
-                            reloadTick++
-                        } else {
-                            suppressSwitchToast = true
-                            val target = onFallback()
-                            showToast("「${source.name ?: ""}」卡顿严重，已切换至「${target ?: "备用源"}」")
-                        }
-                    },
-                )
-                wd.start(scope)
-                watchdogRef.value = wd
-            }  // sens != Off
+            val warmupMs: Long; val dropThreshold: Long; val renderedThreshold: Long; val streakNeeded: Int
+            when (sens) {
+                AerialSettings.JankSensitivity.Low -> { warmupMs = 12000L; dropThreshold = 80L; renderedThreshold = 12L; streakNeeded = 3 }
+                AerialSettings.JankSensitivity.High -> { warmupMs = 4000L; dropThreshold = 20L; renderedThreshold = 28L; streakNeeded = 2 }
+                else -> { warmupMs = 8000L; dropThreshold = 40L; renderedThreshold = 20L; streakNeeded = 2 }  // Medium / Off
+            }
+            // 停掉旧看门狗(换源/重载), 再为新流起一个
+            watchdogRef.value?.stop()
+            val wd = PlaybackWatchdog(
+                exo = exo,
+                sourceId = source.id,
+                warmupMs = warmupMs,
+                dropThreshold = dropThreshold,
+                renderedThreshold = renderedThreshold,
+                streakNeeded = streakNeeded,
+                isActive = {
+                    !st.disposed && !st.paused && !st.loading && playingSourceId == source.id
+                },
+                frozenOnly = sens == AerialSettings.JankSensitivity.Off,
+                onJank = { id -> handleStall(id) },
+            )
+            wd.start(scope)
+            watchdogRef.value = wd
         } else {
             // 新流超时未就绪
             DiagLog.i("channel preview: new stream not ready")
@@ -584,3 +684,12 @@ private fun checkIfOffline(source: LiveSource, context: android.content.Context)
     DiagLog.i("checkIfOffline room=$roomId status=$status")
     status != 1
 }.getOrDefault(false)
+
+/** 央视网快看(备用源)的固定 id: 本场下播时先换它。 */
+private const val CCTV_ID = "preset_2"
+
+/** 30 秒窗口内救场达到这么多次, 看门狗才升级成真正的换源。 */
+private const val STALL_ESCALATE_TIMES = 3
+
+/** 上面的滑动窗口长度。 */
+private const val STALL_WINDOW_MS = 30_000L

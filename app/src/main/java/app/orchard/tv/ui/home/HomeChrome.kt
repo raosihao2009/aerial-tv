@@ -178,7 +178,10 @@ fun timeText(now: LocalDateTime): String {
     // locale, and zh_CN means 12-hour, which TV clocks here never show (TCL 65S515D, issue #15).
     val twelve = runCatching { android.provider.Settings.System.getString(context.contentResolver, android.provider.Settings.System.TIME_12_24) }.getOrNull() == "12"
     val pattern = if (twelve) "h:mm" else "HH:mm"
-    return now.format(DateTimeFormatter.ofPattern(pattern))
+    // 冒号两侧补一个细空格: 数字是等宽 570 的窄字身, 冒号本身只有 270, 字距又是 0, 64 的数字
+    // 与冒号黑边之间只剩几个像素, 52sp 上几乎粘在一起(用户反馈"数字与冒号之间没有空隙")。
+    // 用 U+2009(thin space, OPPO Sans 子集里 adv=116/1000), 52sp 上每侧约 6dp, 比整空格克制。
+    return now.format(DateTimeFormatter.ofPattern(pattern)).replace(":", "\u2009:\u2009")
 }
 
 @Composable
