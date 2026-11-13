@@ -253,35 +253,38 @@ private class SplashArt(context: Context) {
         bgPaint.shader = bgShader
         canvas.drawRect(0f, 0f, w, h, bgPaint)
 
-        // 三块大柔光色团各自沿小椭圆缓慢漂移、亮度轻微呼吸; 标志和小字不动。
+        // 三块大柔光色团沿较大椭圆漂移、亮度呼吸; 标志和小字不动。
         // 暖橙红在下偏左, 品粉压在中间, 冷蓝紫在上偏右。
-        val warmX = w * 0.28f + w * 0.040f * sin(phase * 0.45f)
-        val warmY = h * 0.72f + h * 0.030f * cos(phase * 0.34f)
+        val warmX = w * 0.28f + w * 0.085f * sin(phase * 0.62f)
+        val warmY = h * 0.72f + h * 0.055f * cos(phase * 0.48f)
+        val warmA = (88 + 26 * sin(phase * 0.50f)).toInt().coerceIn(40, 130)
         val warm = android.graphics.RadialGradient(
             warmX, warmY, maxOf(w, h) * 0.52f,
-            intArrayOf(Color.argb(96, 255, 150, 80), Color.argb(28, 232, 96, 96), Color.argb(0, 232, 96, 96)),
+            intArrayOf(Color.argb(warmA, 255, 150, 80), Color.argb(28, 232, 96, 96), Color.argb(0, 232, 96, 96)),
             floatArrayOf(0f, 0.55f, 1f),
             android.graphics.Shader.TileMode.CLAMP,
         )
         bgPaint.shader = warm
         canvas.drawRect(0f, 0f, w, h, bgPaint)
 
-        val pinkX = w * 0.50f + w * 0.035f * cos(phase * 0.38f)
-        val pinkY = h * 0.52f + h * 0.028f * sin(phase * 0.30f)
+        val pinkX = w * 0.50f + w * 0.075f * cos(phase * 0.55f)
+        val pinkY = h * 0.52f + h * 0.050f * sin(phase * 0.44f)
+        val pinkA = (66 + 22 * cos(phase * 0.42f)).toInt().coerceIn(30, 100)
         val pink = android.graphics.RadialGradient(
             pinkX, pinkY, maxOf(w, h) * 0.42f,
-            intArrayOf(Color.argb(72, 234, 124, 178), Color.argb(24, 206, 104, 160), Color.argb(0, 206, 104, 160)),
+            intArrayOf(Color.argb(pinkA, 234, 124, 178), Color.argb(24, 206, 104, 160), Color.argb(0, 206, 104, 160)),
             floatArrayOf(0f, 0.55f, 1f),
             android.graphics.Shader.TileMode.CLAMP,
         )
         bgPaint.shader = pink
         canvas.drawRect(0f, 0f, w, h, bgPaint)
 
-        val coolX = w * 0.74f - w * 0.040f * cos(phase * 0.40f)
-        val coolY = h * 0.30f + h * 0.030f * sin(phase * 0.32f)
+        val coolX = w * 0.74f - w * 0.085f * cos(phase * 0.58f)
+        val coolY = h * 0.30f + h * 0.055f * sin(phase * 0.46f)
+        val coolA = (96 + 28 * sin(phase * 0.52f + 1.2f)).toInt().coerceIn(40, 130)
         val glow = android.graphics.RadialGradient(
             coolX, coolY, maxOf(w, h) * 0.52f,
-            intArrayOf(Color.argb(104, 96, 112, 238), Color.argb(30, 80, 70, 180), Color.argb(0, 80, 70, 180)),
+            intArrayOf(Color.argb(coolA, 96, 112, 238), Color.argb(30, 80, 70, 180), Color.argb(0, 80, 70, 180)),
             floatArrayOf(0f, 0.55f, 1f),
             android.graphics.Shader.TileMode.CLAMP,
         )
@@ -315,7 +318,7 @@ private class SplashArt(context: Context) {
         color = Color.WHITE
         typeface = runCatching { ResourcesCompat.getFont(context, R.font.inter) }.getOrNull()
             ?: Typeface.create("sans-serif", Typeface.NORMAL)
-        letterSpacing = 0.06f
+        letterSpacing = 0f
     }
 
     private fun sizeOf(w: Float, h: Float): Float = min(w * 0.082f, h * 0.175f).coerceAtLeast(28f)
@@ -384,6 +387,7 @@ class SplashVeil(context: Context, withVideo: Boolean = true) : FrameLayout(cont
     private val hint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.rgb(230, 232, 240)
         textSize = 30f
+        letterSpacing = 0f
         typeface = Typeface.create("sans-serif", Typeface.NORMAL)
     }
 

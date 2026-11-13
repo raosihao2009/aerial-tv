@@ -311,7 +311,7 @@ class MainActivity : ComponentActivity() {
         // baked at the last start, so the window never shows black while Compose sets up. Without
         // one, keep what the window already shows (the kept backdrop of a locked start).
         val baked = Wallpapers.backdrop
-        if (coldBoot) {
+        if (coldBoot && AerialSettings.splashVeilEnabled) {
             // 冷启动: 窗口背景直接画开屏图(黑底+图标+Aerial字)。窗口一可见就是它, 不用等
             // 内容视图和 Compose 组合 —— 以前这里放的是上次烘焙的壁纸, 于是先看两秒壁纸才黑下来。
             // 直接铺开屏那页(渐变底 + 横排标志 + 一行小字): 窗口一可见就是它, 和遮罩画的是
@@ -368,7 +368,7 @@ class MainActivity : ComponentActivity() {
         )
         // 每一次进桌面都盖: 冷启动放开机影片 + 飞入, 热启动/重进放那 2.5 秒的标志动画。
         // 热启动不加遮罩的话, Compose 重建的那一两秒直接露在用户眼前(半张桌面、焦点框乱跳)。
-        run {
+        if (AerialSettings.splashVeilEnabled) {
             // 影片层在这台盒子上从来不出画面, 而且它会用一块 TextureView 把遮罩自己的绘制整块
             // 盖住(看起来像"开屏页不是遮罩画的")。开屏已经定成纯静态页, 影片不再挂。
             val veil = SplashVeil(this, withVideo = false)
@@ -385,6 +385,9 @@ class MainActivity : ComponentActivity() {
             // 无论如何都给自己留条后路: 桌面没能报"好了"(没有卡片/数据读失败)、影片解码卡住、
             // 抠标志失败, 到期直接把遮罩撤掉, 绝不把用户挡在开屏上。
             veil.postDelayed({ veil.forceFinish() }, if (coldBoot) 11_500L else 9_500L)
+        } else {
+            // 用户关掉启动遮罩: 不挂遮罩, 直接放开桌面, 壁纸/直播预览照常起播。
+            BootVeil.revealed = true
         }
         setContentView(root)
         DiagLog.i("boot-debug: setContent returned at +${SystemClock.elapsedRealtime()}ms")

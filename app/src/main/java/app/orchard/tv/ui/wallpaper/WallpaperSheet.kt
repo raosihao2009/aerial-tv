@@ -296,6 +296,13 @@ fun WallpaperSheet(
                         AerialSettings.uiSounds, { AerialSettings.chooseUiSounds(it); Sounds.prepare() },
                     )
                     Choices(
+                        R.string.st_splash_veil,
+                        stringResource(R.string.st_splash_veil_hint),
+                        note,
+                        listOf(true to R.string.st_on, false to R.string.st_off),
+                        AerialSettings.splashVeilEnabled, AerialSettings::chooseSplashVeil,
+                    )
+                    Choices(
                         R.string.st_effects,
                         stringResource(
                             if (AerialSettings.effects == Effects.Auto && AerialSettings.lowEnd) R.string.st_effects_auto_lite_hint

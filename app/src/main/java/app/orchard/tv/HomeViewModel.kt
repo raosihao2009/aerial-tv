@@ -603,14 +603,15 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
      */
     private fun prepareFaces() {
         val shown = apps + folderApps.values.flatten()
-        val row = apps.take(AerialSettings.homeColumns)
         facesJob?.cancel()
         facesJob = viewModelScope.launch {
             val started = SystemClock.uptimeMillis()
             prepareFaces(shown)
             DiagLog.i("tile faces in ${SystemClock.uptimeMillis() - started} ms")
             delay(1_000)
-            prepareFaces(row, focused = true)
+            // 选中态贴图按整屏可见卡片预生成: 不只第一排, 否则聚焦到第二排时要在绘制线程
+            // 现场裁图(低端 Mali-G31 上这一下就是一帧卡顿)。
+            prepareFaces(apps, focused = true)
         }
     }
 
