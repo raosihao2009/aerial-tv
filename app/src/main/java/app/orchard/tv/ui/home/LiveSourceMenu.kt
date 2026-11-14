@@ -66,6 +66,7 @@ import app.orchard.tv.apps.AppEntry
 import app.orchard.tv.apps.TileArtFactory
 import app.orchard.tv.settings.AerialSettings
 import app.orchard.tv.apps.LiveQualityOptions
+import app.orchard.tv.system.DiagLog
 import app.orchard.tv.system.Sounds
 import app.orchard.tv.ui.components.liquidGlass
 import app.orchard.tv.ui.theme.Motion
@@ -653,6 +654,13 @@ fun LiveSourceMenu(
                     else mainFirst.requestFocus()
                 }
                 val options = LiveQualityOptions.options(source.id)
+                // 复测用: 记下这张卡的 URL 与 B 站判定, 菜单缺「直播画质」时能直接看出是判定错了
+                // 还是这源本来就不是 B 站、没有档位可选。
+                DiagLog.i(
+                    "LiveMenu-debug: ctx source=${source.id} url=${source.url} " +
+                        "isBili=${source.isBilibili} biliStream=${source.isBilibiliStream} " +
+                        "status=${source.liveStatus} options=$options",
+                )
                 // 非当前源在菜单里改完画质后菜单不关: 偏好已写入 prefs, 但 prefs 不是 Compose 状态,
                 // 这里记一下本次选的档, 才能把勾移过去
                 var pickedQn by remember(source.id) { mutableStateOf<Int?>(null) }

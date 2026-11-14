@@ -257,12 +257,14 @@ fun ChannelFocusPreview(
     LaunchedEffect(source?.url, restartSignal, reloadTick, externalReload) {
         if (source == null) {
             player?.release(); player = null
+            DiagLog.i("preview effect skip: source null")
             return@LaunchedEffect
         }
         // 切回当前正在播放的源(onRevert): 不重新加载, 继续用现有player, 避免画面声音回溯
         // 但 reloadTick > 0 表示看门狗要求强行重载, 要放过这个早退; externalReload > 0 表示
         // 画质等偏好刚改过, 同样要重新取流。
         if (reloadTick == 0 && externalReload == 0 && source.id == playingSourceId && player != null) {
+            DiagLog.i("preview effect skip: already playing ${source.id}")
             return@LaunchedEffect
         }
 
@@ -393,6 +395,9 @@ fun ChannelFocusPreview(
             }
         }
         readyListener = object : Player.Listener {
+            override fun onRenderedFirstFrame() {
+                DiagLog.i("channel preview: first frame id=${source.id} player=${if (player === exo) "bound" else "unbound"}")
+            }
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_READY) {
                     retryCount = 0
@@ -464,6 +469,7 @@ fun ChannelFocusPreview(
         exo.playWhenReady = false
 
         // 等待新流READY且缓冲够(至少3秒)
+        val waitStart = System.currentTimeMillis()
         withContext(Dispatchers.Main) {
             val deadline = System.currentTimeMillis() + loadTimeoutMs
             while (!ready && System.currentTimeMillis() < deadline) {
@@ -472,6 +478,10 @@ fun ChannelFocusPreview(
         }
 
         if (ready) {
+            DiagLog.i(
+                "channel preview: ready id=${source.id} after=${System.currentTimeMillis() - waitStart}ms " +
+                    "state=${exo.playbackState}",
+            )
             // 新流已对齐：释放旧player，绑定新player后开播
             val old = player
             val oldName = currentPlayingName

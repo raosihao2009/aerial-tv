@@ -73,7 +73,9 @@ data class LiveSource(
      * 只有菜单单独认 isBilibili, 结果就是这些卡片的上下文菜单没有「直播画质」。统一走这个属性。
      */
     val isBilibiliStream: Boolean
-        get() = isBilibili || url.contains("b23.tv") || url.contains("live.bilibili.com")
+        get() = isBilibili || url.lowercase().let {
+            it.contains("b23.tv") || it.contains("bilibili.com")
+        }
 }
 
 sealed interface Overlay {
