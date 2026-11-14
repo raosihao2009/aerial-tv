@@ -110,8 +110,6 @@ fun ChannelFocusPreview(
     var retryCount by remember { mutableStateOf(0) }
     // 原地重载进行中: 看门狗和播放器错误回调可能同时进来, 防重入
     val reloadBusy = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
-    // 断网等待中: 网络不可达时不反复重试/切源, 只留一个等待网络恢复的协程
-    val netWaitBusy = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
     // 当前已在播放的源名称(用于切换失败时提示继续观看谁)
     var currentPlayingName by remember { mutableStateOf<String?>(null) }
     // 上一个正在播放的源 id(切换失败时回退焦点)
@@ -167,8 +165,7 @@ fun ChannelFocusPreview(
         decodeFail: Boolean = false,
     ): String {
         val sourceName = source?.name ?: "该源"
-        // 这里是拼文案, 不探测(探测会阻塞几百毫秒), 只看系统的 VALIDATED 位
-        val netOffline = !SystemProbe.online(context, probe = false)
+        val netOffline = SystemProbe.network(context).kind == NetKind.Offline
         val urlEmpty = source?.url?.trim().isNullOrEmpty()
         val keepWatching = oldLabel ?: "上一个源"
         val netMsg = if (hasOld) "网络未连接，「$sourceName」暂时无法观看，请继续观看「$keepWatching」" else "网络未连接，「$sourceName」暂时无法观看"
@@ -280,26 +277,19 @@ fun ChannelFocusPreview(
             try {
                 // 网络本身断开时重载毫无意义: 候选地址和 playInfo 都拉不通, 只会白白重建一轮
                 // 并把 30 秒窗口的救场次数用掉, 提前耗尽升级切源的机会。等网络回来再换流。
-                // 用可达性而不是 transport: 断路由器外网时 WiFi 仍连着, kind 还是 Wifi。
-                if (!withContext(Dispatchers.IO) { SystemProbe.online(context) }) {
-                    DiagLog.i("直播预览: ${stalled.id} 卡住且网络不可达, 等待网络恢复后重载")
+                if (SystemProbe.network(context).kind == NetKind.Offline) {
+                    DiagLog.i("直播预览: ${stalled.id} 卡住且网络已断开, 等待网络恢复后重载")
                     showToast("网络已断开，正在等待恢复")
                     var waited = 0L
-                    var lastHint = 0L
-                    // 与播放器错误回调一致: 断网可能持续几分钟, 等够 3 分钟; 每 15 秒重提示,
-                    // 免得长时间黑屏让人以为卡死。网络一恢复就原地换流。
-                    var aliveNow = false
-                    while (waited < 180_000L && !aliveNow) {
+                    while (waited < 60_000L && SystemProbe.network(context).kind == NetKind.Offline) {
                         kotlinx.coroutines.delay(1000L)
                         waited += 1000L
-                        // 探测有 800ms 上限, 放 IO 线程, 别卡主线程动画
-                        aliveNow = withContext(Dispatchers.IO) { SystemProbe.online(context) }
-                        if (waited - lastHint >= 15_000L) {
-                            lastHint = waited
-                            showToast("网络已断开，正在等待恢复")
-                        }
                     }
-                    DiagLog.i("直播预览: ${stalled.id} 网络恢复或等待超时, 重新加载")
+                    if (SystemProbe.network(context).kind == NetKind.Offline) {
+                        DiagLog.i("直播预览: ${stalled.id} 网络 60 秒未恢复, 放弃本轮救场")
+                        return@launch
+                    }
+                    DiagLog.i("直播预览: ${stalled.id} 网络已恢复, 重新加载")
                     reloadInPlace(stalled)
                     return@launch
                 }
@@ -528,52 +518,6 @@ fun ChannelFocusPreview(
             }
             override fun onPlayerError(error: PlaybackException) {
                 if (st.disposed) return  // 组合离开释放player触发的错误, 不处理
-                // 网络不可达时既不重试也不切源: 断网时换节点、换台都拉不通, 只会把候选和
-                // 重试次数耗光, 最后走成"地址可能失效"提示或无奈切走。只等网络恢复再换流。
-                val netErr = error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
-                    error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
-                // ExoPlayer 的错误回调在主线程, 这里不能直接做几百毫秒的连通性探测。
-                if (netErr && !SystemProbe.online(context, probe = false)) {
-                    DiagLog.i("播放器错误: 网络不可达, 暂停重试等待网络恢复")
-                    // 必须给可见提示: 以前这里只记日志, 画面黑着没任何交代, 看着像死机。
-                    showToast("网络已断开，正在等待恢复")
-                    if (netWaitBusy.compareAndSet(false, true)) {
-                        scope.launch {
-                            try {
-                                var waited = 0L
-                                var lastHint = 0L
-                                // 断网可能持续几分钟, 不能等 60 秒就撒手不管(那会一直黑着)。
-                                // 上限 3 分钟, 每 15 秒重提示一次, 网络一回来就原地换流。
-                                var aliveNow = withContext(Dispatchers.IO) { SystemProbe.online(context) }
-                                while (waited < 180_000L && !st.disposed && !aliveNow) {
-                                    kotlinx.coroutines.delay(1000L)
-                                    waited += 1000L
-                                    aliveNow = withContext(Dispatchers.IO) { SystemProbe.online(context) }
-                                    if (waited - lastHint >= 15_000L) {
-                                        lastHint = waited
-                                        showToast("网络已断开，正在等待恢复")
-                                    }
-                                }
-                                when {
-                                    st.disposed -> Unit
-                                    aliveNow -> {
-                                        DiagLog.i("播放器错误: 网络已恢复, 重新加载 ${source.id}")
-                                        reloadInPlace(source)
-                                    }
-                                    else -> {
-                                        // 等太久仍不通: 重新走一次加载, 让看门狗和错误回调继续兜着,
-                                        // 不留一个再没人处理的死画面。
-                                        DiagLog.i("播放器错误: 网络 3 分钟未恢复, 重新尝试加载 ${source.id}")
-                                        reloadInPlace(source)
-                                    }
-                                }
-                            } finally {
-                                netWaitBusy.set(false)
-                            }
-                        }
-                    }
-                    return
-                }
                 DiagLog.i("播放器错误: ${error.errorCodeName}, 第 $retryCount 次重试")
                 val p = exo
                 // 先快速检测是否B站下播(下播就不重试)
