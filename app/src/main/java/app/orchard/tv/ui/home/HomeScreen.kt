@@ -955,9 +955,12 @@ fun HomeScreen(
         // 上游 v1.75：移动壁纸的影片渲染（从 Box 内挪到 Box 外，在最底层绘制）
         // 个性化面板打开时壁纸照旧播: 面板是模糊的, 后面停一张图反而明显 (owner, 2026-11-11)
         // 上下文菜单(长按卡片)只是压在 Home 上的一个小面板, 壁纸照旧播
+        // 一级菜单卡片"移动"模式和直播菜单(含菜单里移动卡片)都只是压在 Home 上的浮层, 壁纸照旧播:
+        // 以前这里挡了 moving==null 且不认 LiveSourceMenu, 一进"移动"整块壁纸就冻住, 移动完才继续。
         val filmMoves = vm.filmFront && (overlay == Overlay.None || overlay is Overlay.ControlCenter ||
-            overlay is Overlay.Wallpaper || overlay is Overlay.AppMenu || overlay is Overlay.Folder) &&
-            (!vm.screensaverVisible || videoSaver) && !pastShelf && !inGrid && moving == null &&
+            overlay is Overlay.Wallpaper || overlay is Overlay.AppMenu || overlay is Overlay.Folder ||
+            overlay is Overlay.LiveSourceMenu) &&
+            (!vm.screensaverVisible || videoSaver) && !pastShelf && !inGrid &&
             // 直播画面真的放出来之后才停壁纸影片: 否则视频壁纸的影片层会压住直播画面;
             // 直播还在加载(或没源)的时候壁纸照旧播, 不能因为停在直播卡片上就冻住
             !(channelPreviewVisible && liveReadyState.value)
