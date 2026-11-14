@@ -166,6 +166,10 @@ fun LiveSourceMenu(
     // 上下文菜单关闭后焦点行为对齐一级菜单
     var lastMenuId by remember { mutableStateOf<String?>(null) }
     var hiddenIndex by remember { mutableStateOf(-1) }
+    // 画质子菜单选完档位后: 先把焦点还给卡片, 再关整个浮层。直接在选档时关浮层会把
+    // LiveSourceMenu 的组件连同卡片一起撤掉, 焦点无处可落 -> 被 Compose 搜索到右上角
+    // 控制中心按钮(实测).
+    var dismissAfterFocus by remember { mutableStateOf(false) }
     LaunchedEffect(menuForId) {
         if (menuForId != null) {
             menuPage = LiveMenuPage.Main
@@ -193,6 +197,12 @@ fun LiveSourceMenu(
             }
             lastMenuId = null
             hiddenIndex = -1
+            if (dismissAfterFocus) {
+                dismissAfterFocus = false
+                // 等这张卡片真的拿到焦点、并且这一帧画出去, 再撤浮层
+                androidx.compose.runtime.withFrameNanos { }
+                onDismiss()
+            }
         }
     }
     val density = LocalDensity.current
@@ -631,14 +641,21 @@ fun LiveSourceMenu(
                 val menuBottomPad = screenH - rowY(menuRowFromTop) + 20.dp
                 val mainFirst = remember { FocusRequester() }
                 val qualityFirst = remember { FocusRequester() }
-                LaunchedEffect(menuForId) { mainFirst.requestFocus() }
-                LaunchedEffect(menuPage) {
+                // 只在菜单真的开着时抢焦点: 选档后 menuForId 归空、浮层随即关闭, 这里若再
+                // 请求一次会打到正在被移除的节点, 焦点搜索最后落到右上角控制中心按钮。
+                LaunchedEffect(menuForId, menuPage) {
+                    if (menuForId == null) return@LaunchedEffect
                     if (menuPage == LiveMenuPage.Quality) qualityFirst.requestFocus()
                     else mainFirst.requestFocus()
                 }
                 val options = LiveQualityOptions.options(source.id)
                 val currentQn = AerialSettings.effectiveLiveQn(source.id)
-                val selectedQn = if (currentQn == 0) options.firstOrNull() ?: 0 else currentQn
+                // 实际会落到的档: 目标 qn 不在可选列表里(例如全局档 800)就取不超过它的最高档
+                val selectedQn = when {
+                    currentQn == 0 -> options.firstOrNull() ?: 0
+                    options.contains(currentQn) -> currentQn
+                    else -> options.filter { it <= currentQn }.maxOrNull() ?: options.firstOrNull() ?: 0
+                }
                 Column(
                     Modifier
                         .align(Alignment.BottomStart)
@@ -664,10 +681,12 @@ fun LiveSourceMenu(
                                 hiddenIndex = sources.indexOf(source)
                                 onHide(source.id); menuForId = null
                             })
-                            MenuRow(Glyph.Trash, "删除", { onDelete(source.id); menuForId = null }, destructive = true)
                         }
                         if (source.isBilibili) {
                             MenuRow(Glyph.Hdmi, "直播画质", { menuPage = LiveMenuPage.Quality }, trailing = "›")
+                        }
+                        if (source.id != "preset_2") {
+                            MenuRow(Glyph.Trash, "删除", { onDelete(source.id); menuForId = null }, destructive = true)
                         }
                     } else {
                         options.forEachIndexed { index, qn ->
@@ -676,7 +695,9 @@ fun LiveSourceMenu(
                                 LiveQualityOptions.label(qn),
                                 {
                                     onPickQuality(source.id, qn)
-                                    menuPage = LiveMenuPage.Main
+                                    // 不在这里撤浮层: 交给上面 LaunchedEffect(menuForId) 把焦点
+                                    // 还给卡片之后再关, 否则焦点会落到右上角控制中心按钮。
+                                    dismissAfterFocus = true
                                     menuForId = null
                                 },
                                 focusRequester = if (index == 0) qualityFirst else null,

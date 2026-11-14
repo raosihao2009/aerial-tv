@@ -1636,7 +1636,7 @@ fun HomeScreen(
             onPickQuality = { id, qn ->
                 AerialSettings.chooseLiveQn(id, qn)
                 vm.reloadLiveQuality()
-                vm.overlay = Overlay.None
+                // 浮层由 LiveSourceMenu 自己先还焦点再关, 这里不关
             },
             onDismiss = { DiagLog.i("CC-debug: LiveMenu onDismiss"); vm.overlay = Overlay.None },
             onMenuOpenChange = { liveMenuOpen = it },
