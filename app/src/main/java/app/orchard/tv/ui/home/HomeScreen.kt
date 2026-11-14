@@ -431,7 +431,7 @@ fun HomeScreen(
                 ready -> BootVeil.arm(300)
                 // 普通分支: 加载完、首卡落焦后撤(有直播卡也是这个节奏)。
                 vm.loaded && grid.isNotEmpty() && elapsed > 1000 && steady -> {
-                    DiagLog.i("boot-debug: veil arming at +${elapsed}ms focused=${focusedKey ?: "none"}")
+                    DiagLog.i("启动调试: 遮罩待命于 +${elapsed}ms 焦点=${focusedKey ?: "无"}")
                     BootVeil.arm(500)
                 }
             }
@@ -448,7 +448,7 @@ fun HomeScreen(
         if (overlay is Overlay.LiveSourceMenu) {
             val unknown = vm.getAllLiveSources().any { it.liveStatus == 0 }
             if (unknown) {
-                DiagLog.i("LiveStatus: LiveSourceMenu opened, refreshing unknown sources")
+                DiagLog.i("直播状态: 直播菜单已打开, 刷新未轮询的源")
                 vm.checkLiveStatuses()
                 liveStatusTickState.value++
             }
@@ -496,7 +496,7 @@ fun HomeScreen(
         if (!filmSaverChosen) return@LaunchedEffect
         val moved = withTimeoutOrNull(FILM_SAVER_WAIT_MS) { snapshotFlow { filmCover.value > 0.99f }.first { it } }
         if (moved == null) {
-            DiagLog.i("wallpaper film did not move for the screensaver; its own films instead")
+            DiagLog.i("壁纸影片未切到屏保; 改用屏保自带影片")
             filmFailed = true
         }
     }
@@ -527,7 +527,7 @@ fun HomeScreen(
         // 影片没能接上(解码失败之类): 退回屏保自己的播放器, 别让屏幕空着
         val shown = withTimeoutOrNull(FILM_SAVER_WAIT_MS) { snapshotFlow { filmCover.value > 0.99f }.first { it } }
         if (shown == null) {
-            DiagLog.i("video wallpaper did not carry on for the screensaver; its own films instead")
+            DiagLog.i("视频壁纸未能续播给屏保; 改用屏保自带影片")
             videoFailed = true
         }
     }
@@ -647,7 +647,7 @@ fun HomeScreen(
             targetIndex = lastFocusedIndex.coerceIn(0, apps.size - 1)
         }
         DiagLog.i(
-            "CC-debug: overlay closed restore target=$targetKey idx=$targetIndex " +
+            "控制中心调试: 浮层关闭, 恢复目标=$targetKey idx=$targetIndex " +
                 "focused=$focusedKey saved=$savedOverlayKey pill=$pillFocused lastOverlay=$lastOverlay",
         )
         if (targetIndex >= 0) {
@@ -764,7 +764,7 @@ fun HomeScreen(
 
     // 二级菜单返回键关闭，回到纯直播画面（不显示一级UI）
     BackHandler(enabled = overlay is Overlay.LiveSourceMenu) {
-        DiagLog.i("CC-debug: LiveMenu BackHandler closing to None")
+        DiagLog.i("控制中心调试: 直播菜单返回键关闭至 None")
         vm.overlay = Overlay.None
         vm.uiHidden = true // 关闭二级菜单后保持UI隐藏
     }
@@ -1398,7 +1398,7 @@ fun HomeScreen(
                         compositingStrategy = CompositingStrategy.ModulateAlpha
                     },
                 onFocused = { gained ->
-                    DiagLog.i("LiveMenu-debug: home pill onFocused gained=$gained focusedKey=$focusedKey overlay=$overlay")
+                    DiagLog.i("直播菜单调试: 首页胶囊焦点 gained=$gained focusedKey=$focusedKey overlay=$overlay")
                     // The window hands its first focus to the top-most control; the top row is where Home starts.
                     if (gained) {
                         if (focusedKey == null) {
@@ -1636,7 +1636,7 @@ fun HomeScreen(
             sources = vm.getAllLiveSources(),
             currentId = vm.currentLiveSourceId,
             onSelect = { s ->
-                DiagLog.i("CC-debug: LiveMenu onSelect source=$s")
+                DiagLog.i("控制中心调试: 直播菜单选中 source=$s")
                 vm.pickLiveSource(s)
                 vm.overlay = Overlay.None
             },
@@ -1650,7 +1650,7 @@ fun HomeScreen(
                 if (id == vm.currentLiveSourceId) vm.reloadLiveQuality()
                 // 浮层由 LiveSourceMenu 自己先还焦点再关, 这里不关
             },
-            onDismiss = { DiagLog.i("CC-debug: LiveMenu onDismiss"); vm.overlay = Overlay.None },
+            onDismiss = { DiagLog.i("控制中心调试: 直播菜单关闭"); vm.overlay = Overlay.None },
             onMenuOpenChange = { liveMenuOpen = it },
             onMovingChange = { liveMoving = it },
             onOpenControlCenter = { vm.ccFromLiveMenu = true; vm.overlay = Overlay.ControlCenter() },

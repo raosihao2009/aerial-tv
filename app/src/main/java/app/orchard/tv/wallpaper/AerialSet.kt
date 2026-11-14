@@ -80,7 +80,7 @@ object AerialSet {
         val set = (listOf(film.id) + ids(context).filter { it != film.id }).take(MAX)
         save(context, set, today())
         prefs(context).edit { remove("next") }
-        app.orchard.tv.system.DiagLog.i("aerial films now ${set.joinToString(",") { it.take(8) }}")
+        app.orchard.tv.system.DiagLog.i("航拍影片现为 ${set.joinToString(",") { it.take(8) }}")
         return film
     }
 

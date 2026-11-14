@@ -236,7 +236,7 @@ object Wallpapers {
         if (!started) return
         val (w, h) = measure(context)
         if (w <= 0 || h <= 0 || (w == screenW && h == screenH)) return
-        DiagLog.i("wallpaper size ${screenW}x$screenH -> ${w}x$h")
+        DiagLog.i("壁纸尺寸 ${screenW}x$screenH -> ${w}x$h")
         screenW = w
         screenH = h
         rebuildBackdrop()
@@ -382,11 +382,11 @@ object Wallpapers {
         val mmr = android.media.MediaMetadataRetriever()
         return try {
             mmr.setDataSource(film.file.path)
-            val frame = mmr.getFrameAtTime(0) ?: return null.also { DiagLog.i("video poster: no frame of ${film.id}") }
+            val frame = mmr.getFrameAtTime(0) ?: return null.also { DiagLog.i("视频封面: ${film.id} 无帧") }
             keepPoster(film, frame)
             Images.cover(frame, w, h)
         } catch (e: Exception) {
-            DiagLog.i("video poster: ${film.id} not read (${e.javaClass.simpleName})")
+            DiagLog.i("视频封面: ${film.id} 读取失败(${e.javaClass.simpleName})")
             null
         } finally { runCatching { mmr.release() } }
     }
@@ -775,7 +775,7 @@ object Wallpapers {
             if (file.exists()) return@withContext BitmapFactory.decodeFile(file.path)
             val started = System.nanoTime()
             val frost = Images.frost(frame)
-            DiagLog.i("clip glass made in ${(System.nanoTime() - started) / 1_000_000} ms")
+            DiagLog.i("片段玻璃生成耗时 ${(System.nanoTime() - started) / 1_000_000} ms")
             runCatching { file.outputStream().use { frost.compress(Bitmap.CompressFormat.PNG, 100, it) } }
                 .onFailure { Log.w(TAG, "could not keep the clip's glass", it) }
             frost

@@ -92,7 +92,7 @@ object UhdCanvas {
 
     /** Marks this TV too slow for it: Home starts at the UI's size from now on, unless forced. */
     private fun tooSlow(context: Context, reason: String) {
-        DiagLog.i("uhd canvas: too slow ($reason), the next start draws at the UI's size")
+        DiagLog.i("uhd 画布: 过慢($reason), 下次启动按界面尺寸绘制")
         prefs(context).edit().putBoolean(SLOW, true).putString(SLOW_WHY, reason).apply()
     }
 
@@ -166,7 +166,7 @@ object UhdCanvas {
         override fun surfaceChanged(holder: SurfaceHolder, format: Int, w: Int, h: Int) {
             // The first change can still be the window's size, before the fixed size applies.
             ready = width > 0 && w > width
-            DiagLog.i("uhd canvas: surface ${w}x$h for a ${width}x$height window, ready $ready")
+            DiagLog.i("uhd 画布: surface ${w}x$h 对应 ${width}x$height 窗口, 就绪 $ready")
             if (!ready) return
             root.setPosition(0, 0, w, h)
             val px = resources.displayMetrics.density * w / width
@@ -209,7 +209,7 @@ object UhdCanvas {
             val before = System.nanoTime()
             renderer.createRenderRequest().setVsyncTime(before).syncAndDraw()
             pace.frame(before, System.nanoTime())
-            if (++frames == 1) DiagLog.i("uhd canvas: first frame at ${root.width}x${root.height}")
+            if (++frames == 1) DiagLog.i("uhd 画布: 首帧 ${root.width}x${root.height}")
         }
     }
 
@@ -244,7 +244,7 @@ object UhdCanvas {
                 done = true
                 tooSlow(context, reason)
             } else {
-                DiagLog.i("uhd canvas: keeps up, $reason")
+                DiagLog.i("uhd 画布: 跟得上, $reason")
                 moving = 0
                 late = 0
             }

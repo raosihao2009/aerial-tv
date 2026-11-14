@@ -29,7 +29,7 @@ object FilmAfterInput {
     suspend fun await() {
         if (!inputOpened) return
         inputOpened = false
-        DiagLog.i("wallpaper film waits ${WAIT_MS} ms for the input just left to close")
+        DiagLog.i("壁纸影片等待 ${WAIT_MS} ms, 让刚离开的输入源关闭")
         delay(WAIT_MS)
     }
 

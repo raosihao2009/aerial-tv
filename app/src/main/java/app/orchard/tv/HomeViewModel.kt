@@ -324,7 +324,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                                     }
                                 }
                                 val finalUrl = redirectUrl
-                                app.orchard.tv.system.DiagLog.i("LiveStatus: ${src.id} finalUrl=$finalUrl")
+                                app.orchard.tv.system.DiagLog.i("直播状态: ${src.id} 最终地址=$finalUrl")
                                 // 只在最终URL是B站直播间时才查询状态, 其他源返回0(未知)
                                 if (!finalUrl.contains("live.bilibili.com")) return@runCatching 0
                                 val roomId = Regex("live\\.bilibili\\.com/(\\d+)").find(finalUrl)?.groupValues?.get(1)
@@ -337,7 +337,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                                 if (qns.isNotEmpty()) app.orchard.tv.apps.LiveQualityOptions.setOptions(src.id, qns)
                                 if (app.orchard.tv.apps.BiliLiveApi.liveStatus(data) == 1) 1 else 2
                             }.getOrElse {
-                                app.orchard.tv.system.DiagLog.i("LiveStatus: ${src.id} error: ${it.message}")
+                                app.orchard.tv.system.DiagLog.i("直播状态: ${src.id} 错误: ${it.message}")
                                 0
                             }
                         }
@@ -345,7 +345,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                     results.forEach { (id, status) ->
                         liveSources = liveSources.map { if (it.id == id) it.copy(liveStatus = status) else it }
                     }
-                    app.orchard.tv.system.DiagLog.i("LiveStatus: batch done $results")
+                    app.orchard.tv.system.DiagLog.i("直播状态: 一批完成 $results")
                 }
             }
             // 注意: 这里不再因为 liveStatus==2 就自动切 currentLiveSourceId。
@@ -487,7 +487,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** A tile picture set or removed from the phone page; see CustomIcons.onChange; before init, which registers it. */
     private val customIconsChanged: () -> Unit = {
-        DiagLog.i("custom icons changed; reloading Home")
+        DiagLog.i("自定义图标已变更; 重新加载桌面")
         reload()
     }
 
@@ -584,14 +584,14 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             // the main thread (busy with Home's first frames on a cold start).
             val (from, queried, done) = AppCatalog.lastTiming
             val now = SystemClock.uptimeMillis()
-            DiagLog.i("${all.size} apps in ${now - started} ms (wait ${from - started}, queries ${queried - from}, " +
-                "tiles ${done - queried}, main ${now - done})")
+            DiagLog.i("${all.size} 个应用, 耗时 ${now - started} ms (等待 ${from - started}, 查询 ${queried - from}, " +
+                "卡片 ${done - queried}, 主列表 ${now - done})")
             sources = probing.await()
             arrange()
             prepareFaces()
             val wasLoaded = loaded
             if (!wasLoaded) {
-                DiagLog.i("Home loaded: ${apps.size} tiles, ${sources.size} inputs, ${SystemClock.uptimeMillis() - started} ms")
+                DiagLog.i("桌面加载完成: ${apps.size} 张卡片, ${sources.size} 个输入源, 耗时 ${SystemClock.uptimeMillis() - started} ms")
                 catchUpAfterBoot()
             }
             loaded = true
@@ -612,7 +612,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                         all = AppCatalog.load(ctx)
                         arrange()
                         prepareFaces()
-                        DiagLog.i("$waiting more tiles in ${SystemClock.uptimeMillis() - rest} ms")
+                        DiagLog.i("$waiting 张卡片在 ${SystemClock.uptimeMillis() - rest} ms 后补齐")
                     }
                     refreshIconLibrary()
                 }
@@ -624,7 +624,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                     all = AppCatalog.load(ctx)
                     arrange()
                     prepareFaces()
-                    DiagLog.i("$waiting more tiles in ${SystemClock.uptimeMillis() - rest} ms")
+                    DiagLog.i("$waiting 张卡片在 ${SystemClock.uptimeMillis() - rest} ms 后补齐")
                 }
                 refreshIconLibrary()
             }
@@ -659,7 +659,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         facesJob = viewModelScope.launch {
             val started = SystemClock.uptimeMillis()
             prepareFaces(shown)
-            DiagLog.i("tile faces in ${SystemClock.uptimeMillis() - started} ms")
+            DiagLog.i("卡片封面绘制完成, 耗时 ${SystemClock.uptimeMillis() - started} ms")
             delay(1_000)
             // 选中态贴图按整屏可见卡片预生成: 不只第一排, 否则聚焦到第二排时要在绘制线程
             // 现场裁图(低端 Mali-G31 上这一下就是一帧卡顿)。
@@ -682,7 +682,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                 delay(wait)
                 val again = AppCatalog.load(context)
                 if (again.map { it.key }.toSet() == all.map { it.key }.toSet()) continue
-                DiagLog.i("${again.size - all.size} more apps a while into the boot")
+                DiagLog.i("${again.size - all.size} 个应用在开机稍后补齐")
                 all = again
                 arrange()
             }

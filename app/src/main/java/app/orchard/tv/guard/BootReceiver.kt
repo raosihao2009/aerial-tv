@@ -32,7 +32,7 @@ class BootReceiver : BroadcastReceiver() {
             } finally {
                 pending.finish()
                 // In the diagnostics: how long the slow side of #614 takes on the TV at hand.
-                DiagLog.i("${action.substringAfterLast('.')} handled in ${SystemClock.elapsedRealtime() - start} ms")
+                DiagLog.i("${action.substringAfterLast('.')} 已处理, 耗时 ${SystemClock.elapsedRealtime() - start} ms")
             }
         }
     }
@@ -53,23 +53,23 @@ class BootReceiver : BroadcastReceiver() {
         // 08:00:51, the input then finished). Coming to the front here covered it. Home Guard leaves
         // the input's player alone, and Home still brings Aerial back on this TV.
         if (GuardSetup.startsOnSignalSource(context)) {
-            DiagLog.i("boot: the TV starts on a signal source; leaving it")
+            DiagLog.i("开机: 电视停在信号源上; 保留现状")
             return
         }
         if (MainActivity.leftForAnApp) {
-            DiagLog.i("boot: an app opened from Aerial is in front; leaving it")
+            DiagLog.i("开机: 从 Aerial 打开的应用在前台; 保留现状")
             return
         }
         // Dangbei H5: don't start Aerial again if it's already running in foreground—each
         // startActivity causes a visible black flash during boot.
         if (isAerialForeground(context)) {
-            DiagLog.i("boot: Aerial already in foreground; not starting again")
+            DiagLog.i("开机: Aerial 已在前台; 不再启动")
             return
         }
-        DiagLog.i("boot-debug: BootReceiver calling bringBackIntent startActivity at +${SystemClock.elapsedRealtime()}ms")
+        DiagLog.i("启动调试: BootReceiver 调用 bringBackIntent startActivity 于 +${SystemClock.elapsedRealtime()}ms")
         runCatching {
             context.startActivity(MainActivity.bringBackIntent(context))
-        }.onFailure { DiagLog.e("boot-debug: BootReceiver startActivity failed", it) }
+        }.onFailure { DiagLog.e("启动调试: BootReceiver startActivity 失败", it) }
     }
 
     private fun isAerialForeground(context: Context): Boolean {

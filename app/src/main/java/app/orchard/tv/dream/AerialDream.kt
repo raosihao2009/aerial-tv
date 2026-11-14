@@ -89,14 +89,14 @@ class AerialDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
         // the press of some keys and lets only the lift through (issue #915; see MainActivity).
         if (event.action == KeyEvent.ACTION_DOWN) keysDown += event.keyCode
         else if (!event.isCanceled && !keysDown.remove(event.keyCode) && event.keyCode != MainActivity.dreamWokeKey) {
-            DiagLog.i("dream: ${KeyEvent.keyCodeToString(event.keyCode)} lifted with no press; ending it")
+            DiagLog.i("dream: ${KeyEvent.keyCodeToString(event.keyCode)} 无按压松开; 结束 dream")
             finish()
             return true
         }
         if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
             MainActivity.dreamWokeAt = event.eventTime
             MainActivity.dreamWokeKey = event.keyCode
-            DiagLog.i("dream woken by ${KeyEvent.keyCodeToString(event.keyCode)} at ${event.eventTime}")
+            DiagLog.i("dream 被 ${KeyEvent.keyCodeToString(event.keyCode)} 唤醒于 ${event.eventTime}")
             finish()
         }
         // The lift, if it comes here while the dream is still up. Not the cancelled one Android sends
@@ -114,7 +114,7 @@ class AerialDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
      */
     private val screenOff = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            DiagLog.i("screen off; ending the dream")
+            DiagLog.i("屏幕关闭; 结束 dream")
             finish()
         }
     }
@@ -156,7 +156,7 @@ class AerialDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
          */
         fun endForHome(): Boolean {
             val dream = running ?: return false
-            DiagLog.i("dream ended by Home")
+            DiagLog.i("dream 被桌面结束")
             dream.finish()
             return true
         }

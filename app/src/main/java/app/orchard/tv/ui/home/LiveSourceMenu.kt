@@ -665,7 +665,7 @@ fun LiveSourceMenu(
                 // 复测用: 记下这张卡的 URL 与 B 站判定, 菜单缺「直播画质」时能直接看出是判定错了
                 // 还是这源本来就不是 B 站、没有档位可选。
                 DiagLog.i(
-                    "LiveMenu-debug: ctx source=${source.id} url=${source.url} " +
+                    "直播菜单调试: 上下文 source=${source.id} url=${source.url} " +
                         "isBili=${source.isBilibili} biliStream=${source.isBilibiliStream} " +
                         "status=${source.liveStatus} options=$options",
                 )

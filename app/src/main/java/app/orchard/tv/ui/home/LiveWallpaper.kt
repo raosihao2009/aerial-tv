@@ -246,11 +246,11 @@ fun LiveWallpaper(
 
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                     live.film = Aerials.all(context).firstOrNull { it.id == mediaItem?.mediaId }
-                    if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) DiagLog.i("wallpaper film now ${mediaItem?.mediaId} (reason $reason)")
+                    if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) DiagLog.i("壁纸影片现为 ${mediaItem?.mediaId} (reason $reason)")
                 }
 
                 override fun onPlayerError(error: PlaybackException) {
-                    DiagLog.i("wallpaper film failed (${error.errorCodeName})")
+                    DiagLog.i("壁纸影片失败 (${error.errorCodeName})")
                     // Behind an app or another screensaver the decoder is theirs: no retry.
                     if (!keepNow) return
                     // The same film again, from where it was: going on to the next one on any error
@@ -294,17 +294,17 @@ fun LiveWallpaper(
             }
         }
         if (frame == null) {
-            DiagLog.i("wallpaper picture did not catch up (copy ${pixelCopy}, file frames stuck ${FileFramesStuck.now(context)})")
+            DiagLog.i("壁纸静帧未追上(复制 ${pixelCopy}, 文件帧卡住 ${FileFramesStuck.now(context)})")
             return false
         }
         if ((cover.value > 0f && !underFilm) || Wallpapers.leftLiveSpot() != left) return false
-        DiagLog.i("wallpaper picture catches up with where the film was let go")
+        DiagLog.i("壁纸静帧追上影片松手处")
         // Whole or not at all (JPEG and frost first, 0.3 s and more on TCL MT5879): cancelled by
         // Home coming back, the black wait for the film was still set.
         withContext(kotlinx.coroutines.NonCancellable) {
             val started = android.os.SystemClock.elapsedRealtime()
             Wallpapers.useLiveFrame(frame, left.first, left.second)
-            if (clearsStale) DiagLog.i("wallpaper picture caught up in ${android.os.SystemClock.elapsedRealtime() - started} ms")
+            if (clearsStale) DiagLog.i("壁纸静帧在 ${android.os.SystemClock.elapsedRealtime() - started} ms 内追上")
             if (clearsStale && pictureStale) {
                 // The picture is where the film was let go: no black wait for the film on the way
                 // back (TCL MT5879, issue #1238).
@@ -335,9 +335,9 @@ fun LiveWallpaper(
             val left = Wallpapers.leftLiveSpot()
             val pick = left?.let { SaverFrames.nearest(it) }
             if (pick != null && Wallpapers.applyLiveFrame(pick.prepared, pick.film, pick.atMs)) {
-                DiagLog.i("wallpaper: back from the screensaver onto its picture (${pick.atMs - left.second} ms from where it was); the film goes on from it")
+                DiagLog.i("壁纸: 从屏保回到静帧(距原处 ${pick.atMs - left.second} ms); 影片从这里续播")
             } else {
-                DiagLog.i("wallpaper: back from the screensaver before a picture of it; the film goes on from the picture from before")
+                DiagLog.i("壁纸: 从屏保返回时还没有静帧; 影片从之前的画面续播")
             }
             SaverFrames.clear()
             Wallpapers.dropLeftLiveSpot()
@@ -346,7 +346,7 @@ fun LiveWallpaper(
         }
         if (!pictureStale) return
         pictureStale = false
-        DiagLog.i("wallpaper: the picture is older than where the film was let go; the film goes on from the picture")
+        DiagLog.i("壁纸: 静帧早于影片松手处; 影片从静帧续播")
         Wallpapers.dropLeftLiveSpot()
     }
 
@@ -404,7 +404,7 @@ fun LiveWallpaper(
         if (frame == null) {
             // The picture as it was, of an earlier moment, rather than black; it catches up behind
             // the app (LaunchedEffect(keep)).
-            DiagLog.i("wallpaper film: no frame in time to leave on")
+            DiagLog.i("壁纸影片: 没有及时出帧可停留")
             if (fileFramesShut(context)) pictureStale = true
             cover.snapTo(0f)
             return
@@ -413,7 +413,7 @@ fun LiveWallpaper(
         Wallpapers.showLiveFrame(frame)
         cover.snapTo(0f)
         p.stop()
-        DiagLog.i("wallpaper left on its frame in ${android.os.SystemClock.elapsedRealtime() - started} ms")
+        DiagLog.i("壁纸停在当前帧, 耗时 ${android.os.SystemClock.elapsedRealtime() - started} ms")
         Wallpapers.useLiveFrame(frame, film, at)
     }
 
@@ -457,7 +457,7 @@ fun LiveWallpaper(
     val scope = rememberCoroutineScope()
     val stops = rememberStops {
         if (player == null) return@rememberStops false
-        DiagLog.i("wallpaper film lets go as Aerial stops")
+        DiagLog.i("壁纸影片随 Aerial 停止而松手")
         release()
         scope.launch { cover.snapTo(0f) }
         true
@@ -475,14 +475,14 @@ fun LiveWallpaper(
             val left = if (player == null) Wallpapers.leftLiveSpot() else null
             if (player == null) FilmAfterInput.await()
             val p = player ?: open().also { player = it }
-            DiagLog.i("wallpaper film starts (state ${p.playbackState}, ${p.currentMediaItem?.mediaId} at ${p.currentPosition} ms)")
+            DiagLog.i("壁纸影片启动(state ${p.playbackState}, ${p.currentMediaItem?.mediaId} 于 ${p.currentPosition} ms)")
             // It moves on from the frame the picture is: that picture's glass until the first sample.
             Wallpapers.dropFilmFrost()
             // Its decoder was let go for the screensaver (LiveFilm.letDecoderGo).
             if (p.playbackState == Player.STATE_IDLE) p.prepare()
             p.playWhenReady = true
             snapshotFlow { showing }.first { it }
-            DiagLog.i("wallpaper film moving")
+            DiagLog.i("壁纸影片播放中")
             cover.animateTo(1f, tween(1200, easing = Motion.EaseOut))
             if (left != null) {
                 delay(CATCH_UP_UNDER_FILM_MS)
@@ -512,7 +512,7 @@ fun LiveWallpaper(
                 val at = p.currentPosition
                 val w = surface?.width ?: Wallpapers.screenW
                 val h = surface?.height ?: Wallpapers.screenH
-                p.videoDecoderCounters?.let { DiagLog.i("wallpaper film dropped ${it.droppedBufferCount} of ${it.renderedOutputBufferCount + it.droppedBufferCount} frames") }
+                p.videoDecoderCounters?.let { DiagLog.i("壁纸影片掉帧 ${it.droppedBufferCount}/${it.renderedOutputBufferCount + it.droppedBufferCount}") }
                 val before = Wallpapers.frosted
                 // Any frame of the same shot will do: an aerial moves slowly, and frosted, seconds
                 // apart look alike, while the glass of another shot showed in the grid until this
@@ -563,7 +563,7 @@ fun LiveWallpaper(
                         release()
                         return@LaunchedEffect
                     }
-                    DiagLog.i("wallpaper picture takes over from the stopped film")
+                    DiagLog.i("壁纸静帧接替已停影片")
                     cover.animateTo(0f, tween(320, easing = Motion.EaseOut))
                 } else if (copySlow && film != null) {
                     // PixelCopy reads the film but holds Home 0.6-1.7 s, and the film's file jams
@@ -579,10 +579,10 @@ fun LiveWallpaper(
                         release()
                         return@LaunchedEffect
                     }
-                    DiagLog.i(if (copy != null) "wallpaper picture copied from the film left quiet" else "wallpaper film: no frame; back to the last picture")
+                    DiagLog.i(if (copy != null) "壁纸静帧取自停下的影片" else "壁纸影片: 无帧; 回到上一张静帧")
                     cover.animateTo(0f, tween(if (copy != null) 320 else 600, easing = Motion.EaseOut))
                 } else {
-                    DiagLog.i("wallpaper film: no frame copied; back to the last picture")
+                    DiagLog.i("壁纸影片: 未复制到帧; 回到上一张静帧")
                     cover.animateTo(0f, tween(600, easing = Motion.EaseOut))
                 }
                 live.stopped = false
@@ -858,7 +858,7 @@ internal suspend fun sampleGlass(
         val cost = droppedFrames(p) - before
         costly = if (cost >= GLASS_COST_FRAMES) costly + 1 else 0
         if (costly >= 2) {
-            DiagLog.i("wallpaper glass: the film dropped $cost frames while one was taken, twice running; a still glass from now on")
+            DiagLog.i("壁纸玻璃: 取一帧期间影片掉 $cost 帧, 连续两次; 此后用静态玻璃")
             glassCostly = true
             break
         }
@@ -905,11 +905,11 @@ private suspend fun captureOnce(view: SurfaceView, w: Int = view.width, h: Int =
     // shut the file out too, for good, and the plate lost its frosted glass (Xiaomi MiTV-MFTR0,
     // whose copies read black: `copy false` with no copy tried, 2026-11-01).
     if (result == PixelCopy.SUCCESS && unread == null && took > COPY_SLOW_MS) {
-        DiagLog.i("wallpaper frame copy took $took ms; not copied again")
+        DiagLog.i("壁纸帧复制耗时 $took ms; 不再复制")
         FilmFrames.copyWasSlow()
     }
     if (unread == "green") copyLostColour = true
-    if (result != PixelCopy.SUCCESS || unread != null) DiagLog.i("wallpaper frame copy: result $result, $unread, $took ms")
+    if (result != PixelCopy.SUCCESS || unread != null) DiagLog.i("壁纸帧复制: 结果 $result, $unread, $took ms")
     return bitmap.takeIf { result == PixelCopy.SUCCESS && unread == null }
 }
 
@@ -988,7 +988,7 @@ private class FrameReader(private val context: android.content.Context) {
         w.abandoned = true
         FileFramesStuck.mark(context)
         FilmFrames.update()
-        DiagLog.i("wallpaper film file stuck ($what, ${android.os.SystemClock.elapsedRealtime() - started} ms); not read again until it returns or the TV restarts")
+        DiagLog.i("壁纸影片文件卡住($what, ${android.os.SystemClock.elapsedRealtime() - started} ms); 恢复或电视重启前不再读取")
         // Its retriever goes once the call stuck on it returns, if it ever does; what queued behind
         // it returns null at once. Returned, it was only slow (a slow network, a busy TV), not the
         // media server jammed (TCL MT5879, where it never returns): the file may be read again.
@@ -998,7 +998,7 @@ private class FrameReader(private val context: android.content.Context) {
             w.executor.execute {
                 w.close()
                 FileFramesStuck.clear(context)
-                DiagLog.i("wallpaper film file returned after ${android.os.SystemClock.elapsedRealtime() - started} ms; read again")
+                DiagLog.i("壁纸影片文件 ${android.os.SystemClock.elapsedRealtime() - started} ms 后恢复; 重新读取")
                 android.os.Handler(android.os.Looper.getMainLooper()).post { FilmFrames.update() }
             }
             w.executor.shutdown()
@@ -1030,12 +1030,12 @@ private class FrameReader(private val context: android.content.Context) {
                 if (Build.VERSION.SDK_INT >= 27) mmr.getScaledFrameAtTime(us, option, w, h)
                 else mmr.getFrameAtTime(us, option)
             } catch (e: Exception) {
-                DiagLog.i("wallpaper frame decode failed: ${e.javaClass.simpleName}")
+                DiagLog.i("壁纸帧解码失败: ${e.javaClass.simpleName}")
                 wk.close()
                 null
             }
         }
-        if (!quiet || frame == null) DiagLog.i("wallpaper ${if (exact) "frame" else if (nearest) "key frame" else "glass frame"} decoded: ${frame != null} in ${android.os.SystemClock.elapsedRealtime() - started} ms")
+        if (!quiet || frame == null) DiagLog.i("壁纸 ${if (exact) "帧" else if (nearest) "关键帧" else "玻璃帧"} 解码: ${frame != null}, 耗时 ${android.os.SystemClock.elapsedRealtime() - started} ms")
         val sized = frame?.let {
             val sized = if (it.width == w && it.height == h) it else Bitmap.createScaledBitmap(it, w, h, true)
             if (sized.isMutable && sized.config == Bitmap.Config.ARGB_8888) sized else sized.copy(Bitmap.Config.ARGB_8888, true)
@@ -1044,7 +1044,7 @@ private class FrameReader(private val context: android.content.Context) {
         // the glass still turned green in 1.36, which reads the film's file wherever the copy of
         // the screen came back green (issue #284). Only green: a dark film's frame may well be.
         if (sized != null && unreadable(sized) == "green") {
-            DiagLog.i("wallpaper decoded frame is green; not used")
+            DiagLog.i("壁纸解码帧为绿屏; 弃用")
             return null
         }
         return sized
@@ -1077,7 +1077,7 @@ private class FrameReader(private val context: android.content.Context) {
             urlRefused = true
             open(url, ranged = true) ?: return null
         }
-        DiagLog.i("wallpaper film file opened${if (urlRefused) " through the app" else ""} in ${android.os.SystemClock.elapsedRealtime() - started} ms")
+        DiagLog.i("壁纸影片文件打开${if (urlRefused) " 经应用" else ""}, 耗时 ${android.os.SystemClock.elapsedRealtime() - started} ms")
         // Left behind while it opened: this one goes too, as nothing will use it.
         if (w.abandoned) {
             runCatching { mmr.release() }
@@ -1095,7 +1095,7 @@ private class FrameReader(private val context: android.content.Context) {
             else mmr.setDataSource(url, emptyMap())
             mmr
         } catch (e: Exception) {
-            DiagLog.i("wallpaper film file not opened${if (ranged) " through the app" else ""}: ${e.javaClass.simpleName}")
+            DiagLog.i("壁纸影片文件未打开${if (ranged) " 经应用" else ""}: ${e.javaClass.simpleName}")
             runCatching { mmr.release() }
             null
         }
@@ -1112,15 +1112,15 @@ internal suspend fun keyFrameDecodedInApp(context: android.content.Context, id: 
     val frame = try {
         AerialStream.keyFrame(context, film, atMs, w, h, Build.VERSION.SDK_INT < Build.VERSION_CODES.N)
     } catch (e: kotlinx.coroutines.CancellationException) {
-        DiagLog.i("wallpaper key frame in the app cancelled after ${android.os.SystemClock.elapsedRealtime() - started} ms")
+        DiagLog.i("应用内壁纸关键帧 ${android.os.SystemClock.elapsedRealtime() - started} ms 后取消")
         throw e
     } catch (e: Throwable) {
-        DiagLog.i("wallpaper key frame in the app failed after ${android.os.SystemClock.elapsedRealtime() - started} ms: ${e.javaClass.simpleName} ${e.message}")
+        DiagLog.i("应用内壁纸关键帧 ${android.os.SystemClock.elapsedRealtime() - started} ms 后失败: ${e.javaClass.simpleName} ${e.message}")
         return null
     }
-    if (!quiet) DiagLog.i("wallpaper key frame decoded in the app in ${android.os.SystemClock.elapsedRealtime() - started} ms (read ${frame.readMs} ms, ${frame.sampleBytes / 1024} KB${if (frame.indexKept) ", index kept" else ""}; ${frame.codec} ${frame.decodeMs} ms, to RGB ${frame.convertMs} ms)")
+    if (!quiet) DiagLog.i("应用内壁纸关键帧解码耗时 ${android.os.SystemClock.elapsedRealtime() - started} ms (读取 ${frame.readMs} ms, ${frame.sampleBytes / 1024} KB${if (frame.indexKept) ", 保留索引" else ""}; ${frame.codec} ${frame.decodeMs} ms, 转 RGB ${frame.convertMs} ms)")
     if (unreadable(frame.bitmap) == "green") {
-        DiagLog.i("wallpaper decoded frame is green; not used")
+        DiagLog.i("壁纸解码帧为绿屏; 弃用")
         return null
     }
     return frame
@@ -1156,7 +1156,7 @@ internal object SaverFrames {
     suspend fun prepareAhead(context: android.content.Context, film: String, atMs: Long) {
         if (!Wallpapers.moves()) return
         latest = null
-        start = make(context, film, atMs)?.also { DiagLog.i("screensaver's first picture made ahead: ${it.film} at ${it.atMs} ms") }
+        start = make(context, film, atMs)?.also { DiagLog.i("屏保首帧静帧已预生成: ${it.film} 于 ${it.atMs} ms") }
     }
 
     /** Of those kept, the one of the same film nearest [spot], within SAVER_PICTURE_SLACK_MS. */
@@ -1215,7 +1215,7 @@ private object FilmFrames {
             val libs = dirs.map { java.io.File("$it/extractors/libmp4extractor.so") }.filter { it.exists() }
             val tclFound = libs.isEmpty() || libs.any { lib -> runCatching { containsAscii(lib, "TclMPEG4Extractor") }.getOrDefault(true) }
             prefs.edit().putString(TCL_KEY, "${Build.FINGERPRINT}|$tclFound").apply()
-            DiagLog.i("wallpaper film file: ${libs.joinToString { it.path }.ifEmpty { "no MP4 extractor found" }}, TCL's extractor $tclFound")
+            DiagLog.i("壁纸影片文件: ${libs.joinToString { it.path }.ifEmpty { "未找到 MP4 提取器" }}, TCL 提取器 $tclFound")
             tclFound
         }
         tcl = found
@@ -1287,7 +1287,7 @@ private object FileFramesStuck {
             prefs.getInt(KEY_VERSION, 0) >= MARKS_CLEARED_SINCE
         if (marked && !FilmFrames.tclExtractor(context)) {
             prefs.edit().remove(KEY).apply()
-            DiagLog.i("wallpaper film file: a stuck mark from an earlier process dropped; read again")
+            DiagLog.i("壁纸影片文件: 丢弃上一进程残留的卡住标记; 重新读取")
             false
         } else marked
     }.also { stuck = it }

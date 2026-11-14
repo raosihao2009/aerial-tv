@@ -99,7 +99,7 @@ class PlaybackWatchdog(
                     val posAfter = try { exo.currentPosition } catch (t: Throwable) { posBefore }
                     val recheckAdvance = posAfter - posBefore
                     if (recheckAdvance >= RECHECK_ADVANCE_MS) {
-                        DiagLog.i("channel preview: source $sourceId jank not real (${recheckAdvance}ms in ${RECHECK_MS}ms recheck), keep playing")
+                        DiagLog.i("直播预览: 源 $sourceId 并非真卡(复核 ${RECHECK_MS}ms 内推进 ${recheckAdvance}ms), 继续播放")
                         stuckStreak = 0
                         lastPos = posAfter
                         lastBuffered = try { exo.bufferedPosition } catch (t: Throwable) { lastBuffered }
@@ -107,7 +107,7 @@ class PlaybackWatchdog(
                         lastRendered = try { (exo.videoDecoderCounters?.renderedOutputBufferCount ?: 0).toLong() } catch (t: Throwable) { lastRendered }
                         continue
                     }
-                    DiagLog.i("channel preview: source $sourceId jank (frozen=$frozen dropped=$droppedDelta/$totalFrames rendered=$renderedDelta pos=$posDelta buf=$bufDelta buffering=$buffering lowFpsLive=$lowFpsLive), handle")
+                    DiagLog.i("直播预览: 源 $sourceId 卡顿(frozen=$frozen dropped=$droppedDelta/$totalFrames rendered=$renderedDelta pos=$posDelta buf=$bufDelta buffering=$buffering lowFpsLive=$lowFpsLive), 触发处理")
                     onJank(sourceId)
                     break
                 }

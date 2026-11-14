@@ -110,7 +110,7 @@ private fun LocalFilms(
             override fun onRenderedFirstFrame() {
                 playing = true
                 player.currentMediaItem?.mediaId?.let(shown::add)
-                DiagLog.i("local screensaver first frame: ${player.currentMediaItem?.mediaId}")
+                DiagLog.i("本地屏保首帧: ${player.currentMediaItem?.mediaId}")
             }
             override fun onVideoSizeChanged(videoSize: VideoSize) {
                 if (videoSize.width > 0 && videoSize.height > 0) aspect = videoSize.width * videoSize.pixelWidthHeightRatio / videoSize.height
@@ -126,7 +126,7 @@ private fun LocalFilms(
                 else if (playbackState == Player.STATE_READY && player.isPlaying) playing = true
             }
             override fun onPlayerError(error: PlaybackException) {
-                DiagLog.i("local screensaver failed: ${error.errorCodeName}")
+                DiagLog.i("本地屏保失败: ${error.errorCodeName}")
                 failed()
             }
         }
@@ -169,10 +169,10 @@ private fun LocalFilms(
     // view is in the first frame, which is why the aerial screensaver showed.
     LaunchedEffect(films) {
         val list = films ?: return@LaunchedEffect
-        DiagLog.i("local screensaver: ${list.size} films")
+        DiagLog.i("本地屏保: ${list.size} 部影片")
         if (list.isEmpty()) { onUnavailable(); return@LaunchedEffect }
         val first = list.indexOfFirst { it.id == start?.first }
-        if (first >= 0) DiagLog.i("local screensaver goes on from the wallpaper: ${start?.first} at ${start?.second} ms")
+        if (first >= 0) DiagLog.i("本地屏保从壁纸续播: ${start?.first} 于 ${start?.second} ms")
         player.setMediaItems(
             list.map { MediaItem.Builder().setUri(it.file.toUri()).setMediaId(it.id).build() },
             first.coerceAtLeast(0),
@@ -187,7 +187,7 @@ private fun LocalFilms(
         delay(8_000)
         // Only a film that never showed is dropped. One that played once and was then taken for a
         // stall ended the owner's videos for the photos after one pass (Sony 85X95EK, issue #659).
-        if (player.currentMediaItem?.mediaId in shown) DiagLog.i("local screensaver: no new frame for 8 s from a film that played; kept")
+        if (player.currentMediaItem?.mediaId in shown) DiagLog.i("本地屏保: 已播放影片 8 秒无新帧; 保留")
         else failed()
     }
     Box(Modifier.fillMaxSize()) {
@@ -196,9 +196,9 @@ private fun LocalFilms(
             factory = { ctx ->
                 FilmSlot(ctx).also {
                     it.surface.holder.addCallback(object : SurfaceHolder.Callback {
-                        override fun surfaceCreated(holder: SurfaceHolder) = DiagLog.i("local screensaver surface created")
+                        override fun surfaceCreated(holder: SurfaceHolder) = DiagLog.i("本地屏保 surface 创建")
                         override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit
-                        override fun surfaceDestroyed(holder: SurfaceHolder) = DiagLog.i("local screensaver surface destroyed")
+                        override fun surfaceDestroyed(holder: SurfaceHolder) = DiagLog.i("本地屏保 surface 销毁")
                     })
                     player.setVideoSurfaceView(it.surface)
                 }

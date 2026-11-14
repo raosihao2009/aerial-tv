@@ -89,7 +89,7 @@ internal object KonkaSources {
             val source = sourceClass.enumConstants?.getOrNull(ordinal) ?: error("no input $ordinal")
             val manager = managerClass.getMethod("getInstance", Context::class.java).invoke(null, context.applicationContext)
             val switched = managerClass.getMethod("setInputSource", sourceClass).invoke(manager, source)
-            DiagLog.i("konka: switched to $source before its page: $switched")
+            DiagLog.i("konka: 在页面之前切到 $source: $switched")
         }.onFailure { Log.w(TAG, "Could not switch the Konka input to $ordinal", it) }
     }
 }

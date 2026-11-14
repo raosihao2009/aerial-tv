@@ -92,7 +92,7 @@ object SelfCompile {
         app = context.applicationContext
         val worth = worthIt(context)
         val system = systemWorthIt(context)
-        if (worth || system) DiagLog.i("self compile: uncompiled (odex ${odexBytes(context)?.div(1024)} KB)")
+        if (worth || system) DiagLog.i("自编译: 未编译(odex ${odexBytes(context)?.div(1024)} KB)")
         // Not while the package manager is still to be asked: it needs nobody.
         offered = worth && Build.VERSION.SDK_INT < 31 && !system
     }
@@ -108,7 +108,7 @@ object SelfCompile {
         val odex = odexBytes(context) ?: return
         if (odex < COMPILED_BYTES) return
         offered = false
-        DiagLog.i("self compile: compiled since (odex ${odex / 1024} KB); no longer offered")
+        DiagLog.i("自编译: 已编译(odex ${odex / 1024} KB); 不再提供")
     }
 
     fun diagnostics(context: Context): String =
@@ -159,7 +159,7 @@ object SelfCompile {
         val result = if (done) "compiled, odex ${after!! / 1024} KB in ${took / 1000} s" else "not compiled (${said.take(120)}), odex ${after?.div(1024)} KB"
         prefs(app).edit { putString(KEY_SYSTEM_RESULT, result) }
         Log.i(TAG, "self compile: package manager asked, odex $before -> $after bytes in $took ms: $said")
-        DiagLog.i("self compile: package manager: $result")
+        DiagLog.i("自编译: 包管理器: $result")
         if (!done) main.post { offered = worthIt(app) }
     }
 
@@ -169,7 +169,7 @@ object SelfCompile {
         prefs(app).edit { putLong(KEY_TRIED, BuildConfig.VERSION_CODE.toLong()) }
         offered = false
         Log.i(TAG, "self compile: reinstalling (${if (auto) "auto" else "asked"}), odex ${odexBytes(app)} bytes")
-        DiagLog.i("self compile: reinstalling (${if (auto) "auto" else "asked"})")
+        DiagLog.i("自编译: 重装中(${if (auto) "自动" else "手动"})")
         if (Build.VERSION.SDK_INT >= 28) Updates.reinstallSelf(app, auto)
     }
 

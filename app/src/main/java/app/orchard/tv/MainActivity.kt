@@ -190,7 +190,7 @@ class MainActivity : ComponentActivity() {
         runCatching {
             veilPref = getSharedPreferences("settings", Context.MODE_PRIVATE).getBoolean("splash_veil", true)
         }.onFailure { readFailed = true; veilPref = true }
-        DiagLog.i("boot-debug: showLocked at +${SystemClock.elapsedRealtime()}ms; splash veil=$veilPref readFailed=$readFailed")
+        DiagLog.i("启动调试: showLocked 于 +${SystemClock.elapsedRealtime()}ms; 启动遮罩=$veilPref 读取失败=$readFailed")
         if (veilPref) {
             // 解锁前这一屏本来就什么也读不到, 与其铺上次的静图(开机后会先看到几秒壁纸), 不如直接
             // 铺开屏图: 解锁后真正启动时接的是同一张, 视觉上连成一次开屏。
@@ -199,7 +199,7 @@ class MainActivity : ComponentActivity() {
             // 用户关掉启动遮罩: 解锁前这一屏就铺上上次桌面那张壁纸, 开机第一眼就是"已经在桌面",
             // 既不能是开屏页, 也不该是一块黑底。
             val bg = bootBackdrop()
-            DiagLog.i("boot-debug: showLocked veil off, backdrop=${bg != null}")
+            DiagLog.i("启动调试: showLocked 遮罩关闭, 底板=${bg != null}")
             if (bg != null) window.setBackgroundDrawable(bg)
         }
         ContextCompat.registerReceiver(this, unlocked, IntentFilter(Intent.ACTION_USER_UNLOCKED), ContextCompat.RECEIVER_EXPORTED)
@@ -232,7 +232,7 @@ class MainActivity : ComponentActivity() {
         val started = runCatching {
             startActivity(home.setClassName(fallback.packageName, fallback.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }.isSuccess
-        DiagLog.i("onCreate before the user is unlocked; ${if (started) "left to" else "could not start"} ${fallback.packageName}/${fallback.name}")
+        DiagLog.i("onCreate 用户解锁前; ${if (started) "交给" else "未能启动"} ${fallback.packageName}/${fallback.name}")
         if (started) {
             finish()
             watchHandOver(applicationContext)
@@ -242,7 +242,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         DiagLog.catchCrashes()
-        DiagLog.i("boot-debug: onCreate ENTER at +${SystemClock.elapsedRealtime()}ms, savedInstanceState=${savedInstanceState != null}, intent=${intent.action}")
+        DiagLog.i("启动调试: onCreate 进入于 +${SystemClock.elapsedRealtime()}ms, savedInstanceState=${savedInstanceState != null}, intent=${intent.action}")
         if (!GuardSetup.isUserUnlocked(this)) {
             super.onCreate(null)
             if (handOverToFirmwareFallbackHome()) return
@@ -251,9 +251,9 @@ class MainActivity : ComponentActivity() {
             return
         }
         super.onCreate(savedInstanceState)
-        DiagLog.i("boot-debug: super.onCreate done, savedInstanceState==null=${savedInstanceState == null}")
+        DiagLog.i("启动调试: super.onCreate 完成, savedInstanceState==null=${savedInstanceState == null}")
         if (savedInstanceState == null && reopenAsHome()) {
-            DiagLog.i("boot-debug: reopenAsHome returned true, finishing early")
+            DiagLog.i("启动调试: reopenAsHome 返回 true, 提前结束")
             return
         }
         startReal(savedInstanceState)
@@ -280,14 +280,14 @@ class MainActivity : ComponentActivity() {
         // Dangbei H5: if Aerial is already the system default Home, the restart causes a black
         // flash. Only reopen when the system actually handed us a non-HOME intent.
         if (isSystemHome(this)) {
-            DiagLog.i("started without HOME category but Aerial is system Home; skipping reopen")
+            DiagLog.i("启动时没有 HOME 类别但 Aerial 是系统桌面; 跳过重新打开")
             return false
         }
         if (!HomeReopen.mayReopen(SystemClock.elapsedRealtime())) {
-            DiagLog.i("started as ${started.categories} again right after reopening as Home; staying")
+            DiagLog.i("以 ${started.categories} 再次启动(刚重开为桌面); 保留现状")
             return false
         }
-        DiagLog.i("started as ${started.categories} in task $taskId; reopening as Home")
+        DiagLog.i("以 ${started.categories} 在 task $taskId 启动; 重开为桌面")
         return runCatching {
             startActivity(again)
             finishAndRemoveTask()
@@ -309,7 +309,7 @@ class MainActivity : ComponentActivity() {
             runCatching { unregisterReceiver(unlocked) }
         }
         DiagLog.init(this)
-        DiagLog.i("onCreate ${intent.action} restored=${savedInstanceState != null}; ${DiagLog.device()}")
+        DiagLog.i("onCreate ${intent.action} 恢复=${savedInstanceState != null}; ${DiagLog.device()}")
         hideSystemBars()
         // Unlocked at power-on: what the system kept. Unlocked under the locked window: nothing to
         // restore, and this is the boot's first real start.
@@ -345,36 +345,36 @@ class MainActivity : ComponentActivity() {
         // baked at the last start, so the window never shows black while Compose sets up. Without
         // one, keep what the window already shows (the kept backdrop of a locked start).
         val baked = Wallpapers.backdrop
-        DiagLog.i("boot-debug: window background branch cold=$coldBoot splashVeil=${AerialSettings.splashVeilEnabled} baked=${baked != null}")
+        DiagLog.i("启动调试: 窗口背景分支 cold=$coldBoot splashVeil=${AerialSettings.splashVeilEnabled} baked=${baked != null}")
         if (coldBoot && AerialSettings.splashVeilEnabled) {
             // 冷启动: 窗口背景直接画开屏图(黑底+图标+Aerial字)。窗口一可见就是它, 不用等
             // 内容视图和 Compose 组合 —— 以前这里放的是上次烘焙的壁纸, 于是先看两秒壁纸才黑下来。
             // 直接铺开屏那页(渐变底 + 横排标志 + 一行小字): 窗口一可见就是它, 和遮罩画的是
             // 同一份几何与同一层渐变, 中间不会有颜色跳变。
             window.setBackgroundDrawable(SplashBackground(this))
-            DiagLog.i("boot-debug: window background is the splash at +${SystemClock.elapsedRealtime()}ms")
+            DiagLog.i("启动调试: 窗口背景为开屏画面于 +${SystemClock.elapsedRealtime()}ms")
         } else if (coldBoot) {
             // 关掉遮罩的冷启动: 第一眼就该是上次那张壁纸, 一直铺到桌面画完为止。黑底不算"直接
             // 进桌面", 也不该出现; 这里只把未解锁时可能留下的开屏静图换掉。
             val bg = bootBackdrop()
             if (bg != null) {
                 window.setBackgroundDrawable(bg)
-                DiagLog.i("boot-debug: cold boot with veil off, window shows the last wallpaper")
+                DiagLog.i("启动调试: 冷启动且遮罩关闭, 窗口显示上一张壁纸")
             } else {
                 window.setBackgroundDrawable(null)
-                DiagLog.i("boot-debug: cold boot with veil off, no wallpaper to show yet")
+                DiagLog.i("启动调试: 冷启动且遮罩关闭, 暂无壁纸可显示")
             }
         } else if (baked != null) {
             window.setBackgroundDrawable(BitmapDrawable(resources, baked.asAndroidBitmap()))
-            DiagLog.i("boot-debug: window background set to baked backdrop at +${SystemClock.elapsedRealtime()}ms")
+            DiagLog.i("启动调试: 窗口背景设为预生成底板于 +${SystemClock.elapsedRealtime()}ms")
         } else {
             window.setBackgroundDrawable(null)
-            DiagLog.i("boot-debug: no baked backdrop, window stays default")
+            DiagLog.i("启动调试: 无预生成底板, 窗口保持默认")
         }
         // Dangbei H5: keeping the baked backdrop permanently (instead of switching to black after
         // 5 frames) prevents the 3 black flashes during boot when the window surface is recreated.
         // The extra fill cost is negligible on TV hardware.
-        if (DiagLog.modeSwitch(this)) preferSmoothestRefreshRate() else DiagLog.i("refresh rate left as it is (mode_switch off)")
+        if (DiagLog.modeSwitch(this)) preferSmoothestRefreshRate() else DiagLog.i("刷新率保持原样(mode_switch 关闭)")
         if (DiagLog.softLayer(this) && uhd == 1f) window.decorView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
         FrameStats.attach(window)
         logWindow()
@@ -399,7 +399,7 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
-        DiagLog.i("boot-debug: calling setContent at +${SystemClock.elapsedRealtime()}ms")
+        DiagLog.i("启动调试: 调用 setContent 于 +${SystemClock.elapsedRealtime()}ms")
         val host = if (Build.VERSION.SDK_INT >= 29 && uhd > 1f) {
             UhdCanvas.host(this, ComposeView(this).apply { setContent(home) }, uhd)
         } else {
@@ -416,7 +416,7 @@ class MainActivity : ComponentActivity() {
         // 每一次进桌面都盖: 冷启动放开机影片 + 飞入, 热启动/重进放那 2.5 秒的标志动画。
         // 热启动不加遮罩的话, Compose 重建的那一两秒直接露在用户眼前(半张桌面、焦点框乱跳)。
         if (AerialSettings.splashVeilEnabled) {
-            DiagLog.i("boot-debug: splash veil enabled, attaching veil")
+            DiagLog.i("启动调试: 启动遮罩已开启, 挂载遮罩")
             // 影片层在这台盒子上从来不出画面, 而且它会用一块 TextureView 把遮罩自己的绘制整块
             // 盖住(看起来像"开屏页不是遮罩画的")。开屏已经定成纯静态页, 影片不再挂。
             val veil = SplashVeil(this, withVideo = false)
@@ -437,11 +437,11 @@ class MainActivity : ComponentActivity() {
             veil.postDelayed({ veil.forceFinish() }, if (coldBoot) 13_000L else 9_500L)
         } else {
             // 用户关掉启动遮罩: 不挂遮罩, 直接放开桌面, 壁纸/直播预览照常起播。
-            DiagLog.i("boot-debug: splash veil disabled, skipping veil")
+            DiagLog.i("启动调试: 启动遮罩已关闭, 跳过遮罩")
             BootVeil.revealed = true
         }
         setContentView(root)
-        DiagLog.i("boot-debug: setContent returned at +${SystemClock.elapsedRealtime()}ms")
+        DiagLog.i("启动调试: setContent 返回于 +${SystemClock.elapsedRealtime()}ms")
 
         ContextCompat.registerReceiver(
             this, screenOnReceiver,
@@ -460,9 +460,9 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        if (coldBoot && firstStartSinceBoot()) openBootSource("boot")
-        if (intent.getBooleanExtra(EXTRA_WOKE, false)) openBootSource("brought back on wake")
-        if (intent.getBooleanExtra(EXTRA_REOPEN_BOOT, false)) openBootSource("covered by the stock launcher", again = true)
+        if (coldBoot && firstStartSinceBoot()) openBootSource("开机")
+        if (intent.getBooleanExtra(EXTRA_WOKE, false)) openBootSource("唤醒后带回")
+        if (intent.getBooleanExtra(EXTRA_REOPEN_BOOT, false)) openBootSource("被原厂桌面盖住", again = true)
         if (fromLocked) {
             // This window already went through onStart and onResume while locked (both returned
             // early) and the system will not call them again unless it stops and starts the
@@ -493,13 +493,13 @@ class MainActivity : ComponentActivity() {
         // Home out of sight (UI_HIDDEN, every time an app opens): coming back, the first moves along
         // the row would make the focused faces again on the main thread.
         if (level < TRIM_MEMORY_RUNNING_LOW || level == TRIM_MEMORY_UI_HIDDEN) return
-        DiagLog.i("trim memory, level $level")
+        DiagLog.i("内存回收, level $level")
         Wallpapers.trimMemory()
         TileFaces.trimMemory()
     }
 
     override fun onDestroy() {
-        DiagLog.i("boot-debug: onDestroy at +${SystemClock.elapsedRealtime()}ms, locked=$locked")
+        DiagLog.i("启动调试: onDestroy 于 +${SystemClock.elapsedRealtime()}ms, locked=$locked")
         if (locked) runCatching { unregisterReceiver(unlocked) }
         runCatching { unregisterReceiver(screenOnReceiver) }
         super.onDestroy()
@@ -517,7 +517,7 @@ class MainActivity : ComponentActivity() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action == Intent.ACTION_SCREEN_OFF) { BootOpen.noteScreenOff(context); return }
             idleHandler.postDelayed({
-                if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) openBootSource("screen on")
+                if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) openBootSource("屏幕点亮")
             }, 1500)
         }
     }
@@ -528,7 +528,7 @@ class MainActivity : ComponentActivity() {
             // In the diagnostics: an app to start on that never opened at power-on (MiTV4-ANSM0,
             // Android 6.0.1, issue #1009) may be Home created later than this.
             if (AerialSettings.bootSource != null || AerialSettings.bootApp != null) {
-                DiagLog.i("boot target: Home first created ${SystemClock.elapsedRealtime() / 1000} s after boot, too late to open it")
+                DiagLog.i("开机目标: 桌面在开机 ${SystemClock.elapsedRealtime() / 1000} 秒后才创建, 已来不及打开")
             }
             return false
         }
@@ -551,12 +551,12 @@ class MainActivity : ComponentActivity() {
         if (id == null && pkg == null) return
         // In Kids and Elders mode only what the mode shows.
         if (Restricted.active && (pkg ?: (SOURCE_KEY_PREFIX + id)) !in Restricted.allowed) {
-            DiagLog.i("$reason: ${id ?: pkg} is not in Kids mode; not opening it")
+            DiagLog.i("$reason: ${id ?: pkg} 不在儿童模式; 不打开")
             return
         }
         if (!again && SystemClock.elapsedRealtime() - bootSourceOpenedAt < 15_000) return
         if (!again && !BootOpen.due(this)) {
-            DiagLog.i("$reason: already opened ${id ?: pkg} since the TV came on")
+            DiagLog.i("$reason: 电视开机后已打开过 ${id ?: pkg}")
             return
         }
         bootSourceOpenedAt = SystemClock.elapsedRealtime()
@@ -578,7 +578,7 @@ class MainActivity : ComponentActivity() {
                     else vm.entry(pkg!!)?.let { it.label to it.launchIntent() }
                 }.filterNotNull().first()
             } ?: run {
-                DiagLog.i("$reason: ${id ?: pkg} not listed; not opening it")
+                DiagLog.i("$reason: ${id ?: pkg} 不在列表; 不打开")
                 return@launch
             }
             // A live TV app opened before the network is up shows an error and stays on it: a box
@@ -588,7 +588,7 @@ class MainActivity : ComponentActivity() {
                     while (SystemProbe.network(this@MainActivity).kind == NetKind.Offline) delay(500)
                 }
             }
-            DiagLog.i("$reason: opening ${intent.first}, what the TV starts on")
+            DiagLog.i("$reason: 打开 ${intent.first}, 即电视开机所在")
             BootOpen.noteOpened(this@MainActivity)
             openedAppSinceHome = true
             open(intent.second)
@@ -614,7 +614,7 @@ class MainActivity : ComponentActivity() {
                 if (other > am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)) return@runCatching
                 am.setStreamVolume(AudioManager.STREAM_MUSIC, other, 0)
                 am.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0)
-                DiagLog.i("boot input opened again; volume set again at $level")
+                DiagLog.i("开机输入源再次打开; 音量再次设为 $level")
             }
         }, REOPEN_VOLUME_NUDGE_MS)
     }
@@ -630,7 +630,7 @@ class MainActivity : ComponentActivity() {
     private fun preferSmoothestRefreshRate() {
         if (Build.VERSION.SDK_INT < 31) return
         // Twice the frames is twice the GPU's work: Lite stays at the rate the TV chose.
-        if (AerialSettings.lite) return DiagLog.i("refresh rate left as it is (lite effects)")
+        if (AerialSettings.lite) return DiagLog.i("刷新率保持原样(流畅效果)")
         val display = display ?: return
         val current = display.mode
         val seamless = current.alternativeRefreshRates
@@ -641,7 +641,7 @@ class MainActivity : ComponentActivity() {
             }
             .maxByOrNull { it.refreshRate }
             ?.takeIf { it.refreshRate > current.refreshRate + 0.5f } ?: return
-        DiagLog.i("refresh rate ${current.refreshRate} -> ${best.refreshRate} Hz (mode ${best.modeId})")
+        DiagLog.i("刷新率 ${current.refreshRate} -> ${best.refreshRate} Hz (mode ${best.modeId})")
         window.attributes = window.attributes.apply { preferredDisplayModeId = best.modeId }
     }
 
@@ -699,7 +699,7 @@ class MainActivity : ComponentActivity() {
             val before = volumeAtLift
             if (now != null && before != null && now != before) {
                 volumeMovedDown = event.downTime
-                DiagLog.i("key $name down: the volume already moved ($before -> $now); dropped")
+                DiagLog.i("按键 $name 按下: 音量已变化($before -> $now); 丢弃")
                 return true
             }
             return false
@@ -711,7 +711,7 @@ class MainActivity : ComponentActivity() {
         if (!over) return false
         if (event.downTime != staleVolumeDown) {
             staleVolumeDown = event.downTime
-            DiagLog.i("key $name #${event.repeatCount} repeats a press that is over; dropped")
+            DiagLog.i("按键 $name #${event.repeatCount} 为已结束按压的重复; 丢弃")
         }
         return true
     }
@@ -720,26 +720,26 @@ class MainActivity : ComponentActivity() {
         val m = resources.displayMetrics
         val modes = if (Build.VERSION.SDK_INT >= 23) display()?.let { d ->
             val alt = if (Build.VERSION.SDK_INT >= 31) d.mode.alternativeRefreshRates.joinToString() else "?"
-            "mode ${d.mode.modeId} ${d.mode.physicalWidth}x${d.mode.physicalHeight}@${d.mode.refreshRate} (seamless: $alt) of " +
+            "模式 ${d.mode.modeId} ${d.mode.physicalWidth}x${d.mode.physicalHeight}@${d.mode.refreshRate} (无缝切换: $alt) " +
                 d.supportedModes.joinToString { "${it.modeId}:${it.physicalWidth}x${it.physicalHeight}@${it.refreshRate}" }
         } else null
         DiagLog.i(
-            "display ${m.widthPixels}x${m.heightPixels} ${m.densityDpi}dpi, canvas density ${canvasDensity(m)}, uhd ${UhdCanvas.scale(this)} (${UhdCanvas.why}); $modes; " +
+            "屏幕 ${m.widthPixels}x${m.heightPixels} ${m.densityDpi}dpi, 画布密度 ${canvasDensity(m)}, uhd ${UhdCanvas.scale(this)} (${UhdCanvas.why}); $modes; " +
                 "hwui ${systemProperty("debug.hwui.renderer")}, soft_layer=${DiagLog.softLayer(this)}, saver_fade_offscreen=${DiagLog.saverFadeOffscreen(this)}",
         )
         window.decorView.viewTreeObserver.addOnDrawListener {
             draws++
-            if (draws <= 3) DiagLog.i("draw $draws: ${window.decorView.width}x${window.decorView.height}, hw=${window.decorView.isHardwareAccelerated}")
+            if (draws <= 3) DiagLog.i("绘制 $draws: ${window.decorView.width}x${window.decorView.height}, 硬件加速=${window.decorView.isHardwareAccelerated}")
         }
         // A heartbeat for the first two minutes: whether frames come at all, keys arrive and Home is in.
         for (s in 2..120 step 6) idleHandler.postDelayed({
             val asked = SystemClock.uptimeMillis()
             Choreographer.getInstance().postFrameCallback {
                 DiagLog.i(
-                    "${s}s: frame after ${SystemClock.uptimeMillis() - asked} ms, draws $draws, " +
-                        "focus ${window.decorView.hasWindowFocus()}, shown ${window.decorView.isShown}, " +
-                        "state ${lifecycle.currentState}, apps ${vm.apps.size} loaded ${vm.loaded}, " +
-                        "screensaver ${vm.screensaverVisible}, overlay ${vm.overlay}",
+                    "${s}s: 帧出现在 ${SystemClock.uptimeMillis() - asked} ms 后, 绘制 $draws, " +
+                        "焦点 ${window.decorView.hasWindowFocus()}, 可见 ${window.decorView.isShown}, " +
+                        "状态 ${lifecycle.currentState}, 应用 ${vm.apps.size} 已加载 ${vm.loaded}, " +
+                        "屏保 ${vm.screensaverVisible}, 浮层 ${vm.overlay}",
                 )
             }
         }, s * 1000L)
@@ -754,14 +754,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        DiagLog.i("boot-debug: window focus $hasFocus at +${SystemClock.elapsedRealtime()}ms")
+        DiagLog.i("启动调试: 窗口焦点 $hasFocus 于 +${SystemClock.elapsedRealtime()}ms")
         if (!hasFocus) SystemScreensaver.noteHomeHidden()
         // A window of the TV's over Aerial's screensaver, still resumed beneath it: a key of the
         // firmware's own was pressed. Coocaa C10's hotkey popup sometimes took focus before the
         // key's lift reached Aerial, and the screensaver went on under it (issue #915, the
         // reporter's WindowManager log).
         if (!hasFocus && vm.resumed && vm.screensaverVisible) {
-            DiagLog.i("a window came over the screensaver; ending it")
+            DiagLog.i("有窗口盖到屏保上; 结束屏保")
             hideScreensaver()
         }
     }
@@ -805,7 +805,7 @@ class MainActivity : ComponentActivity() {
 
     /** Home's bounce did not bring Aerial back in time: the film lets its decoder go as usual. */
     private val endHomeBounce = Runnable {
-        if (vm.homeBounce) DiagLog.i("not back from Home's bounce; the film lets go")
+        if (vm.homeBounce) DiagLog.i("不是桌面回弹返回; 影片松手")
         vm.homeBounce = false
     }
 
@@ -827,7 +827,7 @@ class MainActivity : ComponentActivity() {
         // A parent who left Kids mode has walked away.
         Restricted.rearm()
         if (Wallpapers.screensaver == ScreensaverMode.System) {
-            if (asked && !SystemScreensaver.startFirmware(this)) DiagLog.i("no system screensaver to start")
+            if (asked && !SystemScreensaver.startFirmware(this)) DiagLog.i("没有可启动的系统屏保")
             return
         }
         // Aerials over the aerial wallpaper, or the owner's videos over their video wallpaper: Home
@@ -840,14 +840,14 @@ class MainActivity : ComponentActivity() {
             // Vision beside it and the dream fell back to 4K HEVC.
             LiveFilm.onHome?.letDecoderGo()
             if (SystemScreensaver.startDream(this)) {
-                DiagLog.i("screensaver starts as the system's dream")
+                DiagLog.i("屏保以系统 dream 形式启动")
                 dreamAskedAt = SystemClock.uptimeMillis()
                 SystemScreensaver.noteDreamAsked()
                 return
             }
             LiveFilm.onHome?.goOn()
         }
-        DiagLog.i("screensaver starts (${Wallpapers.screensaver})")
+        DiagLog.i("屏保启动(${Wallpapers.screensaver})")
         vm.screensaverVisible = true
         // Holding the screen on keeps the firmware's screensaver from starting over ours. After a
         // long stretch, let go so the TV's own power policy can still turn the panel off. Not
@@ -873,7 +873,7 @@ class MainActivity : ComponentActivity() {
         if (!vm.resumed || !hasWindowFocus()) return@Runnable
         SystemScreensaver.forgetDreamAsked()
         noteDreamFails(this)
-        DiagLog.i("the system's dream did not show; Aerial's own screensaver instead")
+        DiagLog.i("系统 dream 未显示; 改用 Aerial 自带屏保")
         LiveFilm.onHome?.goOn()
         startScreensaver(asked = false)
     }
@@ -967,7 +967,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun hideScreensaver() {
-        if (vm.screensaverVisible) DiagLog.i("screensaver ends")
+        if (vm.screensaverVisible) DiagLog.i("屏保结束")
         vm.screensaverVisible = false
         // 回到一级菜单: 直播预览自动隐藏的 UI 也要拉回来
         if (vm.uiHidden) vm.uiHidden = false
@@ -978,12 +978,12 @@ class MainActivity : ComponentActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (locked) return super.dispatchKeyEvent(event)
         if (event.keyCode == dreamWokeKey) {
-            DiagLog.i("key ${KeyEvent.keyCodeToString(event.keyCode)} #${event.repeatCount} is the rest of the press that woke the dream")
+            DiagLog.i("按键 ${KeyEvent.keyCodeToString(event.keyCode)} #${event.repeatCount} 为唤醒 dream 那次按压的余波")
             if (event.action == KeyEvent.ACTION_UP) { dreamWokeKey = -1; return true }
             if (event.repeatCount > 0) return true
             dreamWokeKey = -1 // a new press of the same key
         }
-        if (keysLogged++ < 200) DiagLog.i("key ${KeyEvent.keyCodeToString(event.keyCode)} ${if (event.action == KeyEvent.ACTION_DOWN) "down" else "up"} #${event.repeatCount} at ${event.eventTime}, view focused ${currentFocus != null}")
+        if (keysLogged++ < 200) DiagLog.i("按键 ${KeyEvent.keyCodeToString(event.keyCode)} ${if (event.action == KeyEvent.ACTION_DOWN) "按下" else "松开"} #${event.repeatCount} 于 ${event.eventTime}, 焦点视图=${currentFocus != null}")
         restartIdleTimer()
         // A lift whose press never reached Aerial: Coocaa C10's hotkey service takes the press of
         // its focus and settings keys and lets only the lift through (issue #915, the reporter's
@@ -994,7 +994,7 @@ class MainActivity : ComponentActivity() {
         if (!vm.screensaverVisible && event.keyCode != swallowKeyUp) Sounds.onKey(event)
         // 二创: 屏保里按任何键(返回/主页/方向/确定/菜单)都只是回到一级菜单, 不再用左右键翻影片。
         if (vm.screensaverVisible && loneLift) {
-            DiagLog.i("key ${KeyEvent.keyCodeToString(event.keyCode)} lifted with no press; ending the screensaver")
+            DiagLog.i("按键 ${KeyEvent.keyCodeToString(event.keyCode)} 无按压松开; 结束屏保")
             hideScreensaver()
             wakeQuietUntil = SystemClock.uptimeMillis() + WAKE_QUIET_MS
             return true
@@ -1012,7 +1012,7 @@ class MainActivity : ComponentActivity() {
             return true
         }
         if (event.eventTime < maxOf(wakeQuietUntil, dreamWokeAt + WAKE_QUIET_MS)) {
-            DiagLog.i("key ${KeyEvent.keyCodeToString(event.keyCode)} right after waking, ignored")
+            DiagLog.i("按键 ${KeyEvent.keyCodeToString(event.keyCode)} 刚唤醒即按下, 忽略")
             return true
         }
         return super.dispatchKeyEvent(event)
@@ -1037,8 +1037,8 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         if (locked) return
         DiagLog.i("onNewIntent ${intent.action}")
-        if (intent.getBooleanExtra(EXTRA_WOKE, false)) openBootSource("brought back on wake")
-        if (intent.getBooleanExtra(EXTRA_REOPEN_BOOT, false)) openBootSource("covered by the stock launcher", again = true)
+        if (intent.getBooleanExtra(EXTRA_WOKE, false)) openBootSource("唤醒后带回")
+        if (intent.getBooleanExtra(EXTRA_REOPEN_BOOT, false)) openBootSource("被原厂桌面盖住", again = true)
         if (intent.action == ACTION_PREVIEW_SCREENSAVER) {
             idleHandler.post { startScreensaver(asked = true) }
             return
@@ -1135,7 +1135,7 @@ class MainActivity : ComponentActivity() {
         KidsWatch.homeInFront = true
         idleHandler.removeCallbacks(endHomeBounce)
         vm.homeBounce = false
-        DiagLog.i("onResume; screensaver after ${idleBeforeScreensaver() / 1000} s")
+        DiagLog.i("onResume; 屏保等待 ${idleBeforeScreensaver() / 1000} 秒")
         if (SystemClock.uptimeMillis() - dreamAskedAt < 1_000) {
             dreamChecking = true
             idleHandler.postDelayed(dreamCheck, 1_500)
@@ -1155,7 +1155,7 @@ class MainActivity : ComponentActivity() {
         if (!resumedInProcess) {
             resumedInProcess = true
             val age = if (Build.VERSION.SDK_INT >= 24) SystemClock.elapsedRealtime() - android.os.Process.getStartElapsedRealtime() else -1L
-            if (BootOpen.dueAfterColdWake(this, age)) openBootSource("first in front after a cold wake")
+            if (BootOpen.dueAfterColdWake(this, age)) openBootSource("冷唤醒后首个到前台")
         }
         // Back in front by any route (Home was handled in onNewIntent, which runs first; Back from
         // the app lands here directly), so the next Home press is a Home-on-Home again. Not for an
@@ -1172,10 +1172,10 @@ class MainActivity : ComponentActivity() {
             // page then opened beside the panel (issues #948 #976, the reporters' logs).
             idleHandler.postDelayed({
                 if (vm.resumed && hasWindowFocus()) {
-                    DiagLog.i("the page just opened closed at once; opening ${page.component ?: page.action}")
+                    DiagLog.i("刚打开的页面立刻关闭; 打开 ${page.component ?: page.action}")
                     open(page)
                 } else {
-                    DiagLog.i("back in front under a window of the page just opened; not opening ${page.component ?: page.action}")
+                    DiagLog.i("刚打开页面的窗口之下回到前台; 不打开 ${page.component ?: page.action}")
                 }
             }, FALLBACK_FOCUS_MS)
         }
@@ -1189,7 +1189,7 @@ class MainActivity : ComponentActivity() {
         if (minuteReceiverOn) { runCatching { unregisterReceiver(minuteReceiver) }; minuteReceiverOn = false }
         KidsWatch.homeInFront = false
         Updates.onHomePaused()
-        DiagLog.i("boot-debug: onPause at +${SystemClock.elapsedRealtime()}ms")
+        DiagLog.i("启动调试: onPause 于 +${SystemClock.elapsedRealtime()}ms")
         leftForAnApp = openedAppSinceHome
         GuardSetup.setHomeInFront(this, false)
         if (HomeGuardService.onAerialPaused()) {
@@ -1211,7 +1211,7 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         if (locked) return
-        DiagLog.i("boot-debug: onStop at +${SystemClock.elapsedRealtime()}ms")
+        DiagLog.i("启动调试: onStop 于 +${SystemClock.elapsedRealtime()}ms")
         SelfCompile.onHomeStopped()
         // Out of sight after all: no bounce to wait out (homeBounce).
         idleHandler.removeCallbacks(endHomeBounce)
@@ -1229,7 +1229,7 @@ class MainActivity : ComponentActivity() {
     private fun launch(app: AppEntry, bounds: Rect?) {
         // Kids and Elders mode shows only its own tiles, and none while locked; this is the last word.
         if (Restricted.active && (app.key !in Restricted.allowed || Restricted.lock != null)) {
-            DiagLog.i("kids: ${app.key} not opened")
+            DiagLog.i("儿童模式: ${app.key} 未打开")
             return
         }
         // The TV's settings app behind the parental PIN as well, not only Control Center's button.
@@ -1304,7 +1304,7 @@ class MainActivity : ComponentActivity() {
             true
         } catch (e: SecurityException) {
             val standIn = StandIn.find(this, app.component)
-            DiagLog.i("${app.component.className} needs a permission; opening ${standIn?.className ?: "nothing"} instead")
+            DiagLog.i("${app.component.className} 需要权限; 改打开 ${standIn?.className ?: "无"}")
             standIn != null && runCatching {
                 startActivity(Intent(Intent.ACTION_MAIN).setComponent(standIn).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }.isSuccess || startStockDirectly(app)
@@ -1432,7 +1432,7 @@ class MainActivity : ComponentActivity() {
          */
         fun dreamShowedAfter(context: Context, blackMs: Long) {
             if (blackMs <= DREAM_BLACK_MS) return noteDreamShown(context)
-            DiagLog.i("the system's dream showed after $blackMs ms of black; Aerial's own screensaver from now on")
+            DiagLog.i("系统 dream 黑屏 $blackMs ms 后显示; 此后用 Aerial 自带屏保")
             noteDreamFails(context)
         }
 
@@ -1479,7 +1479,7 @@ class MainActivity : ComponentActivity() {
                         .invoke(null, "sys.boot_completed") as String
                 }.getOrNull()
                 if (booted == "1") return@postDelayed
-                DiagLog.i("boot not finished ${HAND_OVER_WATCH_MS / 1000} s after leaving it to the firmware's FallbackHome; showing Aerial")
+                DiagLog.i("交给固件 FallbackHome 后 ${HAND_OVER_WATCH_MS / 1000} 秒开机仍未完成; 显示 Aerial")
                 runCatching {
                     context.startActivity(Intent(context, MainActivity::class.java).setAction(Intent.ACTION_MAIN).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 }

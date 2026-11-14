@@ -279,7 +279,7 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
         repeat(2) { withFrameNanos { } }
         runCatching { first.requestFocus() }
             .onSuccess { focusRequested = true }
-            .onFailure { DiagLog.i("CC-debug: delayed requestFocus failed: ${it.message}") }
+            .onFailure { DiagLog.i("控制中心调试: 延迟 requestFocus 失败: ${it.message}") }
     }
 
     Column {
@@ -314,12 +314,12 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
                 focusRequester = first,
                 modifier = Modifier
                     .onFocusChanged {
-                        DiagLog.i("CC-debug: Input button focus changed: focused=${it.isFocused}")
+                        DiagLog.i("控制中心调试: 输入按钮焦点变化: focused=${it.isFocused}")
                         if (it.isFocused) cameFrom = first
                     }
                     .onKeyEvent { e ->
                         if (e.type == KeyEventType.KeyDown) {
-                            DiagLog.i("CC-debug: Input button received key: ${e.nativeKeyEvent.keyCode}, focus=${e.nativeKeyEvent.action}")
+                            DiagLog.i("控制中心调试: 输入按钮收到按键: ${e.nativeKeyEvent.keyCode}, focus=${e.nativeKeyEvent.action}")
                         }
                         false
                     },

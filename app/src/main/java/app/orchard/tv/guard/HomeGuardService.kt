@@ -121,9 +121,9 @@ class HomeGuardService : AccessibilityService() {
     private val endBootStockHold = Runnable {
         if (!bootStockHolding) return@Runnable
         bootStockHolding = false
-        endStockVisit("the boot hold is over")
-        DiagLog.i("guard: stock launcher left on screen at boot (${if (bootStockShown) "it showed" else "it never said so"}); taking Home")
-        takeOverOnceSettled("after the stock launcher showed at boot", woke = true)
+        endStockVisit("开机暂缓已结束")
+        DiagLog.i("守护: 开机时原厂桌面留在屏幕上(${if (bootStockShown) "已显示" else "未上报"}); 接管桌面")
+        takeOverOnceSettled("开机后原厂桌面已显示", woke = true)
     }
 
     /**
@@ -137,7 +137,7 @@ class HomeGuardService : AccessibilityService() {
         // Bound early in a boot, the guard found no stock launcher at all on the same Mi TV 4, and
         // so took PatchWall for an app the viewer chose (issue #318, the reporter's 1.40 log).
         if (stockHomes.isEmpty()) refreshStockHomes()
-        takeOverIfStockHomeInFront("looking again after boot", woke = false, coveredSilently = true)
+        takeOverIfStockHomeInFront("开机后复查", woke = false, coveredSilently = true)
     }
 
     // PatchWall's non-HOME boot cover also appears on MiTV-AZFP0 / Android 9.
@@ -232,7 +232,7 @@ class HomeGuardService : AccessibilityService() {
             if (bootTargetCovered()) {
                 Log.i(TAG, "stock launcher's screen over what the TV starts on; opening that again")
                 // Which screen usage stats gave, for the next report from a TV without logcat.
-                DiagLog.i("guard: $pkg/$cls over what the TV starts on; opening that again")
+                DiagLog.i("守护: $pkg/$cls 盖在开机所在之上; 重新打开它")
                 goHome(reopenBoot = true)
                 return
             }
@@ -335,7 +335,7 @@ class HomeGuardService : AccessibilityService() {
             if (nothingInFrontByUsage()) {
                 unseenApp = null
                 Log.i(TAG, "$pkg went to the back with no window change and nothing came up; bringing Aerial back")
-                DiagLog.i("guard: $pkg left with no window change and nothing came up; bringing Aerial back")
+                DiagLog.i("守护: $pkg 离开后窗口无变化且无应用弹出; 带回 Aerial")
                 goHome()
                 return
             }
@@ -437,7 +437,7 @@ class HomeGuardService : AccessibilityService() {
      * an input that HDMI-CEC switched to at power-on is left alone.
      */
     private val userUnlocked = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) = onUserUnlocked("user unlocked")
+        override fun onReceive(context: Context, intent: Intent) = onUserUnlocked("用户已解锁")
     }
 
     /** Bound while locked and the unlock not handled yet; see onUserUnlocked. */
@@ -455,7 +455,7 @@ class HomeGuardService : AccessibilityService() {
     private val unlockPoll = object : Runnable {
         override fun run() {
             if (!unlockPending) return
-            if (GuardSetup.isUserUnlocked(this@HomeGuardService)) onUserUnlocked("user unlocked (polled)")
+            if (GuardSetup.isUserUnlocked(this@HomeGuardService)) onUserUnlocked("用户已解锁(轮询)")
             else if (SystemClock.elapsedRealtime() - unlockPolledSince < UNLOCK_POLL_FOR_MS) handler.postDelayed(this, UNLOCK_POLL_MS)
         }
     }
@@ -481,10 +481,10 @@ class HomeGuardService : AccessibilityService() {
         // and the guard, bound since Direct Boot, left the firmware's Home chooser on screen
         // (issue #1126, the reporter's timeline). The take-over still looks at the front first.
         val skipReason = when {
-            getSystemService<PowerManager>()?.isInteractive != true -> "screen off"
+            getSystemService<PowerManager>()?.isInteractive != true -> "屏幕关闭"
             else -> null
         }
-        DiagLog.i("guard: $how; running what was put off while locked")
+        DiagLog.i("守护: $how; 执行锁定期间暂缓的动作")
         if (skipReason == null) takeOverOnceSettled(how, woke = true)
         else Log.i(TAG, "$how; not taking over Home ($skipReason)")
     }
@@ -503,7 +503,7 @@ class HomeGuardService : AccessibilityService() {
             // window change follows on wake. Look once things have settled after the screen lights.
             screenOnAt = SystemClock.elapsedRealtime()
             restartForegroundCheck()
-            takeOverOnceSettled("screen on", woke = true)
+            takeOverOnceSettled("屏幕点亮", woke = true)
         }
     }
 
@@ -734,7 +734,7 @@ class HomeGuardService : AccessibilityService() {
         val patchwall = !bootSource && patchwallHomeInFront()
         if (!bootSource && !patchwall) return
         Log.i(TAG, "started shortly after boot; taking over before the service is connected")
-        takeOverOnceSettled("started shortly after boot", woke = true)
+        takeOverOnceSettled("开机后不久启动", woke = true)
         patchwallEarlyTakeOver = patchwall
     }
 
@@ -811,7 +811,7 @@ class HomeGuardService : AccessibilityService() {
             val hold = maxOf(BOOT_STOCK_CAP_MS, DeviceProfile.current(this).bootStockMs.toLong())
             allowStockUntil = SystemClock.uptimeMillis() + hold + DeviceProfile.current(this).bootStockMs
             handler.postDelayed(endBootStockHold, hold)
-            DiagLog.i("guard: bound at boot; leaving the stock launcher on screen first (device profile)")
+            DiagLog.i("守护: 开机时已绑定; 先让原厂桌面留在屏幕上(设备配置)")
         }
         // Register before querying homes or checking the state so an unlock cannot be missed.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -833,14 +833,14 @@ class HomeGuardService : AccessibilityService() {
             GuardSetup.homeInFrontThisBoot(this) == false && !GuardSetup.stockHomeSinceHomeLeft(this) &&
             (Build.VERSION.SDK_INT < 24 || SystemClock.elapsedRealtime() - Process.getStartElapsedRealtime() < 60_000) &&
             !stockLauncherByUsageStats()
-        if (appLeftInFront) DiagLog.i("guard: bound again soon after boot with an app in front when Aerial died; leaving it")
+        if (appLeftInFront) DiagLog.i("守护: 开机后不久 Aerial 死亡且有应用在前台时再次绑定; 保留现状")
         val fastBootTakeOver = !appLeftInFront && GuardSetup.isUserUnlocked(this) &&
             SystemClock.elapsedRealtime() < BOOT_WINDOW_MS &&
             getSystemService<PowerManager>()?.isInteractive == true
         if (fastBootTakeOver) {
             // Starting the wait again would undo what onCreate saved: on MiTV-MFTR0 the connection
             // came 1.3 s into it, and Aerial came a few seconds later than it could have.
-            if (!patchwallEarlyTakeOver) takeOverOnceSettled("bound shortly after boot", woke = true)
+            if (!patchwallEarlyTakeOver) takeOverOnceSettled("开机后不久绑定", woke = true)
             scheduleBootRechecks()
         }
         refreshStockHomes()
@@ -890,7 +890,7 @@ class HomeGuardService : AccessibilityService() {
         }
         restartForegroundCheck()
         // Unlocked while binding: what was skipped above at once, whether or not the broadcast follows.
-        if (unlockPending && GuardSetup.isUserUnlocked(this)) onUserUnlocked("user unlocked while binding")
+        if (unlockPending && GuardSetup.isUserUnlocked(this)) onUserUnlocked("绑定期间用户已解锁")
         if (!GuardSetup.isUserUnlocked(this)) {
             Log.i(TAG, "bound while user locked; deferred takeover until unlock")
             unlockPolledSince = SystemClock.elapsedRealtime()
@@ -923,7 +923,7 @@ class HomeGuardService : AccessibilityService() {
             SystemClock.elapsedRealtime() >= BOOT_WINDOW_MS && !fastBootTakeOver
         ) {
             // In Aerial's own diagnostics too: on these TVs the owner often cannot read logcat.
-            DiagLog.i("guard: re-enabled after being switched off, with an app in front when Aerial died; leaving it")
+            DiagLog.i("守护: 被关闭后重新启用, Aerial 死亡时有应用在前台; 保留现状")
             return
         }
         // Stopped right after the stock launcher came up, and started again by the system's own
@@ -947,11 +947,11 @@ class HomeGuardService : AccessibilityService() {
         ) {
             takeOverOnceSettled(
                 when {
-                    revived -> "re-enabled after being switched off"
-                    diedInFront -> "back after Aerial died in front"
-                    stoppedOverStock -> "back after Aerial was stopped over the stock launcher"
-                    wokeUnseen -> "bound after the screen lit"
-                    else -> "bound shortly after boot"
+                    revived -> "被关闭后重新启用"
+                    diedInFront -> "Aerial 在前台死亡后返回"
+                    stoppedOverStock -> "Aerial 被原厂桌面顶退后返回"
+                    wokeUnseen -> "屏幕点亮后绑定"
+                    else -> "开机后不久绑定"
                 },
                 // Back from standby or a boot, not from a crash: the moment to open the input
                 // the owner wants the TV to start on.
@@ -1046,7 +1046,7 @@ class HomeGuardService : AccessibilityService() {
         val last = seen ?: if (empty) null else frontByUsage()?.also { Log.i(TAG, "$reason; usage stats say ${it.first} is in front") }
         // Why nothing is known, for TVs whose logcat cannot be read (XGIMI GMUI; PR #1090).
         if (last == null && !empty) {
-            DiagLog.i("guard: $reason; front unknown (${if (usageStatsAllowed(this)) "usage stats name no app in ${UNKNOWN_FRONT_LOOKBACK_MS / 3_600_000} h" else "usage stats not allowed"})")
+            DiagLog.i("守护: $reason; 前台未知(${if (usageStatsAllowed(this)) "使用统计未识别到应用, 回看 ${UNKNOWN_FRONT_LOOKBACK_MS / 3_600_000} 小时" else "未授权使用统计"})")
         }
         // Unknown means we were only just bound, which happens after a standby kill. Any screen of
         // the stock launcher counts: when Aerial is killed, whatever was on top of the launcher's
@@ -1068,7 +1068,7 @@ class HomeGuardService : AccessibilityService() {
         // still brings Aerial back, and the key rebind runs here because no Aerial activity starts.
         // inBootWindow also counts from BOOT_COMPLETED: see its comment for the dexopt-slowed boot.
         if (last == null && inBootWindow() && GuardSetup.startsOnSignalSource(this)) {
-            DiagLog.i("guard: $reason; the TV starts on a signal source; leaving it")
+            DiagLog.i("守护: $reason; 电视停在信号源上; 保留现状")
             GuardSetup.rebindForJmgoKeys(this)
             return
         }
@@ -1097,7 +1097,7 @@ class HomeGuardService : AccessibilityService() {
         val jmgoPlayer = last != null && last.first == JMGO_TV &&
             last.second.endsWith(".AmlogicTvActivity")
         if (jmgoPlayer) {
-            DiagLog.i("guard: $reason with JMGO's TV player in front; leaving it")
+            DiagLog.i("守护: $reason; JMGO 电视播放器在前台; 保留现状")
             // The firmware can open the input without Aerial's activity ever running, and then the
             // once-per-boot key rebind there would not happen (seen on this TV's boot).
             GuardSetup.rebindForJmgoKeys(this)
@@ -1125,12 +1125,12 @@ class HomeGuardService : AccessibilityService() {
         if (bootTargetCovered()) {
             Log.i(TAG, "$reason with the stock launcher over what the TV starts on; opening that again")
             val front = last?.let { "${it.first}/${it.second}" } ?: "unknown"
-            DiagLog.i("guard: $reason, front $front; opening what the TV starts on again")
+            DiagLog.i("守护: $reason, 前台 $front; 重新打开开机所在")
             goHome(reopenBoot = true)
             return
         }
         Log.i(TAG, "$reason with the stock launcher in front; bringing Aerial back")
-        DiagLog.i("guard: $reason, front ${last?.first ?: "unknown"}; bringing Aerial back")
+        DiagLog.i("守护: $reason, 前台 ${last?.first ?: "未知"}; 带回 Aerial")
         goHome(woke)
     }
 
@@ -1405,7 +1405,7 @@ class HomeGuardService : AccessibilityService() {
         if (event.keyCode != KeyEvent.KEYCODE_MOVE_HOME && event.keyCode != KeyEvent.KEYCODE_UNKNOWN) return false
         val stray = strayHome(event.keyCode, event.scanCode, event.device?.keyboardType == InputDevice.KEYBOARD_TYPE_ALPHABETIC)
         if (stray && event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-            DiagLog.i("guard: ${KeyEvent.keyCodeToString(event.keyCode)} (scan code ${event.scanCode}) from ${event.device?.name} taken as Home")
+            DiagLog.i("守护: ${KeyEvent.keyCodeToString(event.keyCode)}(扫描码 ${event.scanCode}) 来自 ${event.device?.name}, 当作主页键")
         }
         return stray
     }
@@ -1532,16 +1532,16 @@ class HomeGuardService : AccessibilityService() {
         }
         val taken = volumeKeyTaken
         if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-            DiagLog.i("guard: ${KeyEvent.keyCodeToString(event.keyCode)} down at ${event.downTime}${if (taken) ", not passed on" else ""}")
+            DiagLog.i("守护: ${KeyEvent.keyCodeToString(event.keyCode)} 按下于 ${event.downTime}${if (taken) ", 未透传" else ""}")
         }
         if (event.action == KeyEvent.ACTION_UP) {
             if (taken && stepKey && !takenVolumeLiftSeen) {
                 takenVolumeLiftSeen = true
-                DiagLog.i("guard: the lift of a volume press not passed on reached the filter; held keys step the volume from now on")
+                DiagLog.i("守护: 未透传的音量键松开到达过滤器; 此后长按步进音量")
             }
             volumeDownPassedAt = Long.MAX_VALUE
             volumeUps[event.keyCode] = event.eventTime
-            DiagLog.i("guard: ${KeyEvent.keyCodeToString(event.keyCode)} up at ${event.eventTime}")
+            DiagLog.i("守护: ${KeyEvent.keyCodeToString(event.keyCode)} 松开于 ${event.eventTime}")
             handler.removeCallbacks(volumeRepeat)
             volumeKeyTaken = false
             volumeSeen = volumeNow()
@@ -1565,7 +1565,7 @@ class HomeGuardService : AccessibilityService() {
     private val volumeStepIfUnmoved = Runnable {
         volumeStepPending = false
         if (volumeNow() != volumeStepFrom) return@Runnable
-        DiagLog.i("guard: the volume did not move for a press not passed on; stepping it")
+        DiagLog.i("守护: 未透传按压下音量未变化; 步进音量")
         SystemProbe.adjustVolume(this, volumeStepDirection, fromKey = true)
         // Its own step is no change the firmware made: the next press must not look moved first.
         volumeSeen = volumeNow()
@@ -1706,7 +1706,7 @@ class HomeGuardService : AccessibilityService() {
         // reporter's 1.83 log). The setup wizard's fallbacks are left alone.
         if (isFallbackHomeScreen(pkg, cls) && !screenOff) {
             if (SystemClock.uptimeMillis() - broughtBackAt < 1_000) return
-            DiagLog.i("guard: $pkg/$cls in front after the unlock; bringing Aerial back")
+            DiagLog.i("守护: 解锁后 $pkg/$cls 在前台; 带回 Aerial")
             goHome()
             return
         }
@@ -1718,13 +1718,13 @@ class HomeGuardService : AccessibilityService() {
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.LOLLIPOP_MR1 && pkg == JAMDEO_LAUNCHER &&
             cls == "android.widget.RelativeLayout" && pkg in stockHomes && !screenOff
         ) {
-            DiagLog.i("guard: Jamdeo's panel over ${before ?: "?"}; closing it and bringing Aerial back")
+            DiagLog.i("守护: Jamdeo 面板盖在 ${before ?: "?"} 之上; 关闭并带回 Aerial")
             performGlobalAction(GLOBAL_ACTION_BACK)
             goHome()
             return
         }
         if (firmwarePushedAtBoot(pkg) && isActivity(pkg, cls) && !screenOff) {
-            DiagLog.i("guard: $pkg/$cls came up at boot with no key pressed; bringing Aerial back")
+            DiagLog.i("守护: $pkg/$cls 开机时无按键弹出; 带回 Aerial")
             goHome()
             return
         }
@@ -1764,7 +1764,7 @@ class HomeGuardService : AccessibilityService() {
             // once it has settled; the input will be in front by then.
             if (before in SOURCE_SWITCHERS || pkg in SOURCE_SWITCHERS) {
                 Log.i(TAG, "stock home $pkg came to the front during an input switch; looking again shortly")
-                takeOverOnceSettled("after an input switch", woke = false)
+                takeOverOnceSettled("切换输入源后", woke = false)
                 return
             }
             // One Home press shows two window changes 0.2 s apart (MiTV-MFTR0); one start will do.
@@ -1782,12 +1782,12 @@ class HomeGuardService : AccessibilityService() {
             // opened" for done, so the target was lost. This path missed the check the two others have.
             if (bootTargetCovered()) {
                 Log.i(TAG, "stock home $pkg came to the front over what the TV starts on; opening that again")
-                DiagLog.i("guard: stock home $pkg/$cls over what the TV starts on; opening that again")
+                DiagLog.i("守护: 原厂桌面 $pkg/$cls 盖在开机所在之上; 重新打开它")
                 goHome(reopenBoot = true)
                 return
             }
             Log.i(TAG, "stock home $pkg came to the front; bringing Aerial back")
-            DiagLog.i("guard: stock home $pkg/$cls in front, not opened on purpose${if (allowStockUntil != 0L) " (allowance ran out)" else ""}; bringing Aerial back")
+            DiagLog.i("守护: 原厂桌面 $pkg/$cls 在前台, 非有意打开${if (allowStockUntil != 0L) " (宽限期已过)" else ""}; 带回 Aerial")
             // Shortly after the screen lit, this is the wake itself (issue #111).
             goHome(woke = SystemClock.elapsedRealtime() - screenOnAt < WAKE_WINDOW_MS)
             return
@@ -2245,7 +2245,7 @@ class HomeGuardService : AccessibilityService() {
                 mouseDownedSystem = true
                 edit.putString(KEY_MOUSE_DOWNED_SYSTEM, Build.FINGERPRINT)
                 Log.w(TAG, "Aerial died ${since / 1000} s after a mouse connected with the filter on; a mouse stops the filter from now on")
-                DiagLog.i("guard: Aerial died ${since / 1000} s after a mouse connected with keys filtered; a mouse stops the filter from now on")
+                DiagLog.i("守护: 鼠标连接且按键被过滤后 ${since / 1000} 秒 Aerial 死亡; 此后鼠标停用过滤")
             }
             edit.apply()
         }
@@ -2275,7 +2275,7 @@ class HomeGuardService : AccessibilityService() {
             if (!GuardSetup.isUserUnlocked(context) || volumeLiftUnseen(context)) return
             volumeLiftUnseen = true
             Log.i(TAG, "a volume press passed on never came up at the filter; no volume press is passed on from now on")
-            DiagLog.i("guard: a volume press passed on never came up here; volume presses stay with the firmware from now on")
+            DiagLog.i("守护: 透传的音量键从未回到这里; 此后音量键交给固件")
             context.getSharedPreferences("system", Context.MODE_PRIVATE).edit().putString(KEY_VOLUME_LIFT_UNSEEN, Build.FINGERPRINT).apply()
         }
 
@@ -2546,7 +2546,7 @@ class HomeGuardService : AccessibilityService() {
 
         private fun endStockVisit(why: String) {
             if (allowStockUntil == 0L) return
-            if (SystemClock.uptimeMillis() < allowStockUntil) DiagLog.i("guard: stock launcher visit over ($why)")
+            if (SystemClock.uptimeMillis() < allowStockUntil) DiagLog.i("守护: 原厂桌面访问结束($why)")
             allowStockUntil = 0L
         }
 
@@ -2555,7 +2555,7 @@ class HomeGuardService : AccessibilityService() {
             val now = SystemClock.uptimeMillis()
             allowStockUntil = now + 60 * 60 * 1000L
             allowStockFrom = now
-            DiagLog.i("guard: the stock launcher opened on purpose; leaving it in front")
+            DiagLog.i("守护: 有意打开了原厂桌面; 保留在前台")
         }
 
         /** The visit has not begun yet while the stock launcher's own start is still on screen. */

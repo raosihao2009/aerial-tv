@@ -199,7 +199,7 @@ fun ChannelFocusPreview(
         }
         scope.launch {
             try {
-                DiagLog.i("channel preview: ${stalled.id} stalled, checking whether it is still live")
+                DiagLog.i("直播预览: ${stalled.id} 卡住, 正在检查是否仍在开播")
                 val offline = withContext(Dispatchers.IO) { checkIfOffline(stalled, context) }
                 onStatusRefresh()
                 val cctv = sourcesNow().firstOrNull { it.id == CCTV_ID }
@@ -212,7 +212,7 @@ fun ChannelFocusPreview(
                     offline && stalled.id != CCTV_ID && cctv != null && cctv.liveStatus != 2 -> {
                         onPickSource(CCTV_ID)
                         showToast("「${stalled.name}」已下播，请观看「$cctvName」")
-                        DiagLog.i("channel preview: ${stalled.id} offline, switched to $CCTV_ID")
+                        DiagLog.i("直播预览: ${stalled.id} 已下播, 已切到 $CCTV_ID")
                     }
                     // 下播且本场就是央视网快看, 或它也已下播: 换最近一个开播的源
                     offline -> {
@@ -223,13 +223,13 @@ fun ChannelFocusPreview(
                             // 列表里根本没有央视网快看时, 说本场自己下播更准确。
                             val offName = if (stalled.id != CCTV_ID && cctv == null) stalled.name else cctvName
                             showToast("「$offName」已下播，请观看「${next.name}」")
-                            DiagLog.i("channel preview: $CCTV_ID offline, switched to ${next.id}")
+                            DiagLog.i("直播预览: $CCTV_ID 已下播, 已切到 ${next.id}")
                         } else {
                             // 焦点一移出直播卡, 预览就 dispose, 挂在预览里的提示会立刻消失:
                             // 这条必须走全局胶囊。
                             onMoveOffLiveCard()
                             onGlobalToast("所有直播卡片均未开播，请欣赏桌面壁纸")
-                            DiagLog.i("channel preview: no live source left, focus moved off live cards")
+                            DiagLog.i("直播预览: 没有剩余开播源, 焦点已离开直播卡片")
                         }
                     }
                     // 还在开播: 先重载; 看门狗开着且 30 秒内救场超过 3 次(第 4 次起),
@@ -242,18 +242,18 @@ fun ChannelFocusPreview(
                         } else null
                         if (target != null) {
                             showToast("「${stalled.name}」卡顿严重，已切换至「$target」")
-                            DiagLog.i("channel preview: ${stalled.id} stalled $times times in 30 s, watchdog switched to $target")
+                            DiagLog.i("直播预览: ${stalled.id} 30 秒内卡住 $times 次, 看门狗已切到 $target")
                         } else {
                             reloadTick++
                             // 第一次重载静默: 多半只是网络抖一下, 立刻弹提示反而显得"没卡也说在重载";
                             // 30 秒内连续第 2 次重载才提示, 再往后不再刷(第 4 次升级成第 9 条"卡顿严重")。
                             if (times == 2) showToast("正在尝试重新加载「${stalled.name}」")
-                            DiagLog.i("channel preview: ${stalled.id} still live, reloading ($times in 30 s)")
+                            DiagLog.i("直播预览: ${stalled.id} 仍在开播, 重新加载(30 秒内第 $times 次)")
                         }
                     }
                 }
             } catch (t: Throwable) {
-                DiagLog.i("channel preview: stall handling failed: ${t.message}")
+                DiagLog.i("直播预览: 卡顿处理失败: ${t.message}")
             } finally {
                 stallBusy.set(false)
             }
@@ -263,23 +263,23 @@ fun ChannelFocusPreview(
     LaunchedEffect(source?.url, restartSignal, reloadTick, externalReload) {
         if (source == null) {
             player?.release(); player = null
-            DiagLog.i("preview effect skip: source null")
+            DiagLog.i("预览 effect 跳过: 源为空")
             return@LaunchedEffect
         }
         // 切回当前正在播放的源(onRevert): 不重新加载, 继续用现有player, 避免画面声音回溯
         // 但 reloadTick > 0 表示看门狗要求强行重载, 要放过这个早退; externalReload > 0 表示
         // 画质等偏好刚改过, 同样要重新取流。
         if (reloadTick == 0 && externalReload == 0 && source.id == playingSourceId && player != null) {
-            DiagLog.i("preview effect skip: already playing ${source.id}")
+            DiagLog.i("预览 effect 跳过: 已在播放 ${source.id}")
             return@LaunchedEffect
         }
 
-        DiagLog.i("preview effect enter id=${source.id} url=${source.url} player=${if (player != null) "yes" else "null"}")
+        DiagLog.i("预览 effect 进入 id=${source.id} url=${source.url} player=${if (player != null) "已绑定" else "无"}")
 
         // 冷启动: 直播预览也是个硬件解码器, 别和开屏动画同时起播(实测首列直播预览+视频壁纸
         // 时过渡一卡一卡; 把预览挪到第≥2列就顺, 就是因为起播时机错开了)。等揭开后再走下面。
         while (!BootVeil.revealed) kotlinx.coroutines.delay(100)
-        DiagLog.i("preview effect veil revealed id=${source.id}")
+        DiagLog.i("预览 effect 遮罩已揭下 id=${source.id}")
 
         // 新聚焦到直播卡时, 卡片焦点缩放动画还在跑; 主线程紧接着就建 ExoPlayer/挂解码会和缩放
         // 抢主线程, 低端盒子上缩放动画掉帧。先等缩放弹簧落定(~180ms)再起播, 让出前一两帧。
@@ -296,13 +296,13 @@ fun ChannelFocusPreview(
         // 冷启动首起播错峰: 等首屏稳定(网格/贴图落定、壁纸解码器先热起来)再建播放器, 避免
         // 两路硬解同一秒冷启动把刚拉起的直播拖到卡住、触发看门狗重载。运行中切换不等。
         if (firstRun && !gateOpen()) {
-            DiagLog.i("preview effect wait bootStable id=${source.id}")
+            DiagLog.i("预览 effect 等待 bootStable id=${source.id}")
             // 读的是 gateOpen() 里的 vm.bootStable 本身, 它翻转时 snapshotFlow 才会重新取值;
             // 这里必须再套一层"超时兜底": 闸门万一因为别的路径没置真, 也不能把首起播永远按住。
             withTimeoutOrNull(3_000) {
                 androidx.compose.runtime.snapshotFlow { gateOpen() }.first { it }
             }
-            DiagLog.i("preview effect bootStable ok id=${source.id} open=${gateOpen()}")
+            DiagLog.i("预览 effect bootStable 就绪 id=${source.id} open=${gateOpen()}")
         }
 
         if (externalReload != lastReload) {
@@ -322,11 +322,11 @@ fun ChannelFocusPreview(
                 streamCache[source.url ?: ""] = streamUrl
             }
         }
-        DiagLog.i("channel preview: url = $streamUrl")
+        DiagLog.i("直播预览: 取流地址 = $streamUrl")
 
         if (streamUrl == null) {
             // 解析失败(可能已下播或网络未就绪)
-            DiagLog.i("channel preview: stream resolve failed")
+            DiagLog.i("直播预览: 取流地址解析失败")
             st.loading = false
             val offline = withContext(Dispatchers.IO) { checkIfOffline(source, context) }
             if (player != null) {
@@ -336,7 +336,7 @@ fun ChannelFocusPreview(
                 onRevertFail()
             } else {
                 // 首次加载失败: 切换到备用源
-                DiagLog.i("channel preview: first load failed, switching to fallback")
+                DiagLog.i("直播预览: 首次加载失败, 切换到备用源")
                 val target = onFallback()
                 showToast(failureToast(offline = offline, hasOld = false, fallbackLabel = target))
             }
@@ -396,7 +396,7 @@ fun ChannelFocusPreview(
             kotlinx.coroutines.delay(loadTimeoutMs)
             if (st.disposed) return@launch
             if (!ready) {
-                DiagLog.i("channel preview: load timeout ${loadTimeoutMs / 1000}s (${if (firstRun) "first run" else "switch"}), switching to fallback")
+                DiagLog.i("直播预览: 加载超时 ${loadTimeoutMs / 1000}s (${if (firstRun) "首次" else "切换"}), 切换到备用源")
                 st.loading = false
                 val offline = withContext(Dispatchers.IO) { checkIfOffline(source, context) }
                 val target = onFallback()
@@ -406,7 +406,7 @@ fun ChannelFocusPreview(
         }
         readyListener = object : Player.Listener {
             override fun onRenderedFirstFrame() {
-                DiagLog.i("channel preview: first frame id=${source.id} player=${if (player === exo) "bound" else "unbound"}")
+                DiagLog.i("直播预览: 首帧 id=${source.id} player=${if (player === exo) "已绑定" else "未绑定"}")
             }
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_READY) {
@@ -428,7 +428,7 @@ fun ChannelFocusPreview(
             }
             override fun onPlayerError(error: PlaybackException) {
                 if (st.disposed) return  // 组合离开释放player触发的错误, 不处理
-                DiagLog.i("player err: ${error.errorCodeName}, retry $retryCount")
+                DiagLog.i("播放器错误: ${error.errorCodeName}, 第 $retryCount 次重试")
                 val p = exo
                 // 先快速检测是否B站下播(下播就不重试)
                 scope.launch {
@@ -453,7 +453,7 @@ fun ChannelFocusPreview(
                         } else {
                             // 当前源播不了: 切换到备用源
                             st.loading = false
-                            DiagLog.i("player err: current source failed, switching to fallback")
+                            DiagLog.i("播放器错误: 当前源失败, 切换到备用源")
                             val target = onFallback()
                             showToast(failureToast(offline = offline, hasOld = false, fallbackLabel = target, decodeFail = fatalDecoder))
                         }
@@ -489,7 +489,7 @@ fun ChannelFocusPreview(
 
         if (ready) {
             DiagLog.i(
-                "channel preview: ready id=${source.id} after=${System.currentTimeMillis() - waitStart}ms " +
+                "直播预览: 就绪 id=${source.id} 耗时=${System.currentTimeMillis() - waitStart}ms " +
                     "state=${exo.playbackState}",
             )
             // 新流已对齐：释放旧player，绑定新player后开播
@@ -546,7 +546,7 @@ fun ChannelFocusPreview(
             watchdogRef.value = wd
         } else {
             // 新流超时未就绪
-            DiagLog.i("channel preview: new stream not ready")
+            DiagLog.i("直播预览: 新流未就绪")
             exo.removeListener(readyListener!!)
             exo.release()
             if (player != null) {
@@ -600,7 +600,7 @@ fun ChannelFocusPreview(
                 }
                 Lifecycle.Event.ON_STOP -> {
                     // 真正进入其他app: 立即销毁
-                    DiagLog.i("preview ON_STOP id=${playingSourceId ?: source?.id}")
+                    DiagLog.i("预览 ON_STOP id=${playingSourceId ?: source?.id}")
                     pauseJob?.cancel()
                     watchdogRef.value?.stop()
                     playerListenerRef.value?.let { player?.removeListener(it) }
@@ -611,7 +611,7 @@ fun ChannelFocusPreview(
                 }
                 Lifecycle.Event.ON_START -> {
                     // 从其他app回到桌面: 播放器已销毁, 重新加载
-                    DiagLog.i("preview ON_START id=${playingSourceId ?: source?.id}")
+                    DiagLog.i("预览 ON_START id=${playingSourceId ?: source?.id}")
                     st.paused = false
                     st.loading = true
                     restartSignal++
@@ -621,7 +621,7 @@ fun ChannelFocusPreview(
         }
         lifecycleOwner.lifecycle.addObserver(obs)
         onDispose {
-            DiagLog.i("preview dispose id=${playingSourceId ?: source?.id} player=${if (player != null) "yes" else "null"}")
+            DiagLog.i("预览销毁 dispose id=${playingSourceId ?: source?.id} player=${if (player != null) "已绑定" else "无"}")
             st.disposed = true
             // 预览销毁(切到非直播卡片/退出直播)时把加载图收掉, 别留在屏幕上
             onLoadingChange(false)
@@ -724,7 +724,7 @@ private fun fetchBilibiliHlsUrl(roomId: Long, sourceId: String, context: android
     // 检测下播：live_status != 1 表示未开播
     val liveStatus = BiliLiveApi.liveStatus(bodyData)
     if (liveStatus != 1) {
-        DiagLog.i("bilibili room $roomId offline (status=$liveStatus)")
+        DiagLog.i("B站房间 $roomId 未开播 (status=$liveStatus)")
         return@runCatching null
     }
     val streams = bodyData.getJSONObject("playurl_info").getJSONObject("playurl").getJSONArray("stream")
@@ -759,7 +759,7 @@ private fun checkIfOffline(source: LiveSource, context: android.content.Context)
     val roomId = extractBilibiliRoomId(source.url) ?: return@runCatching false
     val data = BiliLiveApi.playInfo(roomId, bilibiliQn(source.id))
     LiveQualityOptions.setOptions(source.id, BiliLiveApi.acceptedQn(data))
-    DiagLog.i("checkIfOffline room=$roomId status=${BiliLiveApi.liveStatus(data)}")
+    DiagLog.i("开播检查 room=$roomId status=${BiliLiveApi.liveStatus(data)}")
     BiliLiveApi.liveStatus(data) != 1
 }.getOrDefault(false)
 

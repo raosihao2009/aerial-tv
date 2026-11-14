@@ -79,13 +79,13 @@ fun SourceWallpaper(
                     }
 
                     override fun onVideoUnavailable(id: String, reason: Int) {
-                        DiagLog.i("input wallpaper: no picture from $id (reason $reason)")
+                        DiagLog.i("输入源壁纸: $id 无画面(reason $reason)")
                         available = false
                         weak = reason == TvInputManager.VIDEO_UNAVAILABLE_REASON_WEAK_SIGNAL
                     }
 
                     override fun onConnectionFailed(id: String) {
-                        DiagLog.i("input wallpaper: could not connect to $id")
+                        DiagLog.i("输入源壁纸: 无法连接 $id")
                         available = false
                     }
 

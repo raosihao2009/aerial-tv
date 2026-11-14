@@ -239,7 +239,7 @@ object AerialStart {
      */
     fun start(context: android.content.Context): Pair<String, Long>? {
         AerialSet.takeDaily(context)?.let { film ->
-            DiagLog.i("today's new film ${film.id}")
+            DiagLog.i("今日新片 ${film.id}")
             Wallpapers.leaveLiveFilm(film.id, 0L)
             return film.id to 0L
         }
@@ -447,7 +447,7 @@ private fun AerialSaver(
     val startAt = remember {
         startAt?.let { (id, at) ->
             AerialStream.prepared?.takeIf { it.film == id && it.quality == quality && kotlin.math.abs(it.atMs - at) < PREPARED_SLACK_MS }
-                ?.let { DiagLog.i("screensaver starts at the moment fetched ahead (${it.atMs - at} ms off)"); id to it.atMs }
+                ?.let { DiagLog.i("屏保从预生成的时刻启动(偏移 ${it.atMs - at} ms)"); id to it.atMs }
                 ?: (id to at)
         }
     }
@@ -508,7 +508,7 @@ private fun AerialSaver(
         val listener = object : Player.Listener {
             override fun onRenderedFirstFrame() {
                 if (!playing) {
-                    DiagLog.i("first frame of ${player.currentMediaItem?.mediaId} after ${SystemClock.elapsedRealtime() - opened} ms")
+                    DiagLog.i("${player.currentMediaItem?.mediaId} 首帧, 耗时 ${SystemClock.elapsedRealtime() - opened} ms")
                     SystemScreensaver.dreamFirstFrame()?.let { MainActivity.dreamShowedAfter(context, it) }
                 }
                 playing = true
@@ -517,7 +517,7 @@ private fun AerialSaver(
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) DiagLog.i("${mediaItem?.mediaId} starts over (kept film)")
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) DiagLog.i("${mediaItem?.mediaId} 重新开始(保留影片)")
                 index = player.currentMediaItemIndex
                 attempt++
                 // A film that simply ended hands over to the next one, already loaded, without a gap.
@@ -525,14 +525,14 @@ private fun AerialSaver(
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                DiagLog.i("aerial film failed (${error.errorCodeName}): ${player.currentMediaItem?.localConfiguration?.uri}")
+                DiagLog.i("航拍影片失败 (${error.errorCodeName}): ${player.currentMediaItem?.localConfiguration?.uri}")
                 playing = false
                 // Before anything has shown, the decoder may still be held by Home's wallpaper film,
                 // which is let go as Home goes behind the dream (TCL MT5879): once more at this
                 // quality, a moment later, before going lower for good.
                 if (!shownAny && !retried && error.errorCode in DECODER_ERRORS) {
                     retried = true
-                    DiagLog.i("trying ${quality.key} again in $RETRY_MS ms")
+                    DiagLog.i("${quality.key} ${RETRY_MS} ms 后重试")
                     handler.postDelayed({ load(player.currentMediaItemIndex, if (player.currentMediaItemIndex == 0) firstAtMs else 0L) }, RETRY_MS)
                     attempt++
                     return
@@ -593,7 +593,7 @@ private fun AerialSaver(
     LaunchedEffect(attempt, playing) {
         if (playing) return@LaunchedEffect
         delay(STALL_MS)
-        DiagLog.i("no picture from ${player.currentMediaItem?.mediaId} after $STALL_MS ms; next film")
+        DiagLog.i("${player.currentMediaItem?.mediaId} $STALL_MS ms 内无画面; 换下一部")
         failures++
         // Nothing has played at all this time: Apple's CDN is out of reach. Hand over to the photo
         // screensaver after two films rather than three, so the screen is not black for long
@@ -619,9 +619,9 @@ private fun AerialSaver(
         factory = { ctx ->
             FilmSlot(ctx).also {
                 it.surface.holder.addCallback(object : SurfaceHolder.Callback {
-                    override fun surfaceCreated(holder: SurfaceHolder) = DiagLog.i("film surface created")
+                    override fun surfaceCreated(holder: SurfaceHolder) = DiagLog.i("影片 surface 创建")
                     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit
-                    override fun surfaceDestroyed(holder: SurfaceHolder) = DiagLog.i("film surface destroyed")
+                    override fun surfaceDestroyed(holder: SurfaceHolder) = DiagLog.i("影片 surface 销毁")
                 })
                 player.setVideoSurfaceView(it.surface)
             }

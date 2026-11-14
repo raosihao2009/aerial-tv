@@ -123,7 +123,7 @@ class RevivalListener : NotificationListenerService() {
         GuardSetup.noteRevival(this)
     }
 
-    private fun trace(message: String) = DiagLog.i("revival: $message")
+    private fun trace(message: String) = DiagLog.i("复活: $message")
 
     private fun finishRecovery(result: String) {
         recovering = false

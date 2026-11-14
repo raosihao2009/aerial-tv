@@ -362,7 +362,7 @@ fun AppTile(
                 .onFocusChanged {
                     if (it.isFocused && !focused) Sounds.focusMoved()
                     focused = it.isFocused
-                    DiagLog.i("Tile-debug: ${app.key} focused=${it.isFocused}")
+                    DiagLog.i("卡片调试: ${app.key} focused=${it.isFocused}")
                     if (it.isFocused) onFocused() else {
                         pressed = false
                         longPressJob?.cancel()
@@ -381,7 +381,7 @@ fun AppTile(
                     if (dir != null) {
                         // 记录方向键与 repeatCount: 复测时能区分"一次按一下跳多格"是长按连发
                         // (repeatCount 递增) 还是焦点搜索选错了相邻卡片。
-                        if (down) DiagLog.i("Tile-debug: ${app.key} nav $dir repeat=${e.nativeKeyEvent.repeatCount}")
+                        if (down) DiagLog.i("卡片调试: ${app.key} 方向 $dir 重复=${e.nativeKeyEvent.repeatCount}")
                         // 遥控器长按会自动连发, 这台 TCL 连发触发早、间隔短, 一下短按能顺着
                         // 连发连跳好几格。普通卡片按时间节流: 首按立即走, 连发帧之间至少隔
                         // NAV_REPEAT_MS 才走一格, 真实长按仍逐格连续移动。直播预览卡背后挂着
@@ -528,7 +528,7 @@ fun AppTile(
                             // Cut to the outline here too, not only by the layer: Redmi X50 (MiTV-NSOP0,
                             // Novatek, Android 9) showed the focused tile square-cornered as Back
                             // started the screensaver (issue #654). Only until the face is made.
-                            if (!rawLogged[0] && (focused || lift > 0.01f)) { rawLogged[0] = true; DiagLog.i("tile ${app.label} drawn before its face, ${pw}x$ph") }
+                            if (!rawLogged[0] && (focused || lift > 0.01f)) { rawLogged[0] = true; DiagLog.i("卡片 ${app.label} 在封面就绪前已绘制, ${pw}x$ph") }
                             clipPath(smoothRectPath(Rect(0f, 0f, pw.toFloat(), ph.toFloat()), Corner.toPx() * pw / size.width)) {
                                 drawImage(art.back, dstSize = IntSize(pw, ph), filterQuality = FilterQuality.Medium)
                             }

@@ -96,7 +96,7 @@ object Updates {
                 available = latest.takeIf { newer(it, current) }
                 loadNotes()
             },
-            log = { Log.i(TAG, it); DiagLog.i("update check: $it") },
+            log = { Log.i(TAG, it); DiagLog.i("更新检查: $it") },
         )
         loadNotes()
         // A download left from an install that has since finished or been given up.
@@ -287,11 +287,11 @@ object Updates {
         val dm = if (withDm) dexMetadata(file) else null
         val id = commitSession(app, file, dm, Intent(app, UpdateResult::class.java).putExtra(EXTRA_WITH_DM, dm != null))
         Log.i(TAG, "install session $id committed for ${file.length()} bytes, dex metadata ${dm?.size ?: "none"}")
-        DiagLog.i("update: session $id, dex metadata ${dm?.size ?: "none"}")
+        DiagLog.i("更新: 会话 $id, dex 元数据 ${dm?.size ?: "无"}")
         // Hisense VIDAA_TV / MT9655 (Android 14, #1162) also accepts sessions without answering.
         // Silent updates need time to install and compile, not the short confirmation deadline.
         val timeout = if (mayInstallSilently(app)) SILENT_INSTALL_TIMEOUT_MS else ANSWER_TIMEOUT_MS
-        awaitSession(app, id, timeout, "no answer from session $id")
+        awaitSession(app, id, timeout, "会话 $id 无应答")
         true
     }.getOrElse {
         if (withDm) {
@@ -319,7 +319,7 @@ object Updates {
             Log.i(TAG, "self compile: session $id committed, dex metadata ${dm.size}")
         }.onFailure {
             Log.w(TAG, "self compile: no session", it)
-            DiagLog.i("self compile: no session (${it.javaClass.simpleName}: ${it.message})")
+            DiagLog.i("自编译: 无会话(${it.javaClass.simpleName}: ${it.message})")
         }
     }
 
@@ -441,7 +441,7 @@ object Updates {
         abandoned += id
         runCatching { app.packageManager.packageInstaller.abandonSession(id) }
         Log.w(TAG, "$why; abandoned, opening the installer")
-        DiagLog.i("update: $why; abandoned, installer")
+        DiagLog.i("更新: $why; 放弃, 走安装器")
         val file = apkFile(app)
         if (!file.isFile || !openInstaller(app, app, file)) install = Install.Failed(Failure.Blocked)
     }
@@ -462,10 +462,10 @@ object Updates {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                 @Suppress("DEPRECATION")
                 val confirm = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
-                if (confirm == null) return giveUpOnSession(app, id, "session $id asks to confirm but has no page")
+                if (confirm == null) return giveUpOnSession(app, id, "会话 $id 需要确认但无页面")
                 if (homeInFront) openConfirmation(app, id, confirm)
                 else awaitSession(
-                    app, id, CONFIRM_TIMEOUT_MS, "confirmation page of session $id did not come up",
+                    app, id, CONFIRM_TIMEOUT_MS, "会话 $id 确认页未弹出",
                     confirmation = true, showConfirmation = Runnable { openConfirmation(app, id, confirm) },
                 )
             }
@@ -486,7 +486,7 @@ object Updates {
                     if (installBySession(app, file, withDm = false)) return
                 }
                 Log.w(TAG, "install session failed ($status, $message); opening the installer")
-                DiagLog.i("update: session failed ($status, $message); installer")
+                DiagLog.i("更新: 会话失败($status, $message); 走安装器")
                 if (!file.isFile || !openInstaller(app, app, file)) install = Install.Failed(Failure.Blocked)
             }
         }
@@ -494,12 +494,12 @@ object Updates {
 
     private fun openConfirmation(app: Context, id: Int, confirm: Intent) {
         runCatching { app.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.onSuccess {
-            DiagLog.i("update: session $id asks to confirm; page started")
-            awaitSession(app, id, CONFIRM_TIMEOUT_MS, "confirmation page of session $id did not come up", confirmation = true)
+            DiagLog.i("更新: 会话 $id 需要确认; 页面已打开")
+            awaitSession(app, id, CONFIRM_TIMEOUT_MS, "会话 $id 确认页未弹出", confirmation = true)
         }.onFailure {
             // Some Android 13+ firmware has no CONFIRM_INSTALL page but accepts ACTION_VIEW (#827).
             Log.w(TAG, "could not ask to confirm the update; opening the installer", it)
-            giveUpOnSession(app, id, "session $id has no confirmation page (${it.javaClass.simpleName})")
+            giveUpOnSession(app, id, "会话 $id 无确认页(${it.javaClass.simpleName})")
         }
     }
 
@@ -508,7 +508,7 @@ object Updates {
         val id = intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1)
         // Arrives in the new process, once the replace is done.
         if (status == PackageInstaller.STATUS_SUCCESS) {
-            DiagLog.i("self compile: installed, odex ${SelfCompile.odexBytes(app)?.div(1024)} KB")
+            DiagLog.i("自编译: 已安装, odex ${SelfCompile.odexBytes(app)?.div(1024)} KB")
             return
         }
         if (status == PackageInstaller.STATUS_PENDING_USER_ACTION && !auto) {
@@ -519,7 +519,7 @@ object Updates {
         if (status == PackageInstaller.STATUS_PENDING_USER_ACTION && id >= 0) runCatching { app.packageManager.packageInstaller.abandonSession(id) }
         val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
         Log.w(TAG, "self compile: not installed ($status, $message)")
-        DiagLog.i("self compile: not installed ($status, $message)")
+        DiagLog.i("自编译: 未安装($status, $message)")
     }
 
     /** Resume failed checks; if the installer closed without replacing Aerial, reset its button. */

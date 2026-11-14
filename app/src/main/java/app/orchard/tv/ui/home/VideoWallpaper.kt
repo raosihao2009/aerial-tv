@@ -104,7 +104,7 @@ internal object VideoSaverFrames {
         val pick = latest ?: return
         latest = null
         if (Wallpapers.applyLiveFrame(pick.prepared, pick.film, pick.atMs)) {
-            DiagLog.i("video wallpaper: back from the screensaver onto its picture (${pick.film} at ${pick.atMs} ms)")
+            DiagLog.i("视频壁纸: 从屏保回到静帧(${pick.film} 于 ${pick.atMs} ms)")
         }
     }
 }
@@ -185,7 +185,7 @@ fun VideoWallpaper(
                     if (videoSize.width <= 0 || videoSize.height <= 0) return
                     val turned = (videoFormat?.rotationDegrees ?: 0) % 180 != 0
                     val now = FilmShape(videoSize.width * videoSize.pixelWidthHeightRatio / videoSize.height, turned)
-                    if (now != shape) DiagLog.i("video wallpaper film ${videoSize.width}x${videoSize.height}${if (turned) ", turned" else ""}")
+                    if (now != shape) DiagLog.i("视频壁纸影片 ${videoSize.width}x${videoSize.height}${if (turned) ", 已旋转" else ""}")
                     shape = now
                     currentMediaItem?.mediaId?.let { filmShapes[it] = now }
                     videoScalingMode = scalingFor(now)
@@ -209,7 +209,7 @@ fun VideoWallpaper(
                 }
 
                 override fun onPlayerError(error: PlaybackException) {
-                    DiagLog.i("video wallpaper failed (${error.errorCodeName})")
+                    DiagLog.i("视频壁纸失败 (${error.errorCodeName})")
                     // Behind an app or a screensaver the decoder is theirs: no retry.
                     if (!keepNow) return
                     // The picture rather than the black video plane until a frame comes again; the
@@ -288,7 +288,7 @@ fun VideoWallpaper(
     // Let go as Aerial stops, not at the next frame, which does not come then (rememberStops).
     val stops = rememberStops {
         if (player == null) return@rememberStops false
-        DiagLog.i("video wallpaper lets go as Aerial stops")
+        DiagLog.i("视频壁纸随 Aerial 停止而松手")
         letGo()
         scope.launch { cover.snapTo(0f) }
         true
@@ -305,7 +305,7 @@ fun VideoWallpaper(
             // opened at its spot from before (TCL MT5879: 17 s into the film, the dream at 38 s).
             if (player == null) VideoSaverFrames.apply()
             val p = player ?: open()?.also { player = it; home.player = it } ?: return@LaunchedEffect
-            DiagLog.i("video wallpaper starts (${p.currentMediaItem?.mediaId} at ${p.currentPosition} ms, idle $idle)")
+            DiagLog.i("视频壁纸启动(${p.currentMediaItem?.mediaId} 于 ${p.currentPosition} ms, 空闲 $idle)")
             Wallpapers.dropFilmFrost()
             if (p.playbackState == Player.STATE_IDLE) p.prepare()
             // 冷启动: 准备好、渲出第一帧就停住 —— 屏幕上已经有画面(不会揭开时是一片黑 SurfaceView),
@@ -322,7 +322,7 @@ fun VideoWallpaper(
                 return@LaunchedEffect
             }
             p.pause()
-            DiagLog.i("video wallpaper stops at ${p.currentPosition} ms")
+            DiagLog.i("视频壁纸停在 ${p.currentPosition} ms")
             if (cover.value > 0f) {
                 val film = p.currentMediaItem?.mediaId
                 val at = p.currentPosition
@@ -339,7 +339,7 @@ fun VideoWallpaper(
                 }
                 val frame = film?.let { frameOf(it, at, held = true) }
                 if (frame != null) Wallpapers.useLiveFrame(frame.first, film, frame.second)
-                if (quiet) DiagLog.i("video wallpaper picture takes over from the stopped film")
+                if (quiet) DiagLog.i("视频壁纸静帧接替已停影片")
                 cover.animateTo(0f, tween(if (frame != null) 320 else 600, easing = Motion.EaseOut))
                 if (quiet) {
                     release()
@@ -422,17 +422,17 @@ internal suspend fun keyFrameOfVideo(context: android.content.Context, id: Strin
     } catch (e: kotlinx.coroutines.CancellationException) {
         throw e
     } catch (e: Throwable) {
-        DiagLog.i("video wallpaper key frame in the app failed after ${android.os.SystemClock.elapsedRealtime() - started} ms: ${e.javaClass.simpleName} ${e.message}")
+        DiagLog.i("应用内视频壁纸关键帧 ${android.os.SystemClock.elapsedRealtime() - started} ms 后失败: ${e.javaClass.simpleName} ${e.message}")
         return null
     } ?: run {
-        DiagLog.i("video wallpaper key frame in the app took over $VIDEO_KEY_FRAME_MS ms")
+        DiagLog.i("应用内视频壁纸关键帧接管耗时 $VIDEO_KEY_FRAME_MS ms")
         return null
     }
-    DiagLog.i("video wallpaper key frame decoded in the app in ${android.os.SystemClock.elapsedRealtime() - started} ms (${frame.codec} ${frame.decodeMs} ms, ${frame.timeMs - atMs} ms off)")
+    DiagLog.i("应用内视频壁纸关键帧解码耗时 ${android.os.SystemClock.elapsedRealtime() - started} ms (${frame.codec} ${frame.decodeMs} ms, 偏移 ${frame.timeMs - atMs} ms)")
     // Green as a lost colour plane reads (see LiveWallpaper's keyFrameDecodedInApp); a dark frame
     // of a night film is the film's own.
     if (unreadable(frame.bitmap) == "green") {
-        DiagLog.i("video wallpaper decoded frame is green; not used")
+        DiagLog.i("视频壁纸解码帧为绿屏; 弃用")
         return null
     }
     return frame.bitmap to frame.timeMs
@@ -453,7 +453,7 @@ private fun fileFrame(context: android.content.Context, id: String, atMs: Long, 
             if (it.isMutable && it.config == Bitmap.Config.ARGB_8888) it else it.copy(Bitmap.Config.ARGB_8888, true)
         }
     } catch (e: Exception) {
-        DiagLog.i("video wallpaper frame not decoded: ${e.javaClass.simpleName}")
+        DiagLog.i("视频壁纸帧未解码: ${e.javaClass.simpleName}")
         null
     } finally {
         runCatching { mmr.release() }

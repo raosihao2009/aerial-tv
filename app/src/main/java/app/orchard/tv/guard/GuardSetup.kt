@@ -302,7 +302,7 @@ object GuardSetup {
         if ((context.getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive != true) return false
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_KEEP_ADB, false).apply()
         Log.i(TAG, "ADB debugging switched off with the TV in use; keep_adb is off now")
-        DiagLog.i("guard: ADB switched off with the TV in use; keep_adb switched off, not turning it back on")
+        DiagLog.i("守护: ADB 在使用中被关闭; keep_adb 一并关闭, 不再打开")
         return true
     }
 
@@ -514,7 +514,7 @@ object GuardSetup {
         if (prefs.getString(KEY_JMGO_KEY_REBIND_BOOT, null) == bootId) return
         // Marked first: the switch below unbinds the guard, and the next one must not repeat it.
         prefs.edit().putString(KEY_JMGO_KEY_REBIND_BOOT, bootId).commit()
-        DiagLog.i("jmgo keys: rebinding accessibility so the remote's keys reach the guard")
+        DiagLog.i("jmgo 按键: 重绑无障碍服务, 让遥控按键到达守护")
         restartAccessibility(context)
     }
 
@@ -634,9 +634,9 @@ object GuardSetup {
                 pm.setComponentEnabledSetting(
                     component, PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, PackageManager.DONT_KILL_APP,
                 )
-                DiagLog.i("revival: cleared disabled ${receiver.simpleName} override (was $state)")
+                DiagLog.i("复活: 清除已禁用的 ${receiver.simpleName} 覆盖(原状态 $state)")
             }.onFailure {
-                DiagLog.e("revival: could not restore ${receiver.simpleName}", it)
+                DiagLog.e("复活: 无法恢复 ${receiver.simpleName}", it)
             }
         }
     }

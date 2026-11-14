@@ -54,24 +54,24 @@ object CecSwitch {
     private fun onOneTouchPlay(context: Context, intent: Intent) {
         val extras = intent.extras
         // What it carries, for the diagnostics: only one firmware's has been seen, without its extras.
-        DiagLog.i("cec: one touch play ${describe(extras)}")
+        DiagLog.i("cec: 一键播放 ${describe(extras)}")
         if (!AerialSettings.cecSwitch) return
         val sources = SystemProbe.sources(context)
         val texts = runCatching { texts(extras) }.getOrDefault(emptyList())
         val source = pick(sources.map { it.id }, texts) { parentOf(context, it) }?.let { id -> sources.firstOrNull { it.id == id } }
         if (source == null) {
-            DiagLog.i("cec: no input matches")
+            DiagLog.i("cec: 没有匹配的输入源")
             return
         }
         // Kids and Elders mode switches only to the inputs it shows.
         if (Restricted.active && SOURCE_KEY_PREFIX + source.id !in Restricted.allowed) {
-            DiagLog.i("cec: ${source.label} not opened (kids)")
+            DiagLog.i("cec: ${source.label} 未打开(儿童模式)")
             return
         }
-        DiagLog.i("cec: opening ${source.label}")
+        DiagLog.i("cec: 打开 ${source.label}")
         runCatching {
             if (!HisenseSources.open(context, source.intent)) context.startActivity(source.intent)
-        }.onFailure { DiagLog.i("cec: open failed ${it.javaClass.simpleName}") }
+        }.onFailure { DiagLog.i("cec: 打开失败 ${it.javaClass.simpleName}") }
     }
 
     /**

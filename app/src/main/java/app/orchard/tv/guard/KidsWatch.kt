@@ -115,9 +115,9 @@ object KidsWatch {
         }
 
         val lock = Restricted.lockNow(now)
-        if (lock != Restricted.lock) DiagLog.i("kids: ${lockName(lock)}")
+        if (lock != Restricted.lock) DiagLog.i("儿童模式: ${lockName(lock)}")
         Restricted.lock = lock
-        if (lock != null && interactive && !homeInFront) bringBack(ctx, "locked (${lockName(lock)})")
+        if (lock != null && interactive && !homeInFront) bringBack(ctx, "已锁定(${lockName(lock)})")
 
         if (watching && lock == null) warnIfDue(ctx, now) else if (lock != null) warnedStep = 0
         if (watching && watchesUsage()) keepAwayByUsage(ctx)
@@ -142,7 +142,7 @@ object KidsWatch {
     }
 
     private fun warn(ctx: Context, text: String) {
-        DiagLog.i("kids: warning \"$text\"")
+        DiagLog.i("儿童模式: 警告 \"$text\"")
         when {
             homeInFront -> Restricted.warning = text to SystemClock.uptimeMillis()
             HomeGuardService.showBanner(text) -> Unit
@@ -154,10 +154,10 @@ object KidsWatch {
         val now = SystemClock.uptimeMillis()
         if (now - broughtBackAt < 3_000) return
         broughtBackAt = now
-        DiagLog.i("kids: bringing Aerial back, $why")
+        DiagLog.i("儿童模式: 带回 Aerial, $why")
         if (HomeGuardService.bringAerialBack()) return
         runCatching { ctx.startActivity(MainActivity.bringBackIntent(ctx)) }
-            .onFailure { DiagLog.i("kids: could not bring Aerial back: $it") }
+            .onFailure { DiagLog.i("儿童模式: 未能带回 Aerial: $it") }
     }
 
     private val appCache = HashMap<String, Boolean>()
@@ -184,7 +184,7 @@ object KidsWatch {
     /** Home Guard said it kept [pkg] away: Home names it. */
     fun noteKeptAway(ctx: Context, pkg: String) {
         val label = runCatching { ctx.packageManager.getApplicationLabel(ctx.packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg)
-        DiagLog.i("kids: kept $pkg away")
+        DiagLog.i("儿童模式: 已拦住 $pkg")
         // Locked, the lock screen says why; naming the app would only add to it.
         if (Restricted.lock == null) Restricted.blocked = label to SystemClock.uptimeMillis()
     }
@@ -198,7 +198,7 @@ object KidsWatch {
         val front = frontByUsage(ctx) ?: return
         if (!keepsAway(ctx, front)) return
         noteKeptAway(ctx, front)
-        bringBack(ctx, "$front in front (usage stats)")
+        bringBack(ctx, "$front 在前台(使用统计)")
     }
 
     private fun frontByUsage(ctx: Context): String? = runCatching {
