@@ -117,5 +117,18 @@ object DiagLog {
     fun dump(writer: PrintWriter) {
         writer.println("Aerial log (${device()}):")
         synchronized(lines) { lines.forEach { writer.println("  $it") } }
+        // 崩溃栈只落在文件里: 内存缓冲随进程重启清空, 于是"黑屏后重启再抓 dump"永远看不到
+        // 上次为什么死。这里把文件里最近的 crash 行一并打出来。
+        val f = file
+        if (f != null) runCatching {
+            val files = listOfNotNull(f, f.parentFile?.let { File(it, "aerial-diag.old.log") }?.takeIf { old -> old.exists() })
+            val crashes = files.flatMap { file ->
+                file.useLines { seq -> seq.filter { it.contains(" crash on ") }.toList() }
+            }.takeLast(5)
+            if (crashes.isNotEmpty()) {
+                writer.println("Crashes (from file, last ${crashes.size}):")
+                crashes.forEach { writer.println("  $it") }
+            }
+        }
     }
 }
