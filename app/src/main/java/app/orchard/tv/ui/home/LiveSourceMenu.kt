@@ -138,6 +138,11 @@ fun LiveSourceMenu(
     controlCenterOpen: Boolean = false,
     // 全局磨砂胶囊轻提示(4 秒自动消失), 和直播切换提示同款
     onGlobalToast: (String) -> Unit = {},
+    /**
+     * 锁定主页时返回 true(顺带提示在哪解锁), 于是长按/菜单键不再打开卡片上下文菜单 ——
+     * 否则一级菜单锁了、直播菜单里照样能移动/隐藏/删除卡片。
+     */
+    onHomeLocked: () -> Boolean = { false },
     // 取值函数: 网络状态每 5 秒刷新, 在这里直接读值会让整棵菜单重组。
     network: () -> app.orchard.tv.system.NetworkStatus = { app.orchard.tv.system.NetworkStatus() },
 ) {
@@ -318,7 +323,8 @@ fun LiveSourceMenu(
                     }
                     if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_MENU && e.type == KeyEventType.KeyUp && menuForId == null && movingId == null && !ignoreMenuKeyUp) {
                         requester(focusedId).requestFocus()
-                        sources.find { it.id == focusedId }?.let { menuForId = it.id }
+                        // 锁定主页时, 菜单键也不再开卡片上下文菜单(同长按)
+                        if (!onHomeLocked()) sources.find { it.id == focusedId }?.let { menuForId = it.id }
                         true
                     } else if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_BACK && e.type == KeyEventType.KeyUp) {
                         when {
@@ -607,7 +613,7 @@ fun LiveSourceMenu(
                                 onSelect(source.id); onDismiss()
                             }
                         } },
-                        onLongPress = { if (movingId == null) menuForId = source.id },
+                        onLongPress = { if (movingId == null && !onHomeLocked()) menuForId = source.id },
                         rowEnd = index % columns == columns - 1 || index == sources.size - 1,
                         // 和一级菜单一样: 底板开着时名字画在底板上, 不占卡片内部高度,
                         // 否则卡片里的图会矮一截, 和一级菜单对不上

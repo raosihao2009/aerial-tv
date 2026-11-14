@@ -1656,6 +1656,7 @@ fun HomeScreen(
             onOpenControlCenter = { vm.ccFromLiveMenu = true; vm.overlay = Overlay.ControlCenter() },
             controlCenterOpen = overlay is Overlay.ControlCenter,
             onGlobalToast = { msg -> vm.showToast(msg) },
+            onHomeLocked = { vm.noteHomeLocked() },
             network = { vm.network },
         )
 
