@@ -736,6 +736,7 @@ class PhoneServer private constructor(private val context: Context, private val 
     /** 日志文件下载: 附件名带时间, 浏览器直接存到手机的下载目录。 */
     private fun logFile(): Response {
         val body = app.orchard.tv.system.DiagLog.exportText()
+        app.orchard.tv.system.DiagLog.i("手机端导出日志: ${body.length} 字符")
         val name = "aerial-log-" + java.text.SimpleDateFormat("MMdd-HHmm", java.util.Locale.US).format(java.util.Date()) + ".txt"
         return newFixedLengthResponse(Response.Status.OK, "text/plain; charset=utf-8", body).apply {
             addHeader("Content-Disposition", "attachment; filename=\"$name\"")

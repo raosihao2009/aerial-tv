@@ -359,7 +359,7 @@
 
   <h2 data-i18n="feedback_h"></h2>
   <div class="list"><button class="item tint center" id="diagBtn" data-i18n="diag_show"></button></div>
-  <div class="list"><a class="item tint center" id="logBtn" href="#" data-i18n="diag_export"></a></div>
+  <div class="list"><button class="item tint center" id="logBtn" data-i18n="diag_export"></button></div>
   <pre class="diag" id="diag" hidden></pre>
   <div class="row" id="diagActions" hidden>
     <button class="btn" id="diagCopy" data-i18n="diag_copy"></button>
@@ -1723,8 +1723,27 @@ $('#iconFile').onchange = async e => {
 };
 
 /* More tab: diagnostics. */
-// 导出日志文件: 直接下载, 不必先把诊断文本显示出来
-$('#logBtn').href = base + 'api/log';
+// 导出日志文件: 取回来存成文件。直接给 a 标签设 href 时, 有的手机浏览器把 # 的点击
+// 当成页内跳转(看起来"没反应"), 这里改成 Blob 下载并给一句反馈。
+$('#logBtn').onclick = async (ev) => {
+  ev.preventDefault();
+  const url = base + 'api/log';
+  try {
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) throw new Error(r.status);
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'aerial-log.txt';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    toast(t('diag_export'));
+  } catch (e) {
+    toast(t('toast_diag_fail'));
+    // 取不到就让浏览器直接开这个地址, 至少能看到返回内容
+    location.href = url;
+  }
+};
 $('#diagBtn').onclick = async () => {
   const b = $('#diagBtn'); b.disabled = true; b.textContent = t('diag_collecting');
   try {

@@ -172,6 +172,16 @@ object Diagnostics {
         }
         appendLine("```")
 
+        // 崩溃记录放在日志前面: 黑屏之后最想看的就是它, 而手机端"复制诊断信息"也能直接带走。
+        val crashes = DiagLog.crashes()
+        if (crashes.isNotEmpty()) {
+            appendLine()
+            appendLine("**Crashes**")
+            appendLine("```")
+            crashes.forEach { appendLine(mask(it)) }
+            appendLine("```")
+        }
+
         appendLine()
         appendLine("<details><summary>Log</summary>")
         appendLine()

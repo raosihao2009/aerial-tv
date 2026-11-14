@@ -139,19 +139,38 @@ object DiagLog {
         }
     }
 
+    /** 已落盘的崩溃记录, 供诊断报告与手机端导出共用。 */
+    fun crashes(): List<String> = dir?.let { crashLines(it) } ?: emptyList()
+
     /** 崩溃行: aerial-crash.log 全部, 加诊断日志里可能残留的 crash 行。 */
     private fun crashLines(dirNow: File): List<String> = runCatching {
-        val out = ArrayList<String>()
+        // 一条崩溃记录以 " crash on " 起始, 但栈本身是多行的, 必须按记录整条切分:
+        // 之前直接 takeLast(5) 只留了栈的尾巴, 看不出异常类型。
+        val records = ArrayList<String>()
+        fun collect(text: String) {
+            var cur: StringBuilder? = null
+            for (line in text.lineSequence()) {
+                if (line.contains(" crash on ")) {
+                    cur?.let { records.add(it.toString()) }
+                    cur = StringBuilder(line)
+                } else {
+                    cur?.append('\n')?.append(line)
+                }
+            }
+            cur?.let { records.add(it.toString()) }
+        }
         File(dirNow, "aerial-crash.log").takeIf { it.exists() }?.useLines { seq ->
-            seq.forEach { out.add(it) }
+            collect(seq.joinToString("\n"))
         }
         val f = file
         if (f != null) {
             listOf(f, File(dirNow, "aerial-diag.old.log")).filter { it.exists() }.forEach { each ->
-                each.useLines { seq -> seq.filter { it.contains(" crash on ") }.forEach { out.add(it) } }
+                each.useLines { seq ->
+                    collect(seq.filter { it.contains(" crash on ") }.joinToString("\n"))
+                }
             }
         }
-        out.takeLast(5)
+        records.takeLast(2)
     }.getOrDefault(emptyList())
 
     /**
