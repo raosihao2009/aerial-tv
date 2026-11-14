@@ -197,6 +197,8 @@ fun ChannelFocusPreview(
      * TextureView 保留最后一帧, 新流缓冲上来自动续播; 候选里还有备用 CDN/编码就先轮换,
      * 全部耗尽才重新调 playinfo 取新签名地址。
      */
+    // 重载失败后交回救场流程的入口: 两个局部函数互相引用, 用变量打破前向引用限制
+    var retryStall: (String) -> Unit = {}
     fun reloadInPlace(stalled: LiveSource) {
         if (!reloadBusy.compareAndSet(false, true)) return
         val p = player
@@ -230,11 +232,19 @@ fun ChannelFocusPreview(
                 // 不 release、不暂停: 最后一帧留在屏幕上, 新流就绪后自动续播
                 p.setMediaSource(hls)
                 p.prepare()
-                // 等新流就绪(最多 10s), 对齐直播边缘
-                val deadline = System.currentTimeMillis() + 10_000
+                // 等新流就绪(最多 8s), 对齐直播边缘
+                val deadline = System.currentTimeMillis() + 8_000
+                val start = android.os.SystemClock.elapsedRealtime()
                 var ready = false
+                // 短时间恢复不提示(一闪反而像"没卡也说在重载"); 超过 1.5s 还没就绪才弹，
+                // 用户至少知道画面冻住是在换流而不是坏了。
+                var hinted = false
                 while (System.currentTimeMillis() < deadline) {
                     kotlinx.coroutines.delay(200)
+                    if (!hinted && android.os.SystemClock.elapsedRealtime() - start >= 1500L) {
+                        hinted = true
+                        showToast("正在重新加载「${stalled.name}」")
+                    }
                     if (p.playbackState == Player.STATE_READY &&
                         p.bufferedPosition - p.currentPosition >= 1500L
                     ) { ready = true; break }
@@ -243,7 +253,10 @@ fun ChannelFocusPreview(
                     p.seekTo(p.bufferedPosition.coerceAtLeast(p.currentPosition))
                     DiagLog.i("直播预览: ${stalled.id} 原地重载就绪")
                 } else {
-                    DiagLog.i("直播预览: ${stalled.id} 原地重载 10s 未就绪")
+                    // 换流没起来: 看门狗这次已 break, 不再轮询; 交给救场流程再判一次,
+                    // 30 秒窗口计数继续累加, 到阈值就会升级成切源, 不会永久冻在画面上。
+                    DiagLog.i("直播预览: ${stalled.id} 原地重载 8s 未就绪, 交回救场流程")
+                    retryStall(stalled.id)
                 }
             } catch (t: Throwable) {
                 DiagLog.i("直播预览: 原地重载异常: ${t.message}")
@@ -308,9 +321,8 @@ fun ChannelFocusPreview(
                             DiagLog.i("直播预览: ${stalled.id} 30 秒内卡住 $times 次, 看门狗已切到 $target")
                         } else {
                             // 还在开播: 原地换流重载, 不重建播放器; 30 秒窗口次数由 noteRecover 统计,
-                            // 到阈值才升级成 onFallback 切源。第一次重载静默, 第 2 次起提示。
+                            // 到阈值才升级成 onFallback 切源。提示由 reloadInPlace 按耗时决定(快恢复不弹)。
                             reloadInPlace(stalled)
-                            if (times == 2) showToast("正在尝试重新加载「${stalled.name}」")
                             DiagLog.i("直播预览: ${stalled.id} 仍在开播, 原地重载(30 秒内第 $times 次)")
                         }
                     }
@@ -322,6 +334,8 @@ fun ChannelFocusPreview(
             }
         }
     }
+    // 现在 handleStall 已定义, 把重载失败的回落入口接上
+    retryStall = { id -> handleStall(id) }
 
     LaunchedEffect(source?.url, restartSignal, externalReload) {
         if (source == null) {
