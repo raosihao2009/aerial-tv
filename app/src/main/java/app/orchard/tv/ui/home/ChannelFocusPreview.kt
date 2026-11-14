@@ -275,6 +275,24 @@ fun ChannelFocusPreview(
         }
         scope.launch {
             try {
+                // 网络本身断开时重载毫无意义: 候选地址和 playInfo 都拉不通, 只会白白重建一轮
+                // 并把 30 秒窗口的救场次数用掉, 提前耗尽升级切源的机会。等网络回来再换流。
+                if (SystemProbe.network(context).kind == NetKind.Offline) {
+                    DiagLog.i("直播预览: ${stalled.id} 卡住且网络已断开, 等待网络恢复后重载")
+                    showToast("网络已断开，正在等待恢复")
+                    var waited = 0L
+                    while (waited < 60_000L && SystemProbe.network(context).kind == NetKind.Offline) {
+                        kotlinx.coroutines.delay(1000L)
+                        waited += 1000L
+                    }
+                    if (SystemProbe.network(context).kind == NetKind.Offline) {
+                        DiagLog.i("直播预览: ${stalled.id} 网络 60 秒未恢复, 放弃本轮救场")
+                        return@launch
+                    }
+                    DiagLog.i("直播预览: ${stalled.id} 网络已恢复, 重新加载")
+                    reloadInPlace(stalled)
+                    return@launch
+                }
                 DiagLog.i("直播预览: ${stalled.id} 卡住, 正在检查是否仍在开播")
                 val offline = withContext(Dispatchers.IO) { checkIfOffline(stalled, context) }
                 onStatusRefresh()
@@ -532,11 +550,12 @@ fun ChannelFocusPreview(
                         suppressSwitchToast = false
                         return@launch
                     }
-                    // 网络卡顿: 同实例重试, 优先轮换到下一路候选 CDN/编码; 候选没有了再用原流
+                    // 网络卡顿: 同实例重试, 循环换到下一路候选 CDN/编码(不消耗原地重载的候选池);
+                    // 候选池为空时才用原流。
                     retryCount++
                     val attempt = retryCount
                     kotlinx.coroutines.delay(1500L * attempt)
-                    val nextUrl = streamCache[source.url ?: ""]?.pollNext()
+                    val nextUrl = streamCache[source.url ?: ""]?.cycleNext()
                     val nextHls = nextUrl?.let { buildHlsMediaSource(it, source.isBilibiliStream, context) } ?: hls
                     runCatching {
                         p.setMediaSource(nextHls)
@@ -860,11 +879,23 @@ private fun checkIfOffline(source: LiveSource, context: android.content.Context)
 /** 央视网快看(备用源)的固定 id: 本场下播时先换它。 */
 private const val CCTV_ID = "preset_2"
 
-/** 一次取流解析出的有序候选; [pollNext] 依次取出, 取完返回 null。 */
+/**
+ * 一次取流解析出的有序候选。
+ * - [pollNext] 向前取, 取完返回 null(供初始起播/原地重载, 用完才重拉接口);
+ * - [cycleNext] 循环取, 永不返回 null(供播放器错误重试: 网络抖一下就想换节点试,
+ *   但不能把留给原地重载的候选一次吃光 —— 实测断网时三次错误重试就把 4 路候选全打光,
+ *   真正触发重载时只剩"第 4/4 路")。
+ */
 private class StreamCandidates(val urls: List<String>) {
     var index = 0
         private set
+    private var cycleIndex = 0
     fun pollNext(): String? = if (index < urls.size) urls[index++] else null
+    fun cycleNext(): String {
+        val u = urls[cycleIndex % urls.size]
+        cycleIndex++
+        return u
+    }
 }
 
 /** 共用的 HLS 媒体源构造: 初始起播和原地重载走同一套请求头/超时, 避免两处各写一份漂移。 */

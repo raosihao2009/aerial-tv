@@ -341,7 +341,16 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                                 if (qns.isNotEmpty()) app.orchard.tv.apps.LiveQualityOptions.setOptions(src.id, qns)
                                 if (app.orchard.tv.apps.BiliLiveApi.liveStatus(data) == 1) 1 else 2
                             }.getOrElse {
-                                app.orchard.tv.system.DiagLog.i("直播状态: ${src.id} 错误: ${it.message}")
+                                // 断网/DNS 失败时每个源都会报一条: 11 个源一批就是 11 条, 30 秒
+                                // 一轮, 两批并发时一秒内能刷 30+ 条, 600 行环形缓冲很快被占满,
+                                // 把预览/看门狗的记录挤出去。这类"整批都失败"的错误只留批次汇总。
+                                val m = it.message ?: ""
+                                val dnsOrOffline = m.contains("Unable to resolve host") ||
+                                    m.contains("Failed to connect") ||
+                                    m.contains("Connection refused")
+                                if (!dnsOrOffline) {
+                                    app.orchard.tv.system.DiagLog.i("直播状态: ${src.id} 错误: $m")
+                                }
                                 0
                             }
                         }

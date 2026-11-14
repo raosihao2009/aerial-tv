@@ -73,6 +73,17 @@ class PlaybackWatchdog(
                 lastPos = pos
                 lastBuffered = buf
 
+                // 位置/缓冲回退(负增量)不是"卡住": 原地换流时 currentPosition 会归零、对齐直播边缘
+                // 时也会跳变, 旧基准还停在上一条流的位置上, 一减就是大负数。以前直接拿
+                // `posDelta < 100` 判 frozen, 于是刚换完流正在出帧(rendered>0)也被判成冻住,
+                // 连续几次就白白再触发一次重载。这种情况只重置基准, 本轮不计异常。
+                if (posDelta < 0L || bufDelta < 0L) {
+                    stuckStreak = 0
+                    lastDropped = droppedNow
+                    lastRendered = renderedNow
+                    continue
+                }
+
                 // 对 10-20fps 低帧率直播(B站/央视常见)：renderedDelta 自然就低，
                 // 不能再用"2s 渲染 <renderedThreshold 帧"直接判 bad。
                 // 真正的"冻住"是 position 几乎不动 AND buffer 不再增长 —— 不再拿 isPlaying 一票
