@@ -9,14 +9,19 @@ package app.orchard.tv.apps
  * 自己的分辨率; 硬标会和客户端的 "720P 蓝光" 这种对不上。
  */
 object LiveQualityOptions {
+    /** 客户端「自动」档的占位 qn: 不锁固定码率, 取流时不过滤上限, 由服务端给默认档。 */
+    const val AUTO_QN = 25000
+
     private val names = mapOf(
         30000 to "杜比",
         20000 to "4K",
+        15000 to "2K",
         10000 to "原画",
         400 to "蓝光",
         250 to "超清",
         150 to "高清",
         80 to "流畅",
+        AUTO_QN to "自动",
     )
 
     fun label(qn: Int): String = names[qn] ?: "画质 $qn"
@@ -26,9 +31,18 @@ object LiveQualityOptions {
 
     private val cache = mutableMapOf<String, List<Int>>()
 
+    /** 各台本次运行实际解析到的 codec qn(自动档括号里显示用); 拿不到为 null。 */
+    private val activeQn = mutableMapOf<String, Int>()
+
     fun options(sourceId: String): List<Int> = cache[sourceId] ?: fallback
 
     fun setOptions(sourceId: String, qns: List<Int>) {
         if (qns.isNotEmpty()) cache[sourceId] = qns
+    }
+
+    fun activeQn(sourceId: String): Int? = activeQn[sourceId]
+
+    fun setActiveQn(sourceId: String, qn: Int) {
+        activeQn[sourceId] = qn
     }
 }

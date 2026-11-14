@@ -718,9 +718,15 @@ private fun extractRoomIdFromUrl(url: String): Long? =
 private fun bilibiliQn(sourceId: String): Int =
     app.orchard.tv.settings.AerialSettings.effectiveLiveQn(sourceId)
 
+/** 偏好标记 → 接口请求 qn: 自动档不锁码率, 请求里按不指定档(qn=0)发。 */
+private fun requestQn(sourceId: String): Int {
+    val q = bilibiliQn(sourceId)
+    return if (q == LiveQualityOptions.AUTO_QN) 0 else q
+}
+
 private fun fetchBilibiliHlsUrl(roomId: Long, sourceId: String, context: android.content.Context): String? = runCatching {
     val targetQn = bilibiliQn(sourceId)
-    val bodyData = BiliLiveApi.playInfo(roomId, targetQn) ?: return@runCatching null
+    val bodyData = BiliLiveApi.playInfo(roomId, requestQn(sourceId)) ?: return@runCatching null
     // 检测下播：live_status != 1 表示未开播
     val liveStatus = BiliLiveApi.liveStatus(bodyData)
     if (liveStatus != 1) {
@@ -746,9 +752,15 @@ private fun fetchBilibiliHlsUrl(roomId: Long, sourceId: String, context: android
         }
     }
     LiveQualityOptions.setOptions(sourceId, BiliLiveApi.acceptedQn(bodyData))
-    // 原画模式选所有流中最高画质; 指定档选不超过目标 qn 的最高画质
-    val filtered = if (targetQn == 0) candidates else candidates.filter { it.qn <= targetQn }
-    (filtered.ifEmpty { candidates }).maxByOrNull { it.qn }?.url
+    // 自动档: 不加上限, 取服务端默认序的第一路; 指定档选不超过目标 qn 的最高画质;
+    // qn=0(全局原画)取所有流中最高画质。
+    val chosen = when {
+        targetQn == LiveQualityOptions.AUTO_QN -> candidates.firstOrNull()
+        targetQn == 0 -> candidates.maxByOrNull { it.qn }
+        else -> candidates.filter { it.qn <= targetQn }.maxByOrNull { it.qn }
+    } ?: candidates.maxByOrNull { it.qn }
+    if (chosen != null) LiveQualityOptions.setActiveQn(sourceId, chosen.qn)
+    chosen?.url
 }.getOrNull()
 
 /** 检测B站直播间是否已下播 */
@@ -757,7 +769,7 @@ private fun checkIfOffline(source: LiveSource, context: android.content.Context)
         return@runCatching false
     }
     val roomId = extractBilibiliRoomId(source.url) ?: return@runCatching false
-    val data = BiliLiveApi.playInfo(roomId, bilibiliQn(source.id))
+    val data = BiliLiveApi.playInfo(roomId, requestQn(source.id))
     LiveQualityOptions.setOptions(source.id, BiliLiveApi.acceptedQn(data))
     DiagLog.i("开播检查 room=$roomId status=${BiliLiveApi.liveStatus(data)}")
     BiliLiveApi.liveStatus(data) != 1

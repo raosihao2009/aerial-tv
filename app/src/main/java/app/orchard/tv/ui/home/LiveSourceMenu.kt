@@ -661,23 +661,33 @@ fun LiveSourceMenu(
                     if (menuPage == LiveMenuPage.Quality) qualityFirst.requestFocus()
                     else mainFirst.requestFocus()
                 }
-                val options = LiveQualityOptions.options(source.id)
+                // 可选固定档; 多档的房才挂「自动」入口(单档房切来切去没意义)
+                val fixedOptions = LiveQualityOptions.options(source.id).filter { it != LiveQualityOptions.AUTO_QN }
                 // 复测用: 记下这张卡的 URL 与 B 站判定, 菜单缺「直播画质」时能直接看出是判定错了
                 // 还是这源本来就不是 B 站、没有档位可选。
                 DiagLog.i(
                     "直播菜单调试: 上下文 source=${source.id} url=${source.url} " +
                         "isBili=${source.isBilibili} biliStream=${source.isBilibiliStream} " +
-                        "status=${source.liveStatus} options=$options",
+                        "status=${source.liveStatus} options=$fixedOptions",
                 )
                 // 非当前源在菜单里改完画质后菜单不关: 偏好已写入 prefs, 但 prefs 不是 Compose 状态,
                 // 这里记一下本次选的档, 才能把勾移过去
                 var pickedQn by remember(source.id) { mutableStateOf<Int?>(null) }
                 val currentQn = pickedQn ?: AerialSettings.effectiveLiveQn(source.id)
+                val displayOptions = if (fixedOptions.size >= 2) fixedOptions + LiveQualityOptions.AUTO_QN else fixedOptions
                 // 实际会落到的档: 目标 qn 不在可选列表里(例如全局档 800)就取不超过它的最高档
                 val selectedQn = when {
-                    currentQn == 0 -> options.firstOrNull() ?: 0
-                    options.contains(currentQn) -> currentQn
-                    else -> options.filter { it <= currentQn }.maxOrNull() ?: options.firstOrNull() ?: 0
+                    currentQn == LiveQualityOptions.AUTO_QN -> LiveQualityOptions.AUTO_QN
+                    currentQn == 0 -> fixedOptions.firstOrNull() ?: 0
+                    fixedOptions.contains(currentQn) -> currentQn
+                    else -> fixedOptions.filter { it <= currentQn }.maxOrNull() ?: fixedOptions.firstOrNull() ?: 0
+                }
+                // 自动档括号: 本次运行实际解析到哪一档就回填哪一档, 没解析出来先只显示「自动」
+                fun qualityLabel(qn: Int): String = when {
+                    qn == LiveQualityOptions.AUTO_QN -> LiveQualityOptions.activeQn(source.id)?.let {
+                        "${LiveQualityOptions.label(LiveQualityOptions.AUTO_QN)}(${LiveQualityOptions.label(it)})"
+                    } ?: LiveQualityOptions.label(LiveQualityOptions.AUTO_QN)
+                    else -> LiveQualityOptions.label(qn)
                 }
                 Column(
                     Modifier
@@ -725,10 +735,10 @@ fun LiveSourceMenu(
                             MenuRow(Glyph.Trash, "删除", { onDelete(source.id); menuForId = null }, destructive = true)
                         }
                     } else {
-                        options.forEachIndexed { index, qn ->
+                        displayOptions.forEachIndexed { index, qn ->
                             MenuRow(
                                 if (qn == selectedQn) Glyph.Check else Glyph.Hdmi,
-                                LiveQualityOptions.label(qn),
+                                qualityLabel(qn),
                                 {
                                     onPickQuality(source.id, qn)
                                     if (source.id == currentId) {
