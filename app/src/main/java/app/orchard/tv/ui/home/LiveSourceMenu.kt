@@ -136,6 +136,8 @@ fun LiveSourceMenu(
     onMovingChange: (Boolean) -> Unit = {},
     onOpenControlCenter: () -> Unit = {},
     controlCenterOpen: Boolean = false,
+    // 全局磨砂胶囊轻提示(4 秒自动消失), 和直播切换提示同款
+    onGlobalToast: (String) -> Unit = {},
     // 取值函数: 网络状态每 5 秒刷新, 在这里直接读值会让整棵菜单重组。
     network: () -> app.orchard.tv.system.NetworkStatus = { app.orchard.tv.system.NetworkStatus() },
 ) {
@@ -698,7 +700,20 @@ fun LiveSourceMenu(
                             })
                         }
                         if (source.isBilibiliStream) {
-                            MenuRow(Glyph.Hdmi, "直播画质", { menuPage = LiveMenuPage.Quality }, trailing = "›")
+                            // 未开播的房(B 站客户端同样不给画质选项): 入口保留, 点进去只提示不换档,
+                            // 因为没开播时 API 拿不到 accept_qn, 档位只能靠兜底三档, 选出来的档也没意义
+                            MenuRow(
+                                Glyph.Hdmi,
+                                "直播画质",
+                                {
+                                    if (source.liveStatus == 2) {
+                                        onGlobalToast("「${source.name}」未开播，不支持调整画质")
+                                    } else {
+                                        menuPage = LiveMenuPage.Quality
+                                    }
+                                },
+                                trailing = "›",
+                            )
                         }
                         if (source.id != "preset_2") {
                             MenuRow(Glyph.Trash, "删除", { onDelete(source.id); menuForId = null }, destructive = true)
