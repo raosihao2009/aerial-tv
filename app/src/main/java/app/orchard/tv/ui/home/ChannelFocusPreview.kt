@@ -91,8 +91,6 @@ fun ChannelFocusPreview(
     var surface by remember { mutableStateOf<TextureView?>(null) }
 
     var restartSignal by remember { mutableStateOf(0) }
-    // 备用源本身也卡时, 不是再切一次(切来切去同一个), 而是把当前源重新加载一遍
-    var reloadTick by remember { mutableStateOf(0) }
     // 上一次消费的画质重载信号; 信号变化时旧流地址缓存是别的档位, 要清掉重新解析
     var lastReload by remember { mutableStateOf(externalReload) }
     // 看门狗自动切走时, 不弹"已经从X切换至Y", 只留"卡顿严重"那条
@@ -105,9 +103,13 @@ fun ChannelFocusPreview(
         st.toastMessage = msg
         toastTick++
     }
-    val streamCache = remember { mutableMapOf<String, String?>() }
+    // 候选流缓存: 每个源对应一组有序候选(同 codec 的备用 CDN host 在前, 其它 codec 在后),
+    // 原地重载时依次轮换, 不再每次卡住都新建播放器、重拉整条流。
+    val streamCache = remember { mutableMapOf<String, StreamCandidates>() }
     val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main + kotlinx.coroutines.SupervisorJob())
     var retryCount by remember { mutableStateOf(0) }
+    // 原地重载进行中: 看门狗和播放器错误回调可能同时进来, 防重入
+    val reloadBusy = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
     // 当前已在播放的源名称(用于切换失败时提示继续观看谁)
     var currentPlayingName by remember { mutableStateOf<String?>(null) }
     // 上一个正在播放的源 id(切换失败时回退焦点)
@@ -190,6 +192,67 @@ fun ChannelFocusPreview(
             ?.value
     }
 
+    /**
+     * 原地重载(对齐 B 站客户端的缓冲重载): 不销毁 player、不解绑 surface, 只换 MediaSource。
+     * TextureView 保留最后一帧, 新流缓冲上来自动续播; 候选里还有备用 CDN/编码就先轮换,
+     * 全部耗尽才重新调 playinfo 取新签名地址。
+     */
+    fun reloadInPlace(stalled: LiveSource) {
+        if (!reloadBusy.compareAndSet(false, true)) return
+        val p = player
+        if (p == null || playingSourceId != stalled.id) {
+            reloadBusy.set(false)
+            return
+        }
+        scope.launch {
+            try {
+                val key = stalled.url ?: stalled.id
+                var cands = streamCache[key]
+                var url = cands?.pollNext()
+                if (url == null) {
+                    // 候选耗尽: 重拉 playinfo 取新地址, 最多 3 次
+                    var fresh: List<String> = emptyList()
+                    for (attempt in 1..3) {
+                        fresh = withContext(Dispatchers.IO) { resolveCandidates(stalled, context) }
+                        if (fresh.isNotEmpty()) break
+                        kotlinx.coroutines.delay(2000)
+                    }
+                    if (fresh.isEmpty()) {
+                        DiagLog.i("直播预览: ${stalled.id} 原地重载取流失败, 候选已耗尽")
+                        return@launch
+                    }
+                    cands = StreamCandidates(fresh)
+                    streamCache[key] = cands
+                    url = cands.pollNext()!!
+                }
+                DiagLog.i("直播预览: ${stalled.id} 原地重载, 第 ${cands?.index ?: 0}/${cands?.urls?.size ?: 0} 路候选")
+                val hls = buildHlsMediaSource(url, stalled.isBilibiliStream, context)
+                // 不 release、不暂停: 最后一帧留在屏幕上, 新流就绪后自动续播
+                p.setMediaSource(hls)
+                p.prepare()
+                // 等新流就绪(最多 10s), 对齐直播边缘
+                val deadline = System.currentTimeMillis() + 10_000
+                var ready = false
+                while (System.currentTimeMillis() < deadline) {
+                    kotlinx.coroutines.delay(200)
+                    if (p.playbackState == Player.STATE_READY &&
+                        p.bufferedPosition - p.currentPosition >= 1500L
+                    ) { ready = true; break }
+                }
+                if (ready) {
+                    p.seekTo(p.bufferedPosition.coerceAtLeast(p.currentPosition))
+                    DiagLog.i("直播预览: ${stalled.id} 原地重载就绪")
+                } else {
+                    DiagLog.i("直播预览: ${stalled.id} 原地重载 10s 未就绪")
+                }
+            } catch (t: Throwable) {
+                DiagLog.i("直播预览: 原地重载异常: ${t.message}")
+            } finally {
+                reloadBusy.set(false)
+            }
+        }
+    }
+
     fun handleStall(id: String) {
         if (!stallBusy.compareAndSet(false, true)) return
         val stalled = sourcesNow().firstOrNull { it.id == id } ?: source
@@ -244,11 +307,11 @@ fun ChannelFocusPreview(
                             showToast("「${stalled.name}」卡顿严重，已切换至「$target」")
                             DiagLog.i("直播预览: ${stalled.id} 30 秒内卡住 $times 次, 看门狗已切到 $target")
                         } else {
-                            reloadTick++
-                            // 第一次重载静默: 多半只是网络抖一下, 立刻弹提示反而显得"没卡也说在重载";
-                            // 30 秒内连续第 2 次重载才提示, 再往后不再刷(第 4 次升级成第 9 条"卡顿严重")。
+                            // 还在开播: 原地换流重载, 不重建播放器; 30 秒窗口次数由 noteRecover 统计,
+                            // 到阈值才升级成 onFallback 切源。第一次重载静默, 第 2 次起提示。
+                            reloadInPlace(stalled)
                             if (times == 2) showToast("正在尝试重新加载「${stalled.name}」")
-                            DiagLog.i("直播预览: ${stalled.id} 仍在开播, 重新加载(30 秒内第 $times 次)")
+                            DiagLog.i("直播预览: ${stalled.id} 仍在开播, 原地重载(30 秒内第 $times 次)")
                         }
                     }
                 }
@@ -260,16 +323,15 @@ fun ChannelFocusPreview(
         }
     }
 
-    LaunchedEffect(source?.url, restartSignal, reloadTick, externalReload) {
+    LaunchedEffect(source?.url, restartSignal, externalReload) {
         if (source == null) {
             player?.release(); player = null
             DiagLog.i("预览 effect 跳过: 源为空")
             return@LaunchedEffect
         }
-        // 切回当前正在播放的源(onRevert): 不重新加载, 继续用现有player, 避免画面声音回溯
-        // 但 reloadTick > 0 表示看门狗要求强行重载, 要放过这个早退; externalReload > 0 表示
-        // 画质等偏好刚改过, 同样要重新取流。
-        if (reloadTick == 0 && externalReload == 0 && source.id == playingSourceId && player != null) {
+        // 切回当前正在播放的源(onRevert): 不重新加载, 继续用现有player, 避免画面声音回溯;
+        // externalReload > 0 表示画质等偏好刚改过, 同样要重新取流。卡住的原地重载不走这个 effect。
+        if (externalReload == 0 && source.id == playingSourceId && player != null) {
             DiagLog.i("预览 effect 跳过: 已在播放 ${source.id}")
             return@LaunchedEffect
         }
@@ -308,22 +370,23 @@ fun ChannelFocusPreview(
         if (externalReload != lastReload) {
             streamCache.clear()
             lastReload = externalReload
-        } else if (reloadTick > 0) {
-            // 看门狗重载: 旧 CDN 流地址可能已失效, 清掉本机缓存重新调 playInfo 取新地址,
-            // 不能把同一条死流再拉一遍。
-            streamCache.remove(source.url ?: "")
         }
-        var streamUrl: String? = streamCache[source.url ?: ""]
+        val cacheKey = source.url ?: ""
+        var cands = streamCache[cacheKey]
+        var streamUrl: String? = cands?.pollNext()
         if (streamUrl == null) {
-            // 解析新流地址，最多重试 5 次(网络刚恢复/待机回来可能需要等)
+            // 解析新流候选, 最多重试 5 次(网络刚恢复/待机回来可能需要等)
+            var fresh: List<String> = emptyList()
             for (attempt in 1..5) {
-                streamUrl = withContext(Dispatchers.IO) { resolveStreamUrl(source, context) }
-                if (streamUrl != null) break
+                fresh = withContext(Dispatchers.IO) { resolveCandidates(source, context) }
+                if (fresh.isNotEmpty()) break
                 kotlinx.coroutines.delay(2000)
             }
-            // 只缓存成功的 URL, 失败不缓存(避免下次直接读 null)
-            if (streamUrl != null) {
-                streamCache[source.url ?: ""] = streamUrl
+            // 只缓存成功的候选, 失败不缓存(避免下次直接读空)
+            if (fresh.isNotEmpty()) {
+                cands = StreamCandidates(fresh)
+                streamCache[cacheKey] = cands
+                streamUrl = cands.pollNext()
             }
         }
         DiagLog.i("直播预览: 取流地址 = $streamUrl")
@@ -382,16 +445,7 @@ fun ChannelFocusPreview(
             .build()
         var readyListener: Player.Listener? = null
         try {
-        val factory = DefaultHttpDataSource.Factory()
-            .setUserAgent("Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
-            .setConnectTimeoutMs(10_000).setReadTimeoutMs(10_000)
-        if (source.isBilibiliStream || streamUrl.contains("bilibili.com")) {
-            factory.setDefaultRequestProperties(mapOf(
-                "Referer" to "https://live.bilibili.com/",
-                "Cookie" to BiliLiveApi.cookieHeader()
-            ))
-        }
-        val hls = HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(Uri.parse(streamUrl)))
+        val hls = buildHlsMediaSource(streamUrl, source.isBilibiliStream, context)
 
         // 等待新流READY且缓冲足够(至少3秒)再切换，避免开播后卡缓冲
         var ready = false
@@ -464,14 +518,15 @@ fun ChannelFocusPreview(
                         suppressSwitchToast = false
                         return@launch
                     }
-                    // 网络卡顿: 重试
+                    // 网络卡顿: 同实例重试, 优先轮换到下一路候选 CDN/编码; 候选没有了再用原流
                     retryCount++
                     val attempt = retryCount
                     kotlinx.coroutines.delay(1500L * attempt)
+                    val nextUrl = streamCache[source.url ?: ""]?.pollNext()
+                    val nextHls = nextUrl?.let { buildHlsMediaSource(it, source.isBilibiliStream, context) } ?: hls
                     runCatching {
-                        p.setMediaSource(hls)
+                        p.setMediaSource(nextHls)
                         p.prepare()
-                        p.playWhenReady = false
                     }
                 }
             }
@@ -687,15 +742,15 @@ fun ChannelFocusPreview(
     }
 }
 
-private suspend fun resolveStreamUrl(source: LiveSource, context: android.content.Context): String? = withContext(Dispatchers.IO) {
+private suspend fun resolveCandidates(source: LiveSource, context: android.content.Context): List<String> = withContext(Dispatchers.IO) {
     try {
         when {
-            source.url.endsWith(".m3u8") -> source.url
+            source.url.endsWith(".m3u8") -> listOf(source.url)
             source.isBilibiliStream ->
-                extractBilibiliRoomId(source.url)?.let { fetchBilibiliHlsUrl(it, source.id, context) }
-            else -> source.url
+                extractBilibiliRoomId(source.url)?.let { fetchBilibiliHlsCandidates(it, source.id) } ?: emptyList()
+            else -> listOf(source.url)
         }
-    } catch (e: Exception) { null }
+    } catch (e: Exception) { emptyList() }
 }
 
 private fun extractBilibiliRoomId(url: String): Long? = runCatching {
@@ -728,18 +783,18 @@ private fun requestQn(sourceId: String): Int {
     return if (q == LiveQualityOptions.AUTO_QN) 0 else q
 }
 
-private fun fetchBilibiliHlsUrl(roomId: Long, sourceId: String, context: android.content.Context): String? = runCatching {
+private fun fetchBilibiliHlsCandidates(roomId: Long, sourceId: String): List<String> = runCatching {
     val targetQn = bilibiliQn(sourceId)
-    val bodyData = BiliLiveApi.playInfo(roomId, requestQn(sourceId)) ?: return@runCatching null
+    val bodyData = BiliLiveApi.playInfo(roomId, requestQn(sourceId)) ?: return@runCatching emptyList()
     // 检测下播：live_status != 1 表示未开播
     val liveStatus = BiliLiveApi.liveStatus(bodyData)
     if (liveStatus != 1) {
         DiagLog.i("B站房间 $roomId 未开播 (status=$liveStatus)")
-        return@runCatching null
+        return@runCatching emptyList()
     }
     val streams = bodyData.getJSONObject("playurl_info").getJSONObject("playurl").getJSONArray("stream")
     data class StreamItem(val qn: Int, val url: String)
-    val candidates = mutableListOf<StreamItem>()
+    val all = mutableListOf<StreamItem>()
     for (i in 0 until streams.length()) {
         val s = streams.getJSONObject(i); if (s.optString("protocol_name") != "http_hls") continue
         val fmts = s.getJSONArray("format")
@@ -748,24 +803,33 @@ private fun fetchBilibiliHlsUrl(roomId: Long, sourceId: String, context: android
             val codecs = f.getJSONArray("codec")
             for (k in 0 until codecs.length()) {
                 val codec = codecs.getJSONObject(k)
-                val ui = codec.getJSONArray("url_info").getJSONObject(0)
-                val url = ui.getString("host") + codec.getString("base_url") + ui.getString("extra")
+                val uiArr = codec.getJSONArray("url_info")
+                val baseUrl = codec.getString("base_url")
                 val qn = codec.optInt("current_qn", 0)
-                candidates.add(StreamItem(qn, url))
+                // 同一 codec 下的每个 CDN host 都是一条独立候选, 重载时先换备用节点
+                for (u in 0 until uiArr.length()) {
+                    val ui = uiArr.getJSONObject(u)
+                    all.add(StreamItem(qn, ui.getString("host") + baseUrl + ui.getString("extra")))
+                }
             }
         }
     }
     LiveQualityOptions.setOptions(sourceId, BiliLiveApi.acceptedQn(bodyData))
-    // 自动档: 不加上限, 取服务端默认序的第一路; 指定档选不超过目标 qn 的最高画质;
-    // qn=0(全局原画)取所有流中最高画质。
-    val chosen = when {
-        targetQn == LiveQualityOptions.AUTO_QN -> candidates.firstOrNull()
-        targetQn == 0 -> candidates.maxByOrNull { it.qn }
-        else -> candidates.filter { it.qn <= targetQn }.maxByOrNull { it.qn }
-    } ?: candidates.maxByOrNull { it.qn }
-    if (chosen != null) LiveQualityOptions.setActiveQn(sourceId, chosen.qn)
-    chosen?.url
-}.getOrNull()
+    if (all.isEmpty()) return@runCatching emptyList()
+    // 选档规则与原实现一致: 自动档取默认序第一路; qn=0 取最高; 指定档取不超过上限的最高。
+    val selected = when {
+        targetQn == LiveQualityOptions.AUTO_QN -> all.firstOrNull()
+        targetQn == 0 -> all.maxByOrNull { it.qn }
+        else -> all.filter { it.qn <= targetQn }.maxByOrNull { it.qn } ?: all.maxByOrNull { it.qn }
+    }
+    val selectedQn = selected?.qn ?: -1
+    // 候选顺序: 选中档的各 CDN host 在前(先换备用节点, 不降压画质), 其它档按 qn 降序在后兜底。
+    val head = all.filter { it.qn == selectedQn }
+    val tail = all.filter { it.qn != selectedQn }.sortedByDescending { it.qn }
+    val ordered = head + tail
+    LiveQualityOptions.setActiveQn(sourceId, ordered.first().qn)
+    ordered.map { it.url }
+}.getOrElse { emptyList() }
 
 /** 检测B站直播间是否已下播 */
 private fun checkIfOffline(source: LiveSource, context: android.content.Context): Boolean = runCatching {
@@ -781,6 +845,27 @@ private fun checkIfOffline(source: LiveSource, context: android.content.Context)
 
 /** 央视网快看(备用源)的固定 id: 本场下播时先换它。 */
 private const val CCTV_ID = "preset_2"
+
+/** 一次取流解析出的有序候选; [pollNext] 依次取出, 取完返回 null。 */
+private class StreamCandidates(val urls: List<String>) {
+    var index = 0
+        private set
+    fun pollNext(): String? = if (index < urls.size) urls[index++] else null
+}
+
+/** 共用的 HLS 媒体源构造: 初始起播和原地重载走同一套请求头/超时, 避免两处各写一份漂移。 */
+private fun buildHlsMediaSource(url: String, isBili: Boolean, context: android.content.Context): HlsMediaSource {
+    val factory = DefaultHttpDataSource.Factory()
+        .setUserAgent("Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+        .setConnectTimeoutMs(10_000).setReadTimeoutMs(10_000)
+    if (isBili || url.contains("bilibili.com")) {
+        factory.setDefaultRequestProperties(mapOf(
+            "Referer" to "https://live.bilibili.com/",
+            "Cookie" to BiliLiveApi.cookieHeader()
+        ))
+    }
+    return HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(Uri.parse(url)))
+}
 
 /** 30 秒窗口内救场超过 3 次(即第 4 次起), 看门狗才升级成真正的换源。 */
 private const val STALL_ESCALATE_TIMES = 4
