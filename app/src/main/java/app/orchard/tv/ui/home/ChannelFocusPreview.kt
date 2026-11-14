@@ -42,6 +42,7 @@ import app.orchard.tv.R
 import app.orchard.tv.ui.BootVeil
 import app.orchard.tv.settings.AerialSettings
 import app.orchard.tv.apps.BiliAccount
+import app.orchard.tv.apps.LiveQualityOptions
 import app.orchard.tv.system.DiagLog
 import app.orchard.tv.system.NetKind
 import app.orchard.tv.system.SystemProbe
@@ -75,6 +76,8 @@ fun ChannelFocusPreview(
     onMoveOffLiveCard: () -> Unit = {},
     /** 全局玻璃胶囊提示: 预览被销毁后还要看的提示走这个(焦点一移出直播卡, 预览就 dispose 了)。 */
     onGlobalToast: (String) -> Unit = {},
+    /** 画质等偏好变更后自增的重载信号; 变化时即使源没变也重新取流。 */
+    externalReload: Int = 0,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -84,6 +87,8 @@ fun ChannelFocusPreview(
     var restartSignal by remember { mutableStateOf(0) }
     // 备用源本身也卡时, 不是再切一次(切来切去同一个), 而是把当前源重新加载一遍
     var reloadTick by remember { mutableStateOf(0) }
+    // 上一次消费的画质重载信号; 信号变化时旧流地址缓存是别的档位, 要清掉重新解析
+    var lastReload by remember { mutableStateOf(externalReload) }
     // 看门狗自动切走时, 不弹"已经从X切换至Y", 只留"卡顿严重"那条
     var suppressSwitchToast by remember { mutableStateOf(false) }
     // 状态聚合：disposed/paused 是纯守卫旗标(不驱动重组, @Volatile), loading/toastMessage 是 UI 状态
@@ -249,14 +254,15 @@ fun ChannelFocusPreview(
         }
     }
 
-    LaunchedEffect(source?.url, restartSignal, reloadTick) {
+    LaunchedEffect(source?.url, restartSignal, reloadTick, externalReload) {
         if (source == null) {
             player?.release(); player = null
             return@LaunchedEffect
         }
         // 切回当前正在播放的源(onRevert): 不重新加载, 继续用现有player, 避免画面声音回溯
-        // 但 reloadTick > 0 表示看门狗要求强行重载, 要放过这个早退
-        if (reloadTick == 0 && source.id == playingSourceId && player != null) {
+        // 但 reloadTick > 0 表示看门狗要求强行重载, 要放过这个早退; externalReload > 0 表示
+        // 画质等偏好刚改过, 同样要重新取流。
+        if (reloadTick == 0 && externalReload == 0 && source.id == playingSourceId && player != null) {
             return@LaunchedEffect
         }
 
@@ -282,6 +288,10 @@ fun ChannelFocusPreview(
             androidx.compose.runtime.snapshotFlow { gateOpen }.first { it }
         }
 
+        if (externalReload != lastReload) {
+            streamCache.clear()
+            lastReload = externalReload
+        }
         var streamUrl: String? = streamCache[source.url ?: ""]
         if (streamUrl == null) {
             // 解析新流地址，最多重试 5 次(网络刚恢复/待机回来可能需要等)
@@ -650,7 +660,7 @@ private suspend fun resolveStreamUrl(source: LiveSource, context: android.conten
         when {
             source.url.endsWith(".m3u8") -> source.url
             source.isBilibili || source.url.contains("b23.tv") || source.url.contains("live.bilibili.com") ->
-                extractBilibiliRoomId(source.url)?.let { fetchBilibiliHlsUrl(it, context) }
+                extractBilibiliRoomId(source.url)?.let { fetchBilibiliHlsUrl(it, source.id, context) }
             else -> source.url
         }
     } catch (e: Exception) { null }
@@ -687,12 +697,13 @@ private fun extractBilibiliRoomId(url: String): Long? = runCatching {
 private fun extractRoomIdFromUrl(url: String): Long? =
     Regex("live\\.bilibili\\.com/(\\d+)").find(url)?.groupValues?.getOrNull(1)?.toLongOrNull()
 
-private fun bilibiliQn(): Int =
-    if (app.orchard.tv.settings.AerialSettings.liveQuality == app.orchard.tv.settings.AerialSettings.LiveQuality.Original) 0 else 800
+private fun bilibiliQn(sourceId: String): Int =
+    app.orchard.tv.settings.AerialSettings.effectiveLiveQn(sourceId)
 
-private fun fetchBilibiliHlsUrl(roomId: Long, context: android.content.Context): String? = runCatching {
+private fun fetchBilibiliHlsUrl(roomId: Long, sourceId: String, context: android.content.Context): String? = runCatching {
     val buvid3 = fetchBuvid3()
-    val api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1&codec=0,1&qn=${bilibiliQn()}&platform=web"
+    val targetQn = bilibiliQn(sourceId)
+    val api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1&codec=0,1&qn=$targetQn&platform=web"
     val c = java.net.URL(api).openConnection() as java.net.HttpURLConnection
     c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36")
     c.setRequestProperty("Referer", "https://live.bilibili.com/")
@@ -708,6 +719,7 @@ private fun fetchBilibiliHlsUrl(roomId: Long, context: android.content.Context):
     val streams = JSONObject(body).getJSONObject("data").getJSONObject("playurl_info").getJSONObject("playurl").getJSONArray("stream")
     data class StreamItem(val qn: Int, val url: String)
     val candidates = mutableListOf<StreamItem>()
+    val accepted = mutableSetOf<Int>()
     for (i in 0 until streams.length()) {
         val s = streams.getJSONObject(i); if (s.optString("protocol_name") != "http_hls") continue
         val fmts = s.getJSONArray("format")
@@ -716,6 +728,9 @@ private fun fetchBilibiliHlsUrl(roomId: Long, context: android.content.Context):
             val codecs = f.getJSONArray("codec")
             for (k in 0 until codecs.length()) {
                 val codec = codecs.getJSONObject(k)
+                codec.optJSONArray("accept_qn")?.let { arr ->
+                    for (a in 0 until arr.length()) accepted.add(arr.optInt(a))
+                }
                 val ui = codec.getJSONArray("url_info").getJSONObject(0)
                 val url = ui.getString("host") + codec.getString("base_url") + ui.getString("extra")
                 val qn = codec.optInt("current_qn", 0)
@@ -723,9 +738,9 @@ private fun fetchBilibiliHlsUrl(roomId: Long, context: android.content.Context):
             }
         }
     }
-    val maxQn = bilibiliQn()
-    // 原画模式选所有流中最高画质; 1080p模式选不超过800的最高画质
-    val filtered = if (maxQn == 0) candidates else candidates.filter { it.qn <= maxQn }
+    LiveQualityOptions.setOptions(sourceId, accepted.sortedDescending())
+    // 原画模式选所有流中最高画质; 指定档选不超过目标 qn 的最高画质
+    val filtered = if (targetQn == 0) candidates else candidates.filter { it.qn <= targetQn }
     (filtered.ifEmpty { candidates }).maxByOrNull { it.qn }?.url
 }.getOrNull()
 
@@ -736,7 +751,7 @@ private fun checkIfOffline(source: LiveSource, context: android.content.Context)
     }
     val roomId = extractBilibiliRoomId(source.url) ?: return@runCatching false
     val buvid3 = fetchBuvid3()
-    val api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1,2&codec=0,1&qn=${bilibiliQn()}&platform=web"
+    val api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1,2&codec=0,1&qn=${bilibiliQn(source.id)}&platform=web"
     val c = java.net.URL(api).openConnection() as java.net.HttpURLConnection
     c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36")
     c.setRequestProperty("Referer", "https://live.bilibili.com/")

@@ -427,6 +427,23 @@ object AerialSettings {
         app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putString("live_quality", q.name) }
     }
 
+    /** 全局画质档对应的请求 qn: 原画=0(取候选最高), 1080p=800。 */
+    fun liveQualityQn(): Int = if (liveQuality == LiveQuality.Original) 0 else 800
+
+    /** 单个直播台记忆的目标 qn; -1 表示跟随全局档。 */
+    fun liveQn(sourceId: String): Int =
+        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt("live_qn_$sourceId", -1)
+
+    fun chooseLiveQn(sourceId: String, qn: Int) {
+        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            if (qn < 0) remove("live_qn_$sourceId") else putInt("live_qn_$sourceId", qn)
+        }
+    }
+
+    /** 取流实际用的 qn: 台偏好优先, 否则回退全局档。 */
+    fun effectiveLiveQn(sourceId: String): Int =
+        liveQn(sourceId).takeIf { it >= 0 } ?: liveQualityQn()
+
     fun chooseJankSensitivity(s: JankSensitivity) {
         jankSensitivity = s
         app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putString("jank_sensitivity", s.name) }

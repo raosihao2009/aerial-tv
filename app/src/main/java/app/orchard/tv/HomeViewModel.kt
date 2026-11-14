@@ -218,6 +218,11 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 刚选中、还在等新流加载的源; 成功开播才提交为 currentLiveSourceId, 失败则丢弃 */
     var pendingLiveSourceId by mutableStateOf<String?>(null); private set
+
+    /** 画质等偏好变更后自增, 驱动当前预览源用新参数重新取流(源 id 不变也强制重载)。 */
+    var liveQualityReloadTick by mutableStateOf(0); private set
+
+    fun reloadLiveQuality() { liveQualityReloadTick++ }
     var liveSources by mutableStateOf<List<LiveSource>>(emptyList()); private set
     var hiddenLiveSources by mutableStateOf<List<LiveSource>>(emptyList()); private set
 

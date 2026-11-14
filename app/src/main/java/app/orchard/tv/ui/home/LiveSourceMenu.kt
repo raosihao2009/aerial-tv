@@ -65,6 +65,7 @@ import app.orchard.tv.R
 import app.orchard.tv.apps.AppEntry
 import app.orchard.tv.apps.TileArtFactory
 import app.orchard.tv.settings.AerialSettings
+import app.orchard.tv.apps.LiveQualityOptions
 import app.orchard.tv.system.Sounds
 import app.orchard.tv.ui.components.liquidGlass
 import app.orchard.tv.ui.theme.Motion
@@ -117,6 +118,8 @@ private fun liveSourceAppEntry(source: LiveSource, ctx: android.content.Context)
     )
 }
 
+private enum class LiveMenuPage { Main, Quality }
+
 @Composable
 fun LiveSourceMenu(
     visible: Boolean,
@@ -126,6 +129,7 @@ fun LiveSourceMenu(
     onMove: (Int, Int) -> Unit,
     onHide: (String) -> Unit,
     onDelete: (String) -> Unit,
+    onPickQuality: (String, Int) -> Unit = { _, _ -> },
     onDismiss: () -> Unit,
     onMenuOpenChange: (Boolean) -> Unit = {},
     onMovingChange: (Boolean) -> Unit = {},
@@ -137,6 +141,7 @@ fun LiveSourceMenu(
     var focusedId by remember { mutableStateOf(currentId) }
     var menuForId by remember { mutableStateOf<String?>(null) }
     var movingId by remember { mutableStateOf<String?>(null) }
+    var menuPage by remember { mutableStateOf(LiveMenuPage.Main) }
     var bannerMsg by remember { mutableStateOf<String?>(null) }
     var ignoreMenuKeyUp by remember { mutableStateOf(true) }
     LaunchedEffect(bannerMsg) {
@@ -153,6 +158,7 @@ fun LiveSourceMenu(
         if (!visible) {
             menuForId = null
             movingId = null
+            menuPage = LiveMenuPage.Main
         }
     }
     val requesters = remember { HashMap<String, FocusRequester>() }
@@ -162,6 +168,7 @@ fun LiveSourceMenu(
     var hiddenIndex by remember { mutableStateOf(-1) }
     LaunchedEffect(menuForId) {
         if (menuForId != null) {
+            menuPage = LiveMenuPage.Main
             lastMenuId = menuForId
         } else if (lastMenuId != null) {
             val gone = !sources.any { it.id == lastMenuId }
@@ -302,6 +309,10 @@ fun LiveSourceMenu(
                         true
                     } else if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_BACK && e.type == KeyEventType.KeyUp) {
                         when {
+                            menuForId != null && menuPage != LiveMenuPage.Main -> {
+                                menuPage = LiveMenuPage.Main
+                                true
+                            }
                             menuForId != null -> {
                                 menuForId = null
                                 true
@@ -618,8 +629,16 @@ fun LiveSourceMenu(
                 val menuRowFromTop = sourceIndex / columns
                 // 上下文菜单位置：在该卡片正上方弹出(菜底距卡顶20dp)
                 val menuBottomPad = screenH - rowY(menuRowFromTop) + 20.dp
-                val first = remember { FocusRequester() }
-                LaunchedEffect(menuForId) { first.requestFocus() }
+                val mainFirst = remember { FocusRequester() }
+                val qualityFirst = remember { FocusRequester() }
+                LaunchedEffect(menuForId) { mainFirst.requestFocus() }
+                LaunchedEffect(menuPage) {
+                    if (menuPage == LiveMenuPage.Quality) qualityFirst.requestFocus()
+                    else mainFirst.requestFocus()
+                }
+                val options = LiveQualityOptions.options(source.id)
+                val currentQn = AerialSettings.effectiveLiveQn(source.id)
+                val selectedQn = if (currentQn == 0) options.firstOrNull() ?: 0 else currentQn
                 Column(
                     Modifier
                         .align(Alignment.BottomStart)
@@ -632,16 +651,37 @@ fun LiveSourceMenu(
                         .padding(8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    BasicText(source.name, style = TextStyle(Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold),
-                        modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 6.dp))
-                    MenuRow(Glyph.Move, "移动", { movingId = source.id; menuForId = null }, focusRequester = first)
-                    if (source.id != "preset_2") {
-                        MenuRow(Glyph.EyeSlash, "从直播菜单隐藏", {
-                            // 记录被隐藏项在旧列表中的索引, 用于隐藏后转移焦点到相邻项
-                            hiddenIndex = sources.indexOf(source)
-                            onHide(source.id); menuForId = null
-                        })
-                        MenuRow(Glyph.Trash, "删除", { onDelete(source.id); menuForId = null }, destructive = true)
+                    BasicText(
+                        if (menuPage == LiveMenuPage.Quality) "直播画质" else source.name,
+                        style = TextStyle(Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold),
+                        modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 6.dp),
+                    )
+                    if (menuPage == LiveMenuPage.Main) {
+                        MenuRow(Glyph.Move, "移动", { movingId = source.id; menuForId = null }, focusRequester = mainFirst)
+                        if (source.id != "preset_2") {
+                            MenuRow(Glyph.EyeSlash, "从直播菜单隐藏", {
+                                // 记录被隐藏项在旧列表中的索引, 用于隐藏后转移焦点到相邻项
+                                hiddenIndex = sources.indexOf(source)
+                                onHide(source.id); menuForId = null
+                            })
+                            MenuRow(Glyph.Trash, "删除", { onDelete(source.id); menuForId = null }, destructive = true)
+                        }
+                        if (source.isBilibili) {
+                            MenuRow(Glyph.Hdmi, "直播画质", { menuPage = LiveMenuPage.Quality }, trailing = "›")
+                        }
+                    } else {
+                        options.forEachIndexed { index, qn ->
+                            MenuRow(
+                                if (qn == selectedQn) Glyph.Check else Glyph.Hdmi,
+                                LiveQualityOptions.label(qn),
+                                {
+                                    onPickQuality(source.id, qn)
+                                    menuPage = LiveMenuPage.Main
+                                    menuForId = null
+                                },
+                                focusRequester = if (index == 0) qualityFirst else null,
+                            )
+                        }
                     }
                 }
             }

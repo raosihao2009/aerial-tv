@@ -1119,6 +1119,7 @@ fun HomeScreen(
                     // 卡住救场: 切到指定源(和菜单点选同一套, 新流真开播才提交)
                     onPickSource = { id -> vm.pickLiveSource(id) },
                     sourcesNow = { vm.liveSources },
+                    externalReload = vm.liveQualityReloadTick,
                     // 所有直播源都下播: 焦点从直播卡移到同一排相邻的普通卡片(先右后左),
                     // 这一排全是直播卡就往下挪一排, 让用户回到普通桌面而不是停在黑屏的直播卡上。
                     onMoveOffLiveCard = {
@@ -1632,6 +1633,11 @@ fun HomeScreen(
             onMove = { from, to -> vm.moveLiveSource(from, to) },
             onHide = { vm.hideLiveSource(it) },
             onDelete = { vm.removeLiveSource(it) },
+            onPickQuality = { id, qn ->
+                AerialSettings.chooseLiveQn(id, qn)
+                vm.reloadLiveQuality()
+                vm.overlay = Overlay.None
+            },
             onDismiss = { DiagLog.i("CC-debug: LiveMenu onDismiss"); vm.overlay = Overlay.None },
             onMenuOpenChange = { liveMenuOpen = it },
             onMovingChange = { liveMoving = it },
