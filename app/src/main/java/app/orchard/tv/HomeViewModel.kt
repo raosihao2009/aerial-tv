@@ -324,7 +324,11 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                                     }
                                 }
                                 val finalUrl = redirectUrl
-                                app.orchard.tv.system.DiagLog.i("直播状态: ${src.id} 最终地址=$finalUrl")
+                                // 只在判定不出 B 站直播间时记一条, 避免每 30 秒 10 条轮询日志
+                                // 把预览/看门狗记录挤出 600 行环形缓冲
+                                if (!finalUrl.contains("live.bilibili.com")) {
+                                    app.orchard.tv.system.DiagLog.i("直播状态: ${src.id} 非 B 站地址=$finalUrl")
+                                }
                                 // 只在最终URL是B站直播间时才查询状态, 其他源返回0(未知)
                                 if (!finalUrl.contains("live.bilibili.com")) return@runCatching 0
                                 val roomId = Regex("live\\.bilibili\\.com/(\\d+)").find(finalUrl)?.groupValues?.get(1)

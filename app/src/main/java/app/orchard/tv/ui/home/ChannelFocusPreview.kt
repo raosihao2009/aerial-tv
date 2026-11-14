@@ -308,6 +308,10 @@ fun ChannelFocusPreview(
         if (externalReload != lastReload) {
             streamCache.clear()
             lastReload = externalReload
+        } else if (reloadTick > 0) {
+            // 看门狗重载: 旧 CDN 流地址可能已失效, 清掉本机缓存重新调 playInfo 取新地址,
+            // 不能把同一条死流再拉一遍。
+            streamCache.remove(source.url ?: "")
         }
         var streamUrl: String? = streamCache[source.url ?: ""]
         if (streamUrl == null) {

@@ -79,6 +79,9 @@ class PlaybackWatchdog(
                 // 否决: 处在 STATE_BUFFERING 时 isPlaying 本来就是 false, 台其实只是网络抖了几秒。
                 val buffering = exo.isLoading
                 val frozen = posDelta < FROZEN_POS_DELTA_MS && bufDelta <= 0L
+                // 卡在缓冲: 一直处于 loading 且位置不走, 不等缓冲吸干再判。缓冲还剩几秒时
+                // 位置仍在推进, posDelta 够大不会命中; 真正卡死时位置停住、缓冲又补不进来。
+                val stuckBuffering = buffering && posDelta < FROZEN_POS_DELTA_MS
                 // 掉帧爆发按比例算(以前用绝对帧数, 60fps 流 2s 丢 40 帧 = 2% 也会命中)
                 val totalFrames = droppedDelta + renderedDelta
                 val dropBurst = totalFrames >= DROP_BURST_MIN_FRAMES &&
@@ -88,8 +91,11 @@ class PlaybackWatchdog(
                 val lowFpsLive = posDelta >= LOWFPS_MIN_POS_DELTA_MS
                 val lowFps = !lowFpsLive && renderedDelta > 0L && renderedDelta < renderedThreshold
                 // frozenOnly(看门狗关闭): 只认"真冻住", 不把掉帧爆发/低帧率算成卡死。
-                val bad = if (frozenOnly) frozen else frozen || dropBurst || lowFps
+                val bad = if (frozenOnly) frozen else frozen || stuckBuffering || dropBurst || lowFps
                 stuckStreak = if (bad) stuckStreak + 1 else 0
+                if (bad && stuckStreak == 1) {
+                    DiagLog.i("直播预览: 源 $sourceId 异常累积(frozen=$frozen stuckBuffering=$stuckBuffering pos=$posDelta buf=$bufDelta buffering=$buffering rendered=$renderedDelta)")
+                }
                 if (stuckStreak >= streakNeeded) {
                     // 触发前再等一个采样窗口复核: 有一类"看着卡"其实只是切流后的短暂停顿,
                     // 位置自己又走起来了就不算, 静默继续播。
@@ -107,7 +113,7 @@ class PlaybackWatchdog(
                         lastRendered = try { (exo.videoDecoderCounters?.renderedOutputBufferCount ?: 0).toLong() } catch (t: Throwable) { lastRendered }
                         continue
                     }
-                    DiagLog.i("直播预览: 源 $sourceId 卡顿(frozen=$frozen dropped=$droppedDelta/$totalFrames rendered=$renderedDelta pos=$posDelta buf=$bufDelta buffering=$buffering lowFpsLive=$lowFpsLive), 触发处理")
+                    DiagLog.i("直播预览: 源 $sourceId 卡顿(frozen=$frozen stuckBuffering=$stuckBuffering dropped=$droppedDelta/$totalFrames rendered=$renderedDelta pos=$posDelta buf=$bufDelta buffering=$buffering lowFpsLive=$lowFpsLive), 触发处理")
                     onJank(sourceId)
                     break
                 }
