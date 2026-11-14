@@ -291,13 +291,8 @@ fun WallpaperSheet(
                         listOf(true to R.string.st_on, false to R.string.st_off),
                         AerialSettings.livePreviewEnabled, AerialSettings::chooseLivePreview, first = true,
                     )
-                    Choices(
-                        R.string.st_live_quality,
-                        "直播画质: 1080p流畅, 原画清晰但低端设备可能卡",
-                        note,
-                        listOf(AerialSettings.LiveQuality.P1080 to R.string.st_live_1080, AerialSettings.LiveQuality.Original to R.string.st_live_original),
-                        AerialSettings.liveQuality, AerialSettings::chooseLiveQuality,
-                    )
+                    // 画质不再有全局开关: 每张直播卡的画质在直播菜单里按台选(直播卡 → 上下文菜单 →
+                    // 直播画质)。全局档位(key)仍留着给没选过的台兜底, 只是不再给用户看到。
                     Choices(
                         R.string.st_live_jank,
                         "高灵敏及早切备用源, 低灵敏减少误切, 关则不自动切换",
