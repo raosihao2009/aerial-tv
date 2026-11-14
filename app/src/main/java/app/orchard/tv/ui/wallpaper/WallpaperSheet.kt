@@ -81,6 +81,7 @@ import app.orchard.tv.settings.RestrictedKind
 import app.orchard.tv.settings.FocusStyle
 import app.orchard.tv.settings.UiSounds
 import app.orchard.tv.settings.Effects
+import app.orchard.tv.settings.ClockHours
 import app.orchard.tv.system.Sounds
 import app.orchard.tv.ui.components.Pressable
 import app.orchard.tv.ui.components.consumeTaps
@@ -127,6 +128,11 @@ fun WallpaperSheet(
     onHiddenLiveSources: () -> Unit = {},
     onStartScreensaver: () -> Unit,
     onPin: (on: Boolean) -> Unit,
+    /**
+     * 锁定主页的开关。上锁不需要验证; 解锁在设了家长密码时要先输密码, 由调用方走 whenUnlocked,
+     * 所以这里拿到的是回调而不是直接写设置。
+     */
+    onHomeLock: (on: Boolean) -> Unit = { AerialSettings.chooseHomeLocked(it) },
     /** Kids and Elders mode's setup (behind the PIN). */
     onKids: () -> Unit,
     /** The sheet is all the way in (true) or not: Home need not draw under it then ([SheetCovers]). */
@@ -203,6 +209,20 @@ fun WallpaperSheet(
                         AerialSettings.wallpaperAlwaysMoves, AerialSettings::chooseWallpaperAlwaysMoves, first = true,
                     )
                 }
+                // 上游 #1314: 只有"我的照片, 轮流"才需要问多久换一张, 别的壁纸没有下一张
+                if (Wallpapers.selectedId == Wallpapers.ROTATE_PHOTOS) Group { note ->
+                    Choices(
+                        R.string.st_photo_every, stringResource(R.string.st_photo_every_hint), note,
+                        AerialSettings.PHOTO_MINUTES.map { m ->
+                            m to when {
+                                m >= AerialSettings.DAY_MINUTES -> stringResource(R.string.st_photo_every_day)
+                                m >= 60 -> stringResource(R.string.kids_h, m / 60)
+                                else -> stringResource(R.string.kids_m, m)
+                            }
+                        },
+                        AerialSettings.photoMinutes, { AerialSettings.choosePhotoMinutes(it); Wallpapers.rotateIfDue() }, first = true,
+                    )
+                }
 
                 Spacer(Modifier.height(6.dp))
                 SectionTitle(R.string.st_home_layout)
@@ -254,6 +274,12 @@ fun WallpaperSheet(
                             )
                         }
                     }
+                    // 上锁: 长按 OK / Menu 不再弹应用菜单, 免得误移动、误隐藏、误卸载
+                    Choices(
+                        R.string.st_home_lock, stringResource(R.string.st_home_lock_hint), note,
+                        listOf(false to R.string.st_off, true to R.string.st_on),
+                        AerialSettings.homeLocked, onHomeLock,
+                    )
                 }
                 Spacer(Modifier.height(10.dp))
                 Group { note ->
@@ -387,11 +413,19 @@ fun WallpaperSheet(
                 Spacer(Modifier.height(22.dp))
                 SectionTitle(R.string.wp_weather)
                 Group(stringResource(if (Weather.chosen) R.string.wp_weather_chosen else R.string.wp_weather_guessed)) { note ->
+                    // 时钟制式: 只给 24 小时制和 12 小时制两个选项(不跟系统设置, 免得被电视语言
+                    // 带成 12 小时制)。旧值 System 一律按 24 小时制显示。
+                    Choices(
+                        R.string.st_clock_hours, stringResource(R.string.st_clock_hours_hint), note,
+                        listOf(ClockHours.H24 to R.string.st_clock_hours_24, ClockHours.H12 to R.string.st_clock_hours_12),
+                        if (AerialSettings.clockHours == ClockHours.H12) ClockHours.H12 else ClockHours.H24,
+                        { AerialSettings.chooseClockHours(it) }, first = true,
+                    )
                     // 天气是否显示在时钟下方
                     Choices(
                         R.string.st_weather_visibility, stringResource(R.string.st_weather_visibility_hint), note,
                         listOf(true to R.string.st_on, false to R.string.st_off),
-                        AerialSettings.showWeather, AerialSettings::chooseShowWeather, first = true,
+                        AerialSettings.showWeather, AerialSettings::chooseShowWeather,
                     )
                     SettingRow(R.string.wp_weather_city, null, note) { WeatherValue() }
                 }

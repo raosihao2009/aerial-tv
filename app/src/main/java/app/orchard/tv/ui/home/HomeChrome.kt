@@ -93,6 +93,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import app.orchard.tv.R
 import app.orchard.tv.settings.AerialSettings
+import app.orchard.tv.settings.ClockHours
 import app.orchard.tv.wallpaper.Images
 import app.orchard.tv.system.NetKind
 import app.orchard.tv.system.NetworkStatus
@@ -173,10 +174,10 @@ fun rememberNow(): State<LocalDateTime> {
 
 @Composable
 fun timeText(now: LocalDateTime): String {
-    val context = LocalContext.current
-    // 24-hour unless the owner chose 12-hour. With the setting unset, Android falls back to the
-    // locale, and zh_CN means 12-hour, which TV clocks here never show (TCL 65S515D, issue #15).
-    val twelve = runCatching { android.provider.Settings.System.getString(context.contentResolver, android.provider.Settings.System.TIME_12_24) }.getOrNull() == "12"
+    // 制式只看个性化里的「时钟制式」: 24 小时制固定 HH:mm(00:00 带前导零, 与原来一致),
+    // 12 小时制 h:mm(不带前导零, 午夜显示 12:xx)。旧值 System 按 24 小时制走 —— 跟着电视语言
+    // 跑会被 zh_CN 带成 12 小时制, 这里不再跟随系统设置。
+    val twelve = AerialSettings.clockHours == ClockHours.H12
     val pattern = if (twelve) "h:mm" else "HH:mm"
     // 冒号两侧补一个细空格: 数字是等宽 570 的窄字身, 冒号本身只有 270, 字距又是 0, 64 的数字
     // 与冒号黑边之间只剩几个像素, 52sp 上几乎粘在一起(用户反馈"数字与冒号之间没有空隙")。

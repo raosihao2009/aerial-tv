@@ -1311,7 +1311,8 @@ fun HomeScreen(
                                 }
                             },
                             onLongPress = { bounds ->
-                                if (moving == null && !vm.uiHidden && !Restricted.active) {
+                                // 锁定主页时不给菜单(顺带提示在哪解锁), 免得误移动/误隐藏/误卸载
+                                if (moving == null && !vm.uiHidden && !Restricted.active && !vm.noteHomeLocked()) {
                                     focusAfterOverlay = app.key
                                     indexAfterOverlay = index
                                     vm.overlay = Overlay.AppMenu(app.key, bounds ?: Rect.Zero)
@@ -1469,7 +1470,7 @@ fun HomeScreen(
             gap = metrics.gap,
             columns = columns,
             onLaunch = onLaunch,
-            onLongPress = { app, bounds -> vm.overlay = Overlay.AppMenu(app.key, bounds ?: Rect.Zero, inFolder = openFolder) },
+            onLongPress = { app, bounds -> if (!vm.noteHomeLocked()) vm.overlay = Overlay.AppMenu(app.key, bounds ?: Rect.Zero, inFolder = openFolder) },
             onDismiss = { vm.overlay = Overlay.None },
         )
 
@@ -1593,6 +1594,12 @@ fun HomeScreen(
             onHiddenApps = { vm.whenUnlocked { vm.overlay = Overlay.HiddenApps } },
             hiddenLiveCount = vm.hiddenLiveSources.size,
             onHiddenLiveSources = { vm.whenUnlocked { vm.overlay = Overlay.HiddenLiveSources } },
+            // 上锁不需要验证; 解锁在设了家长密码时要先输密码(否则等于绕过密码)
+            onHomeLock = { on ->
+                if (on == AerialSettings.homeLocked) Unit
+                else if (on) AerialSettings.chooseHomeLocked(true)
+                else vm.whenUnlocked { AerialSettings.chooseHomeLocked(false); vm.overlay = Overlay.Wallpaper }
+            },
             onKids = vm::setUpKidsMode,
             onStartScreensaver = {
                 vm.overlay = Overlay.None

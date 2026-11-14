@@ -160,6 +160,16 @@
     <string name="st_live_quality">直播画质</string>
     <string name="st_live_1080">1080p</string>
     <string name="st_live_original">原画</string>
+    <string name="st_clock_hours">时钟制式</string>
+    <string name="st_clock_hours_hint">24 小时制显示 15:00，12 小时制显示 3:00。</string>
+    <string name="st_clock_hours_system">跟随电视</string>
+    <string name="st_clock_hours_24">24 小时制</string>
+    <string name="st_clock_hours_12">12 小时制</string>
+    <string name="st_home_lock">锁定主页</string>
+    <string name="st_home_lock_hint">打开后，在卡片上长按 OK 或按菜单键不再弹出菜单，避免误移动、误隐藏或误删。设了家长密码时，关闭要先输入密码。</string>
+    <string name="st_photo_every">多久换一张</string>
+    <string name="st_photo_every_hint">「我的照片，轮流」时，桌面多久换到下一张。</string>
+    <string name="st_photo_every_day">每天</string>
     <string name="st_hidden_apps_hint">从应用菜单隐藏的卡片在这里，可以放回应用菜单。设了家长密码时要先输入密码。</string>
     <string name="st_hidden_live_hint">选择一张卡片放回直播菜单</string>
     <string name="st_hidden_none">没有</string>
