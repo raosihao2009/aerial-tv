@@ -51,14 +51,20 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 
 @Composable
 fun ChannelFocusPreview(
     source: LiveSource?,
     modifier: Modifier = Modifier,
-    /** 冷启动首屏是否已稳定: 首起播等它放开再建播放器, 避免和壁纸影片同时冷启动抢解码器。 */
-    gateOpen: Boolean = true,
+    /**
+     * 冷启动首屏是否已稳定: 首起播等它放开再建播放器, 避免和壁纸影片同时冷启动抢解码器。
+     * 必须是读取函数而不是 Boolean: 传值的话起播协程在开始那一刻就把 false 闭包进去了,
+     * snapshotFlow 读的是常量、永远不会再发, 首起播就永远停在这个等待里(实测热启动必现:
+     * 只打 "wait bootStable", 之后再无取流/READY/超时日志, 加载卡片一直挂着)。
+     */
+    gateOpen: () -> Boolean = { true },
     onFallback: () -> String? = { null },
     onRevert: (String) -> String? = { null },
     onReadyChange: (Boolean) -> Unit = {},
@@ -289,10 +295,14 @@ fun ChannelFocusPreview(
 
         // 冷启动首起播错峰: 等首屏稳定(网格/贴图落定、壁纸解码器先热起来)再建播放器, 避免
         // 两路硬解同一秒冷启动把刚拉起的直播拖到卡住、触发看门狗重载。运行中切换不等。
-        if (firstRun && !gateOpen) {
+        if (firstRun && !gateOpen()) {
             DiagLog.i("preview effect wait bootStable id=${source.id}")
-            androidx.compose.runtime.snapshotFlow { gateOpen }.first { it }
-            DiagLog.i("preview effect bootStable ok id=${source.id}")
+            // 读的是 gateOpen() 里的 vm.bootStable 本身, 它翻转时 snapshotFlow 才会重新取值;
+            // 这里必须再套一层"超时兜底": 闸门万一因为别的路径没置真, 也不能把首起播永远按住。
+            withTimeoutOrNull(3_000) {
+                androidx.compose.runtime.snapshotFlow { gateOpen() }.first { it }
+            }
+            DiagLog.i("preview effect bootStable ok id=${source.id} open=${gateOpen()}")
         }
 
         if (externalReload != lastReload) {
@@ -684,12 +694,21 @@ private suspend fun resolveStreamUrl(source: LiveSource, context: android.conten
 }
 
 private fun extractBilibiliRoomId(url: String): Long? = runCatching {
-    if (url.contains("b23.tv")) {
-        val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+    extractRoomIdFromUrl(url)?.let { return@runCatching it }
+    // 短链要跟跳转才拿得到房间号。B 站的短链域名不止 b23.tv(还有 bili23.cn / bili2233.cn),
+    // 以前只认 b23.tv, 换成别的短链域名就解析不出房间号、取流直接失败。
+    var loc: String? = url
+    var hops = 0
+    while (!loc.isNullOrBlank() && hops < 4) {
+        val room = extractRoomIdFromUrl(loc!!)
+        if (room != null) return@runCatching room
+        val c = java.net.URL(loc).openConnection() as java.net.HttpURLConnection
         c.instanceFollowRedirects = false; c.connectTimeout = 8000; c.readTimeout = 8000
-        val loc = c.getHeaderField("Location"); c.disconnect()
-        loc?.let { extractRoomIdFromUrl(it) }
-    } else extractRoomIdFromUrl(url)
+        loc = c.getHeaderField("Location")
+        c.disconnect()
+        hops++
+    }
+    null
 }.getOrNull()
 
 private fun extractRoomIdFromUrl(url: String): Long? =

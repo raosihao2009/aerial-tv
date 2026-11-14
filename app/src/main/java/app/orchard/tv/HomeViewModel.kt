@@ -73,9 +73,18 @@ data class LiveSource(
      * 只有菜单单独认 isBilibili, 结果就是这些卡片的上下文菜单没有「直播画质」。统一走这个属性。
      */
     val isBilibiliStream: Boolean
-        get() = isBilibili || url.lowercase().let {
-            it.contains("b23.tv") || it.contains("bilibili.com")
-        }
+        get() = isBilibili || isBilibiliUrl(url)
+}
+
+/**
+ * URL 看起来是不是 B 站直播。B 站的短链域名换过几轮(b23.tv / bili23.cn / bili2233.cn), 老的
+ * 自定义源用 bili23.cn 这种形态时, 添加那一刻的域名判断没认出来, 取流靠"跳转后看域名"照常能播,
+ * 但菜单只认这个标记, 结果上下文菜单里没有「直播画质」。
+ */
+fun isBilibiliUrl(url: String): Boolean {
+    val u = url.lowercase()
+    return u.contains("bilibili.com") || u.contains("b23.tv") ||
+        u.contains("bili23.cn") || u.contains("bili2233.cn")
 }
 
 sealed interface Overlay {
@@ -383,7 +392,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             id = id,
             name = name.ifBlank { "直播" },
             url = url.trim(),
-            isBilibili = url.contains("b23.tv") || url.contains("live.bilibili.com"),
+            isBilibili = isBilibiliUrl(url),
             isPreset = false,
             colorIndex = (liveSources.size) % 5,
         )

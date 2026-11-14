@@ -1094,7 +1094,7 @@ fun HomeScreen(
             if (channelPreviewVisible) {
                 ChannelFocusPreview(
                     source = previewSource,
-                    gateOpen = vm.bootStable,
+                    gateOpen = { vm.bootStable },
                     onFallback = {
                         val fb = vm.liveSources.find { it.id == "preset_2" } ?: vm.liveSources.firstOrNull()
                         fb?.let { vm.pickLiveSource(it.id) }
