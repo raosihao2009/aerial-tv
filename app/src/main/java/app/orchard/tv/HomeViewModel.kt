@@ -66,7 +66,15 @@ data class LiveSource(
     val colorIndex: Int = 0,
     val liveStatus: Int = 0,
     val iconTs: Long = 0,
-)
+) {
+    /**
+     * 是否按 B 站直播处理。isBilibili 是添加源那一刻算好写进 prefs 的快照, 域名判断规则后来
+     * 又扩过(早期只认 b23.tv), 老数据会和 URL 对不上: 取流/开播检查一直带 URL 兜底所以照常能播,
+     * 只有菜单单独认 isBilibili, 结果就是这些卡片的上下文菜单没有「直播画质」。统一走这个属性。
+     */
+    val isBilibiliStream: Boolean
+        get() = isBilibili || url.contains("b23.tv") || url.contains("live.bilibili.com")
+}
 
 sealed interface Overlay {
     data object None : Overlay

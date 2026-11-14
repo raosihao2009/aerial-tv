@@ -686,7 +686,7 @@ fun LiveSourceMenu(
                                 onHide(source.id); menuForId = null
                             })
                         }
-                        if (source.isBilibili) {
+                        if (source.isBilibiliStream) {
                             MenuRow(Glyph.Hdmi, "直播画质", { menuPage = LiveMenuPage.Quality }, trailing = "›")
                         }
                         if (source.id != "preset_2") {

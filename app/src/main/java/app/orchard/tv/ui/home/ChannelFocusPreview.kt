@@ -364,7 +364,7 @@ fun ChannelFocusPreview(
         val factory = DefaultHttpDataSource.Factory()
             .setUserAgent("Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
             .setConnectTimeoutMs(10_000).setReadTimeoutMs(10_000)
-        if (source.isBilibili || streamUrl.contains("bilibili.com")) {
+        if (source.isBilibiliStream || streamUrl.contains("bilibili.com")) {
             val buvid3 = fetchBuvid3()
             factory.setDefaultRequestProperties(mapOf(
                 "Referer" to "https://live.bilibili.com/",
@@ -659,7 +659,7 @@ private suspend fun resolveStreamUrl(source: LiveSource, context: android.conten
     try {
         when {
             source.url.endsWith(".m3u8") -> source.url
-            source.isBilibili || source.url.contains("b23.tv") || source.url.contains("live.bilibili.com") ->
+            source.isBilibiliStream ->
                 extractBilibiliRoomId(source.url)?.let { fetchBilibiliHlsUrl(it, source.id, context) }
             else -> source.url
         }
@@ -746,7 +746,7 @@ private fun fetchBilibiliHlsUrl(roomId: Long, sourceId: String, context: android
 
 /** 检测B站直播间是否已下播 */
 private fun checkIfOffline(source: LiveSource, context: android.content.Context): Boolean = runCatching {
-    if (!source.isBilibili && !source.url.contains("b23.tv") && !source.url.contains("live.bilibili.com")) {
+    if (!source.isBilibiliStream) {
         return@runCatching false
     }
     val roomId = extractBilibiliRoomId(source.url) ?: return@runCatching false
