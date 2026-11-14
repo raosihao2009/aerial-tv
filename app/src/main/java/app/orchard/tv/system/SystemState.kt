@@ -120,8 +120,20 @@ object SystemProbe {
         }
     }
 
-    fun volume(context: Context): VolumeStatus {
-        val am = context.getSystemService<AudioManager>() ?: return VolumeStatus()
+    /**
+     * 默认网络是不是真的能上外网。
+     * [network] 只看 transport: 断的若是路由器外网(WiFi 仍连着 AP), 它照样返回 [NetKind.Wifi],
+     * 直播卡住时就会以为"有网"而白白重载一轮、把救场次数用光, 最后还弹"地址可能失效"。
+     * NET_CAPABILITY_VALIDATED 是系统实际探测过外网才置位的, 这里以它为准。
+     */
+    fun online(context: Context): Boolean {
+        val cm = context.getSystemService<ConnectivityManager>() ?: return false
+        val caps = cm.getNetworkCapabilities(cm.currentNetwork() ?: return false) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    }
+
+    fun volume(context: Context): VolumeStatus {        val am = context.getSystemService<AudioManager>() ?: return VolumeStatus()
         return VolumeStatus(
             level = am.getStreamVolume(AudioManager.STREAM_MUSIC),
             max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC),
