@@ -245,9 +245,9 @@ fun ChannelFocusPreview(
                             DiagLog.i("channel preview: ${stalled.id} stalled $times times in 30 s, watchdog switched to $target")
                         } else {
                             reloadTick++
-                            // 30 秒内反复卡住时, 第 2、3 次不再弹同一条: 加载图已经在说"正在重载",
-                            // 同一条提示连刷只会盖住画面; 第 4 次升级成第 9 条"卡顿严重"。
-                            if (times <= 1) showToast("正在尝试重新加载「${stalled.name}」")
+                            // 第一次重载静默: 多半只是网络抖一下, 立刻弹提示反而显得"没卡也说在重载";
+                            // 30 秒内连续第 2 次重载才提示, 再往后不再刷(第 4 次升级成第 9 条"卡顿严重")。
+                            if (times == 2) showToast("正在尝试重新加载「${stalled.name}」")
                             DiagLog.i("channel preview: ${stalled.id} still live, reloading ($times in 30 s)")
                         }
                     }
@@ -520,11 +520,12 @@ fun ChannelFocusPreview(
             // 卡顿探测: 关掉看门狗也照样跑 —— 关掉的是"卡了就自动换源", 不是"卡死了也不管"。
             // 关时只看真冻住(frozenOnly), 触发后走 handleStall 的救场流程(查开播/下播 → 重载或换源)。
             val sens = AerialSettings.jankSensitivity
-            val warmupMs: Long; val dropThreshold: Long; val renderedThreshold: Long; val streakNeeded: Int
+            val warmupMs: Long; val dropBurstPercent: Int; val renderedThreshold: Long; val streakNeeded: Int
             when (sens) {
-                AerialSettings.JankSensitivity.Low -> { warmupMs = 12000L; dropThreshold = 80L; renderedThreshold = 12L; streakNeeded = 3 }
-                AerialSettings.JankSensitivity.High -> { warmupMs = 4000L; dropThreshold = 20L; renderedThreshold = 28L; streakNeeded = 2 }
-                else -> { warmupMs = 8000L; dropThreshold = 40L; renderedThreshold = 20L; streakNeeded = 2 }  // Medium / Off
+                AerialSettings.JankSensitivity.Low -> { warmupMs = 12000L; dropBurstPercent = 25; renderedThreshold = 12L; streakNeeded = 3 }
+                AerialSettings.JankSensitivity.High -> { warmupMs = 4000L; dropBurstPercent = 12; renderedThreshold = 28L; streakNeeded = 2 }
+                // Medium / Off: 连续 3 次(约 6s)异常才动, 掉帧按 18% 比例算
+                else -> { warmupMs = 8000L; dropBurstPercent = 18; renderedThreshold = 20L; streakNeeded = 3 }
             }
             // 停掉旧看门狗(换源/重载), 再为新流起一个
             watchdogRef.value?.stop()
@@ -532,7 +533,7 @@ fun ChannelFocusPreview(
                 exo = exo,
                 sourceId = source.id,
                 warmupMs = warmupMs,
-                dropThreshold = dropThreshold,
+                dropBurstPercent = dropBurstPercent,
                 renderedThreshold = renderedThreshold,
                 streakNeeded = streakNeeded,
                 isActive = {
