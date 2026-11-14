@@ -318,15 +318,13 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                                 if (!finalUrl.contains("live.bilibili.com")) return@runCatching 0
                                 val roomId = Regex("live\\.bilibili\\.com/(\\d+)").find(finalUrl)?.groupValues?.get(1)
                                 if (roomId.isNullOrBlank()) return@runCatching 0
-                                val apiUrl = "https://api.live.bilibili.com/room/v1/Room/get_info?room_id=$roomId"
-                                val apiConn = (java.net.URL(apiUrl).openConnection() as java.net.HttpURLConnection).apply {
-                                    connectTimeout = 5000; readTimeout = 5000
-                                    setRequestProperty("User-Agent", "Mozilla/5.0")
-                                }
-                                val json = apiConn.inputStream.bufferedReader().readText()
-                                apiConn.disconnect()
-                                val obj = org.json.JSONObject(json).getJSONObject("data")
-                                if (obj.getInt("live_status") == 1) 1 else 2
+                                // 用 play info 端点: 一次同时拿到开播状态和该房真实可选档(accept_qn),
+                                // 把档位收进缓存, 避免未取流的源在菜单里走兜底假档位(如只有原画的房
+                                // 被显示成 原画/蓝光/超清)。
+                                val data = app.orchard.tv.apps.BiliLiveApi.playInfo(roomId.toLong())
+                                val qns = app.orchard.tv.apps.BiliLiveApi.acceptedQn(data)
+                                if (qns.isNotEmpty()) app.orchard.tv.apps.LiveQualityOptions.setOptions(src.id, qns)
+                                if (app.orchard.tv.apps.BiliLiveApi.liveStatus(data) == 1) 1 else 2
                             }.getOrElse {
                                 app.orchard.tv.system.DiagLog.i("LiveStatus: ${src.id} error: ${it.message}")
                                 0

@@ -41,7 +41,7 @@ import app.orchard.tv.LiveSource
 import app.orchard.tv.R
 import app.orchard.tv.ui.BootVeil
 import app.orchard.tv.settings.AerialSettings
-import app.orchard.tv.apps.BiliAccount
+import app.orchard.tv.apps.BiliLiveApi
 import app.orchard.tv.apps.LiveQualityOptions
 import app.orchard.tv.system.DiagLog
 import app.orchard.tv.system.NetKind
@@ -365,10 +365,9 @@ fun ChannelFocusPreview(
             .setUserAgent("Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
             .setConnectTimeoutMs(10_000).setReadTimeoutMs(10_000)
         if (source.isBilibiliStream || streamUrl.contains("bilibili.com")) {
-            val buvid3 = fetchBuvid3()
             factory.setDefaultRequestProperties(mapOf(
                 "Referer" to "https://live.bilibili.com/",
-                "Cookie" to biliCookieHeader(buvid3)
+                "Cookie" to BiliLiveApi.cookieHeader()
             ))
         }
         val hls = HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(Uri.parse(streamUrl)))
@@ -666,25 +665,6 @@ private suspend fun resolveStreamUrl(source: LiveSource, context: android.conten
     } catch (e: Exception) { null }
 }
 
-private val buvidCache = mutableMapOf<String, String?>()
-
-private fun fetchBuvid3(): String {
-    buvidCache["buvid3"]?.let { return it }
-    return runCatching {
-        val c = java.net.URL("https://api.bilibili.com/x/frontend/finger/spi").openConnection() as java.net.HttpURLConnection
-        c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36")
-        c.connectTimeout = 8000; c.readTimeout = 8000
-        val body = c.inputStream.bufferedReader().readText(); c.disconnect()
-        val b3 = JSONObject(body).getJSONObject("data").getString("b_3")
-        buvidCache["buvid3"] = b3
-        b3
-    }.getOrDefault("buvid3_placeholder")
-}
-
-/** 直播请求 Cookie: 匿名 buvid3 在前, 已登录再追加 B 站登录态。 */
-private fun biliCookieHeader(buvid3: String): String =
-    listOfNotNull("buvid3=$buvid3", BiliAccount.cookie).joinToString("; ")
-
 private fun extractBilibiliRoomId(url: String): Long? = runCatching {
     if (url.contains("b23.tv")) {
         val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
@@ -701,25 +681,17 @@ private fun bilibiliQn(sourceId: String): Int =
     app.orchard.tv.settings.AerialSettings.effectiveLiveQn(sourceId)
 
 private fun fetchBilibiliHlsUrl(roomId: Long, sourceId: String, context: android.content.Context): String? = runCatching {
-    val buvid3 = fetchBuvid3()
     val targetQn = bilibiliQn(sourceId)
-    val api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1&codec=0,1&qn=$targetQn&platform=web"
-    val c = java.net.URL(api).openConnection() as java.net.HttpURLConnection
-    c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36")
-    c.setRequestProperty("Referer", "https://live.bilibili.com/")
-    c.setRequestProperty("Cookie", biliCookieHeader(buvid3))
-    c.connectTimeout = 10000; c.readTimeout = 10000
-    val body = c.inputStream.bufferedReader().readText(); c.disconnect()
+    val bodyData = BiliLiveApi.playInfo(roomId, targetQn) ?: return@runCatching null
     // 检测下播：live_status != 1 表示未开播
-    val liveStatus = JSONObject(body).optJSONObject("data")?.optInt("live_status", 1) ?: 1
+    val liveStatus = BiliLiveApi.liveStatus(bodyData)
     if (liveStatus != 1) {
         DiagLog.i("bilibili room $roomId offline (status=$liveStatus)")
         return@runCatching null
     }
-    val streams = JSONObject(body).getJSONObject("data").getJSONObject("playurl_info").getJSONObject("playurl").getJSONArray("stream")
+    val streams = bodyData.getJSONObject("playurl_info").getJSONObject("playurl").getJSONArray("stream")
     data class StreamItem(val qn: Int, val url: String)
     val candidates = mutableListOf<StreamItem>()
-    val accepted = mutableSetOf<Int>()
     for (i in 0 until streams.length()) {
         val s = streams.getJSONObject(i); if (s.optString("protocol_name") != "http_hls") continue
         val fmts = s.getJSONArray("format")
@@ -728,9 +700,6 @@ private fun fetchBilibiliHlsUrl(roomId: Long, sourceId: String, context: android
             val codecs = f.getJSONArray("codec")
             for (k in 0 until codecs.length()) {
                 val codec = codecs.getJSONObject(k)
-                codec.optJSONArray("accept_qn")?.let { arr ->
-                    for (a in 0 until arr.length()) accepted.add(arr.optInt(a))
-                }
                 val ui = codec.getJSONArray("url_info").getJSONObject(0)
                 val url = ui.getString("host") + codec.getString("base_url") + ui.getString("extra")
                 val qn = codec.optInt("current_qn", 0)
@@ -738,7 +707,7 @@ private fun fetchBilibiliHlsUrl(roomId: Long, sourceId: String, context: android
             }
         }
     }
-    LiveQualityOptions.setOptions(sourceId, accepted.sortedDescending())
+    LiveQualityOptions.setOptions(sourceId, BiliLiveApi.acceptedQn(bodyData))
     // 原画模式选所有流中最高画质; 指定档选不超过目标 qn 的最高画质
     val filtered = if (targetQn == 0) candidates else candidates.filter { it.qn <= targetQn }
     (filtered.ifEmpty { candidates }).maxByOrNull { it.qn }?.url
@@ -750,17 +719,10 @@ private fun checkIfOffline(source: LiveSource, context: android.content.Context)
         return@runCatching false
     }
     val roomId = extractBilibiliRoomId(source.url) ?: return@runCatching false
-    val buvid3 = fetchBuvid3()
-    val api = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1,2&codec=0,1&qn=${bilibiliQn(source.id)}&platform=web"
-    val c = java.net.URL(api).openConnection() as java.net.HttpURLConnection
-    c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36")
-    c.setRequestProperty("Referer", "https://live.bilibili.com/")
-    c.setRequestProperty("Cookie", biliCookieHeader(buvid3))
-    c.connectTimeout = 5000; c.readTimeout = 5000
-    val body = c.inputStream.bufferedReader().readText(); c.disconnect()
-    val status = JSONObject(body).optJSONObject("data")?.optInt("live_status", 1) ?: 1
-    DiagLog.i("checkIfOffline room=$roomId status=$status")
-    status != 1
+    val data = BiliLiveApi.playInfo(roomId, bilibiliQn(source.id))
+    LiveQualityOptions.setOptions(source.id, BiliLiveApi.acceptedQn(data))
+    DiagLog.i("checkIfOffline room=$roomId status=${BiliLiveApi.liveStatus(data)}")
+    BiliLiveApi.liveStatus(data) != 1
 }.getOrDefault(false)
 
 /** 央视网快看(备用源)的固定 id: 本场下播时先换它。 */
