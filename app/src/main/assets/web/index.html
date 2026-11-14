@@ -359,6 +359,7 @@
 
   <h2 data-i18n="feedback_h"></h2>
   <div class="list"><button class="item tint center" id="diagBtn" data-i18n="diag_show"></button></div>
+  <div class="list"><a class="item tint center" id="logBtn" href="#" data-i18n="diag_export"></a></div>
   <pre class="diag" id="diag" hidden></pre>
   <div class="row" id="diagActions" hidden>
     <button class="btn" id="diagCopy" data-i18n="diag_copy"></button>
@@ -393,7 +394,7 @@ let state = null, stateJson = '';
 
 // The language: ?lang=ru in the address, else the one picked under More (kept on the phone), else the
 // first of the phone's preferred languages that has a table, else English. Keys are in KEYS, one array of texts per language.
-const KEYS = ["screensaver", "screensaver_short", "ss_aerial", "ss_photos", "ss_clock", "focus", "focus_high", "focus_standard", "weather", "city_ph", "set", "upload_label", "feedback_h", "feedback_hint", "diag_show", "diag_copy", "diag_github", "hint_aerial", "hint_photos", "hint_clock", "g_live", "g_live_sub", "g_daily", "g_daily_sub", "g_photo", "g_builtin", "g_auto", "toast_wallpaper", "aria_delete", "confirm_delete", "wx_clear", "wx_partlycloudy", "wx_cloudy", "wx_fog", "wx_rain", "wx_snow", "wx_thunder", "wx_chosen", "wx_auto_btn", "toast_auto", "wx_guessed", "wx_none", "tag_source", "aria_rename", "toast_renamed", "toast_name_reset", "toast_rename_fail", "aria_reset_icon", "toast_icon_reset", "focus_hint_standard", "focus_hint_high", "daily_title", "daily_caption", "rotate_title", "rotate_caption", "empty_photos", "add_second", "toast_tv_updated", "sending_n", "toast_added", "toast_no_photos", "toast_send_fail", "toast_city_set", "toast_city_nf", "toast_set_fail", "toast_sending_icon", "toast_icon_set", "toast_icon_bad", "diag_collecting", "toast_diag_fail", "toast_copied", "toast_copy_manual", "language", "hint_follows", "ss_videos", "hint_videos", "videos_h", "videos_upload", "videos_hint", "videos_empty", "confirm_video_delete", "toast_videos_added", "toast_video_bad", "sending_video", "hint_system", "tab_home", "tab_live", "tab_more", "current_wp", "cancel", "save", "name_ph", "rename_hint", "change_icon", "this_tv", "folder_count", "folder_ph", "inputs_h", "inputs_hint", "rename_hint_app", "was_named", "arrange_hint", "arrange_unready", "hidden_h", "hidden_none", "hidden_locked", "show_app", "hide_app", "to_folder", "new_folder", "out_of_folder", "ungroup", "ungroup_confirm", "folder_hint", "toast_hidden", "toast_shown", "toast_in_folder", "toast_out_folder", "toast_ungrouped", "tab_looks", "looks_title", "show_on_home", "source_device", "source_plain", "source_device_hint", "tv_model", "sw_always", "sw_always_sub", "sw_weather", "sw_saver_time", "sw_saver_time_sub", "g_source_sub", "icon_h", "icon_library", "icon_own", "icon_custom", "toast_icon_picked", "drop_hint", "drop_sub", "drop_none", "toast_diag_paste", "live_hint"];
+const KEYS = ["screensaver", "screensaver_short", "ss_aerial", "ss_photos", "ss_clock", "focus", "focus_high", "focus_standard", "weather", "city_ph", "set", "upload_label", "feedback_h", "feedback_hint", "diag_show", "diag_copy", "diag_github", "diag_export", "hint_aerial", "hint_photos", "hint_clock", "g_live", "g_live_sub", "g_daily", "g_daily_sub", "g_photo", "g_builtin", "g_auto", "toast_wallpaper", "aria_delete", "confirm_delete", "wx_clear", "wx_partlycloudy", "wx_cloudy", "wx_fog", "wx_rain", "wx_snow", "wx_thunder", "wx_chosen", "wx_auto_btn", "toast_auto", "wx_guessed", "wx_none", "tag_source", "aria_rename", "toast_renamed", "toast_name_reset", "toast_rename_fail", "aria_reset_icon", "toast_icon_reset", "focus_hint_standard", "focus_hint_high", "daily_title", "daily_caption", "rotate_title", "rotate_caption", "empty_photos", "add_second", "toast_tv_updated", "sending_n", "toast_added", "toast_no_photos", "toast_send_fail", "toast_city_set", "toast_city_nf", "toast_set_fail", "toast_sending_icon", "toast_icon_set", "toast_icon_bad", "diag_collecting", "toast_diag_fail", "toast_copied", "toast_copy_manual", "language", "hint_follows", "ss_videos", "hint_videos", "videos_h", "videos_upload", "videos_hint", "videos_empty", "confirm_video_delete", "toast_videos_added", "toast_video_bad", "sending_video", "hint_system", "tab_home", "tab_live", "tab_more", "current_wp", "cancel", "save", "name_ph", "rename_hint", "change_icon", "this_tv", "folder_count", "folder_ph", "inputs_h", "inputs_hint", "rename_hint_app", "was_named", "arrange_hint", "arrange_unready", "hidden_h", "hidden_none", "hidden_locked", "show_app", "hide_app", "to_folder", "new_folder", "out_of_folder", "ungroup", "ungroup_confirm", "folder_hint", "toast_hidden", "toast_shown", "toast_in_folder", "toast_out_folder", "toast_ungrouped", "tab_looks", "looks_title", "show_on_home", "source_device", "source_plain", "source_device_hint", "tv_model", "sw_always", "sw_always_sub", "sw_weather", "sw_saver_time", "sw_saver_time_sub", "g_source_sub", "icon_h", "icon_library", "icon_own", "icon_custom", "toast_icon_picked", "drop_hint", "drop_sub", "drop_none", "toast_diag_paste", "live_hint"];
 const TEXTS = {
  "zh": [
   "屏幕保护程序",
@@ -413,6 +414,7 @@ const TEXTS = {
   "显示诊断信息",
   "复制",
   "去 GitHub 反馈",
+  "导出日志文件",
   "播放 Apple TV 航拍影片，画面会标出所在的地点。",
   "轮播每日精选和你的照片。",
   "大号时钟，配合当前壁纸。",
@@ -557,6 +559,7 @@ const TEXTS = {
   "Show Diagnostics",
   "Copy",
   "Report on GitHub",
+  "Export log file",
   "Plays Apple TV’s aerial films, with the place named on screen.",
   "Cycles through the daily photos and yours.",
   "A big clock over the current wallpaper.",
@@ -699,6 +702,7 @@ const TEXTS = {
   "Показать диагностику",
   "Копировать",
   "Сообщить на GitHub",
+  "Экспорт файла журнала",
   "Воспроизводит аэросъёмку Apple TV, на экране указано место.",
   "Сменяются фото дня и ваши фото.",
   "Большие часы поверх текущих обоев.",
@@ -841,6 +845,7 @@ const TEXTS = {
   "Показати діагностику",
   "Копіювати",
   "Повідомити на GitHub",
+  "Експорт файлу журналу",
   "Відтворює аерозйомку Apple TV, на екрані вказано місце.",
   "Змінюються фото дня та ваші фото.",
   "Великий годинник поверх поточних шпалер.",
@@ -983,6 +988,7 @@ const TEXTS = {
   "Диагностиканы көрсету",
   "Көшіру",
   "GitHub-та хабарлау",
+  "Журнал файлын экспорттау",
   "Apple TV аэрожиынын ойнатады, экранда орын көрсетіледі.",
   "Күннің фотолары мен өз фотоларыңыз кезектеседі.",
   "Ағымдағы түсқағаз үстіндегі үлкен сағат.",
@@ -1717,6 +1723,8 @@ $('#iconFile').onchange = async e => {
 };
 
 /* More tab: diagnostics. */
+// 导出日志文件: 直接下载, 不必先把诊断文本显示出来
+$('#logBtn').href = base + 'api/log';
 $('#diagBtn').onclick = async () => {
   const b = $('#diagBtn'); b.disabled = true; b.textContent = t('diag_collecting');
   try {

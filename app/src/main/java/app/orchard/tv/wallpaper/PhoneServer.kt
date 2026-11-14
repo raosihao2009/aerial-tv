@@ -96,6 +96,9 @@ class PhoneServer private constructor(private val context: Context, private val 
                 }
                 path == "/api/state" -> json(state())
                 path == "/api/diagnostics" -> text(Response.Status.OK, Diagnostics.report(context))
+                // 手机端「更多 → 导出日志文件」: 直接下载一份文本, 含本进程日志、落盘的诊断日志
+                // 与崩溃记录, 省得再去 Android/data 里翻文件。
+                path == "/api/log" -> logFile()
                 path.startsWith("/thumb/") -> thumb(path.removePrefix("/thumb/"))
                 session.method == Method.POST && path.startsWith("/live-icon/") -> {
                     val id = path.removePrefix("/live-icon/")
@@ -729,6 +732,15 @@ class PhoneServer private constructor(private val context: Context, private val 
     private fun json(o: JSONObject) = newFixedLengthResponse(Response.Status.OK, "application/json; charset=utf-8", o.toString())
 
     private fun text(status: Response.Status, msg: String) = newFixedLengthResponse(status, "text/plain; charset=utf-8", msg)
+
+    /** 日志文件下载: 附件名带时间, 浏览器直接存到手机的下载目录。 */
+    private fun logFile(): Response {
+        val body = app.orchard.tv.system.DiagLog.exportText()
+        val name = "aerial-log-" + java.text.SimpleDateFormat("MMdd-HHmm", java.util.Locale.US).format(java.util.Date()) + ".txt"
+        return newFixedLengthResponse(Response.Status.OK, "text/plain; charset=utf-8", body).apply {
+            addHeader("Content-Disposition", "attachment; filename=\"$name\"")
+        }
+    }
 
     companion object {
         const val PORT = 8790

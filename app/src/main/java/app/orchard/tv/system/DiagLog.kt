@@ -59,10 +59,14 @@ object DiagLog {
     fun setOption(context: Context, key: String, on: Boolean) = prefs(context).edit().putBoolean(key, on).apply()
     private fun prefs(context: Context) = context.getSharedPreferences("system", Context.MODE_PRIVATE)
 
+    /** Lines go to this file only; set on the first [init] even when the log file itself is off. */
+    @Volatile private var dir: File? = null
+
     fun init(context: Context) {
+        if (dir == null) dir = context.getExternalFilesDir(null) ?: context.filesDir
         if (file != null || !enabled(context)) return
-        val dir = context.getExternalFilesDir(null) ?: context.filesDir
-        file = File(dir, "aerial-diag.log")
+        val d = dir ?: return
+        file = File(d, "aerial-diag.log")
         i("log file ${file?.absolutePath}")
     }
 
@@ -102,6 +106,14 @@ object DiagLog {
             val line = "${synchronized(lines) { stamp.format(Date()) }} crash on ${t.name}: ${Log.getStackTraceString(e)}"
             Log.e(TAG, line)
             if (f != null) runCatching { f.appendText(line + "\n") }
+            // 崩溃总得留一份: 诊断日志要手动开, 而"黑屏后重启"恰恰是没开的那次, 于是下次启动
+            // 什么也看不到。这里固定写一份 crash 文件, 与诊断日志开关无关。
+            dir?.let { d -> runCatching {
+                val cf = File(d, "aerial-crash.log")
+                if (cf.length() > 256 * 1024) cf.delete()
+                cf.appendText(line + "\n")
+                cf.setReadable(true, false)
+            } }
             previous?.uncaughtException(t, e)
         }
     }
@@ -119,16 +131,50 @@ object DiagLog {
         synchronized(lines) { lines.forEach { writer.println("  $it") } }
         // 崩溃栈只落在文件里: 内存缓冲随进程重启清空, 于是"黑屏后重启再抓 dump"永远看不到
         // 上次为什么死。这里把文件里最近的 crash 行一并打出来。
+        val dirNow = dir ?: return
+        val crashes = crashLines(dirNow)
+        if (crashes.isNotEmpty()) {
+            writer.println("Crashes (from file, last ${crashes.size}):")
+            crashes.forEach { writer.println("  $it") }
+        }
+    }
+
+    /** 崩溃行: aerial-crash.log 全部, 加诊断日志里可能残留的 crash 行。 */
+    private fun crashLines(dirNow: File): List<String> = runCatching {
+        val out = ArrayList<String>()
+        File(dirNow, "aerial-crash.log").takeIf { it.exists() }?.useLines { seq ->
+            seq.forEach { out.add(it) }
+        }
         val f = file
-        if (f != null) runCatching {
-            val files = listOfNotNull(f, f.parentFile?.let { File(it, "aerial-diag.old.log") }?.takeIf { old -> old.exists() })
-            val crashes = files.flatMap { file ->
-                file.useLines { seq -> seq.filter { it.contains(" crash on ") }.toList() }
-            }.takeLast(5)
-            if (crashes.isNotEmpty()) {
-                writer.println("Crashes (from file, last ${crashes.size}):")
-                crashes.forEach { writer.println("  $it") }
+        if (f != null) {
+            listOf(f, File(dirNow, "aerial-diag.old.log")).filter { it.exists() }.forEach { each ->
+                each.useLines { seq -> seq.filter { it.contains(" crash on ") }.forEach { out.add(it) } }
             }
+        }
+        out.takeLast(5)
+    }.getOrDefault(emptyList())
+
+    /**
+     * 手机端「导出日志文件」: 设备信息、本进程内存里的日志, 以及已落盘的诊断日志与崩溃记录。
+     * 日志文件没开时后面两段为空, 头部会说明。
+     */
+    fun exportText(): String = buildString {
+        appendLine("Aerial log (${device()}):")
+        if (file == null) appendLine("(诊断日志文件未开启, 下面只含本进程内存里的日志; 崩溃记录另见 crash 段)")
+        appendLine()
+        synchronized(lines) { lines.forEach { appendLine("  $it") } }
+        val dirNow = dir ?: return@buildString
+        val crashes = crashLines(dirNow)
+        if (crashes.isNotEmpty()) {
+            appendLine()
+            appendLine("---- Crashes (${crashes.size}) ----")
+            crashes.forEach { appendLine(it) }
+        }
+        for (name in listOf("aerial-diag.log", "aerial-diag.old.log")) {
+            val each = File(dirNow, name).takeIf { it.exists() } ?: continue
+            appendLine()
+            appendLine("---- $name (${each.length()} bytes) ----")
+            runCatching { append(each.readText()) }
         }
     }
 }
