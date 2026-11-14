@@ -266,9 +266,12 @@ fun ChannelFocusPreview(
             return@LaunchedEffect
         }
 
+        DiagLog.i("preview effect enter id=${source.id} url=${source.url} player=${if (player != null) "yes" else "null"}")
+
         // 冷启动: 直播预览也是个硬件解码器, 别和开屏动画同时起播(实测首列直播预览+视频壁纸
         // 时过渡一卡一卡; 把预览挪到第≥2列就顺, 就是因为起播时机错开了)。等揭开后再走下面。
         while (!BootVeil.revealed) kotlinx.coroutines.delay(100)
+        DiagLog.i("preview effect veil revealed id=${source.id}")
 
         // 新聚焦到直播卡时, 卡片焦点缩放动画还在跑; 主线程紧接着就建 ExoPlayer/挂解码会和缩放
         // 抢主线程, 低端盒子上缩放动画掉帧。先等缩放弹簧落定(~180ms)再起播, 让出前一两帧。
@@ -285,7 +288,9 @@ fun ChannelFocusPreview(
         // 冷启动首起播错峰: 等首屏稳定(网格/贴图落定、壁纸解码器先热起来)再建播放器, 避免
         // 两路硬解同一秒冷启动把刚拉起的直播拖到卡住、触发看门狗重载。运行中切换不等。
         if (firstRun && !gateOpen) {
+            DiagLog.i("preview effect wait bootStable id=${source.id}")
             androidx.compose.runtime.snapshotFlow { gateOpen }.first { it }
+            DiagLog.i("preview effect bootStable ok id=${source.id}")
         }
 
         if (externalReload != lastReload) {
@@ -574,6 +579,7 @@ fun ChannelFocusPreview(
                 }
                 Lifecycle.Event.ON_STOP -> {
                     // 真正进入其他app: 立即销毁
+                    DiagLog.i("preview ON_STOP id=${playingSourceId ?: source?.id}")
                     pauseJob?.cancel()
                     watchdogRef.value?.stop()
                     playerListenerRef.value?.let { player?.removeListener(it) }
@@ -584,6 +590,7 @@ fun ChannelFocusPreview(
                 }
                 Lifecycle.Event.ON_START -> {
                     // 从其他app回到桌面: 播放器已销毁, 重新加载
+                    DiagLog.i("preview ON_START id=${playingSourceId ?: source?.id}")
                     st.paused = false
                     st.loading = true
                     restartSignal++
@@ -593,6 +600,7 @@ fun ChannelFocusPreview(
         }
         lifecycleOwner.lifecycle.addObserver(obs)
         onDispose {
+            DiagLog.i("preview dispose id=${playingSourceId ?: source?.id} player=${if (player != null) "yes" else "null"}")
             st.disposed = true
             // 预览销毁(切到非直播卡片/退出直播)时把加载图收掉, 别留在屏幕上
             onLoadingChange(false)
