@@ -653,7 +653,10 @@ fun LiveSourceMenu(
                     else mainFirst.requestFocus()
                 }
                 val options = LiveQualityOptions.options(source.id)
-                val currentQn = AerialSettings.effectiveLiveQn(source.id)
+                // 非当前源在菜单里改完画质后菜单不关: 偏好已写入 prefs, 但 prefs 不是 Compose 状态,
+                // 这里记一下本次选的档, 才能把勾移过去
+                var pickedQn by remember(source.id) { mutableStateOf<Int?>(null) }
+                val currentQn = pickedQn ?: AerialSettings.effectiveLiveQn(source.id)
                 // 实际会落到的档: 目标 qn 不在可选列表里(例如全局档 800)就取不超过它的最高档
                 val selectedQn = when {
                     currentQn == 0 -> options.firstOrNull() ?: 0
@@ -699,10 +702,15 @@ fun LiveSourceMenu(
                                 LiveQualityOptions.label(qn),
                                 {
                                     onPickQuality(source.id, qn)
-                                    // 不在这里撤浮层: 交给上面 LaunchedEffect(menuForId) 把焦点
-                                    // 还给卡片之后再关, 否则焦点会落到右上角控制中心按钮。
-                                    dismissAfterFocus = true
-                                    menuForId = null
+                                    if (source.id == currentId) {
+                                        // 改的是正在看的这一路: 先把焦点还给卡片再关浮层,
+                                        // 否则焦点会落到右上角控制中心按钮
+                                        dismissAfterFocus = true
+                                        menuForId = null
+                                    } else {
+                                        // 未观看的源: 只记偏好, 菜单留着可以接着调
+                                        pickedQn = qn
+                                    }
                                 },
                                 focusRequester = if (index == 0) qualityFirst else null,
                             )
