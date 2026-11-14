@@ -168,6 +168,17 @@
     <string name="st_live_1080">1080p</string>
     <string name="st_live_original">Original</string>
     <string name="st_live_jank">直播卡顿自动切换</string>
+    <string name="st_bili_account">B 站账号</string>
+    <string name="st_bili_account_hint">登录后直播可取更高画质档位；登录凭据只存在本机，不上报</string>
+    <string name="st_bili_login">扫码登录</string>
+    <string name="st_bili_logout">退出登录</string>
+    <string name="st_bili_qr_ready">请用 B 站 App 扫码</string>
+    <string name="st_bili_waiting">等待扫码…</string>
+    <string name="st_bili_scanned">已扫码，请在手机上确认</string>
+    <string name="st_bili_success">登录成功</string>
+    <string name="st_bili_expired">二维码已过期，请重新扫码</string>
+    <string name="st_bili_failed">登录失败，请重试</string>
+    <string name="st_bili_logged_in">已登录</string>
     <string name="st_hidden_apps">Hidden Apps</string>
     <string name="st_hidden_apps_hint">Apps hidden from Home are kept here, to put back. With a parental PIN set, it asks for the PIN first.</string>
     <string name="st_hidden_live">Hidden Live Cards</string>

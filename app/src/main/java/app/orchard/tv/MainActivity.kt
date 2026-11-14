@@ -52,6 +52,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.lifecycleScope
 import app.orchard.tv.apps.AppEntry
+import app.orchard.tv.apps.BiliAccount
 import app.orchard.tv.apps.CustomIcons
 import app.orchard.tv.apps.IconLibrary
 import app.orchard.tv.apps.AppNames
@@ -331,6 +332,7 @@ class MainActivity : ComponentActivity() {
         SourceLooks.init(this)
         AppNames.init(this)
         AerialSettings.init(this)
+        BiliAccount.init(this)
         Restricted.init(this)
         KidsWatch.start(this)
         // After the settings: the artwork's size follows the number of apps a row.

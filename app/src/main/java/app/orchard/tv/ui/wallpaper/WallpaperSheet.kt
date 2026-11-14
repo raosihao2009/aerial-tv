@@ -72,6 +72,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import app.orchard.tv.R
+import app.orchard.tv.apps.BiliAccount
+import app.orchard.tv.apps.BiliLogin
+import app.orchard.tv.apps.BiliLoginState
 import app.orchard.tv.settings.AerialSettings
 import app.orchard.tv.settings.Restricted
 import app.orchard.tv.settings.RestrictedKind
@@ -281,6 +284,7 @@ fun WallpaperSheet(
                         ),
                         AerialSettings.jankSensitivity, AerialSettings::chooseJankSensitivity,
                     )
+                    BiliLoginRow(note)
                     Choices(
                         R.string.st_focus_style,
                         stringResource(if (AerialSettings.focusStyle == FocusStyle.HighContrast) R.string.st_focus_high_hint else R.string.st_focus_standard_hint),
@@ -740,6 +744,81 @@ private fun ActionChip(label: String, glyph: Glyph, onClick: () -> Unit) {
         ) {
             BasicText(label, style = Type.Body.copy(color = fg))
             GlyphIcon(glyph, fg, 18.dp)
+        }
+    }
+}
+
+/** B 站扫码登录: 未登录出扫码入口并展开二维码与状态; 已登录显示账号与退出。 */
+@Composable
+private fun BiliLoginRow(note: (String?) -> Unit) {
+    var loggedIn by remember { mutableStateOf(BiliAccount.loggedIn) }
+    var uid by remember { mutableStateOf(BiliAccount.uid) }
+    var loginState by remember { mutableStateOf<BiliLoginState?>(null) }
+    var qrBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    val scope = rememberCoroutineScope()
+
+    fun startLogin() {
+        qrBitmap = null
+        loginState = null
+        scope.launch {
+            BiliLogin.login { s ->
+                loginState = s
+                when (s) {
+                    is BiliLoginState.QrReady -> {
+                        // 回调本身就在 BiliLogin 的 IO 线程里, 直接同步编码二维码。
+                        qrBitmap = PhoneServer.qr(s.qrUrl).asImageBitmap()
+                    }
+                    BiliLoginState.Success -> {
+                        loggedIn = BiliAccount.loggedIn
+                        uid = BiliAccount.uid
+                    }
+                    BiliLoginState.Expired, is BiliLoginState.Failed -> qrBitmap = null
+                    else -> {}
+                }
+            }
+        }
+    }
+
+    SettingRow(R.string.st_bili_account, stringResource(R.string.st_bili_account_hint), note) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (loggedIn) {
+                BasicText(
+                    listOfNotNull(stringResource(R.string.st_bili_logged_in), uid).joinToString(" · "),
+                    style = Type.Body.copy(color = Palette.SecondaryLabel),
+                )
+                ActionChip(stringResource(R.string.st_bili_logout), Glyph.Trash) {
+                    BiliAccount.clear()
+                    loggedIn = false
+                    uid = null
+                    loginState = null
+                    qrBitmap = null
+                }
+            } else {
+                ActionChip(stringResource(R.string.st_bili_login), Glyph.ChevronRight) { startLogin() }
+            }
+        }
+    }
+
+    if (!loggedIn && loginState != null) {
+        Column(
+            Modifier.padding(start = 18.dp, end = 10.dp, top = 4.dp, bottom = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            qrBitmap?.let {
+                Image(it, contentDescription = null, modifier = Modifier.size(160.dp))
+            }
+            BasicText(
+                when (loginState) {
+                    is BiliLoginState.QrReady -> stringResource(R.string.st_bili_qr_ready)
+                    BiliLoginState.WaitingScan -> stringResource(R.string.st_bili_waiting)
+                    BiliLoginState.ScannedConfirm -> stringResource(R.string.st_bili_scanned)
+                    BiliLoginState.Success -> stringResource(R.string.st_bili_success)
+                    BiliLoginState.Expired -> stringResource(R.string.st_bili_expired)
+                    is BiliLoginState.Failed -> stringResource(R.string.st_bili_failed)
+                    else -> ""
+                },
+                style = Type.Caption.copy(color = Palette.TertiaryLabel),
+            )
         }
     }
 }

@@ -41,6 +41,7 @@ import app.orchard.tv.LiveSource
 import app.orchard.tv.R
 import app.orchard.tv.ui.BootVeil
 import app.orchard.tv.settings.AerialSettings
+import app.orchard.tv.apps.BiliAccount
 import app.orchard.tv.system.DiagLog
 import app.orchard.tv.system.NetKind
 import app.orchard.tv.system.SystemProbe
@@ -357,7 +358,7 @@ fun ChannelFocusPreview(
             val buvid3 = fetchBuvid3()
             factory.setDefaultRequestProperties(mapOf(
                 "Referer" to "https://live.bilibili.com/",
-                "Cookie" to "buvid3=$buvid3"
+                "Cookie" to biliCookieHeader(buvid3)
             ))
         }
         val hls = HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(Uri.parse(streamUrl)))
@@ -670,6 +671,10 @@ private fun fetchBuvid3(): String {
     }.getOrDefault("buvid3_placeholder")
 }
 
+/** 直播请求 Cookie: 匿名 buvid3 在前, 已登录再追加 B 站登录态。 */
+private fun biliCookieHeader(buvid3: String): String =
+    listOfNotNull("buvid3=$buvid3", BiliAccount.cookie).joinToString("; ")
+
 private fun extractBilibiliRoomId(url: String): Long? = runCatching {
     if (url.contains("b23.tv")) {
         val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
@@ -691,7 +696,7 @@ private fun fetchBilibiliHlsUrl(roomId: Long, context: android.content.Context):
     val c = java.net.URL(api).openConnection() as java.net.HttpURLConnection
     c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36")
     c.setRequestProperty("Referer", "https://live.bilibili.com/")
-    c.setRequestProperty("Cookie", "buvid3=$buvid3")
+    c.setRequestProperty("Cookie", biliCookieHeader(buvid3))
     c.connectTimeout = 10000; c.readTimeout = 10000
     val body = c.inputStream.bufferedReader().readText(); c.disconnect()
     // 检测下播：live_status != 1 表示未开播
@@ -735,7 +740,7 @@ private fun checkIfOffline(source: LiveSource, context: android.content.Context)
     val c = java.net.URL(api).openConnection() as java.net.HttpURLConnection
     c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36")
     c.setRequestProperty("Referer", "https://live.bilibili.com/")
-    c.setRequestProperty("Cookie", "buvid3=$buvid3")
+    c.setRequestProperty("Cookie", biliCookieHeader(buvid3))
     c.connectTimeout = 5000; c.readTimeout = 5000
     val body = c.inputStream.bufferedReader().readText(); c.disconnect()
     val status = JSONObject(body).optJSONObject("data")?.optInt("live_status", 1) ?: 1
