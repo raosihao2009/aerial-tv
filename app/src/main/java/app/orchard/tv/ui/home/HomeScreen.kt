@@ -1635,7 +1635,9 @@ fun HomeScreen(
             onDelete = { vm.removeLiveSource(it) },
             onPickQuality = { id, qn ->
                 AerialSettings.chooseLiveQn(id, qn)
-                vm.reloadLiveQuality()
+                // 只有改的是当前正在看的这一路才需要重新取流; 未观看的直播卡片只记偏好,
+                // 不触发加载(否则会白拉一遍流、画面闪一下又回落)
+                if (id == vm.currentLiveSourceId) vm.reloadLiveQuality()
                 // 浮层由 LiveSourceMenu 自己先还焦点再关, 这里不关
             },
             onDismiss = { DiagLog.i("CC-debug: LiveMenu onDismiss"); vm.overlay = Overlay.None },
