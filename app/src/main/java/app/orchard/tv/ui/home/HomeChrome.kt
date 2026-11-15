@@ -66,6 +66,7 @@ import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
@@ -1050,12 +1051,20 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
     val days = fc.take(3)
     if (days.isEmpty()) return
     var idx by remember { mutableStateOf(0) }
+    // 各槽位上次展示的条目。预报中途刷新时, 不在当前可见槽位上硬切,
+    // 等轮到该槽位再取最新数据, 跨天/换批随滚动逐槽自然更新。
+    val slots = remember { mutableStateListOf<ForecastDay?>() }
+    LaunchedEffect(days) {
+        while (slots.size < days.size) slots.add(null)
+        days.forEachIndexed { i, d -> if (slots[i] == null) slots[i] = d }
+    }
     LaunchedEffect(days.size) {
         if (days.size > 1) {
             while (true) {
                 // 滑动 1 秒, 停 9 秒, 一轮仍是 10 秒。
                 delay(9_000)
                 idx = (idx + 1) % days.size
+                slots[idx] = days.getOrNull(idx)
             }
         }
     }
@@ -1070,7 +1079,7 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
                 slideOutVertically(animationSpec = slide) { h -> -h } + fadeOut(fade))
         },
     ) { i ->
-        val d = days[i]
+        val d = slots[i] ?: days[i]
         Row(verticalAlignment = Alignment.CenterVertically) {
             val label = when (i) { 0 -> "今天"; 1 -> "明天"; else -> "后天" }
             WeatherTag(label, weatherStyle)
