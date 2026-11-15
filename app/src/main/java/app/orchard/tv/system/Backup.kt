@@ -108,9 +108,11 @@ object Backup {
             val fileList = JSONArray()
             // 只走一遍目录: 清单与实际打包必须来自同一份列表, 否则这期间变了就会对不上。
             val entries = ArrayList<Pair<File, String>>()
-            walkFiles(context.filesDir) { file, rel ->
-                entries.add(file to rel)
-                fileList.put(rel)
+            walkFiles(context.filesDir) { file, rel -> entries.add(file to rel) }
+            // 清单带上字节数: 导入时靠它认出一个被截断的包。只写文件名时, 包传了一半
+            // 也能"解包成功", 留下半截文件(那条 22MB 的屏保视频就是这么变成 1.6MB 的)。
+            entries.forEach { (file, rel) ->
+                fileList.put(JSONObject().put("name", rel).put("size", file.length()))
             }
             val files = entries.size
             val bytes = entries.sumOf { it.first.length() }
@@ -194,6 +196,10 @@ object Backup {
     fun restore(context: Context, input: InputStream): Summary {
         var prefs = 0
         var files = 0
+        // 清单里每个文件应有的字节数; 包传一半时, 写出来的文件会比这个短。
+        val expect = LinkedHashMap<String, Long>()
+        var hasList = false
+        val seen = HashSet<String>()
         trace(context, "开始解包")
         ZipInputStream(input).use { zip ->
             var entry = zip.nextEntry
@@ -204,13 +210,40 @@ object Backup {
                 when {
                     name == MANIFEST -> {
                         val manifest = JSONObject(String(zip.readBytes(), Charsets.UTF_8))
+                        manifest.optJSONArray("files")?.let { arr ->
+                            hasList = true
+                            for (i in 0 until arr.length()) {
+                                when (val v = arr.opt(i)) {
+                                    // 新包是 {name, size}; 老包只有文件名, 那就只核对有没有。
+                                    is JSONObject -> expect[v.optString("name")] = v.optLong("size", 0L)
+                                    is String -> expect[v] = 0L
+                                }
+                            }
+                        }
                         prefs = applyPrefs(context, manifest.optJSONObject("prefs"))
-                        trace(context, "清单已应用: $prefs 项设置")
+                        trace(context, "清单已应用: $prefs 项设置, 应有 ${expect.size} 个文件")
                     }
                     name.startsWith(FILES) && !entry.isDirectory -> {
-                        val target = File(context.filesDir, name.removePrefix(FILES))
+                        val rel = name.removePrefix(FILES)
+                        val target = File(context.filesDir, rel)
                         target.parentFile?.mkdirs()
-                        target.outputStream().use { zip.copyTo(it) }
+                        val want = expect[rel] ?: 0L
+                        var got = 0L
+                        target.outputStream().use { out ->
+                            val buf = ByteArray(64 * 1024)
+                            while (true) {
+                                val n = zip.read(buf)
+                                if (n <= 0) break
+                                out.write(buf, 0, n)
+                                got += n
+                            }
+                        }
+                        // 短了就删掉: 半截文件留在电视里, 下次导出会把它当成完整备份带走。
+                        if (want > 0 && got != want) {
+                            target.delete()
+                            throw IllegalArgumentException("备份包不完整: $rel 应有 $want 字节, 实际只有 $got 字节")
+                        }
+                        seen.add(rel)
                         files++
                         // 每 50 个记一行: 卡在哪个文件、什么时候耗尽空间, 重启后还能看见。
                         if (files % 50 == 0) trace(context, "已解 $files 个文件, 最近 $name")
@@ -218,6 +251,13 @@ object Backup {
                 }
                 zip.closeEntry()
                 entry = zip.nextEntry
+            }
+        }
+        // 有的包里文件条目会整段不见(传输中断): 清单列了但一个都没写进来。
+        if (hasList) {
+            val missing = expect.keys.filter { it !in seen }
+            if (missing.isNotEmpty()) {
+                throw IllegalArgumentException("备份包不完整: 缺 ${missing.size} 个文件, 例如 ${missing.first()}")
             }
         }
         trace(context, "解包结束: $prefs 项设置, $files 个文件")
