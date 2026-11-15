@@ -1792,7 +1792,20 @@ $('#logBtn').onclick = async () => {
 $('#backupBtn').href = base + 'api/backup';
 $('#backupBtn').download = 'aerial-backup.zip';
 // 备份是边压边发的流, 电视那头打包大文件要几秒; 点下去先给一句反馈, 免得看着像没反应。
-$('#backupBtn').onclick = () => toast(t('backup_packing'));
+$('#backupBtn').onclick = () => {
+  toast(t('backup_packing'));
+  // 浏览器要等服务端把包打完、回了响应头, 才会在下载栏里出现条目; 这段时间页面上得有个
+  // 还在动的计时, 否则看着就像点了没反应。
+  const b = $('#backupBtn');
+  const label = b.textContent;
+  const at = Date.now();
+  if (b._packTimer) clearInterval(b._packTimer);
+  b._packTimer = setInterval(() => {
+    const sec = Math.round((Date.now() - at) / 1000);
+    b.textContent = t('backup_packing').replace(/…$/, '') + ' ' + sec + 's';
+    if (sec >= 90) { clearInterval(b._packTimer); b._packTimer = null; b.textContent = label; }
+  }, 500);
+};
 $('#restoreBtn').onclick = () => $('#restoreFile').click();
 // 上次导入的结果: 电视重启那一刻的回复经常到不了手机, 页面再打开时补看一次。
 (async () => {

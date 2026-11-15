@@ -130,11 +130,22 @@ object Backup {
             zip.write(manifest.toString().toByteArray(Charsets.UTF_8))
             zip.closeEntry()
             var failed = 0
+            val start = System.currentTimeMillis()
             entries.forEach { (file, rel) ->
                 // 每个条目必须单独关: 漏一个, 后面的条目全读不出来。
                 var open = false
                 runCatching {
-                    zip.putNextEntry(ZipEntry(FILES + rel))
+                    val entry = ZipEntry(FILES + rel)
+                    // mp4/jpg/png 本身已压过, 再 deflate 一遍只是白烧 CPU: 60MB 的包能因此
+                    // 从十几秒缩到两三秒, 手机点下载不用干等。代价是先读一遍算 CRC。
+                    if (storeAs(rel)) {
+                        val size = file.length()
+                        entry.method = ZipEntry.STORED
+                        entry.size = size
+                        entry.compressedSize = size
+                        entry.crc = crcOf(file)
+                    }
+                    zip.putNextEntry(entry)
                     open = true
                     file.inputStream().use { it.copyTo(zip) }
                 }.onFailure {
@@ -143,12 +154,31 @@ object Backup {
                 }
                 if (open) zip.closeEntry()
             }
+            trace(context, "打包耗时 ${System.currentTimeMillis() - start} ms")
             if (failed > 0) trace(context, "导出有 $failed 个文件没打进包")
             return Summary(prefs, files)
         }
     }
 
     /** 遍历 files 目录, 跳过证书与日志。 */
+    /** 已经是压缩格式的, 直接原样存; 再 deflate 一遍只会拖慢打包。 */
+    private fun storeAs(rel: String): Boolean =
+        rel.substringAfterLast('.', "").lowercase() in
+            setOf("mp4", "m4v", "mov", "jpg", "jpeg", "png", "webp", "gif", "heic", "mp3", "aac", "ogg", "flac", "zip", "apk")
+
+    private fun crcOf(file: File): Long {
+        val crc = java.util.zip.CRC32()
+        file.inputStream().use { input ->
+            val buf = ByteArray(64 * 1024)
+            while (true) {
+                val n = input.read(buf)
+                if (n <= 0) break
+                crc.update(buf, 0, n)
+            }
+        }
+        return crc.value
+    }
+
     private fun walkFiles(root: File, onFile: (File, String) -> Unit) {
         fun go(dir: File, prefix: String) {
             dir.listFiles()?.forEach { f ->
