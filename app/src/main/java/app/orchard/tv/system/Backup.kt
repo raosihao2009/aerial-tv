@@ -106,11 +106,17 @@ object Backup {
                 prefs += values.length()
             }
             val fileList = JSONArray()
-            var files = 0
-            walkFiles(context.filesDir) { _, rel ->
+            // 只走一遍目录: 清单与实际打包必须来自同一份列表, 否则这期间变了就会对不上。
+            val entries = ArrayList<Pair<File, String>>()
+            walkFiles(context.filesDir) { file, rel ->
+                entries.add(file to rel)
                 fileList.put(rel)
-                files++
             }
+            val files = entries.size
+            val bytes = entries.sumOf { it.first.length() }
+            trace(context, "导出清单: $files 个文件, $bytes 字节")
+            entries.take(120).forEach { (f, rel) -> trace(context, "  $rel ${f.length()}") }
+            if (files > 120) trace(context, "  ... 其余 ${files - 120} 个")
             val manifest = JSONObject().apply {
                 put("version", VERSION)
                 put("package", context.packageName)
@@ -121,13 +127,21 @@ object Backup {
             zip.putNextEntry(ZipEntry(MANIFEST))
             zip.write(manifest.toString().toByteArray(Charsets.UTF_8))
             zip.closeEntry()
-            walkFiles(context.filesDir) { file, rel ->
+            var failed = 0
+            entries.forEach { (file, rel) ->
+                // 每个条目必须单独关: 漏一个, 后面的条目全读不出来。
+                var open = false
                 runCatching {
                     zip.putNextEntry(ZipEntry(FILES + rel))
+                    open = true
                     file.inputStream().use { it.copyTo(zip) }
-                    zip.closeEntry()
+                }.onFailure {
+                    failed++
+                    trace(context, "打包失败: $rel ${it.message}")
                 }
+                if (open) zip.closeEntry()
             }
+            if (failed > 0) trace(context, "导出有 $failed 个文件没打进包")
             return Summary(prefs, files)
         }
     }
