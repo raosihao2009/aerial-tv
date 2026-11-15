@@ -127,6 +127,10 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     init { instance = this }
     private val store = LayoutStore(app)
+    // 直播状态轮询防重入: 救场时 onStatusRefresh 会连续调用本方法。注意必须放在类顶部字段区,
+    // 不能搁在方法后面——init 块里就会走 checkLiveStatuses, 后置字段此时还没初始化(null),
+    // 第一行 CAS 就会 NPE(此前冷启动黑屏的根因)。
+    private val statusCheckBusy = java.util.concurrent.atomic.AtomicBoolean(false)
     private var all: List<AppEntry> = emptyList()
 
     var apps by mutableStateOf<List<AppEntry>>(emptyList()); private set
@@ -295,7 +299,16 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun checkLiveStatuses() {
+        // 救场时 onStatusRefresh 会连续调用本方法, 断网期间更容易叠成好几轮并发:
+        // 每轮 11 个源全都 DNS 失败, 一秒能刷几十条, 把预览/看门狗记录挤出环形缓冲。
+        if (!statusCheckBusy.compareAndSet(false, true)) return
         kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            // 外网不通时这轮没有意义: 每个源都会超时/解析失败, 只等下一轮(网络恢复后自然成功)。
+            if (!app.orchard.tv.system.SystemProbe.online(context)) {
+                app.orchard.tv.system.DiagLog.i("直播状态: 网络不可达, 跳过本轮")
+                return@launch
+            }
             val biliSources = liveSources.filter {
                 it.url.isNotBlank()
             }
@@ -364,6 +377,9 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             // 注意: 这里不再因为 liveStatus==2 就自动切 currentLiveSourceId。
             // 后台轮询可能因网络抖动/API限流误报下播, 静默切走会让用户回来发现源被换了。
             // 真正下播由 ChannelFocusPreview 加载失败时的 onFallback 处理。
+        } finally {
+            statusCheckBusy.set(false)
+        }
         }
     }
 

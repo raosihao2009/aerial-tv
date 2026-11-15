@@ -120,6 +120,37 @@ object SystemProbe {
         }
     }
 
+    /**
+     * 默认网络是不是真的能上外网。
+     * [network] 只看 transport: 断路由器外网(WiFi 仍连着 AP)时它照样返回 Wifi, 直播卡住就会
+     * 误以为有网、白白重载一轮把救场次数用光, 最后还弹"地址可能失效"。先看系统实际探测过
+     * 外网才置位的 NET_CAPABILITY_VALIDATED; 部分电视 ROM 不维护这一位(恒 false), 那种设备上
+     * 再实测一次连通性兜底(结果缓存 5 秒)。拼文案这类不能阻塞的路径传 probe=false。
+     */
+    fun online(context: Context, probe: Boolean = true): Boolean {
+        val cm = context.getSystemService<ConnectivityManager>() ?: return false
+        val caps = cm.getNetworkCapabilities(cm.currentNetwork() ?: return false) ?: return false
+        if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return false
+        if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) return true
+        if (!probe) return false
+        return probeReachable()
+    }
+
+    @Volatile private var probeOk = false
+    @Volatile private var probeAt = 0L
+
+    /** 连一个公共 DNS 的 53 端口, 通不通就是能不能上外网; 800ms 足够局域网内往返。 */
+    private fun probeReachable(): Boolean {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (probeAt != 0L && now - probeAt < 5_000L) return probeOk
+        val ok = runCatching {
+            java.net.Socket().use { it.connect(java.net.InetSocketAddress("223.5.5.5", 53), 800) }
+        }.isSuccess
+        probeAt = android.os.SystemClock.uptimeMillis()
+        probeOk = ok
+        return ok
+    }
+
     fun volume(context: Context): VolumeStatus {
         val am = context.getSystemService<AudioManager>() ?: return VolumeStatus()
         return VolumeStatus(
