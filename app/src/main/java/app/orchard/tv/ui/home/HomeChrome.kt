@@ -13,6 +13,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloatAsState
@@ -39,12 +42,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import app.orchard.tv.ui.components.smoothBorder
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Modifier
@@ -117,6 +122,7 @@ import app.orchard.tv.ui.components.diagLayer
 import app.orchard.tv.weather.Weather
 import app.orchard.tv.weather.WeatherKind
 import app.orchard.tv.weather.WeatherNow
+import app.orchard.tv.weather.ForecastDay
 import java.text.SimpleDateFormat
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -1020,11 +1026,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
         Weather.now?.takeIf { AerialSettings.showWeather }?.let { w ->
             val cond = stringResource(conditionName(w.kind))
             val fc = w.forecast
-            val today = fc.firstOrNull()
-            val todayLow = today?.low ?: w.low
-            val todayHigh = today?.high ?: w.high
-            val todayText = today?.display?.ifEmpty { null }
-            // 单行: 今天[图标1][图标2]大雨转阴 14° / 18°｜现在[图标]小雨 16°
+            // 左右互换: 实时天气固定在左侧; 右侧是今天/明天/后天预报, 10 秒一轮向上滚动。
             Row(
                 modifier = Modifier.padding(top = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1034,27 +1036,53 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     fontFamily = OppoSans, letterSpacing = 0.em,
                 )
                 val sepStyle = weatherStyle.copy(color = Color.White.copy(alpha = 0.4f))
-                BasicText("今天", style = weatherStyle)
-                if (today != null) {
-                    WeatherIcon(today.dayKind, isDayNow(), 20.dp, Modifier.padding(start = 1.dp))
-                    if (today.display.contains("转")) {
-                        WeatherIcon(today.nightKind, isDayNow(), 20.dp, Modifier.padding(start = 1.dp))
-                    }
-                }
-                if (todayText != null) {
-                    BasicText(todayText, style = weatherStyle)
-                }
-                if (todayLow != null && todayHigh != null) {
-                    BasicText(" $todayLow° / $todayHigh°", style = weatherStyle)
-                }
-                BasicText("｜", style = sepStyle)
                 BasicText("现在", style = weatherStyle)
                 WeatherIcon(w.kind, isDayNow(), 20.dp, Modifier.padding(start = 1.dp))
                 BasicText("$cond ${w.celsius}°", style = weatherStyle)
+                BasicText("｜", style = sepStyle)
+                ForecastCarousel(fc, weatherStyle)
             }
         }
     }
 }
+/** 今天/明天/后天预报轮播: 10 秒一次, 新一天从下方滚上来, 旧一天向上走。 */
+@Composable
+private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
+    val days = fc.take(3)
+    if (days.isEmpty()) return
+    var idx by remember { mutableStateOf(0) }
+    LaunchedEffect(days.size) {
+        if (days.size > 1) {
+            while (true) {
+                delay(10_000)
+                idx = (idx + 1) % days.size
+            }
+        }
+    }
+    AnimatedContent(
+        targetState = idx,
+        label = "forecast",
+        transitionSpec = {
+            (slideInVertically { h -> h } + fadeIn() togetherWith
+                slideOutVertically { h -> -h } + fadeOut())
+        },
+    ) { i ->
+        val d = days[i]
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val label = d.week.ifEmpty {
+                when (i) { 0 -> "今天"; 1 -> "明天"; else -> "" }
+            }
+            if (label.isNotEmpty()) BasicText(label, style = weatherStyle)
+            WeatherIcon(d.dayKind, isDayNow(), 20.dp, Modifier.padding(start = 1.dp))
+            if (d.display.contains("转")) {
+                WeatherIcon(d.nightKind, isDayNow(), 20.dp, Modifier.padding(start = 1.dp))
+            }
+            if (d.display.isNotEmpty()) BasicText(d.display, style = weatherStyle)
+            BasicText(" ${d.low}° / ${d.high}°", style = weatherStyle)
+        }
+    }
+}
+
 private fun isDayNow(): Boolean {
     val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
     return h in 6..18

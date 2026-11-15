@@ -25,7 +25,8 @@ enum class WeatherKind { Clear, PartlyCloudy, Cloudy, Fog, Haze, Drizzle, LightR
 
 /** One day of the forecast. */
 data class ForecastDay(val kind: WeatherKind, val high: Int, val low: Int, val display: String = "",
-                       val dayKind: WeatherKind = kind, val nightKind: WeatherKind = kind)
+                       val dayKind: WeatherKind = kind, val nightKind: WeatherKind = kind,
+                       val week: String = "", val date: String = "")
 
 /** [high] and [low] are today's, shown under the large clock; null in a reading saved by an older version. */
 data class WeatherNow(val celsius: Int, val kind: WeatherKind, val day: Boolean, val high: Int? = null, val low: Int? = null, val forecast: List<ForecastDay> = emptyList())
@@ -81,7 +82,8 @@ object Weather {
                     val fcLow = prefs.getInt("fc_low", NONE).takeIf { it != NONE }
                     val fcDisplay = prefs.getString("fc_display", null)
                     if (fcKind != null && fcHigh != null && fcLow != null) {
-                        add(ForecastDay(fcKind, fcHigh, fcLow, fcDisplay ?: ""))
+                        add(ForecastDay(fcKind, fcHigh, fcLow, fcDisplay ?: "",
+                            week = prefs.getString("fc_week", null) ?: ""))
                     }
                 }
                 now = WeatherNow(
@@ -134,6 +136,7 @@ object Weather {
                         putInt("fc_high", fc.high)
                         putInt("fc_low", fc.low)
                         putString("fc_display", fc.display)
+                        putString("fc_week", fc.week)
                     }
                 }
             }
