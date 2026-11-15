@@ -71,50 +71,49 @@ object Weather {
         prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         place = prefs.getString("place_custom", null) ?: prefs.getString("place", null)
         chosen = prefs.getBoolean("chosen", false)
+        lastRefreshDay = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_MONTH)
         if (System.currentTimeMillis() - prefs.getLong("fetched_at", 0) < STALE_MS) {
             val kind = runCatching { WeatherKind.valueOf(prefs.getString("kind", null) ?: "") }.getOrNull()
             if (kind != null) {
                 val cachedHigh = prefs.getInt("high", NONE).takeIf { it != NONE }
                 val cachedLow = prefs.getInt("low", NONE).takeIf { it != NONE }
-                val fc = buildList {
-                    val fcKind = runCatching { WeatherKind.valueOf(prefs.getString("fc_kind", null) ?: "") }.getOrNull()
-                    val fcHigh = prefs.getInt("fc_high", NONE).takeIf { it != NONE }
-                    val fcLow = prefs.getInt("fc_low", NONE).takeIf { it != NONE }
-                    val fcDisplay = prefs.getString("fc_display", null)
-                    if (fcKind != null && fcHigh != null && fcLow != null) {
-                        add(ForecastDay(fcKind, fcHigh, fcLow, fcDisplay ?: "",
-                            week = prefs.getString("fc_week", null) ?: ""))
-                    }
-                }
+                val cachedFc = forecastFromJson(prefs.getString("fc_json", null))
+                // 缓存预报第一条必须是今天, 跨天残留整条丢弃; 老版本单条缓存兜底一轮。
+                val staleFc = cachedFc.isNotEmpty() && !sameDayKey(cachedFc.first().date, todayKey())
+                val fc = if (staleFc) emptyList()
+                         else cachedFc.ifEmpty { legacyCachedForecast() }
                 now = WeatherNow(
                     prefs.getInt("celsius", 0), kind, prefs.getBoolean("day", true),
-                    high = cachedHigh, low = cachedLow, forecast = fc,
+                    high = if (staleFc) null else cachedHigh,
+                    low = if (staleFc) null else cachedLow,
+                    forecast = fc,
                 )
             }
         }
     }
 
     private var failed = false
+    /** 上次刷新所在的"日", 用于识别跨天那一刻; -1 表示尚未记录。 */
+    private var lastRefreshDay = -1
 
     fun refreshIfStale(networkCameUp: Boolean = false) {
         if (!started) return
         val nowMs = System.currentTimeMillis()
         val since = nowMs - lastAttempt
         if (failed && (networkCameUp || since >= RETRY_MS)) { refresh(); return }
-        if (since >= REFRESH_MS) {
-            val cal = java.util.Calendar.getInstance()
-            cal.timeInMillis = nowMs
-            val minute = cal.get(java.util.Calendar.MINUTE)
-            val second = cal.get(java.util.Calendar.SECOND)
-            val lastTick = (minute / 10) * 10
-            if (minute > lastTick || (minute == lastTick && second >= 0)) {
-                refresh()
-            }
+        val cal = java.util.Calendar.getInstance()
+        val day = cal.get(java.util.Calendar.DAY_OF_MONTH)
+        val minute = cal.get(java.util.Calendar.MINUTE)
+        // 跨天那一刻强制刷新一次; 平时只在 00/10/20/30/40/50 分、且距上次满 10 分钟才刷。
+        val crossedDay = lastRefreshDay >= 0 && day != lastRefreshDay
+        if (crossedDay || (minute % 10 == 0 && since >= REFRESH_MS)) {
+            refresh()
         }
     }
 
     private fun refresh() {
         lastAttempt = System.currentTimeMillis()
+        lastRefreshDay = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_MONTH)
         job?.cancel()
         job = scope.launch {
             val reading = withContext(Dispatchers.IO) {
@@ -131,13 +130,7 @@ object Weather {
                     putBoolean("day", reading.day)
                     putInt("high", reading.high ?: NONE)
                     putInt("low", reading.low ?: NONE)
-                    reading.forecast.firstOrNull()?.let { fc ->
-                        putString("fc_kind", fc.kind.name)
-                        putInt("fc_high", fc.high)
-                        putInt("fc_low", fc.low)
-                        putString("fc_display", fc.display)
-                        putString("fc_week", fc.week)
-                    }
+                    putString("fc_json", forecastToJson(reading.forecast))
                 }
             }
         }
@@ -188,7 +181,8 @@ object Weather {
                             val dayText = textOfCode(dayCode)
                             val nightText = textOfCode(nightCode)
                             val display = if (dayText == nightText) dayText else "${dayText}转${nightText}"
-                            add(ForecastDay(dayKind, high, low, display, dayKind = dayKind, nightKind = nightKind))
+                            add(ForecastDay(dayKind, high, low, display, dayKind = dayKind,
+                                nightKind = nightKind, week = d.optString("fj"), date = d.optString("fi")))
                         }
                     }
                 }
@@ -200,13 +194,14 @@ object Weather {
             prefs.edit { putString("place", cityName) }
         }
 
+        val aligned = alignToToday(forecast, todayKey())
         return WeatherNow(
             celsius = temp,
             kind = skKind,
             day = isDay,
-            high = forecast.firstOrNull()?.high,
-            low = forecast.firstOrNull()?.low,
-            forecast = forecast,
+            high = aligned.firstOrNull()?.high,
+            low = aligned.firstOrNull()?.low,
+            forecast = aligned,
         )
     }
 
@@ -321,6 +316,90 @@ object Weather {
             val city = parts?.getOrNull(1)?.takeIf { it.isNotBlank() }
             id to (district ?: city)
         }.onFailure { Log.w(TAG, "IP locate failed", it) }.getOrNull()
+    }
+
+    /** 今天的 (月, 日), 与接口 fi 字段同口径比较。 */
+    private fun todayKey(): Pair<Int, Int> {
+        val c = java.util.Calendar.getInstance()
+        return (c.get(java.util.Calendar.MONTH) + 1) to c.get(java.util.Calendar.DAY_OF_MONTH)
+    }
+
+    /** 解析接口日期 "11/15" (JSON 里写作 11\/15) 为 (月, 日); 无法解析返回 null。 */
+    private fun parseDayKey(raw: String): Pair<Int, Int>? {
+        val parts = raw.replace("\\/", "/").split("/")
+        if (parts.size < 2) return null
+        val m = parts[0].toIntOrNull()
+        val d = parts[1].toIntOrNull()
+        if (m == null || d == null) return null
+        return m to d
+    }
+
+    private fun sameDayKey(raw: String, today: Pair<Int, Int>): Boolean =
+        parseDayKey(raw) == today
+
+    /** a 的日期是否早于 b; 12 月与 1 月相邻, 月份差超过 6 个月时按跨年处理。 */
+    private fun dateBefore(a: Pair<Int, Int>, b: Pair<Int, Int>): Boolean {
+        if (a.first - b.first > 6) return false
+        if (b.first - a.first > 6) return true
+        return a.first < b.first || (a.first == b.first && a.second < b.second)
+    }
+
+    /**
+     * 把接口预报按日期对齐到今天: 找到第一条日期等于今天的条目, 向后取三天。
+     * 整组早于今天(接口批次尚未换日, 多见于凌晨到早晨发布前)时返回空,
+     * 不把昨天的预报挂在"今天"名下; 日期缺失时退回取前三条。
+     */
+    private fun alignToToday(raw: List<ForecastDay>, today: Pair<Int, Int>): List<ForecastDay> {
+        val start = raw.indexOfFirst { sameDayKey(it.date, today) }
+        if (start >= 0) return raw.subList(start, minOf(start + 3, raw.size))
+        val firstKey = raw.firstOrNull()?.let { parseDayKey(it.date) }
+        if (firstKey != null && dateBefore(firstKey, today)) return emptyList()
+        return raw.take(3)
+    }
+
+    private fun forecastToJson(list: List<ForecastDay>): String {
+        val arr = JSONArray()
+        for (f in list) {
+            val o = JSONObject()
+            o.put("kind", f.kind.name)
+            o.put("high", f.high)
+            o.put("low", f.low)
+            o.put("display", f.display)
+            o.put("dayKind", f.dayKind.name)
+            o.put("nightKind", f.nightKind.name)
+            o.put("week", f.week)
+            o.put("date", f.date)
+            arr.put(o)
+        }
+        return arr.toString()
+    }
+
+    private fun forecastFromJson(s: String?): List<ForecastDay> {
+        if (s.isNullOrBlank()) return emptyList()
+        return runCatching {
+            val arr = JSONArray(s)
+            buildList {
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    val kind = WeatherKind.valueOf(o.getString("kind"))
+                    val dayKind = runCatching { WeatherKind.valueOf(o.optString("dayKind")) }.getOrDefault(kind)
+                    val nightKind = runCatching { WeatherKind.valueOf(o.optString("nightKind")) }.getOrDefault(kind)
+                    add(ForecastDay(kind, o.getInt("high"), o.getInt("low"), o.optString("display"),
+                        dayKind = dayKind, nightKind = nightKind,
+                        week = o.optString("week"), date = o.optString("date")))
+                }
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    /** 老版本只存了第一条预报, 升级过渡期兜底读取。 */
+    private fun legacyCachedForecast(): List<ForecastDay> {
+        val fcKind = runCatching { WeatherKind.valueOf(prefs.getString("fc_kind", null) ?: "") }.getOrNull()
+        val fcHigh = prefs.getInt("fc_high", NONE).takeIf { it != NONE }
+        val fcLow = prefs.getInt("fc_low", NONE).takeIf { it != NONE }
+        if (fcKind == null || fcHigh == null || fcLow == null) return emptyList()
+        return listOf(ForecastDay(fcKind, fcHigh, fcLow, prefs.getString("fc_display", null) ?: "",
+            week = prefs.getString("fc_week", null) ?: ""))
     }
 
     /** Map weather.com.cn weather code to WeatherKind. */

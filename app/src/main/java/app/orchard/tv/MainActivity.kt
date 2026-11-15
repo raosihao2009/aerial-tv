@@ -127,6 +127,7 @@ class MainActivity : ComponentActivity() {
         override fun onReceive(context: Context, intent: Intent) {
             Wallpapers.refreshDailyIfStale()
             Wallpapers.rotateIfDue()
+            Weather.refreshIfStale()
         }
     }
 
@@ -793,7 +794,10 @@ class MainActivity : ComponentActivity() {
     private val networkTick = object : Runnable {
         override fun run() {
             if (!vm.resumed) return
-            if (!vm.screensaverVisible) vm.refreshNetwork()
+            if (!vm.screensaverVisible) {
+                vm.refreshNetwork()
+                Weather.refreshIfStale()
+            }
             idleHandler.postDelayed(this, NETWORK_EVERY_MS)
         }
     }
