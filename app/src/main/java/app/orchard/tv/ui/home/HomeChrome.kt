@@ -1027,6 +1027,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             val cond = stringResource(conditionName(w.kind))
             val fc = w.forecast
             // 左右互换: 实时天气固定在左侧; 右侧是今天/明天/后天预报, 10 秒一轮向上滚动。
+            // 两组之间不再放竖线, 靠 14dp 留白与胶囊形状区分。
             Row(
                 modifier = Modifier.padding(top = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1035,11 +1036,9 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     color = Color.White, shadow = shadow, fontSize = 16.sp,
                     fontFamily = OppoSans, letterSpacing = 0.em, lineHeight = 22.sp,
                 )
-                val sepStyle = weatherStyle.copy(color = Color.White.copy(alpha = 0.4f))
                 WeatherTag("现在", weatherStyle)
                 WeatherIcon(w.kind, isDayNow(), 20.dp, Modifier.padding(start = 6.dp))
                 BasicText("$cond ${w.celsius}°", style = weatherStyle)
-                BasicText("｜", style = sepStyle)
                 ForecastCarousel(fc, weatherStyle)
             }
         }
@@ -1063,6 +1062,7 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
     AnimatedContent(
         targetState = idx,
         label = "forecast",
+        modifier = Modifier.padding(start = 14.dp),
         transitionSpec = {
             val slide = tween<IntOffset>(1000)
             val fade = tween<Float>(1000)
