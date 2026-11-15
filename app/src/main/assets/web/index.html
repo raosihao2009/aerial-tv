@@ -47,7 +47,7 @@
   .list { background: var(--card); border-radius: 12px; overflow: hidden; }
   .item {
     position: relative; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 11px 16px;
-    border: 0; background: none; text-align: left; transition: background-color .2s ease;
+    border: 0; background: none; text-align: left; text-decoration: none; transition: background-color .2s ease;
   }
   .item + .item::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; height: .5px; background: var(--sep); }
   .item { -webkit-tap-highlight-color: transparent; cursor: pointer; user-select: none; }
@@ -358,8 +358,10 @@
   </div>
 
   <h2 data-i18n="feedback_h"></h2>
-  <div class="list"><button class="item tint center" id="diagBtn" data-i18n="diag_show"></button></div>
-  <div class="list"><button class="item tint center" id="logBtn" data-i18n="diag_export"></button></div>
+  <div class="list">
+    <button class="item tint center" id="diagBtn" data-i18n="diag_show"></button>
+    <a class="item tint center" id="logBtn" data-i18n="diag_export"></a>
+  </div>
   <pre class="diag" id="diag" hidden></pre>
   <div class="row" id="diagActions" hidden>
     <button class="btn" id="diagCopy" data-i18n="diag_copy"></button>
@@ -1723,27 +1725,10 @@ $('#iconFile').onchange = async e => {
 };
 
 /* More tab: diagnostics. */
-// 导出日志文件: 取回来存成文件。直接给 a 标签设 href 时, 有的手机浏览器把 # 的点击
-// 当成页内跳转(看起来"没反应"), 这里改成 Blob 下载并给一句反馈。
-$('#logBtn').onclick = async (ev) => {
-  ev.preventDefault();
-  const url = base + 'api/log';
-  try {
-    const r = await fetch(url, { cache: 'no-store' });
-    if (!r.ok) throw new Error(r.status);
-    const blob = await r.blob();
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'aerial-log.txt';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-    toast(t('diag_export'));
-  } catch (e) {
-    toast(t('toast_diag_fail'));
-    // 取不到就让浏览器直接开这个地址, 至少能看到返回内容
-    location.href = url;
-  }
-};
+// 导出日志文件: 直链到附件地址, 由服务端 Content-Disposition 决定下载。
+// 不走 fetch+Blob: 内嵌 webview 里 Blob URL 和程序化 click 常被禁, 点了静默没反应;
+// 直链 a 标签走原生导航, 浏览器下载, webview 不支持下载时至少内联显示文本可复制。
+$('#logBtn').href = base + 'api/log';
 $('#diagBtn').onclick = async () => {
   const b = $('#diagBtn'); b.disabled = true; b.textContent = t('diag_collecting');
   try {
