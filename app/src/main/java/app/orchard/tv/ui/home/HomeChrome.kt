@@ -1033,7 +1033,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             ) {
                 val weatherStyle = Type.Caption.copy(
                     color = Color.White, shadow = shadow, fontSize = 16.sp,
-                    fontFamily = OppoSans, letterSpacing = 0.em,
+                    fontFamily = OppoSans, letterSpacing = 0.em, lineHeight = 22.sp,
                 )
                 val sepStyle = weatherStyle.copy(color = Color.White.copy(alpha = 0.4f))
                 WeatherTag("现在", weatherStyle)
@@ -1074,9 +1074,10 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             val label = when (i) { 0 -> "今天"; 1 -> "明天"; else -> "后天" }
             WeatherTag(label, weatherStyle)
-            WeatherIcon(d.dayKind, isDayNow(), 20.dp, Modifier.padding(start = 6.dp))
+            // 预报只表示"这一天", 图标一律用白天版本, 不跟当前时段走。
+            WeatherIcon(d.dayKind, true, 20.dp, Modifier.padding(start = 6.dp))
             if (d.display.contains("转")) {
-                WeatherIcon(d.nightKind, isDayNow(), 20.dp, Modifier.padding(start = 1.dp))
+                WeatherIcon(d.nightKind, true, 20.dp, Modifier.padding(start = 1.dp))
             }
             if (d.display.isNotEmpty()) BasicText(d.display, style = weatherStyle)
             BasicText(" ${d.low}° / ${d.high}°", style = weatherStyle)
@@ -1089,16 +1090,16 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
 private fun WeatherTag(text: String, style: TextStyle) {
     BasicText(
         text,
-        style = style.copy(color = Color.Black, fontSize = 13.sp),
+        style = style.copy(color = Color.Black, fontSize = 13.sp, lineHeight = 22.sp),
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
             .background(Color.White.copy(alpha = TAG_ALPHA))
-            .padding(horizontal = 6.dp, vertical = 1.dp),
+            .padding(horizontal = 6.dp),
     )
 }
 
 /** 标签底色的不透明度: 1.0 实心白最扎眼, 越低越不抢眼。 */
-private const val TAG_ALPHA = 0.72f
+private const val TAG_ALPHA = 0.70f
 
 private fun isDayNow(): Boolean {
     val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
