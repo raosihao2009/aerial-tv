@@ -1084,18 +1084,21 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
     }
 }
 
-/** 白底圆角小标签: 现在 / 今天 / 明天 / 后天, 字色黑色。 */
+/** 圆角小标签: 现在 / 今天 / 明天 / 后天。底色半透明白, 高度贴合旁边文字, 字色黑色。 */
 @Composable
 private fun WeatherTag(text: String, style: TextStyle) {
     BasicText(
         text,
-        style = style.copy(color = Color.Black),
+        style = style.copy(color = Color.Black, fontSize = 13.sp),
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
-            .background(Color.White)
-            .padding(horizontal = 7.dp, vertical = 2.dp),
+            .background(Color.White.copy(alpha = TAG_ALPHA))
+            .padding(horizontal = 6.dp, vertical = 1.dp),
     )
 }
+
+/** 标签底色的不透明度: 1.0 实心白最扎眼, 越低越不抢眼。 */
+private const val TAG_ALPHA = 0.72f
 
 private fun isDayNow(): Boolean {
     val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
