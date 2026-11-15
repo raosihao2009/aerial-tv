@@ -1132,35 +1132,35 @@ const EXTRA = {
         backup_confirm: "导入会覆盖这台电视上的全部设置，确定继续？", backup_restoring: "正在导入…",
         backup_restored: "已导入，电视正在重启", backup_failed: "导入失败，文件可能不完整",
         backup_locked: "儿童/长辈模式已开启，需先在电视上输入家长密码",
-        backup_packing: "正在打包备份，请稍候…",
+        backup_packing: "正在打包备份，请稍候…", backup_save: "保存备份", backup_pack_fail: "打包失败，请再试一次",
         backup_no_reply: "电视没有回报结果", backup_link_lost: "与电视的连接中断" },
   en: { backup_h: "Backup & restore", backup_export: "Export backup", backup_import: "Import backup",
         backup_hint: "The backup holds every setting, live source, wallpaper, photo and video. Importing replaces all settings on this TV and restarts it.",
         backup_confirm: "Importing replaces all settings on this TV. Continue?", backup_restoring: "Importing…",
         backup_restored: "Imported. The TV is restarting", backup_failed: "Import failed — the file may be incomplete",
         backup_locked: "Kids/elders mode is on — unlock with the parental PIN on the TV first",
-        backup_packing: "Packing the backup — one moment…",
+        backup_packing: "Packing the backup — one moment…", backup_save: "Save backup", backup_pack_fail: "Packing failed — try again",
         backup_no_reply: "The TV did not report a result", backup_link_lost: "The connection to the TV dropped" },
   ru: { backup_h: "Резервная копия", backup_export: "Экспорт копии", backup_import: "Импорт копии",
         backup_hint: "Копия содержит все настройки, источники трансляций, обои, фото и видео. Импорт заменит все настройки на этом телевизоре и перезапустит его.",
         backup_confirm: "Импорт заменит все настройки на этом телевизоре. Продолжить?", backup_restoring: "Импорт…",
         backup_restored: "Импортировано. Телевизор перезапускается", backup_failed: "Импорт не удался — файл может быть повреждён",
         backup_locked: "Включён детский режим — сначала разблокируйте PIN-кодом на ТВ",
-        backup_packing: "Собираем копию, подождите…",
+        backup_packing: "Собираем копию, подождите…", backup_save: "Сохранить копию", backup_pack_fail: "Не удалось собрать копию — попробуйте снова",
         backup_no_reply: "Телевизор не сообщил результат", backup_link_lost: "Связь с телевизором прервалась" },
   uk: { backup_h: "Резервна копія", backup_export: "Експорт копії", backup_import: "Імпорт копії",
         backup_hint: "Копія містить усі налаштування, джерела трансляцій, шпалери, фото й відео. Імпорт замінить усі налаштування на цьому телевізорі та перезапустить його.",
         backup_confirm: "Імпорт замінить усі налаштування на цьому телевізорі. Продовжити?", backup_restoring: "Імпорт…",
         backup_restored: "Імпортовано. Телевізор перезапускається", backup_failed: "Імпорт не вдався — файл може бути пошкоджений",
         backup_locked: "Увімкнено дитячий режим — спочатку розблокуйте PIN-кодом на ТБ",
-        backup_packing: "Збираємо копію, зачекайте…",
+        backup_packing: "Збираємо копію, зачекайте…", backup_save: "Зберегти копію", backup_pack_fail: "Не вдалося зібрати копію — спробуйте ще раз",
         backup_no_reply: "Телевізор не повідомив результат", backup_link_lost: "Зв'язок із телевізором обірвався" },
   kk: { backup_h: "Сақтық көшірме", backup_export: "Көшірмені шығару", backup_import: "Көшірмені қалпына келтіру",
         backup_hint: "Көшірмеде барлық параметрлер, эфир көздері, тұсқағаздар, фото және бейнелер бар. Қалпына келтіру осы теледидардағы барлық параметрлерді ауыстырып, оны қайта іске қосады.",
         backup_confirm: "Қалпына келтіру осы теледидардағы барлық параметрлерді ауыстырады. Жалғастыру керек пе?", backup_restoring: "Қалпына келтірілуде…",
         backup_restored: "Қалпына келтірілді. Теледидар қайта іске қосылуда", backup_failed: "Қалпына келтіру сәтсіз — файл бүлінген болуы мүмкін",
         backup_locked: "Балалар режимі қосулы — алдымен ТВ-да PIN-кодпен ашу керек",
-        backup_packing: "Көшірме жиналуда, күте тұрыңыз…",
+        backup_packing: "Көшірме жиналуда, күте тұрыңыз…", backup_save: "Көшірмені сақтау", backup_pack_fail: "Көшірмені жинау сәтсіз — қайта көріңіз",
         backup_no_reply: "Теледидар нәтижені хабарламады", backup_link_lost: "Теледидармен байланыс үзілді" }
 };
 const LANG = (() => {
@@ -1787,24 +1787,51 @@ $('#logBtn').onclick = async () => {
     toast(t('toast_diag_fail'));
   } finally { b.disabled = false; }
 };
-/* More tab: backup. Export is a plain link to the zip, so the browser's own download takes it;
-   the page's own downloads are blocked in some in-app webviews either way. */
-$('#backupBtn').href = base + 'api/backup';
-$('#backupBtn').download = 'aerial-backup.zip';
-// 备份是边压边发的流, 电视那头打包大文件要几秒; 点下去先给一句反馈, 免得看着像没反应。
-$('#backupBtn').onclick = () => {
-  toast(t('backup_packing'));
-  // 浏览器要等服务端把包打完、回了响应头, 才会在下载栏里出现条目; 这段时间页面上得有个
-  // 还在动的计时, 否则看着就像点了没反应。
+/* More tab: backup. 浏览器要等电视那头把 zip 打完、回了响应头, 才肯弹下载框; 这段十几秒里
+   下载框会先冒出来再干等, 看着就像卡死。所以先在这一页把打包跑起来, 全程显示用时, 打完之后
+   按钮才变成真下载链接 —— 那时候点它, 电视直接把现成的包发出来, 确认下载即刻开始。 */
+let packReady = false, packBusy = false;
+$('#backupBtn').href = '#';
+
+async function packBackup() {
   const b = $('#backupBtn');
-  const label = b.textContent;
+  packBusy = true; packReady = false;
+  b.href = '#'; b.removeAttribute('download');
   const at = Date.now();
-  if (b._packTimer) clearInterval(b._packTimer);
-  b._packTimer = setInterval(() => {
-    const sec = Math.round((Date.now() - at) / 1000);
+  const timer = setInterval(() => {
+    const sec = Math.max(1, Math.round((Date.now() - at) / 1000));
     b.textContent = t('backup_packing').replace(/…$/, '') + ' ' + sec + 's';
-    if (sec >= 90) { clearInterval(b._packTimer); b._packTimer = null; b.textContent = label; }
   }, 500);
+  try {
+    await fetch(base + 'api/backup/prepare?fresh=1', { cache: 'no-store' });
+    for (let i = 0; i < 150; i++) {
+      await new Promise(r => setTimeout(r, 600));
+      const d = await (await fetch(base + 'api/backup/state', { cache: 'no-store' })).json();
+      if (d.state === 'ready') {
+        clearInterval(timer); packBusy = false; packReady = true;
+        const mb = (d.bytes / 1048576).toFixed(1);
+        const sec = ((d.ms || 0) / 1000).toFixed(1);
+        b.textContent = t('backup_save') + ' · ' + mb + ' MB · ' + sec + 's';
+        b.href = base + 'api/backup';
+        b.download = d.name || 'aerial-backup.zip';
+        return;
+      }
+      if (d.state === 'failed') throw new Error(d.error || 'failed');
+    }
+    throw new Error('timeout');
+  } catch (e) {
+    clearInterval(timer); packBusy = false;
+    b.textContent = t('backup_export');
+    toast(t('backup_pack_fail'));
+  }
+}
+
+$('#backupBtn').onclick = (ev) => {
+  if (packReady) return;           // 已经打好包: 交给浏览器去下载
+  ev.preventDefault();
+  if (packBusy) { toast(t('backup_packing')); return; }
+  toast(t('backup_packing'));
+  packBackup();
 };
 $('#restoreBtn').onclick = () => $('#restoreFile').click();
 // 上次导入的结果: 电视重启那一刻的回复经常到不了手机, 页面再打开时补看一次。

@@ -105,6 +105,14 @@ class PhoneServer private constructor(private val context: Context, private val 
                 // 与崩溃记录, 省得再去 Android/data 里翻文件。
                 path == "/api/log" -> logFile()
                 // 手机端「更多 → 备份」: 下载整机备份(zip), 或上传一个备份包覆盖本机
+                // 打包和下载拆成两步: 浏览器要等到响应头才会弹下载框, 若在同一步里边打边等,
+                // 用户看到的就是「点了没反应」。先打包(页面显示进度), 打完再让他去取现成的包。
+                path == "/api/backup/prepare" -> {
+                    // fresh=1 表示"我要最新的一份", 不fresh 就用缓存里十分钟内打好的。
+                    val fresh = session.parms["fresh"] ?: queryOf(session.queryParameterString, "fresh")
+                    backupPrepare(fresh == "1")
+                }
+                path == "/api/backup/state" -> backupState()
                 path == "/api/backup" -> backupDownload()
                 session.method == Method.POST && path == "/api/restore" -> restoreBackup(session)
                 // 恢复后进程自杀重启, 手机可能没收到那条回复: 按同一个 id 回查结果。
@@ -757,6 +765,9 @@ class PhoneServer private constructor(private val context: Context, private val 
         return json(state().put("saved", true))
     }
 
+    private fun backupFileName(): String =
+        "aerial-backup-" + java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.US).format(java.util.Date()) + ".zip"
+
     private fun json(o: JSONObject) = newFixedLengthResponse(Response.Status.OK, "application/json; charset=utf-8", o.toString())
 
     private fun text(status: Response.Status, msg: String) = newFixedLengthResponse(status, "text/plain; charset=utf-8", msg)
@@ -797,10 +808,98 @@ class PhoneServer private constructor(private val context: Context, private val 
      * 整机备份下载。先写一份临时 zip 再发固定长度响应: 浏览器/下载管理器要拿到 Content-Length
      * 才肯显示总大小和进度。临时文件放内部缓存目录, 句柄打开后再删。
      */
+    // ---- 备份打包: 一次只打一份, 打完的包在缓存里放 10 分钟供反复取
+    private val backupLock = Any()
+
+    @Volatile private var backupReady: File? = null
+    @Volatile private var backupReadyAt = 0L
+    @Volatile private var backupPacking = false
+    @Volatile private var backupInfo = ""
+    @Volatile private var backupError: String? = null
+    @Volatile private var backupStartedAt = 0L
+
+    private fun backupFresh(): File? {
+        val f = backupReady ?: return null
+        if (!f.exists() || System.currentTimeMillis() - backupReadyAt > 10 * 60_000L) return null
+        return f
+    }
+
+    private fun backupPrepare(force: Boolean): Response {
+        synchronized(backupLock) {
+            if (force && !backupPacking) {
+                // 用户要的是这一刻的数据, 十分钟前的旧包不能糊弄过去。
+                backupReady?.delete()
+                backupReady = null
+                backupReadyAt = 0
+                backupError = null
+            }
+            backupFresh()?.let {
+                return json(JSONObject().put("state", "ready").put("bytes", it.length()).put("info", backupInfo)
+                    .put("ms", (backupReadyAt - backupStartedAt).coerceAtLeast(0)).put("name", backupFileName()))
+            }
+            if (backupPacking) return json(JSONObject().put("state", "packing").put("bytes", 0))
+            backupPacking = true
+            backupError = null
+            backupInfo = ""
+            backupStartedAt = System.currentTimeMillis()
+            app.orchard.tv.system.DiagLog.i("手机端导出备份: 开始")
+            app.orchard.tv.system.Backup.trace(context, "导出请求: 缓存剩余 " + runCatching {
+                android.os.StatFs(context.cacheDir.path).availableBytes
+            }.getOrDefault(0L) + " 字节")
+            Thread {
+                val tmp = File(context.cacheDir, "aerial-backup-ready.zip")
+                val out = runCatching {
+                    tmp.outputStream().use { app.orchard.tv.system.Backup.export(context, it) }
+                }
+                synchronized(backupLock) {
+                    backupPacking = false
+                    out.onSuccess { s ->
+                        backupReady = tmp
+                        backupReadyAt = System.currentTimeMillis()
+                        backupInfo = "${s.prefs} 项设置, ${s.files} 个文件"
+                        app.orchard.tv.system.DiagLog.i("手机端导出备份: ${s.prefs} 项设置, ${s.files} 个文件, ${tmp.length()} 字节")
+                        app.orchard.tv.system.Backup.trace(context, "导出完成: ${s.prefs} 项设置, ${s.files} 个文件, ${tmp.length()} 字节")
+                    }.onFailure {
+                        backupError = app.orchard.tv.system.Backup.readable(it)
+                        tmp.delete()
+                        app.orchard.tv.system.DiagLog.i("手机端导出备份失败: ${it.message}")
+                        app.orchard.tv.system.Backup.trace(context, "导出失败: ${android.util.Log.getStackTraceString(it)}")
+                    }
+                }
+            }.apply { name = "backup-pack"; isDaemon = true }.start()
+            return json(JSONObject().put("state", "packing").put("bytes", 0))
+        }
+    }
+
+    private fun backupState(): Response {
+        val o = JSONObject()
+        val ready = backupFresh()
+        when {
+            ready != null -> o.put("state", "ready").put("bytes", ready.length()).put("info", backupInfo)
+                .put("ms", (backupReadyAt - backupStartedAt).coerceAtLeast(0)).put("name", backupFileName())
+            backupPacking -> o.put("state", "packing").put("bytes", 0)
+            backupError != null -> o.put("state", "failed").put("error", backupError)
+            else -> o.put("state", "idle")
+        }
+        return json(o)
+    }
+
     private fun backupDownload(): Response {
+        // 页面已经等打包完才来取: 直接把现成的文件发出去, 响应头立刻返回, 下载框当场就弹。
+        backupFresh()?.let { f ->
+            app.orchard.tv.system.DiagLog.i("手机端导出备份: 发送现成包 ${f.length()} 字节")
+            val name = backupFileName()
+            return newFixedLengthResponse(
+                Response.Status.OK,
+                "application/zip",
+                f.inputStream(),
+                f.length(),
+            ).apply {
+                addHeader("Content-Disposition", "attachment; filename=\"$name\"")
+                addHeader("Cache-Control", "no-store")
+            }
+        }
         app.orchard.tv.system.DiagLog.i("手机端导出备份: 开始")
-        val free = runCatching { android.os.StatFs(context.cacheDir.path).availableBytes }.getOrDefault(0L)
-        app.orchard.tv.system.Backup.trace(context, "导出请求: 缓存剩余 $free 字节")
         val tmp = File.createTempFile("aerial-backup", ".zip", context.cacheDir)
         val summary = runCatching {
             tmp.outputStream().use { app.orchard.tv.system.Backup.export(context, it) }
@@ -812,11 +911,14 @@ class PhoneServer private constructor(private val context: Context, private val 
         }
         app.orchard.tv.system.DiagLog.i("手机端导出备份: ${summary.prefs} 项设置, ${summary.files} 个文件, ${tmp.length()} 字节")
         app.orchard.tv.system.Backup.trace(context, "导出完成: ${summary.prefs} 项设置, ${summary.files} 个文件, ${tmp.length()} 字节")
-        val name = "aerial-backup-" + java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.US).format(java.util.Date()) + ".zip"
+        val name = backupFileName()
+        synchronized(backupLock) {
+            backupReady = tmp
+            backupReadyAt = System.currentTimeMillis()
+        }
         // 句柄先打开再删: Linux 下边读边删是安全的, 不在缓存里留一份副本。
         val stream = tmp.inputStream()
         val length = tmp.length()
-        tmp.delete()
         return newFixedLengthResponse(Response.Status.OK, "application/zip", stream, length).apply {
             addHeader("Content-Disposition", "attachment; filename=\"$name\"")
         }
