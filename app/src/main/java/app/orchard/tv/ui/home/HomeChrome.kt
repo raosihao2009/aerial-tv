@@ -1053,7 +1053,10 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
     var idx by remember { mutableStateOf(0) }
     // 各槽位上次展示的条目。预报中途刷新时, 不在当前可见槽位上硬切,
     // 等轮到该槽位再取最新数据, 跨天/换批随滚动逐槽自然更新。
-    val slots = remember { mutableStateListOf<ForecastDay?>() }
+    // 先按天数补齐, 避免首帧 LaunchedEffect 还没跑、空列表按下标取值越界。
+    val slots = remember(days.size) {
+        mutableStateListOf<ForecastDay?>().apply { repeat(days.size) { add(null) } }
+    }
     LaunchedEffect(days) {
         while (slots.size < days.size) slots.add(null)
         days.forEachIndexed { i, d -> if (slots[i] == null) slots[i] = d }
@@ -1079,7 +1082,8 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
                 slideOutVertically(animationSpec = slide) { h -> -h } + fadeOut(fade))
         },
     ) { i ->
-        val d = slots[i] ?: days[i]
+        // slots 初始为空, 首轮组合时 effect 还没填充, 必须走 getOrNull 兜底, 否则越界崩溃。
+        val d = slots.getOrNull(i) ?: days[i]
         Row(verticalAlignment = Alignment.CenterVertically) {
             val label = when (i) { 0 -> "今天"; 1 -> "明天"; else -> "后天" }
             WeatherTag(label, weatherStyle)
