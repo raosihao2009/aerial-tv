@@ -277,7 +277,7 @@ fun WallpaperSheet(
                     // 上锁: 长按 OK / Menu 不再弹应用菜单, 免得误移动、误隐藏、误卸载
                     Choices(
                         R.string.st_home_lock, stringResource(R.string.st_home_lock_hint), note,
-                        listOf(false to R.string.st_off, true to R.string.st_on),
+                        listOf(true to R.string.st_on, false to R.string.st_off),
                         AerialSettings.homeLocked, onHomeLock,
                     )
                 }
@@ -298,7 +298,7 @@ fun WallpaperSheet(
                         "高灵敏及早切备用源, 低灵敏减少误切, 关则不自动切换",
                         note,
                         listOf(
-                            AerialSettings.JankSensitivity.Off to "关",
+                            AerialSettings.JankSensitivity.Off to "关闭",
                             AerialSettings.JankSensitivity.Low to "低",
                             AerialSettings.JankSensitivity.Medium to "中",
                             AerialSettings.JankSensitivity.High to "高",

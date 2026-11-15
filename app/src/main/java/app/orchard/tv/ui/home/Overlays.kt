@@ -99,7 +99,7 @@ fun <T : Any> rememberLatest(value: T?): T? {
 /** A row in a glass menu: transparent at rest, the tvOS white plate when focused. */
 @Composable
 fun MenuRow(
-    glyph: Glyph,
+    glyph: Glyph? = null,
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -125,7 +125,7 @@ fun MenuRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            GlyphIcon(glyph, fg, 18.dp)
+            if (glyph != null) GlyphIcon(glyph, fg, 18.dp)
             BasicText(text, style = Type.Body.copy(color = fg), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             if (trailing != null) {
                 BasicText(

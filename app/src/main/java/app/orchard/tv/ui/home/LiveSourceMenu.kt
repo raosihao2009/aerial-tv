@@ -737,7 +737,7 @@ fun LiveSourceMenu(
                     } else {
                         displayOptions.forEachIndexed { index, qn ->
                             MenuRow(
-                                if (qn == selectedQn) Glyph.Check else Glyph.Hdmi,
+                                if (qn == selectedQn) Glyph.Check else null,
                                 qualityLabel(qn),
                                 {
                                     onPickQuality(source.id, qn)

@@ -360,7 +360,7 @@
   <h2 data-i18n="feedback_h"></h2>
   <div class="list">
     <button class="item tint center" id="diagBtn" data-i18n="diag_show"></button>
-    <a class="item tint center" id="logBtn" data-i18n="diag_export"></a>
+    <button class="item tint center" id="logBtn" data-i18n="diag_export"></button>
   </div>
   <pre class="diag" id="diag" hidden></pre>
   <div class="row" id="diagActions" hidden>
@@ -1725,17 +1725,31 @@ $('#iconFile').onchange = async e => {
 };
 
 /* More tab: diagnostics. */
-// 导出日志文件: 直链到附件地址, 由服务端 Content-Disposition 决定下载。
-// 不走 fetch+Blob: 内嵌 webview 里 Blob URL 和程序化 click 常被禁, 点了静默没反应;
-// 直链 a 标签走原生导航, 浏览器下载, webview 不支持下载时至少内联显示文本可复制。
-$('#logBtn').href = base + 'api/log';
+// 导出日志文件: 先把日志拉到页面内联展示并带出复制入口——内嵌 webview 禁掉下载时也能看到
+// 和复制内容; 再尝试用附件直链触发浏览器下载, webview 不支持下载时静默失败, 不影响页面展示。
+$('#logBtn').onclick = async () => {
+  const b = $('#logBtn'); b.disabled = true;
+  try {
+    const r = await fetch(base + 'api/log', { cache: 'no-store' });
+    if (!r.ok) throw new Error(r.status);
+    $('#diag').textContent = await r.text();
+    $('#diag').hidden = false; $('#diagActions').hidden = false;
+    const a = document.createElement('a');
+    a.href = base + 'api/log'; a.download = 'aerial-log.txt';
+    document.body.appendChild(a); a.click(); a.remove();
+  } catch (e) {
+    toast(t('toast_diag_fail'));
+  } finally { b.disabled = false; }
+};
 $('#diagBtn').onclick = async () => {
   const b = $('#diagBtn'); b.disabled = true; b.textContent = t('diag_collecting');
   try {
     const r = await fetch(base + 'api/diagnostics');
     if (!r.ok) throw new Error(r.status);
     $('#diag').textContent = await r.text();
-    $('#diag').hidden = false; $('#diagActions').hidden = false; b.parentElement.hidden = true;
+    $('#diag').hidden = false; $('#diagActions').hidden = false;
+    // 只藏诊断按钮本身: 它和导出按钮在同一个分组卡片里, 藏父容器会把导出按钮一起带走。
+    b.hidden = true;
     // Bring the Copy button out from under the tab bar.
     // (Safari ignores scroll-margin in scrollIntoView, so measured by hand.)
     const over = $('#diagActions').getBoundingClientRect().bottom - (innerHeight - $('nav').offsetHeight - 16);

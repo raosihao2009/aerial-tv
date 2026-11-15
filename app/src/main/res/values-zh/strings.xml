@@ -74,7 +74,7 @@
     <string name="cc_personalize">个性化</string>
     <string name="wp_title">个性化</string>
     <string name="wp_wallpaper">壁纸</string>
-    <string name="wp_weather">天气</string>
+    <string name="wp_weather">天气与时钟</string>
     <string name="wp_weather_none">还没有天气数据，联网后会自动获取。</string>
     <string name="wp_weather_guessed">按网络自动定位。不对的话，用手机扫右边的二维码设置城市。</string>
     <string name="wp_weather_chosen">城市在手机上设置，扫右边的二维码可以更改。</string>
@@ -135,8 +135,8 @@
     <string name="st_names_all">全部显示</string>
     <string name="st_names_hint">每张卡片下面都显示名称，或者像 Apple TV 一样只显示选中的。全部显示时，第一排的名称也显示在玻璃底板里。</string>
     <string name="ss_kind">类型</string>
-    <string name="wp_weather_city">位置</string>
-    <string name="st_weather_visibility">可见性</string>
+    <string name="wp_weather_city">天气位置</string>
+    <string name="st_weather_visibility">天气可见性</string>
     <string name="st_weather_visibility_hint">天气信息是否在屏幕顶部时钟下方显示。关闭后只保留时钟、日期和问候语。</string>
     <string name="st_home_standard">双排</string>
     <string name="st_home_one_row">单排</string>
@@ -152,8 +152,8 @@
     <string name="st_sounds_aerial">Aerial</string>
     <string name="st_splash_veil">启动遮罩</string>
     <string name="st_splash_veil_hint">桌面加载时显示开屏遮罩；关闭则启动后直接进入桌面。</string>
-    <string name="st_on">开</string>
-    <string name="st_off">关</string>
+    <string name="st_on">开启</string>
+    <string name="st_off">关闭</string>
     <string name="st_hidden_apps">【应用菜单】隐藏的卡片</string>
     <string name="st_hidden_live">【直播菜单】隐藏的卡片</string>
     <string name="st_live_preview">直播预览</string>
