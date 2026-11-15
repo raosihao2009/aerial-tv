@@ -1601,6 +1601,7 @@ fun HomeScreen(
                 else vm.whenUnlocked { AerialSettings.chooseHomeLocked(false); vm.overlay = Overlay.Wallpaper }
             },
             onKids = vm::setUpKidsMode,
+            onToast = { msg -> vm.showToast(msg) },
             onStartScreensaver = {
                 vm.overlay = Overlay.None
                 onStartScreensaver()

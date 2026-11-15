@@ -316,4 +316,16 @@
     <string name="kids_blocked">«%s» тут недоступний</string>
     <string name="kids_warn">Лишилося %d хв</string>
     <string name="kids_warn_break">Перерва за %d хв</string>
+
+    <string name="st_backup">Резервна копія</string>
+    <string name="st_backup_hint">Один файл з усіма налаштуваннями, джерелами трансляцій, шпалерами, фото й відео на цьому телевізорі. Імпорт замінить їх усі.</string>
+    <string name="st_backup_export">Експорт копії</string>
+    <string name="st_backup_import">Імпорт копії</string>
+    <string name="st_backup_choose">Куди зберегти</string>
+    <string name="st_backup_pick">Вибрати файл</string>
+    <string name="st_backup_done">Копію збережено</string>
+    <string name="st_backup_fail">Не вдалося — файл може бути пошкоджений</string>
+    <string name="st_backup_restored">Відновлено. Aerial перезапускається</string>
+    <string name="st_backup_saved_to">Копію збережено в</string>
+    <string name="st_backup_no_picker">На цьому телевізорі немає вибору файлів; експортуйте зі сторінки телефона</string>
 </resources>

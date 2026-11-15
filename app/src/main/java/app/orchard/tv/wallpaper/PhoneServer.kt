@@ -99,6 +99,9 @@ class PhoneServer private constructor(private val context: Context, private val 
                 // 手机端「更多 → 导出日志文件」: 直接下载一份文本, 含本进程日志、落盘的诊断日志
                 // 与崩溃记录, 省得再去 Android/data 里翻文件。
                 path == "/api/log" -> logFile()
+                // 手机端「更多 → 备份」: 下载整机备份(zip), 或上传一个备份包覆盖本机
+                path == "/api/backup" -> backupDownload()
+                session.method == Method.POST && path == "/api/restore" -> restoreBackup(session)
                 path.startsWith("/thumb/") -> thumb(path.removePrefix("/thumb/"))
                 session.method == Method.POST && path.startsWith("/live-icon/") -> {
                     val id = path.removePrefix("/live-icon/")
@@ -743,12 +746,55 @@ class PhoneServer private constructor(private val context: Context, private val 
         }
     }
 
+    /**
+     * 整机备份下载。先写到缓存文件再给流: 浏览器要知道大小才肯显示进度, 边压边发只能分块,
+     * 手机上一大段空白看不出在动。文件在 Linux 上边读边删是安全的, 所以给出流后立刻删掉。
+     */
+    private fun backupDownload(): Response {
+        // 缓存目录通常比内部分区宽裕; 真放不下再退回内部缓存。
+        val tmp = File.createTempFile("aerial-backup", ".zip", context.externalCacheDir ?: context.cacheDir)
+        val summary = runCatching {
+            tmp.outputStream().use { app.orchard.tv.system.Backup.export(context, it) }
+        }.getOrElse {
+            tmp.delete()
+            return text(Response.Status.INTERNAL_ERROR, "备份失败: ${it.message}")
+        }
+        app.orchard.tv.system.DiagLog.i("手机端导出备份: ${summary.prefs} 项设置, ${summary.files} 个文件, ${tmp.length()} 字节")
+        val name = "aerial-backup-" + java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.US).format(java.util.Date()) + ".zip"
+        // 打开流之后再删: 句柄还在, 读得到, 也不在缓存里留一份几百 MB 的副本。
+        val stream = tmp.inputStream()
+        val length = tmp.length()
+        tmp.delete()
+        return newFixedLengthResponse(Response.Status.OK, "application/zip", stream, length).apply {
+            addHeader("Content-Disposition", "attachment; filename=\"$name\"")
+        }
+    }
+
+    /** 上传备份包恢复本机。包体直接作为请求体流进来, 不走 multipart: 大包不该先落盘再解一遍。 */
+    private fun restoreBackup(session: IHTTPSession): Response {
+        // 备份里有照片和影片, 不能按普通上传的 200 MB 卡, 单独给一个更宽松的上限。
+        val declared = session.headers["content-length"]?.toLongOrNull() ?: 0L
+        if (declared > MAX_BACKUP) return text(Response.Status.BAD_REQUEST, "too large")
+        val summary = runCatching {
+            app.orchard.tv.system.Backup.restore(context, session.inputStream)
+        }.getOrElse { e ->
+            app.orchard.tv.system.DiagLog.i("手机端导入备份失败: ${e.message}")
+            return text(Response.Status.BAD_REQUEST, "恢复失败: ${e.message}")
+        }
+        app.orchard.tv.system.DiagLog.i("手机端导入备份: ${summary.prefs} 项设置, ${summary.files} 个文件; 即将重启")
+        // 先把结果发回去(serve 返回后 NanoHTTPD 才写响应), 留两秒再把进程重启。
+        onMain { app.orchard.tv.system.Backup.scheduleRestart(context, delayMs = 2500L) }
+        return json(state().put("restored", true).put("prefs", summary.prefs).put("files", summary.files))
+    }
+
     companion object {
         const val PORT = 8790
 const val HTTPS_PORT = 8791
         private const val TAG = "AerialPhone"
         /** Enough for a batch of phone photos at full size. */
         private const val MAX_UPLOAD = 200L * 1024 * 1024
+        /** A backup carries photos and films, so it gets its own, much higher ceiling. */
+        private const val MAX_BACKUP = 4L * 1024 * 1024 * 1024
         /** As for an input's name: Home's caption has room for about this much. */
         private const val FOLDER_NAME_MAX = 24
 

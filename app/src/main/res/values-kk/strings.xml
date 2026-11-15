@@ -316,4 +316,16 @@
     <string name="kids_blocked">«%s» мұнда қолжетімсіз</string>
     <string name="kids_warn">%d мин қалды</string>
     <string name="kids_warn_break">%d минуттан кейін үзіліс</string>
+
+    <string name="st_backup">Сақтық көшірме</string>
+    <string name="st_backup_hint">Осы теледидардағы барлық параметрлер, эфир көздері, тұсқағаздар, фото және бейнелер салынған бір файл. Қалпына келтіру олардың барлығын ауыстырады.</string>
+    <string name="st_backup_export">Көшірмені шығару</string>
+    <string name="st_backup_import">Көшірмені қалпына келтіру</string>
+    <string name="st_backup_choose">Сақталатын жер</string>
+    <string name="st_backup_pick">Файлды таңдау</string>
+    <string name="st_backup_done">Көшірме сақталды</string>
+    <string name="st_backup_fail">Сәтсіз — файл бүлінген болуы мүмкін</string>
+    <string name="st_backup_restored">Қалпына келтірілді. Aerial қайта іске қосылуда</string>
+    <string name="st_backup_saved_to">Көшірме мына жерге сақталды:</string>
+    <string name="st_backup_no_picker">Бұл теледидарда файл таңдау жоқ; телефон бетінен шығарыңыз</string>
 </resources>

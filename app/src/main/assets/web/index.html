@@ -357,6 +357,14 @@
     <div class="item"><span class="txt" data-i18n="tv_model"></span><span class="val">{{DEVICE}}</span></div>
   </div>
 
+  <h2 data-i18n="backup_h"></h2>
+  <div class="list">
+    <a class="item tint center" id="backupBtn" data-i18n="backup_export"></a>
+    <button class="item tint center" id="restoreBtn" data-i18n="backup_import"></button>
+  </div>
+  <p class="foot" data-i18n="backup_hint"></p>
+  <input type="file" id="restoreFile" accept=".zip,application/zip" hidden>
+
   <h2 data-i18n="feedback_h"></h2>
   <div class="list">
     <button class="item tint center" id="diagBtn" data-i18n="diag_show"></button>
@@ -1117,6 +1125,29 @@ const TEXTS = {
  ]
 };
 const LANGS = Object.keys(TEXTS);
+// 后加的文案单独放: KEYS 与 TEXTS 是按位置对齐的老表, 往里插一条就会把后面所有文案错位。
+const EXTRA = {
+  zh: { backup_h: "备份与恢复", backup_export: "导出备份", backup_import: "导入备份",
+        backup_hint: "备份包含所有设置、直播源、壁纸与照片影片。导入会覆盖这台电视上的全部设置，随后自动重启。",
+        backup_confirm: "导入会覆盖这台电视上的全部设置，确定继续？", backup_restoring: "正在导入…",
+        backup_restored: "已导入，电视正在重启", backup_failed: "导入失败，文件可能不完整" },
+  en: { backup_h: "Backup & restore", backup_export: "Export backup", backup_import: "Import backup",
+        backup_hint: "The backup holds every setting, live source, wallpaper, photo and video. Importing replaces all settings on this TV and restarts it.",
+        backup_confirm: "Importing replaces all settings on this TV. Continue?", backup_restoring: "Importing…",
+        backup_restored: "Imported. The TV is restarting", backup_failed: "Import failed — the file may be incomplete" },
+  ru: { backup_h: "Резервная копия", backup_export: "Экспорт копии", backup_import: "Импорт копии",
+        backup_hint: "Копия содержит все настройки, источники трансляций, обои, фото и видео. Импорт заменит все настройки на этом телевизоре и перезапустит его.",
+        backup_confirm: "Импорт заменит все настройки на этом телевизоре. Продолжить?", backup_restoring: "Импорт…",
+        backup_restored: "Импортировано. Телевизор перезапускается", backup_failed: "Импорт не удался — файл может быть повреждён" },
+  uk: { backup_h: "Резервна копія", backup_export: "Експорт копії", backup_import: "Імпорт копії",
+        backup_hint: "Копія містить усі налаштування, джерела трансляцій, шпалери, фото й відео. Імпорт замінить усі налаштування на цьому телевізорі та перезапустить його.",
+        backup_confirm: "Імпорт замінить усі налаштування на цьому телевізорі. Продовжити?", backup_restoring: "Імпорт…",
+        backup_restored: "Імпортовано. Телевізор перезапускається", backup_failed: "Імпорт не вдався — файл може бути пошкоджений" },
+  kk: { backup_h: "Сақтық көшірме", backup_export: "Көшірмені шығару", backup_import: "Көшірмені қалпына келтіру",
+        backup_hint: "Көшірмеде барлық параметрлер, эфир көздері, тұсқағаздар, фото және бейнелер бар. Қалпына келтіру осы теледидардағы барлық параметрлерді ауыстырып, оны қайта іске қосады.",
+        backup_confirm: "Қалпына келтіру осы теледидардағы барлық параметрлерді ауыстырады. Жалғастыру керек пе?", backup_restoring: "Қалпына келтірілуде…",
+        backup_restored: "Қалпына келтірілді. Теледидар қайта іске қосылуда", backup_failed: "Қалпына келтіру сәтсіз — файл бүлінген болуы мүмкін" }
+};
 const LANG = (() => {
   const asked = new URLSearchParams(location.search).get('lang');
   let saved = null;
@@ -1129,7 +1160,7 @@ const NAMES = { zh: '中文', en: 'English', ru: 'Русский', uk: 'Укра
 const I18N = {};
 for (const l of LANGS) { I18N[l] = {}; KEYS.forEach((k, i) => I18N[l][k] = TEXTS[l][i]); }
 function t(key, vars) {
-  let s = I18N[LANG][key] || I18N.en[key] || I18N.zh[key] || key;
+  let s = (EXTRA[LANG] && EXTRA[LANG][key]) || I18N[LANG][key] || (EXTRA.en && EXTRA.en[key]) || I18N.en[key] || I18N.zh[key] || key;
   if (vars) for (const k in vars) s = s.split('{' + k + '}').join(vars[k]);
   return s;
 }
@@ -1740,6 +1771,26 @@ $('#logBtn').onclick = async () => {
   } catch (e) {
     toast(t('toast_diag_fail'));
   } finally { b.disabled = false; }
+};
+/* More tab: backup. Export is a plain link to the zip, so the browser's own download takes it;
+   the page's own downloads are blocked in some in-app webviews either way. */
+$('#backupBtn').href = base + 'api/backup';
+$('#restoreBtn').onclick = () => $('#restoreFile').click();
+// The file goes up as the raw body: a 300 MB backup must not be re-encoded as multipart.
+$('#restoreFile').onchange = async e => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  if (!(await confirmSheet(t('backup_confirm'), t('backup_import')))) return;
+  const b = $('#restoreBtn');
+  b.disabled = true; b.textContent = t('backup_restoring');
+  try {
+    const r = await fetch(base + 'api/restore', { method: 'POST', headers: { 'Content-Type': 'application/zip' }, body: f });
+    if (!r.ok) throw new Error(r.status);
+    toast(t('backup_restored'));
+  } catch (err) {
+    toast(t('backup_failed'));
+  } finally { b.disabled = false; b.textContent = t('backup_import'); }
 };
 $('#diagBtn').onclick = async () => {
   const b = $('#diagBtn'); b.disabled = true; b.textContent = t('diag_collecting');
