@@ -45,8 +45,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
-import java.io.PipedInputStream
-import java.io.PipedOutputStream
 import java.net.Inet4Address
 import java.security.SecureRandom
 
@@ -749,29 +747,26 @@ class PhoneServer private constructor(private val context: Context, private val 
     }
 
     /**
-     * 整机备份下载。边压边发(分块传输), 不落临时文件: 备份里可能有几个 GB 的影片, 缓存分区
-     * 放不下, 而且先写完整份再发的话手机端几十秒里什么都看不到, 像是按钮没反应。
+     * 整机备份下载。先写一份临时 zip 再发固定长度响应: 浏览器/下载管理器要拿到 Content-Length
+     * 才肯显示总大小和进度。临时文件放内部缓存目录, 句柄打开后再删。
      */
     private fun backupDownload(): Response {
         app.orchard.tv.system.DiagLog.i("手机端导出备份: 开始")
-        val name = "aerial-backup-" + java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.US).format(java.util.Date()) + ".zip"
-        val sink = PipedOutputStream()
-        // 1 MB 的管道缓冲: 手机那头读得快一点或慢一点都不会互相卡死。
-        val source = PipedInputStream(sink, 1 shl 20)
-        val writer = Thread({
-            runCatching {
-                app.orchard.tv.system.Backup.export(context, sink)
-            }.onSuccess { summary ->
-                app.orchard.tv.system.DiagLog.i("手机端导出备份: ${summary.prefs} 项设置, ${summary.files} 个文件")
-            }.onFailure { e ->
-                app.orchard.tv.system.DiagLog.i("手机端导出备份失败: ${e.message}")
-            }
-            runCatching { sink.close() }
-        }, "backup-export").apply {
-            isDaemon = true
-            start()
+        val tmp = File.createTempFile("aerial-backup", ".zip", context.cacheDir)
+        val summary = runCatching {
+            tmp.outputStream().use { app.orchard.tv.system.Backup.export(context, it) }
+        }.getOrElse {
+            tmp.delete()
+            app.orchard.tv.system.DiagLog.i("手机端导出备份失败: ${it.message}")
+            return text(Response.Status.INTERNAL_ERROR, "备份失败: ${it.message}")
         }
-        return newChunkedResponse(Response.Status.OK, "application/zip", source).apply {
+        app.orchard.tv.system.DiagLog.i("手机端导出备份: ${summary.prefs} 项设置, ${summary.files} 个文件, ${tmp.length()} 字节")
+        val name = "aerial-backup-" + java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.US).format(java.util.Date()) + ".zip"
+        // 句柄先打开再删: Linux 下边读边删是安全的, 不在缓存里留一份副本。
+        val stream = tmp.inputStream()
+        val length = tmp.length()
+        tmp.delete()
+        return newFixedLengthResponse(Response.Status.OK, "application/zip", stream, length).apply {
             addHeader("Content-Disposition", "attachment; filename=\"$name\"")
         }
     }
