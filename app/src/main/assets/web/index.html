@@ -1132,31 +1132,36 @@ const EXTRA = {
         backup_confirm: "导入会覆盖这台电视上的全部设置，确定继续？", backup_restoring: "正在导入…",
         backup_restored: "已导入，电视正在重启", backup_failed: "导入失败，文件可能不完整",
         backup_locked: "儿童/长辈模式已开启，需先在电视上输入家长密码",
-        backup_packing: "正在打包备份，请稍候…" },
+        backup_packing: "正在打包备份，请稍候…",
+        backup_no_reply: "电视没有回报结果", backup_link_lost: "与电视的连接中断" },
   en: { backup_h: "Backup & restore", backup_export: "Export backup", backup_import: "Import backup",
         backup_hint: "The backup holds every setting, live source, wallpaper, photo and video. Importing replaces all settings on this TV and restarts it.",
         backup_confirm: "Importing replaces all settings on this TV. Continue?", backup_restoring: "Importing…",
         backup_restored: "Imported. The TV is restarting", backup_failed: "Import failed — the file may be incomplete",
         backup_locked: "Kids/elders mode is on — unlock with the parental PIN on the TV first",
-        backup_packing: "Packing the backup — one moment…" },
+        backup_packing: "Packing the backup — one moment…",
+        backup_no_reply: "The TV did not report a result", backup_link_lost: "The connection to the TV dropped" },
   ru: { backup_h: "Резервная копия", backup_export: "Экспорт копии", backup_import: "Импорт копии",
         backup_hint: "Копия содержит все настройки, источники трансляций, обои, фото и видео. Импорт заменит все настройки на этом телевизоре и перезапустит его.",
         backup_confirm: "Импорт заменит все настройки на этом телевизоре. Продолжить?", backup_restoring: "Импорт…",
         backup_restored: "Импортировано. Телевизор перезапускается", backup_failed: "Импорт не удался — файл может быть повреждён",
         backup_locked: "Включён детский режим — сначала разблокируйте PIN-кодом на ТВ",
-        backup_packing: "Собираем копию, подождите…" },
+        backup_packing: "Собираем копию, подождите…",
+        backup_no_reply: "Телевизор не сообщил результат", backup_link_lost: "Связь с телевизором прервалась" },
   uk: { backup_h: "Резервна копія", backup_export: "Експорт копії", backup_import: "Імпорт копії",
         backup_hint: "Копія містить усі налаштування, джерела трансляцій, шпалери, фото й відео. Імпорт замінить усі налаштування на цьому телевізорі та перезапустить його.",
         backup_confirm: "Імпорт замінить усі налаштування на цьому телевізорі. Продовжити?", backup_restoring: "Імпорт…",
         backup_restored: "Імпортовано. Телевізор перезапускається", backup_failed: "Імпорт не вдався — файл може бути пошкоджений",
         backup_locked: "Увімкнено дитячий режим — спочатку розблокуйте PIN-кодом на ТБ",
-        backup_packing: "Збираємо копію, зачекайте…" },
+        backup_packing: "Збираємо копію, зачекайте…",
+        backup_no_reply: "Телевізор не повідомив результат", backup_link_lost: "Зв'язок із телевізором обірвався" },
   kk: { backup_h: "Сақтық көшірме", backup_export: "Көшірмені шығару", backup_import: "Көшірмені қалпына келтіру",
         backup_hint: "Көшірмеде барлық параметрлер, эфир көздері, тұсқағаздар, фото және бейнелер бар. Қалпына келтіру осы теледидардағы барлық параметрлерді ауыстырып, оны қайта іске қосады.",
         backup_confirm: "Қалпына келтіру осы теледидардағы барлық параметрлерді ауыстырады. Жалғастыру керек пе?", backup_restoring: "Қалпына келтірілуде…",
         backup_restored: "Қалпына келтірілді. Теледидар қайта іске қосылуда", backup_failed: "Қалпына келтіру сәтсіз — файл бүлінген болуы мүмкін",
         backup_locked: "Балалар режимі қосулы — алдымен ТВ-да PIN-кодпен ашу керек",
-        backup_packing: "Көшірме жиналуда, күте тұрыңыз…" }
+        backup_packing: "Көшірме жиналуда, күте тұрыңыз…",
+        backup_no_reply: "Теледидар нәтижені хабарламады", backup_link_lost: "Теледидармен байланыс үзілді" }
 };
 const LANG = (() => {
   const asked = new URLSearchParams(location.search).get('lang');
@@ -1789,6 +1794,29 @@ $('#backupBtn').download = 'aerial-backup.zip';
 // 备份是边压边发的流, 电视那头打包大文件要几秒; 点下去先给一句反馈, 免得看着像没反应。
 $('#backupBtn').onclick = () => toast(t('backup_packing'));
 $('#restoreBtn').onclick = () => $('#restoreFile').click();
+// 上次导入的结果: 电视重启那一刻的回复经常到不了手机, 页面再打开时补看一次。
+(async () => {
+  let rid = '';
+  try { rid = localStorage.getItem('aerial-restore-id') || ''; } catch (_) { }
+  if (!rid) return;
+  for (let i = 0; i < 6; i++) {
+    try {
+      const d = await (await fetch(base + 'api/restore-result?id=' + encodeURIComponent(rid))).json();
+      if (d && d.state === 'ok') {
+        toast(t('backup_restored'));
+        try { localStorage.removeItem('aerial-restore-id'); } catch (_) { }
+        return;
+      }
+      if (d && d.state === 'failed') {
+        toast(t('backup_failed') + (d.error ? '「' + d.error + '」' : ''));
+        try { localStorage.removeItem('aerial-restore-id'); } catch (_) { }
+        return;
+      }
+    } catch (_) { }
+    await new Promise(res => setTimeout(res, 1500));
+  }
+  try { localStorage.removeItem('aerial-restore-id'); } catch (_) { }
+})();
 // The file goes up as the raw body: a 300 MB backup must not be re-encoded as multipart.
 $('#restoreFile').onchange = async e => {
   const f = e.target.files && e.target.files[0];
@@ -1799,7 +1827,11 @@ $('#restoreFile').onchange = async e => {
   b.disabled = true; b.textContent = t('backup_restoring');
   // 恢复成功后电视会重启进程, 那条 HTTP 回复经常来不及到手机; 用这个 id 回查真实结果。
   const rid = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  // 记在手机上: 电视重启会掐断回复, 用户刷新页面时靠这个补看真实结果。
+  try { localStorage.setItem('aerial-restore-id', rid); } catch (_) { }
   let done = false;
+  // 手机这一侧每一步都留一份, 失败时送回电视, 两边说法不一致时才有得对。
+  const steps = [];
   try {
     const r = await fetch(base + 'api/restore', {
       method: 'POST',
@@ -1807,26 +1839,41 @@ $('#restoreFile').onchange = async e => {
       body: f,
     });
     const text = await r.text();
+    steps.push('POST ' + r.status + ' ' + (text || '').slice(0, 200));
     let data = null;
     try { data = JSON.parse(text); } catch (_) { }
     // 儿童/长辈模式锁定时服务端回 kidsLocked JSON, 不是恢复结果, 不能当成成功。
     if (data && data.kidsLocked) { toast(t('backup_locked')); done = true; }
     else if (data && data.restored) { toast(t('backup_restored')); done = true; }
-  } catch (_) { /* 断线, 下面回查 */ }
+  } catch (err) { steps.push('POST 异常 ' + ((err && err.name) || '') + ' ' + ((err && err.message) || '')); }
+  let reason = '';
+  let serverFailed = false;
   if (!done) {
     // 拿不到回复不代表失败: 电视重启期间端口会断一会儿, 多试几次再下结论。
-    let reason = '';
     for (let i = 0; i < 24; i++) {
       await new Promise(res => setTimeout(res, 1200));
       try {
         const q = await fetch(base + 'api/restore-result?id=' + encodeURIComponent(rid));
         const d = await q.json();
+        steps.push((i + 1) + ' ' + ((d && d.state) || 'none'));
         if (d && d.state === 'ok') { toast(t('backup_restored')); done = true; break; }
-        if (d && d.state === 'failed') { reason = d.error || ''; break; }
-      } catch (_) { }
+        if (d && d.state === 'failed') { reason = d.error || ''; serverFailed = true; break; }
+      } catch (_) { steps.push((i + 1) + ' 连接失败'); }
     }
-    // 失败时把服务端给的原因一并显示: 「存储空间不足」和「包里某个文件坏了」是两码事。
-    toast(reason ? t('backup_failed') + '「' + reason + '」' : t('backup_failed'));
+  }
+  if (done) {
+    try { localStorage.removeItem('aerial-restore-id'); } catch (_) { }
+  } else {
+    // 失败要说清是哪一种: 电视明确报了失败, 和「没等到电视回话」不是一回事。
+    const why = serverFailed ? reason : (steps[0].startsWith('POST 异常') ? t('backup_link_lost') : t('backup_no_reply'));
+    toast(t('backup_failed') + (why ? '「' + why + '」' : ''));
+    try {
+      fetch(base + 'api/restore-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain', 'X-Restore-Id': rid },
+        body: rid + '\n' + steps.join('\n'),
+      }).catch(() => { });
+    } catch (_) { }
   }
   b.disabled = false; b.textContent = t('backup_import');
 };

@@ -74,7 +74,12 @@ class PhoneServer private constructor(private val context: Context, private val 
                 path != "/api/kids/start" && !pinOk(session.headers["x-aerial-pin"])
             ) return json(state().put("saved", false).put("kidsLocked", true))
             when {
-                path == "/" -> newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", page())
+                // 页面绝对不能进浏览器缓存: 换版本后手机还在跑旧的那份 index.html, 导入判定的
+                // 新旧逻辑就会混在一起, 明明修过的东西手机那头看不出变化。
+                path == "/" -> newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", page()).apply {
+                    addHeader("Cache-Control", "no-store, no-cache, must-revalidate")
+                    addHeader("Pragma", "no-cache")
+                }
                 session.method == Method.POST && path == "/api/kids/unlock" -> {
                     val ok = pinOk(form(session)["pin"])
                     json(state().put("saved", ok).put("pinRight", ok))
@@ -106,10 +111,21 @@ class PhoneServer private constructor(private val context: Context, private val 
                 path == "/api/restore-result" -> {
                     // 有的 NanoHTTPD 版本不把 GET 参数塞进 parms, 两种都试。
                     val id = session.parms["id"] ?: queryOf(session.queryParameterString, "id")
-                    json(
-                        app.orchard.tv.system.Backup.restoreState(context, id)
-                            ?: JSONObject().put("state", "unknown")
+                    val found = app.orchard.tv.system.Backup.restoreState(context, id)
+                    // 手机每次回查都留一笔: 到底是没回查、还是回查了却对不上 id, 一看就知道。
+                    app.orchard.tv.system.Backup.trace(
+                        context,
+                        "回查: id=${id.ifEmpty { "-" }} -> ${found?.optString("state") ?: "not-found"}",
                     )
+                    json(found ?: JSONObject().put("state", "unknown"))
+                }
+                // 手机端把它这一侧看到的每一步(上传状态、每轮回查结果)送回来, 落在 trace 里。
+                // 服务端的成败和手机端的提示对不上时, 这段就是唯一能对齐两边的东西。
+                session.method == Method.POST && path == "/api/restore-log" -> {
+                    val len = session.headers["content-length"]?.toLongOrNull() ?: 0L
+                    val body = if (len in 1..8192) readBody(session, len.toInt()) else ""
+                    if (body.isNotEmpty()) app.orchard.tv.system.Backup.trace(context, "手机端导入过程:\n$body")
+                    json(JSONObject().put("ok", true))
                 }
                 path.startsWith("/thumb/") -> thumb(path.removePrefix("/thumb/"))
                 session.method == Method.POST && path.startsWith("/live-icon/") -> {
@@ -751,6 +767,21 @@ class PhoneServer private constructor(private val context: Context, private val 
             ?.firstOrNull { it.substringBefore('=') == key }
             ?.substringAfter('=', "")
             .orEmpty()
+
+    /** 读固定长度的原始请求体, 用在上传之外的小段文本(手机端导入过程)。 */
+    private fun readBody(session: IHTTPSession, len: Int): String = runCatching {
+        val out = java.io.ByteArrayOutputStream()
+        val buf = ByteArray(2048)
+        var total = 0
+        while (total < len) {
+            val read = session.inputStream.read(buf)
+            if (read <= 0) break
+            val take = minOf(read, len - total)
+            out.write(buf, 0, take)
+            total += take
+        }
+        String(out.toByteArray(), Charsets.UTF_8)
+    }.getOrDefault("")
 
     /** 日志文件下载: 附件名带时间, 浏览器直接存到手机的下载目录。 */
     private fun logFile(): Response {
