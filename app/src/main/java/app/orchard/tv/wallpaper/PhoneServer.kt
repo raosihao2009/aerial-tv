@@ -102,6 +102,15 @@ class PhoneServer private constructor(private val context: Context, private val 
                 // 手机端「更多 → 备份」: 下载整机备份(zip), 或上传一个备份包覆盖本机
                 path == "/api/backup" -> backupDownload()
                 session.method == Method.POST && path == "/api/restore" -> restoreBackup(session)
+                // 恢复后进程自杀重启, 手机可能没收到那条回复: 按同一个 id 回查结果。
+                path == "/api/restore-result" -> {
+                    // 有的 NanoHTTPD 版本不把 GET 参数塞进 parms, 两种都试。
+                    val id = session.parms["id"] ?: queryOf(session.queryParameterString, "id")
+                    json(
+                        app.orchard.tv.system.Backup.restoreState(context, id)
+                            ?: JSONObject().put("state", "unknown")
+                    )
+                }
                 path.startsWith("/thumb/") -> thumb(path.removePrefix("/thumb/"))
                 session.method == Method.POST && path.startsWith("/live-icon/") -> {
                     val id = path.removePrefix("/live-icon/")
@@ -736,6 +745,13 @@ class PhoneServer private constructor(private val context: Context, private val 
 
     private fun text(status: Response.Status, msg: String) = newFixedLengthResponse(status, "text/plain; charset=utf-8", msg)
 
+    /** 从 GET 查询串里取一个参数, 兜住不把 GET 参数放进 parms 的 NanoHTTPD 版本。 */
+    private fun queryOf(raw: String?, key: String): String =
+        raw?.split('&')
+            ?.firstOrNull { it.substringBefore('=') == key }
+            ?.substringAfter('=', "")
+            .orEmpty()
+
     /** 日志文件下载: 附件名带时间, 浏览器直接存到手机的下载目录。 */
     private fun logFile(): Response {
         val body = app.orchard.tv.system.DiagLog.exportText()
@@ -773,19 +789,27 @@ class PhoneServer private constructor(private val context: Context, private val 
 
     /** 上传备份包恢复本机。包体直接作为请求体流进来, 不走 multipart: 大包不该先落盘再解一遍。 */
     private fun restoreBackup(session: IHTTPSession): Response {
+        // 手机端会带一个随机 id, 恢复后进程要重启, 那条回复可能到不了手机, 它靠这个 id 回查结果。
+        val id = session.headers["x-restore-id"].orEmpty()
         // 备份里有照片和影片, 不能按普通上传的 200 MB 卡, 单独给一个更宽松的上限。
         val declared = session.headers["content-length"]?.toLongOrNull() ?: 0L
         if (declared > MAX_BACKUP) return text(Response.Status.BAD_REQUEST, "too large")
+        app.orchard.tv.system.Backup.markRestoreState(context, id, "running")
         val summary = runCatching {
             app.orchard.tv.system.Backup.restore(context, session.inputStream)
         }.getOrElse { e ->
             app.orchard.tv.system.DiagLog.i("手机端导入备份失败: ${e.message}")
+            app.orchard.tv.system.Backup.markRestoreState(context, id, "failed", error = e.message)
             return text(Response.Status.BAD_REQUEST, "恢复失败: ${e.message}")
         }
         app.orchard.tv.system.DiagLog.i("手机端导入备份: ${summary.prefs} 项设置, ${summary.files} 个文件; 即将重启")
-        // 先把结果发回去(serve 返回后 NanoHTTPD 才写响应), 留两秒再把进程重启。
-        onMain { app.orchard.tv.system.Backup.scheduleRestart(context, delayMs = 2500L) }
-        return json(state().put("restored", true).put("prefs", summary.prefs).put("files", summary.files))
+        app.orchard.tv.system.Backup.markRestoreState(context, id, "ok", summary.prefs, summary.files)
+        // 先把结果发回去(serve 返回后 NanoHTTPD 才写响应), 留几秒再把进程重启。
+        onMain { app.orchard.tv.system.Backup.scheduleRestart(context, delayMs = 5000L) }
+        return json(state().put("restored", true).put("prefs", summary.prefs).put("files", summary.files)).apply {
+            // 响应写完就关连接: 进程随后自杀, 别让 keep-alive 把手机那头正在读的回复掐断。
+            addHeader("Connection", "close")
+        }
     }
 
     companion object {

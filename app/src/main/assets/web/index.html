@@ -1797,19 +1797,36 @@ $('#restoreFile').onchange = async e => {
   if (!(await confirmSheet(t('backup_confirm'), t('backup_import')))) return;
   const b = $('#restoreBtn');
   b.disabled = true; b.textContent = t('backup_restoring');
+  // 恢复成功后电视会重启进程, 那条 HTTP 回复经常来不及到手机; 用这个 id 回查真实结果。
+  const rid = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  let done = false, failed = false;
   try {
-    const r = await fetch(base + 'api/restore', { method: 'POST', headers: { 'Content-Type': 'application/zip' }, body: f });
+    const r = await fetch(base + 'api/restore', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/zip', 'X-Restore-Id': rid },
+      body: f,
+    });
     const text = await r.text();
     let data = null;
     try { data = JSON.parse(text); } catch (_) { }
-    if (!r.ok) throw new Error(r.status);
     // 儿童/长辈模式锁定时服务端回 kidsLocked JSON, 不是恢复结果, 不能当成成功。
-    if (data && data.kidsLocked) { toast(t('backup_locked')); return; }
-    if (!data || !data.restored) throw new Error('not restored');
-    toast(t('backup_restored'));
-  } catch (err) {
-    toast(t('backup_failed'));
-  } finally { b.disabled = false; b.textContent = t('backup_import'); }
+    if (data && data.kidsLocked) { toast(t('backup_locked')); done = true; }
+    else if (data && data.restored) { toast(t('backup_restored')); done = true; }
+  } catch (_) { /* 断线, 下面回查 */ }
+  if (!done) {
+    // 拿不到回复不代表失败: 电视重启期间端口会断一会儿, 多试几次再下结论。
+    for (let i = 0; i < 20; i++) {
+      await new Promise(res => setTimeout(res, 1200));
+      try {
+        const q = await fetch(base + 'api/restore-result?id=' + encodeURIComponent(rid));
+        const d = await q.json();
+        if (d && d.state === 'ok') { toast(t('backup_restored')); done = true; break; }
+        if (d && d.state === 'failed') { failed = true; break; }
+      } catch (_) { }
+    }
+    if (!done) toast(t('backup_failed'));
+  }
+  b.disabled = false; b.textContent = t('backup_import');
 };
 $('#diagBtn').onclick = async () => {
   const b = $('#diagBtn'); b.disabled = true; b.textContent = t('diag_collecting');

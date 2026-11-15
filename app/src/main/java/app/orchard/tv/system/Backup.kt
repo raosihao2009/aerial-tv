@@ -59,6 +59,34 @@ object Backup {
     /** 恢复结果, 用来给用户一句人话。 */
     data class Summary(val prefs: Int, val files: Int)
 
+    /** 恢复进度存档。恢复完进程会自杀重启, 手机那头可能等不到那一条 HTTP 回复, 靠它补查。 */
+    private const val RESTORE_STATE = "restore_state"
+
+    /** 记下这次恢复的结果: running / ok / failed。commit 同步落盘, 进程随后被杀也不会丢。 */
+    fun markRestoreState(context: Context, id: String, state: String, prefs: Int = 0, files: Int = 0, error: String? = null) {
+        if (id.isEmpty()) return
+        context.getSharedPreferences(RESTORE_STATE, Context.MODE_PRIVATE).edit()
+            .putString("id", id)
+            .putString("state", state)
+            .putInt("prefs", prefs)
+            .putInt("files", files)
+            .putString("error", error)
+            .commit()
+    }
+
+    /** 查某次恢复的结果; [id] 传空表示最近一次。没记录过返回 null。 */
+    fun restoreState(context: Context, id: String): JSONObject? {
+        val sp = context.getSharedPreferences(RESTORE_STATE, Context.MODE_PRIVATE)
+        val saved = sp.getString("id", null) ?: return null
+        if (id.isNotEmpty() && saved != id) return null
+        return JSONObject()
+            .put("id", saved)
+            .put("state", sp.getString("state", "unknown"))
+            .put("prefs", sp.getInt("prefs", 0))
+            .put("files", sp.getInt("files", 0))
+            .put("error", sp.getString("error", null))
+    }
+
     private fun prefsDir(context: Context) = File(context.applicationInfo.dataDir, "shared_prefs")
 
     private fun skipFile(name: String) =
