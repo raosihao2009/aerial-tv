@@ -229,7 +229,6 @@ fun WallpaperSheet(
                 .padding(start = 40.dp, end = 32.dp, top = 24.dp),
         ) {
             val scroll = rememberScrollState()
-            val scope = rememberCoroutineScope()
             // How Home looks, in the order you see it: the picture behind everything, how Home
             // is laid out over it, what replaces it when idle, then the weather and the PIN.
             // Settings sit in tvOS-style grouped rows; each group's note follows the focused row.
@@ -466,21 +465,18 @@ fun WallpaperSheet(
                 Spacer(Modifier.height(10.dp))
                 Group(stringResource(R.string.st_pin_hint)) { note ->
                     SettingRow(R.string.st_pin, null, note, first = true) {
-                        PinChoice(onPin, onFocused = { scope.launch { scroll.animateScrollTo(scroll.maxValue) } })
+                        PinChoice(onPin)
                     }
                     SettingRow(R.string.st_kids, stringResource(R.string.st_kids_hint), note) {
-                        // The last row that takes focus: bring the note under it into view too.
-                        Box(Modifier.onFocusChanged { if (it.hasFocus) scope.launch { scroll.animateScrollTo(scroll.maxValue) } }) {
-                            ActionChip(
-                                when {
-                                    !Restricted.enabled -> stringResource(R.string.st_off)
-                                    Restricted.kind == RestrictedKind.Kids -> stringResource(R.string.kids_kind_kids)
-                                    else -> stringResource(R.string.kids_kind_elders)
-                                },
-                                Glyph.ChevronRight,
-                                onKids,
-                            )
-                        }
+                        ActionChip(
+                            when {
+                                !Restricted.enabled -> stringResource(R.string.st_off)
+                                Restricted.kind == RestrictedKind.Kids -> stringResource(R.string.kids_kind_kids)
+                                else -> stringResource(R.string.kids_kind_elders)
+                            },
+                            Glyph.ChevronRight,
+                            onKids,
+                        )
                     }
                 }
                 // 整机备份: 写成一个 zip, 换台电视时导入回来。手机页上也有同样的入口。
@@ -753,7 +749,7 @@ private fun <T> Choices(
 
 /** Parental PIN on or off; either way goes through the PIN pad (issue #10). */
 @Composable
-private fun PinChoice(onPin: (on: Boolean) -> Unit, onFocused: () -> Unit) {
+private fun PinChoice(onPin: (on: Boolean) -> Unit, onFocused: (() -> Unit)? = null) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         listOf(true to R.string.st_pin_on, false to R.string.st_pin_off).forEach { (on, label) ->
             Chip(stringResource(label), on = AerialSettings.pinSet == on, onFocused = onFocused) {
