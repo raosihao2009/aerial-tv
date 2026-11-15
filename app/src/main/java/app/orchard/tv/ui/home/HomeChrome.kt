@@ -1036,8 +1036,8 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     fontFamily = OppoSans, letterSpacing = 0.em,
                 )
                 val sepStyle = weatherStyle.copy(color = Color.White.copy(alpha = 0.4f))
-                BasicText("现在", style = weatherStyle)
-                WeatherIcon(w.kind, isDayNow(), 20.dp, Modifier.padding(start = 1.dp))
+                WeatherTag("现在", weatherStyle)
+                WeatherIcon(w.kind, isDayNow(), 20.dp, Modifier.padding(start = 6.dp))
                 BasicText("$cond ${w.celsius}°", style = weatherStyle)
                 BasicText("｜", style = sepStyle)
                 ForecastCarousel(fc, weatherStyle)
@@ -1045,7 +1045,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
         }
     }
 }
-/** 今天/明天/后天预报轮播: 10 秒一次, 新一天从下方滚上来, 旧一天向上走。 */
+/** 今天/明天/后天预报轮播: 滑动 1 秒、停留 9 秒, 新一天从下方滚上来, 旧一天向上走。 */
 @Composable
 private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
     val days = fc.take(3)
@@ -1054,7 +1054,8 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
     LaunchedEffect(days.size) {
         if (days.size > 1) {
             while (true) {
-                delay(10_000)
+                // 滑动 1 秒, 停 9 秒, 一轮仍是 10 秒。
+                delay(9_000)
                 idx = (idx + 1) % days.size
             }
         }
@@ -1063,17 +1064,17 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
         targetState = idx,
         label = "forecast",
         transitionSpec = {
-            (slideInVertically { h -> h } + fadeIn() togetherWith
-                slideOutVertically { h -> -h } + fadeOut())
+            val slide = tween<IntOffset>(1000)
+            val fade = tween<Float>(1000)
+            (slideInVertically(animationSpec = slide) { h -> h } + fadeIn(fade) togetherWith
+                slideOutVertically(animationSpec = slide) { h -> -h } + fadeOut(fade))
         },
     ) { i ->
         val d = days[i]
         Row(verticalAlignment = Alignment.CenterVertically) {
-            val label = d.week.ifEmpty {
-                when (i) { 0 -> "今天"; 1 -> "明天"; else -> "" }
-            }
-            if (label.isNotEmpty()) BasicText(label, style = weatherStyle)
-            WeatherIcon(d.dayKind, isDayNow(), 20.dp, Modifier.padding(start = 1.dp))
+            val label = when (i) { 0 -> "今天"; 1 -> "明天"; else -> "后天" }
+            WeatherTag(label, weatherStyle)
+            WeatherIcon(d.dayKind, isDayNow(), 20.dp, Modifier.padding(start = 6.dp))
             if (d.display.contains("转")) {
                 WeatherIcon(d.nightKind, isDayNow(), 20.dp, Modifier.padding(start = 1.dp))
             }
@@ -1081,6 +1082,19 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
             BasicText(" ${d.low}° / ${d.high}°", style = weatherStyle)
         }
     }
+}
+
+/** 白底圆角小标签: 现在 / 今天 / 明天 / 后天, 字色黑色。 */
+@Composable
+private fun WeatherTag(text: String, style: TextStyle) {
+    BasicText(
+        text,
+        style = style.copy(color = Color.Black),
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(Color.White)
+            .padding(horizontal = 7.dp, vertical = 2.dp),
+    )
 }
 
 private fun isDayNow(): Boolean {
