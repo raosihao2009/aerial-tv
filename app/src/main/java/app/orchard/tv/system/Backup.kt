@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Handler
 import android.os.Looper
 import android.os.Process
@@ -30,6 +31,10 @@ object Backup {
     private const val VERSION = 1
     private const val MANIFEST = "backup.json"
     private const val FILES = "files/"
+    /** 卡片布局的存档名, 恢复时要单独合并(见 [mergeLayout])。 */
+    private const val LAYOUT = "layout"
+    /** 与 LayoutStore.FOLDER_KEY_PREFIX 一致: order 里一个文件夹占的那一格。 */
+    private const val FOLDER_KEY = "folder:"
 
     /** 本机所有存档。漏掉一个就是恢复后少一块设置, 所以集中写在这里。 */
     private val PREF_FILES = listOf(
@@ -52,9 +57,7 @@ object Backup {
     )
 
     /** 恢复结果, 用来给用户一句人话。 */
-    data class Summary(val prefs: Int, val files: Int)
-
-    private fun prefsDir(context: Context) = File(context.applicationInfo.dataDir, "shared_prefs")
+    data class Summary(val prefs: Int, val files: Int)    private fun prefsDir(context: Context) = File(context.applicationInfo.dataDir, "shared_prefs")
 
     private fun skipFile(name: String) =
         name == "aerial.p12" || name.endsWith(".log") || name.endsWith(".tmp") || name.startsWith(".")
@@ -145,6 +148,9 @@ object Backup {
         all.keys().forEach { name ->
             val block = all.optJSONObject(name) ?: return@forEach
             val prefs = context.getSharedPreferences(name, Context.MODE_PRIVATE)
+            // 卡片布局要两台机器求并集: 本机独有的卡片(装的是备份里没有的 App 或源)不该因为
+            // 导入而掉到桌面末尾。先记下本机原样, 写完备份那份再合一次。
+            val mine = if (name == LAYOUT) readLayout(prefs) else null
             // 整份覆盖: 残留的旧键会让恢复出来的状态和新包不一致(比如新包里没有的开关还留着)。
             prefs.edit().clear().commit()
             val edit = prefs.edit()
@@ -165,6 +171,7 @@ object Backup {
                 count++
             }
             edit.commit()
+            if (mine != null) writeLayout(prefs, mergeLayout(mine, readLayout(prefs)))
         }
         return count
     }
@@ -193,6 +200,73 @@ object Backup {
                 put(key, node)
             }
         }
+    }
+
+    /** 一个 layout 存档的可读形态: 桌面顺序、隐藏项、文件夹。 */
+    internal data class LayoutSnapshot(
+        val order: List<String>,
+        val hidden: Set<String>,
+        val folders: List<FolderSnapshot>,
+    )
+
+    internal data class FolderSnapshot(val id: String, val name: String, val apps: List<String>)
+
+    /**
+     * 两台机器的卡片布局求并集, 以备份那份([theirs])为主: 备份里的卡片与文件夹位置照旧,
+     * 本机([mine])独有的 App 一个不丢 —— 本机原来在同一个名字的文件夹里就并进备份那个文件夹;
+     * 本机那个文件夹备份里没有就整个带过来; 散在桌面上的补到末尾。隐藏项取并集, 本机藏着的照旧藏着。
+     */
+    internal fun mergeLayout(mine: LayoutSnapshot?, theirs: LayoutSnapshot): LayoutSnapshot {
+        if (mine == null) return theirs
+        val covered = (theirs.order + theirs.folders.flatMap { it.apps }).toHashSet()
+        val folders = theirs.folders.toMutableList()
+        val order = theirs.order.toMutableList()
+        var nextId = (folders.mapNotNull { it.id.toIntOrNull() }.maxOrNull() ?: 0) + 1
+        mine.folders.forEach { f ->
+            val extra = f.apps.filterNot { it in covered || it.startsWith(FOLDER_KEY) }
+            if (extra.isEmpty()) return@forEach
+            val sameName = folders.indexOfFirst { it.name == f.name }
+            if (sameName >= 0) {
+                folders[sameName] = folders[sameName].copy(apps = folders[sameName].apps + extra)
+            } else {
+                val id = nextId.toString()
+                nextId++
+                folders += FolderSnapshot(id, f.name, extra)
+                order += FOLDER_KEY + id
+            }
+        }
+        val inMyFolders = mine.folders.flatMap { it.apps }.toHashSet()
+        order += mine.order.filterNot { it.startsWith(FOLDER_KEY) || it in covered || it in inMyFolders }
+        return LayoutSnapshot(order, theirs.hidden + mine.hidden, folders)
+    }
+
+    private fun readLayout(prefs: SharedPreferences): LayoutSnapshot {
+        val folders = runCatching {
+            val array = JSONArray(prefs.getString("folders", null) ?: return@runCatching emptyList())
+            (0 until array.length()).map { i ->
+                val o = array.getJSONObject(i)
+                val apps = o.optJSONArray("apps")?.let { a -> (0 until a.length()).map(a::getString) } ?: emptyList()
+                FolderSnapshot(o.optString("id"), o.optString("name"), apps)
+            }
+        }.getOrDefault(emptyList())
+        return LayoutSnapshot(
+            order = prefs.getString("order", null)?.split(',')?.filter { it.isNotBlank() } ?: emptyList(),
+            hidden = prefs.getStringSet("hidden", null)?.toSet() ?: emptySet(),
+            folders = folders,
+        )
+    }
+
+    private fun writeLayout(prefs: SharedPreferences, snap: LayoutSnapshot) {
+        prefs.edit()
+            .putString("order", snap.order.joinToString(","))
+            .putStringSet("hidden", snap.hidden)
+            .putString("folders", JSONArray().apply {
+                snap.folders.forEach { f ->
+                    put(JSONObject().put("id", f.id).put("name", f.name).put("apps", JSONArray(f.apps)))
+                }
+            }.toString())
+            .putBoolean("initialized", true)
+            .commit()
     }
 
     /**

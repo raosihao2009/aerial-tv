@@ -74,7 +74,8 @@ class AppMenuTest {
                 Box(Modifier.size(960.dp, 540.dp)) {
                     AppMenu(app, bounds, false, folders,
                         onMove = {}, onHide = {}, onInfo = {}, onUninstall = {}, onUnpin = {},
-                        onResetIcon = {}, onBootTarget = {}, onSourceDevice = { _, _ -> },
+                        onResetIcon = {}, onBootTarget = {}, onLiveApp = {},
+                        onSourceDevice = { _, _ -> },
                         onToFolder = { _, id -> movedTo = id ?: "new" }, onOutOfFolder = {},
                         onRenameFolder = { _, _ -> }, onUngroup = {}, onDismiss = {})
                 }
