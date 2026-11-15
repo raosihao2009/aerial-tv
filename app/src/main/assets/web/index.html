@@ -363,7 +363,7 @@
     <button class="item tint center" id="restoreBtn" data-i18n="backup_import"></button>
   </div>
   <p class="foot" data-i18n="backup_hint"></p>
-  <input type="file" id="restoreFile" accept=".zip,application/zip" hidden>
+  <input type="file" id="restoreFile" accept=".zip,application/zip,application/octet-stream" hidden>
 
   <h2 data-i18n="feedback_h"></h2>
   <div class="list">
@@ -1130,23 +1130,28 @@ const EXTRA = {
   zh: { backup_h: "备份与恢复", backup_export: "导出备份", backup_import: "导入备份",
         backup_hint: "备份包含所有设置、直播源、壁纸与照片影片。导入会覆盖这台电视上的全部设置，随后自动重启。",
         backup_confirm: "导入会覆盖这台电视上的全部设置，确定继续？", backup_restoring: "正在导入…",
-        backup_restored: "已导入，电视正在重启", backup_failed: "导入失败，文件可能不完整" },
+        backup_restored: "已导入，电视正在重启", backup_failed: "导入失败，文件可能不完整",
+        backup_locked: "儿童/长辈模式已开启，需先在电视上输入家长密码" },
   en: { backup_h: "Backup & restore", backup_export: "Export backup", backup_import: "Import backup",
         backup_hint: "The backup holds every setting, live source, wallpaper, photo and video. Importing replaces all settings on this TV and restarts it.",
         backup_confirm: "Importing replaces all settings on this TV. Continue?", backup_restoring: "Importing…",
-        backup_restored: "Imported. The TV is restarting", backup_failed: "Import failed — the file may be incomplete" },
+        backup_restored: "Imported. The TV is restarting", backup_failed: "Import failed — the file may be incomplete",
+        backup_locked: "Kids/elders mode is on — unlock with the parental PIN on the TV first" },
   ru: { backup_h: "Резервная копия", backup_export: "Экспорт копии", backup_import: "Импорт копии",
         backup_hint: "Копия содержит все настройки, источники трансляций, обои, фото и видео. Импорт заменит все настройки на этом телевизоре и перезапустит его.",
         backup_confirm: "Импорт заменит все настройки на этом телевизоре. Продолжить?", backup_restoring: "Импорт…",
-        backup_restored: "Импортировано. Телевизор перезапускается", backup_failed: "Импорт не удался — файл может быть повреждён" },
+        backup_restored: "Импортировано. Телевизор перезапускается", backup_failed: "Импорт не удался — файл может быть повреждён",
+        backup_locked: "Включён детский режим — сначала разблокируйте PIN-кодом на ТВ" },
   uk: { backup_h: "Резервна копія", backup_export: "Експорт копії", backup_import: "Імпорт копії",
         backup_hint: "Копія містить усі налаштування, джерела трансляцій, шпалери, фото й відео. Імпорт замінить усі налаштування на цьому телевізорі та перезапустить його.",
         backup_confirm: "Імпорт замінить усі налаштування на цьому телевізорі. Продовжити?", backup_restoring: "Імпорт…",
-        backup_restored: "Імпортовано. Телевізор перезапускається", backup_failed: "Імпорт не вдався — файл може бути пошкоджений" },
+        backup_restored: "Імпортовано. Телевізор перезапускається", backup_failed: "Імпорт не вдався — файл може бути пошкоджений",
+        backup_locked: "Увімкнено дитячий режим — спочатку розблокуйте PIN-кодом на ТБ" },
   kk: { backup_h: "Сақтық көшірме", backup_export: "Көшірмені шығару", backup_import: "Көшірмені қалпына келтіру",
         backup_hint: "Көшірмеде барлық параметрлер, эфир көздері, тұсқағаздар, фото және бейнелер бар. Қалпына келтіру осы теледидардағы барлық параметрлерді ауыстырып, оны қайта іске қосады.",
         backup_confirm: "Қалпына келтіру осы теледидардағы барлық параметрлерді ауыстырады. Жалғастыру керек пе?", backup_restoring: "Қалпына келтірілуде…",
-        backup_restored: "Қалпына келтірілді. Теледидар қайта іске қосылуда", backup_failed: "Қалпына келтіру сәтсіз — файл бүлінген болуы мүмкін" }
+        backup_restored: "Қалпына келтірілді. Теледидар қайта іске қосылуда", backup_failed: "Қалпына келтіру сәтсіз — файл бүлінген болуы мүмкін",
+        backup_locked: "Балалар режимі қосулы — алдымен ТВ-да PIN-кодпен ашу керек" }
 };
 const LANG = (() => {
   const asked = new URLSearchParams(location.search).get('lang');
@@ -1775,6 +1780,7 @@ $('#logBtn').onclick = async () => {
 /* More tab: backup. Export is a plain link to the zip, so the browser's own download takes it;
    the page's own downloads are blocked in some in-app webviews either way. */
 $('#backupBtn').href = base + 'api/backup';
+$('#backupBtn').download = 'aerial-backup.zip';
 $('#restoreBtn').onclick = () => $('#restoreFile').click();
 // The file goes up as the raw body: a 300 MB backup must not be re-encoded as multipart.
 $('#restoreFile').onchange = async e => {
@@ -1786,7 +1792,13 @@ $('#restoreFile').onchange = async e => {
   b.disabled = true; b.textContent = t('backup_restoring');
   try {
     const r = await fetch(base + 'api/restore', { method: 'POST', headers: { 'Content-Type': 'application/zip' }, body: f });
+    const text = await r.text();
+    let data = null;
+    try { data = JSON.parse(text); } catch (_) { }
     if (!r.ok) throw new Error(r.status);
+    // 儿童/长辈模式锁定时服务端回 kidsLocked JSON, 不是恢复结果, 不能当成成功。
+    if (data && data.kidsLocked) { toast(t('backup_locked')); return; }
+    if (!data || !data.restored) throw new Error('not restored');
     toast(t('backup_restored'));
   } catch (err) {
     toast(t('backup_failed'));

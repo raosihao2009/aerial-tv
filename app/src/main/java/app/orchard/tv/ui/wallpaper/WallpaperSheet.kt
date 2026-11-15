@@ -157,7 +157,14 @@ fun WallpaperSheet(
     val backupNoPicker = stringResource(R.string.st_backup_no_picker)
     val restoreDone = stringResource(R.string.st_backup_restored)
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+        if (uri == null) {
+            // 没有文件选择器的电视: 选择器没起来或被系统直接退回, 同样落到应用目录并报路径。
+            backupScope.launch {
+                val path = exportToAppDir(context)
+                onToast(if (path != null) "$backupSavedTo $path" else backupFail)
+            }
+            return@rememberLauncherForActivityResult
+        }
         backupScope.launch {
             val ok = withContext(Dispatchers.IO) {
                 runCatching { context.contentResolver.openOutputStream(uri)?.use { Backup.export(context, it) } }.getOrNull() != null
@@ -494,7 +501,7 @@ fun WallpaperSheet(
                     }
                     SettingRow(R.string.st_backup_import, null, note) {
                         ActionChip(stringResource(R.string.st_backup_pick), Glyph.Folder) {
-                            runCatching { importLauncher.launch(arrayOf("application/zip", "application/octet-stream")) }
+                            runCatching { importLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }
                                 .onFailure { onToast(backupNoPicker) }
                         }
                     }

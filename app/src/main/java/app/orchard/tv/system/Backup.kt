@@ -57,47 +57,51 @@ object Backup {
     )
 
     /** 恢复结果, 用来给用户一句人话。 */
-    data class Summary(val prefs: Int, val files: Int)    private fun prefsDir(context: Context) = File(context.applicationInfo.dataDir, "shared_prefs")
+    data class Summary(val prefs: Int, val files: Int)
+
+    private fun prefsDir(context: Context) = File(context.applicationInfo.dataDir, "shared_prefs")
 
     private fun skipFile(name: String) =
         name == "aerial.p12" || name.endsWith(".log") || name.endsWith(".tmp") || name.startsWith(".")
 
     /** 导出到 [out]; 调用方负责关闭流。 */
     fun export(context: Context, out: OutputStream): Summary {
-        val zip = ZipOutputStream(out)
-        // 先把清单算出来, 再写进包里, 最后逐个压文件: 清单得在前面才能边读边解。
-        val prefJson = JSONObject()
-        var prefs = 0
-        PREF_FILES.forEach { name ->
-            val values = readPrefs(context, name) ?: return@forEach
-            prefJson.put(name, values)
-            prefs += values.length()
-        }
-        val fileList = JSONArray()
-        var files = 0
-        walkFiles(context.filesDir) { _, rel ->
-            fileList.put(rel)
-            files++
-        }
-        val manifest = JSONObject().apply {
-            put("version", VERSION)
-            put("package", context.packageName)
-            put("createdAt", System.currentTimeMillis())
-            put("prefs", prefJson)
-            put("files", fileList)
-        }
-        zip.putNextEntry(ZipEntry(MANIFEST))
-        zip.write(manifest.toString().toByteArray(Charsets.UTF_8))
-        zip.closeEntry()
-        walkFiles(context.filesDir) { file, rel ->
-            runCatching {
-                zip.putNextEntry(ZipEntry(FILES + rel))
-                file.inputStream().use { it.copyTo(zip) }
-                zip.closeEntry()
+        // 必须走到 use 的 close: ZipOutputStream 关闭时才写末尾的中央目录, 只 flush 出来的包
+        // 标准解压软件会报 "zip END header not found" 打不开。
+        ZipOutputStream(out).use { zip ->
+            // 先把清单算出来, 再写进包里, 最后逐个压文件: 清单得在前面才能边读边解。
+            val prefJson = JSONObject()
+            var prefs = 0
+            PREF_FILES.forEach { name ->
+                val values = readPrefs(context, name) ?: return@forEach
+                prefJson.put(name, values)
+                prefs += values.length()
             }
+            val fileList = JSONArray()
+            var files = 0
+            walkFiles(context.filesDir) { _, rel ->
+                fileList.put(rel)
+                files++
+            }
+            val manifest = JSONObject().apply {
+                put("version", VERSION)
+                put("package", context.packageName)
+                put("createdAt", System.currentTimeMillis())
+                put("prefs", prefJson)
+                put("files", fileList)
+            }
+            zip.putNextEntry(ZipEntry(MANIFEST))
+            zip.write(manifest.toString().toByteArray(Charsets.UTF_8))
+            zip.closeEntry()
+            walkFiles(context.filesDir) { file, rel ->
+                runCatching {
+                    zip.putNextEntry(ZipEntry(FILES + rel))
+                    file.inputStream().use { it.copyTo(zip) }
+                    zip.closeEntry()
+                }
+            }
+            return Summary(prefs, files)
         }
-        zip.flush()
-        return Summary(prefs, files)
     }
 
     /** 遍历 files 目录, 跳过证书与日志。 */
