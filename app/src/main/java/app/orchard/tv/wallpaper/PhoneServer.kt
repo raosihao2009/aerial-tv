@@ -45,6 +45,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.PipedInputStream
+import java.io.PipedOutputStream
 import java.net.Inet4Address
 import java.security.SecureRandom
 
@@ -747,25 +749,29 @@ class PhoneServer private constructor(private val context: Context, private val 
     }
 
     /**
-     * 整机备份下载。先写到缓存文件再给流: 浏览器要知道大小才肯显示进度, 边压边发只能分块,
-     * 手机上一大段空白看不出在动。文件在 Linux 上边读边删是安全的, 所以给出流后立刻删掉。
+     * 整机备份下载。边压边发(分块传输), 不落临时文件: 备份里可能有几个 GB 的影片, 缓存分区
+     * 放不下, 而且先写完整份再发的话手机端几十秒里什么都看不到, 像是按钮没反应。
      */
     private fun backupDownload(): Response {
-        // 缓存目录通常比内部分区宽裕; 真放不下再退回内部缓存。
-        val tmp = File.createTempFile("aerial-backup", ".zip", context.externalCacheDir ?: context.cacheDir)
-        val summary = runCatching {
-            tmp.outputStream().use { app.orchard.tv.system.Backup.export(context, it) }
-        }.getOrElse {
-            tmp.delete()
-            return text(Response.Status.INTERNAL_ERROR, "备份失败: ${it.message}")
-        }
-        app.orchard.tv.system.DiagLog.i("手机端导出备份: ${summary.prefs} 项设置, ${summary.files} 个文件, ${tmp.length()} 字节")
+        app.orchard.tv.system.DiagLog.i("手机端导出备份: 开始")
         val name = "aerial-backup-" + java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.US).format(java.util.Date()) + ".zip"
-        // 打开流之后再删: 句柄还在, 读得到, 也不在缓存里留一份几百 MB 的副本。
-        val stream = tmp.inputStream()
-        val length = tmp.length()
-        tmp.delete()
-        return newFixedLengthResponse(Response.Status.OK, "application/zip", stream, length).apply {
+        val sink = PipedOutputStream()
+        // 1 MB 的管道缓冲: 手机那头读得快一点或慢一点都不会互相卡死。
+        val source = PipedInputStream(sink, 1 shl 20)
+        val writer = Thread({
+            runCatching {
+                app.orchard.tv.system.Backup.export(context, sink)
+            }.onSuccess { summary ->
+                app.orchard.tv.system.DiagLog.i("手机端导出备份: ${summary.prefs} 项设置, ${summary.files} 个文件")
+            }.onFailure { e ->
+                app.orchard.tv.system.DiagLog.i("手机端导出备份失败: ${e.message}")
+            }
+            runCatching { sink.close() }
+        }, "backup-export").apply {
+            isDaemon = true
+            start()
+        }
+        return newChunkedResponse(Response.Status.OK, "application/zip", source).apply {
             addHeader("Content-Disposition", "attachment; filename=\"$name\"")
         }
     }

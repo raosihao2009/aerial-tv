@@ -346,15 +346,4 @@
     <string name="home_locked_notice">主屏幕已锁定。要整理卡片，请在「个性化」里关闭「锁定主页」。</string>
 
     <!-- 备份与恢复: 一个 zip 装下全部设置和文件(照片、影片、图标)。 -->
-    <string name="st_backup">备份与恢复</string>
-    <string name="st_backup_hint">一个文件装下这台电视的全部设置、直播源、壁纸、照片和影片。导入会把这些全部替换掉。</string>
-    <string name="st_backup_export">导出备份</string>
-    <string name="st_backup_import">导入备份</string>
-    <string name="st_backup_choose">保存到</string>
-    <string name="st_backup_pick">选择文件</string>
-    <string name="st_backup_done">备份已保存</string>
-    <string name="st_backup_fail">失败，文件可能不完整</string>
-    <string name="st_backup_restored">已恢复，Aerial 正在重启</string>
-    <string name="st_backup_saved_to">备份已保存到</string>
-    <string name="st_backup_no_picker">这台电视没有文件选择器，请用手机页导出</string>
 </resources>

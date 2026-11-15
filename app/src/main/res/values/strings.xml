@@ -364,15 +364,4 @@
     <string name="kids_warn_break">A break in %d min</string>
 
     <!-- Backup and restore: one zip of every setting and of the files (photos, films, icons). -->
-    <string name="st_backup">Backup &amp; restore</string>
-    <string name="st_backup_hint">One file with every setting, live source, wallpaper, photo and film on this TV. Importing replaces all of them.</string>
-    <string name="st_backup_export">Export backup</string>
-    <string name="st_backup_import">Import backup</string>
-    <string name="st_backup_choose">Save to</string>
-    <string name="st_backup_pick">Choose file</string>
-    <string name="st_backup_done">Backup saved</string>
-    <string name="st_backup_fail">Failed — the file may be incomplete</string>
-    <string name="st_backup_restored">Restored. Aerial is restarting</string>
-    <string name="st_backup_saved_to">Backup saved to</string>
-    <string name="st_backup_no_picker">This TV has no file picker; export from the phone page</string>
 </resources>

@@ -2,8 +2,6 @@ package app.orchard.tv.ui.wallpaper
 
 import android.os.Build
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.MutableTransitionState
@@ -108,7 +106,6 @@ import app.orchard.tv.wallpaper.Wallpaper
 import app.orchard.tv.wallpaper.WallpaperKind
 import app.orchard.tv.wallpaper.Wallpapers
 import app.orchard.tv.weather.Weather
-import app.orchard.tv.system.Backup
 import app.orchard.tv.weather.WeatherKind
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -148,45 +145,6 @@ fun WallpaperSheet(
     val context = LocalContext.current
     var phoneUrl by remember { mutableStateOf<String?>(null) }
     var qr by remember { mutableStateOf<ImageBitmap?>(null) }
-
-    // 备份与恢复: 走系统的文件选择器, 存到 U 盘或内置存储都不要存储权限。
-    val backupScope = rememberCoroutineScope()
-    val backupDone = stringResource(R.string.st_backup_done)
-    val backupFail = stringResource(R.string.st_backup_fail)
-    val backupSavedTo = stringResource(R.string.st_backup_saved_to)
-    val backupNoPicker = stringResource(R.string.st_backup_no_picker)
-    val restoreDone = stringResource(R.string.st_backup_restored)
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
-        if (uri == null) {
-            // 没有文件选择器的电视: 选择器没起来或被系统直接退回, 同样落到应用目录并报路径。
-            backupScope.launch {
-                val path = exportToAppDir(context)
-                onToast(if (path != null) "$backupSavedTo $path" else backupFail)
-            }
-            return@rememberLauncherForActivityResult
-        }
-        backupScope.launch {
-            val ok = withContext(Dispatchers.IO) {
-                runCatching { context.contentResolver.openOutputStream(uri)?.use { Backup.export(context, it) } }.getOrNull() != null
-            }
-            onToast(if (ok) backupDone else backupFail)
-        }
-    }
-    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        backupScope.launch {
-            val ok = withContext(Dispatchers.IO) {
-                runCatching { context.contentResolver.openInputStream(uri)?.use { Backup.restore(context, it) } }.getOrNull() != null
-            }
-            if (ok) {
-                onToast(restoreDone)
-                // 设置都是各对象 init 时读进内存的, 恢复完就重启, 免得一半新一半旧。
-                Backup.scheduleRestart(context)
-            } else {
-                onToast(backupFail)
-            }
-        }
-    }
 
     BackHandler(enabled = visible, onBack = onDismiss)
 
@@ -486,26 +444,7 @@ fun WallpaperSheet(
                         )
                     }
                 }
-                // 整机备份: 写成一个 zip, 换台电视时导入回来。手机页上也有同样的入口。
-                Spacer(Modifier.height(22.dp))
-                SectionTitle(R.string.st_backup)
-                Group(stringResource(R.string.st_backup_hint)) { note ->
-                    SettingRow(R.string.st_backup_export, null, note, first = true) {
-                        ActionChip(stringResource(R.string.st_backup_choose), Glyph.Download) {
-                            // 没有文件选择器的电视: 退回到应用自己的外部目录, 把路径说出来。
-                            runCatching { exportLauncher.launch(defaultBackupName()) }.onFailure {
-                                val path = exportToAppDir(context)
-                                onToast(if (path != null) "$backupSavedTo $path" else backupFail)
-                            }
-                        }
-                    }
-                    SettingRow(R.string.st_backup_import, null, note) {
-                        ActionChip(stringResource(R.string.st_backup_pick), Glyph.Folder) {
-                            runCatching { importLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }
-                                .onFailure { onToast(backupNoPicker) }
-                        }
-                    }
-                }
+                // 整机备份只在手机页上做: 电视上用遥控器选文件太别扭, 备份包也拿不出来。
                 Spacer(Modifier.height(24.dp))
             }
             Spacer(Modifier.width(28.dp))
@@ -971,19 +910,6 @@ private fun PhoneCard(url: String?, qr: ImageBitmap?) {
 
 private val SheetHeight = 360.dp
 private val SheetCorner = 30.dp
-
-/** 备份文件按时间命名, 一份一份存着, 用户一眼能分出哪份新。 */
-private fun defaultBackupName(): String =
-    "aerial-backup-" + java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.US).format(java.util.Date()) + ".zip"
-
-/** 没有文件选择器的电视走这里: 写到本应用的外部目录, 用数据线或文件管理器能取出来。 */
-private fun exportToAppDir(context: android.content.Context): String? = runCatching {
-    val dir = context.getExternalFilesDir(null) ?: return null
-    dir.mkdirs()
-    val file = java.io.File(dir, defaultBackupName())
-    file.outputStream().use { Backup.export(context, it) }
-    file.absolutePath
-}.getOrNull()
 
 /**
  * How much of the screen's bottom the settled sheet hides whole: its height less its rounded top
