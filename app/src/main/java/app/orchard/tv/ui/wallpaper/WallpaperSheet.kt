@@ -484,7 +484,7 @@ fun WallpaperSheet(
                     }
                 }
                 // 整机备份: 写成一个 zip, 换台电视时导入回来。手机页上也有同样的入口。
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(22.dp))
                 SectionTitle(R.string.st_backup)
                 Group(stringResource(R.string.st_backup_hint)) { note ->
                     SettingRow(R.string.st_backup_export, null, note, first = true) {
