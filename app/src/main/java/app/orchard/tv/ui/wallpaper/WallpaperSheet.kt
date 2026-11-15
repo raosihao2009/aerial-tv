@@ -698,7 +698,7 @@ private fun <T> Choices(
 @Composable
 private fun PinChoice(onPin: (on: Boolean) -> Unit, onFocused: () -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        listOf(false to R.string.st_pin_off, true to R.string.st_pin_on).forEach { (on, label) ->
+        listOf(true to R.string.st_pin_on, false to R.string.st_pin_off).forEach { (on, label) ->
             Chip(stringResource(label), on = AerialSettings.pinSet == on, onFocused = onFocused) {
                 if (AerialSettings.pinSet != on) onPin(on)
             }

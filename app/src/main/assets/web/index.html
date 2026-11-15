@@ -1748,8 +1748,8 @@ $('#diagBtn').onclick = async () => {
     if (!r.ok) throw new Error(r.status);
     $('#diag').textContent = await r.text();
     $('#diag').hidden = false; $('#diagActions').hidden = false;
-    // 只藏诊断按钮本身: 它和导出按钮在同一个分组卡片里, 藏父容器会把导出按钮一起带走。
-    b.hidden = true;
+    // 两个按钮始终显示: 只展开诊断区, 不隐藏诊断按钮本身(导出按钮也在同一卡片里)。
+    b.textContent = t('diag_show');
     // Bring the Copy button out from under the tab bar.
     // (Safari ignores scroll-margin in scrollIntoView, so measured by hand.)
     const over = $('#diagActions').getBoundingClientRect().bottom - (innerHeight - $('nav').offsetHeight - 16);
