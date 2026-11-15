@@ -182,6 +182,16 @@ object Diagnostics {
             appendLine("```")
         }
 
+        // 备份导入/导出自己落盘的记录: 导入会重启进程, 内存日志正好断在那里。
+        val restoreTrace = Backup.traceText(context)
+        if (restoreTrace.isNotEmpty()) {
+            appendLine()
+            appendLine("**Restore trace**")
+            appendLine("```")
+            restoreTrace.lineSequence().toList().takeLast(40).forEach { appendLine(mask(it)) }
+            appendLine("```")
+        }
+
         appendLine()
         appendLine("<details><summary>Log</summary>")
         appendLine()

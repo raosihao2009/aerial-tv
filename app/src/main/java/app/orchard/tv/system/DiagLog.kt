@@ -70,6 +70,10 @@ object DiagLog {
         i("log file ${file?.absolutePath}")
     }
 
+    /** 诊断日志所在目录; 别的模块(备份导入)往这里写独立记录, 导出日志时一并带出。 */
+    fun dirOf(context: Context): File =
+        dir ?: (context.getExternalFilesDir(null) ?: context.filesDir).also { dir = it }
+
     fun i(message: String) {
         Log.i(TAG, message)
         // SimpleDateFormat is not thread-safe; lines come from the main thread and the player's.
@@ -194,6 +198,13 @@ object DiagLog {
             appendLine()
             appendLine("---- $name (${each.length()} bytes) ----")
             runCatching { append(each.readText()) }
+        }
+        // 备份导入/导出自己落盘的记录: 导入会重启进程, 内存日志正好断在那里。
+        val trace = File(dirNow, "restore-trace.log").takeIf { it.exists() }
+        if (trace != null) {
+            appendLine()
+            appendLine("---- restore-trace.log (${trace.length()} bytes) ----")
+            runCatching { append(trace.readText()) }
         }
     }
 }

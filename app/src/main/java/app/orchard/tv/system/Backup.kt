@@ -145,9 +145,42 @@ object Backup {
     }
 
     /** 从 [input] 读一个备份包并覆盖本机。调用方负责关闭流。 */
+    /** 恢复/导出过程记录。导入会重启进程, 内存日志随之清空, 所以固定写一份独立文件。 */
+    private const val TRACE = "restore-trace.log"
+    private const val TRACE_LIMIT = 128 * 1024
+
+    fun trace(context: Context, message: String) = runCatching {
+        val f = File(DiagLog.dirOf(context), TRACE)
+        if (f.length() > TRACE_LIMIT) f.delete()
+        f.appendText(
+            java.text.SimpleDateFormat("MM-dd HH:mm:ss.SSS", java.util.Locale.US).format(java.util.Date()) +
+                " " + message + "\n"
+        )
+        f.setReadable(true, false)
+    }
+
+    /** 导入记录内容, 给诊断报告与手机端导出用。 */
+    fun traceText(context: Context): String =
+        runCatching {
+            File(DiagLog.dirOf(context), TRACE).takeIf { it.exists() }?.readText().orEmpty()
+        }.getOrDefault("")
+
+    /** 把系统异常折成一句人话, 手机端直接显示给用户。 */
+    fun readable(e: Throwable): String {
+        val m = e.message.orEmpty()
+        return when {
+            m.contains("ENOSPC", true) || m.contains("No space left", true) -> "存储空间不足"
+            m.contains("Permission denied", true) -> "没有写入权限"
+            e is java.util.zip.ZipException || m.contains("zip", true) -> "备份包已损坏或没有下载完整"
+            m.isBlank() -> e.javaClass.simpleName
+            else -> m
+        }
+    }
+
     fun restore(context: Context, input: InputStream): Summary {
         var prefs = 0
         var files = 0
+        trace(context, "开始解包")
         ZipInputStream(input).use { zip ->
             var entry = zip.nextEntry
             while (entry != null) {
@@ -158,18 +191,22 @@ object Backup {
                     name == MANIFEST -> {
                         val manifest = JSONObject(String(zip.readBytes(), Charsets.UTF_8))
                         prefs = applyPrefs(context, manifest.optJSONObject("prefs"))
+                        trace(context, "清单已应用: $prefs 项设置")
                     }
                     name.startsWith(FILES) && !entry.isDirectory -> {
                         val target = File(context.filesDir, name.removePrefix(FILES))
                         target.parentFile?.mkdirs()
                         target.outputStream().use { zip.copyTo(it) }
                         files++
+                        // 每 50 个记一行: 卡在哪个文件、什么时候耗尽空间, 重启后还能看见。
+                        if (files % 50 == 0) trace(context, "已解 $files 个文件, 最近 $name")
                     }
                 }
                 zip.closeEntry()
                 entry = zip.nextEntry
             }
         }
+        trace(context, "解包结束: $prefs 项设置, $files 个文件")
         if (prefs == 0 && files == 0) throw IllegalArgumentException("empty backup")
         return Summary(prefs, files)
     }

@@ -1799,7 +1799,7 @@ $('#restoreFile').onchange = async e => {
   b.disabled = true; b.textContent = t('backup_restoring');
   // 恢复成功后电视会重启进程, 那条 HTTP 回复经常来不及到手机; 用这个 id 回查真实结果。
   const rid = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  let done = false, failed = false;
+  let done = false;
   try {
     const r = await fetch(base + 'api/restore', {
       method: 'POST',
@@ -1815,16 +1815,18 @@ $('#restoreFile').onchange = async e => {
   } catch (_) { /* 断线, 下面回查 */ }
   if (!done) {
     // 拿不到回复不代表失败: 电视重启期间端口会断一会儿, 多试几次再下结论。
-    for (let i = 0; i < 20; i++) {
+    let reason = '';
+    for (let i = 0; i < 24; i++) {
       await new Promise(res => setTimeout(res, 1200));
       try {
         const q = await fetch(base + 'api/restore-result?id=' + encodeURIComponent(rid));
         const d = await q.json();
         if (d && d.state === 'ok') { toast(t('backup_restored')); done = true; break; }
-        if (d && d.state === 'failed') { failed = true; break; }
+        if (d && d.state === 'failed') { reason = d.error || ''; break; }
       } catch (_) { }
     }
-    if (!done) toast(t('backup_failed'));
+    // 失败时把服务端给的原因一并显示: 「存储空间不足」和「包里某个文件坏了」是两码事。
+    toast(reason ? t('backup_failed') + '「' + reason + '」' : t('backup_failed'));
   }
   b.disabled = false; b.textContent = t('backup_import');
 };

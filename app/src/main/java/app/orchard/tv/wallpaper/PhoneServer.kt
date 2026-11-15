@@ -768,15 +768,19 @@ class PhoneServer private constructor(private val context: Context, private val 
      */
     private fun backupDownload(): Response {
         app.orchard.tv.system.DiagLog.i("手机端导出备份: 开始")
+        val free = runCatching { android.os.StatFs(context.cacheDir.path).availableBytes }.getOrDefault(0L)
+        app.orchard.tv.system.Backup.trace(context, "导出请求: 缓存剩余 $free 字节")
         val tmp = File.createTempFile("aerial-backup", ".zip", context.cacheDir)
         val summary = runCatching {
             tmp.outputStream().use { app.orchard.tv.system.Backup.export(context, it) }
         }.getOrElse {
             tmp.delete()
             app.orchard.tv.system.DiagLog.i("手机端导出备份失败: ${it.message}")
-            return text(Response.Status.INTERNAL_ERROR, "备份失败: ${it.message}")
+            app.orchard.tv.system.Backup.trace(context, "导出失败: ${android.util.Log.getStackTraceString(it)}")
+            return text(Response.Status.INTERNAL_ERROR, "备份失败: ${app.orchard.tv.system.Backup.readable(it)}")
         }
         app.orchard.tv.system.DiagLog.i("手机端导出备份: ${summary.prefs} 项设置, ${summary.files} 个文件, ${tmp.length()} 字节")
+        app.orchard.tv.system.Backup.trace(context, "导出完成: ${summary.prefs} 项设置, ${summary.files} 个文件, ${tmp.length()} 字节")
         val name = "aerial-backup-" + java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.US).format(java.util.Date()) + ".zip"
         // 句柄先打开再删: Linux 下边读边删是安全的, 不在缓存里留一份副本。
         val stream = tmp.inputStream()
@@ -793,14 +797,30 @@ class PhoneServer private constructor(private val context: Context, private val 
         val id = session.headers["x-restore-id"].orEmpty()
         // 备份里有照片和影片, 不能按普通上传的 200 MB 卡, 单独给一个更宽松的上限。
         val declared = session.headers["content-length"]?.toLongOrNull() ?: 0L
-        if (declared > MAX_BACKUP) return text(Response.Status.BAD_REQUEST, "too large")
+        val free = runCatching { android.os.StatFs(context.filesDir.path).availableBytes }.getOrDefault(0L)
+        app.orchard.tv.system.Backup.trace(
+            context,
+            "导入请求: 包 $declared 字节, 剩余空间 $free 字节, id=${id.ifEmpty { "-" }}",
+        )
+        if (declared > MAX_BACKUP) {
+            app.orchard.tv.system.Backup.trace(context, "拒绝: 包超过上限 $MAX_BACKUP")
+            return text(Response.Status.BAD_REQUEST, "备份包超过 4 GB")
+        }
+        // 空间不够就别拆: 一半设置已经写进去, 文件写到中途 ENOSPC, 用户看到的是"导入了一半"。
+        if (declared > 0 && declared > free) {
+            app.orchard.tv.system.Backup.trace(context, "拒绝: 空间不足")
+            app.orchard.tv.system.Backup.markRestoreState(context, id, "failed", error = "存储空间不足")
+            return text(Response.Status.BAD_REQUEST, "存储空间不足: 需要 $declared 字节, 剩余 $free 字节")
+        }
         app.orchard.tv.system.Backup.markRestoreState(context, id, "running")
         val summary = runCatching {
             app.orchard.tv.system.Backup.restore(context, session.inputStream)
         }.getOrElse { e ->
             app.orchard.tv.system.DiagLog.i("手机端导入备份失败: ${e.message}")
-            app.orchard.tv.system.Backup.markRestoreState(context, id, "failed", error = e.message)
-            return text(Response.Status.BAD_REQUEST, "恢复失败: ${e.message}")
+            app.orchard.tv.system.Backup.trace(context, "导入失败: ${android.util.Log.getStackTraceString(e)}")
+            val reason = app.orchard.tv.system.Backup.readable(e)
+            app.orchard.tv.system.Backup.markRestoreState(context, id, "failed", error = reason)
+            return text(Response.Status.BAD_REQUEST, "恢复失败: $reason")
         }
         app.orchard.tv.system.DiagLog.i("手机端导入备份: ${summary.prefs} 项设置, ${summary.files} 个文件; 即将重启")
         app.orchard.tv.system.Backup.markRestoreState(context, id, "ok", summary.prefs, summary.files)
