@@ -78,14 +78,13 @@ object Weather {
                 val cachedHigh = prefs.getInt("high", NONE).takeIf { it != NONE }
                 val cachedLow = prefs.getInt("low", NONE).takeIf { it != NONE }
                 val cachedFc = forecastFromJson(prefs.getString("fc_json", null))
-                // 缓存预报第一条必须是今天, 跨天残留整条丢弃; 老版本单条缓存兜底一轮。
-                val staleFc = cachedFc.isNotEmpty() && !sameDayKey(cachedFc.first().date, todayKey())
-                val fc = if (staleFc) emptyList()
-                         else cachedFc.ifEmpty { legacyCachedForecast() }
+                // 缓存预报同样按日期前移对齐; 老批次里昨天那条跳过, 后面几天仍是有效预报。
+                val cachedAligned = alignToToday(cachedFc, todayKey())
+                val fc = cachedAligned.ifEmpty { legacyCachedForecast() }
                 now = WeatherNow(
                     prefs.getInt("celsius", 0), kind, prefs.getBoolean("day", true),
-                    high = if (staleFc) null else cachedHigh,
-                    low = if (staleFc) null else cachedLow,
+                    high = cachedAligned.firstOrNull()?.high ?: cachedHigh,
+                    low = cachedAligned.firstOrNull()?.low ?: cachedLow,
                     forecast = fc,
                 )
             }
@@ -334,27 +333,30 @@ object Weather {
         return m to d
     }
 
-    private fun sameDayKey(raw: String, today: Pair<Int, Int>): Boolean =
-        parseDayKey(raw) == today
+    /** 条目日期是否 >= 今天; 解析不出日期时按不参与对齐处理。 */
+    private fun sameOrAfter(raw: String, today: Pair<Int, Int>): Boolean {
+        val k = parseDayKey(raw) ?: return false
+        return !dateBefore(k, today)
+    }
 
     /** a 的日期是否早于 b; 12 月与 1 月相邻, 月份差超过 6 个月时按跨年处理。 */
     private fun dateBefore(a: Pair<Int, Int>, b: Pair<Int, Int>): Boolean {
-        if (a.first - b.first > 6) return false
-        if (b.first - a.first > 6) return true
+        if (a.first > b.first + 6) return true   // a 在 12 月、b 在 1 月: a 属上一年
+        if (b.first > a.first + 6) return false  // a 在 1 月、b 在 12 月: a 属下一年
         return a.first < b.first || (a.first == b.first && a.second < b.second)
     }
 
     /**
-     * 把接口预报按日期对齐到今天: 找到第一条日期等于今天的条目, 向后取三天。
-     * 整组早于今天(接口批次尚未换日, 多见于凌晨到早晨发布前)时返回空,
-     * 不把昨天的预报挂在"今天"名下; 日期缺失时退回取前三条。
+     * 把接口预报按日期对齐到今天: 从第一条日期 >= 今天的条目开始向后取三天。
+     * 凌晨旧批次尚未换日时, 数组头一条是昨天, 跳过它、后面几天前移当今天/明天/后天;
+     * 早晨新批次发布后第一条就是今天, 自然回到下标 0。整组都早于今天才返回空;
+     * 日期全部缺失时(老缓存/接口变更)退回取前三条。
      */
     private fun alignToToday(raw: List<ForecastDay>, today: Pair<Int, Int>): List<ForecastDay> {
-        val start = raw.indexOfFirst { sameDayKey(it.date, today) }
+        if (raw.isEmpty()) return emptyList()
+        val start = raw.indexOfFirst { sameOrAfter(it.date, today) }
         if (start >= 0) return raw.subList(start, minOf(start + 3, raw.size))
-        val firstKey = raw.firstOrNull()?.let { parseDayKey(it.date) }
-        if (firstKey != null && dateBefore(firstKey, today)) return emptyList()
-        return raw.take(3)
+        return if (raw.all { parseDayKey(it.date) == null }) raw.take(3) else emptyList()
     }
 
     private fun forecastToJson(list: List<ForecastDay>): String {
