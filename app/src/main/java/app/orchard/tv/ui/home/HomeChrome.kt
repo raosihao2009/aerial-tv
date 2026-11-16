@@ -63,13 +63,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.AlignmentLine
 import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.TextUnit
@@ -82,7 +82,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
@@ -96,6 +95,7 @@ import kotlinx.coroutines.withContext
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntSize
@@ -1121,48 +1121,50 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
             }
         }
     }
-    // 槽位宽度按三天里最宽那一行算, 且不再随内容收缩: 长天气滚到短天气时容器保持不动, 不会往左回缩。
-    val measurer = rememberTextMeasurer()
-    val density = LocalDensity.current
-    val slotWidth = remember(days, weatherStyle) {
-        val tagPx = measurer.measure(AnnotatedString("今天"), weatherStyle.copy(fontSize = 13.sp, lineHeight = 22.sp)).size.width
-        val widest = days.maxOfOrNull { d ->
-            val dispPx = if (d.display.isNotEmpty()) measurer.measure(AnnotatedString(d.display), weatherStyle).size.width else 0
-            val tempPx = measurer.measure(AnnotatedString(" ${d.low}° / ${d.high}°"), weatherStyle).size.width
-            with(density) {
-                tagPx.toDp() + 12.dp + 6.dp + 20.dp +
-                    (if (d.display.contains("转")) 1.dp + 20.dp else 0.dp) +
-                    dispPx.toDp() + tempPx.toDp()
-            }
-        } ?: 0.dp
-        widest.coerceAtMost(FORECAST_MAX_WIDTH)
-    }
-    AnimatedContent(
-        targetState = idx,
-        label = "forecast",
-        modifier = Modifier
-            .padding(start = 14.dp)
-            .width(slotWidth),
-        transitionSpec = {
-            val slide = tween<IntOffset>(1000)
-            val fade = tween<Float>(1000)
-            (slideInVertically(animationSpec = slide) { h -> h } + fadeIn(fade) togetherWith
-                slideOutVertically(animationSpec = slide) { h -> -h } + fadeOut(fade))
-        },
-    ) { i ->
-        // slots 初始为空, 首轮组合时 effect 还没填充, 必须走 getOrNull 兜底, 否则越界崩溃。
-        val d = slots.getOrNull(i) ?: days[i]
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            val label = when (i) { 0 -> "今天"; 1 -> "明天"; else -> "后天" }
-            WeatherTag(label, weatherStyle)
-            // 预报只表示"这一天", 图标一律用白天版本, 不跟当前时段走。
-            WeatherIcon(d.dayKind, true, 20.dp, Modifier.padding(start = 6.dp))
-            if (d.display.contains("转")) {
-                WeatherIcon(d.nightKind, true, 20.dp, Modifier.padding(start = 1.dp))
-            }
-            if (d.display.isNotEmpty()) BasicText(d.display, style = weatherStyle)
-            BasicText(" ${d.low}° / ${d.high}°", style = weatherStyle)
+    // 槽位宽度按三天里最宽那一行**实测**出来并固定: 长天气滚到短天气时容器不动, 不会往左回缩;
+    // 实测而不是估文字宽度, 温度与图标才不会被算窄导致折行。
+    WidestSlot(
+        count = days.size,
+        maxWidth = FORECAST_MAX_WIDTH,
+        modifier = Modifier.padding(start = 14.dp),
+        probe = { i -> ForecastRow(slots.getOrNull(i) ?: days[forecastIndex(i, days.size)], forecastLabel(i), weatherStyle) },
+    ) {
+        AnimatedContent(
+            targetState = idx,
+            label = "forecast",
+            transitionSpec = {
+                val slide = tween<IntOffset>(1000)
+                val fade = tween<Float>(1000)
+                (slideInVertically(animationSpec = slide) { h -> h } + fadeIn(fade) togetherWith
+                    slideOutVertically(animationSpec = slide) { h -> -h } + fadeOut(fade))
+            },
+        ) { i ->
+            // slots 初始为空, 首轮组合时 effect 还没填充, 必须走兜底, 否则越界崩溃。
+            val d = slots.getOrNull(i) ?: days[forecastIndex(i, days.size)]
+            ForecastRow(d, forecastLabel(i), weatherStyle)
         }
+    }
+}
+
+/** 槽位下标: 数据条数少于三日时按实际条数取模, 不越界。 */
+private fun forecastIndex(i: Int, size: Int): Int = if (size <= 0) 0 else i % size
+
+private fun forecastLabel(i: Int): String = when (i) { 0 -> "今天"; 1 -> "明天"; else -> "后天" }
+
+/** 一行预报: 日期标签 + 天气图标 + 天气文字 + 气温。文字不折行, 宽度由外层槽位负责。 */
+@Composable
+private fun ForecastRow(d: ForecastDay, label: String, weatherStyle: TextStyle) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        WeatherTag(label, weatherStyle)
+        // 预报只表示"这一天", 图标一律用白天版本, 不跟当前时段走。
+        WeatherIcon(d.dayKind, true, 20.dp, Modifier.padding(start = 6.dp))
+        if (d.display.contains("转")) {
+            WeatherIcon(d.nightKind, true, 20.dp, Modifier.padding(start = 1.dp))
+        }
+        if (d.display.isNotEmpty()) {
+            BasicText(d.display, style = weatherStyle, maxLines = 1, softWrap = false)
+        }
+        BasicText(" ${d.low}° / ${d.high}°", style = weatherStyle, maxLines = 1, softWrap = false)
     }
 }
 
@@ -1170,18 +1172,8 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
 @Composable
 private fun FestivalCarousel(items: List<String>, style: TextStyle) {
     if (items.isEmpty()) return
-    // 槽位宽度取最长那条节日的宽度: 长名滚到短名(如「七·七事变纪念日」→「元旦」)时不再回缩。
-    val measurer = rememberTextMeasurer()
-    val density = LocalDensity.current
-    val tagStyle = style.copy(color = Color.Black, fontSize = 13.sp, lineHeight = 22.sp)
-    val slotWidth = remember(items, tagStyle) {
-        val widest = items.maxOf { measurer.measure(AnnotatedString(it), tagStyle).size.width }
-        with(density) { widest.toDp() + 12.dp }
-    }
     if (items.size == 1) {
-        Box(Modifier.width(slotWidth), contentAlignment = Alignment.CenterStart) {
-            GreetingTag(items.first(), style)
-        }
+        GreetingTag(items.first(), style)
         return
     }
     var idx by remember { mutableStateOf(0) }
@@ -1202,18 +1194,54 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
             }
         }
     }
-    AnimatedContent(
-        targetState = idx,
-        label = "festival",
-        modifier = Modifier.width(slotWidth),
-        transitionSpec = { capsuleScroll() },
-    ) { i ->
-        val s = slots.getOrNull(i) ?: items[i]
-        Box(Modifier.width(slotWidth), contentAlignment = Alignment.CenterStart) {
-            GreetingTag(s, style)
+    // 槽位宽度取最长那条节日实测出来的宽度: 长名滚到短名时容器不动, 不会回缩。
+    WidestSlot(
+        count = items.size,
+        maxWidth = FESTIVAL_MAX_WIDTH,
+        probe = { i -> GreetingTag(items[i], style) },
+    ) {
+        AnimatedContent(
+            targetState = idx,
+            label = "festival",
+            transitionSpec = { capsuleScroll() },
+        ) { i ->
+            GreetingTag(slots.getOrNull(i) ?: items[i], style)
         }
     }
 }
+
+/**
+ * 轮播槽位: 先把所有候选内容按无限宽度实测一遍, 取最宽者作为固定宽度, 再在该宽度里放真正显示的内容。
+ * 这样容器宽度只由最宽那条决定, 长短内容切换时不会一缩一撑; 实测也保证文字不会因算窄而折行。
+ */
+@Composable
+private fun WidestSlot(
+    count: Int,
+    maxWidth: Dp,
+    modifier: Modifier = Modifier,
+    probe: @Composable (Int) -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val density = LocalDensity.current
+    SubcomposeLayout(modifier) { constraints ->
+        val probeConstraints = Constraints(0, Constraints.Infinity, 0, Constraints.Infinity)
+        var widest = 0
+        for (i in 0 until count) {
+            val p = subcompose("probe$i", { probe(i) }).first().measure(probeConstraints)
+            if (p.width > widest) widest = p.width
+        }
+        val width = widest.coerceAtMost(with(density) { maxWidth.toPx() }.toInt())
+        val body = subcompose("slot") {
+            Box(Modifier.width(with(density) { width.toDp() })) { content() }
+        }.first().measure(
+            constraints.copy(minWidth = width, maxWidth = width, minHeight = 0, maxHeight = Constraints.Infinity)
+        )
+        layout(width, body.height) { body.place(0, 0) }
+    }
+}
+
+/** 节日胶囊槽位的最大宽度: 再长的节日名也不无限制外撑。 */
+private val FESTIVAL_MAX_WIDTH = 260.dp
 
 /**
  * 零点换代用的滚动: 新内容从下方滚上来、旧内容向上走, 1 秒走完, 与天气轮播同一节奏。
@@ -1264,29 +1292,25 @@ private const val TERM_TAG_ALPHA = 0.16f
 private const val TERM_TAG_BORDER = 0.80f
 
 /**
- * 天气胶囊(现在 / 今天 / 明天 / 后天): 深炭玻璃小牌 —— 上深下浅的黑色渐变、圆角矩形、白字、无描边。
- * 与常驻节气(淡白底+白描边)和时令/节日(实心白底黑字)在底色、字色、形状三处都不同, 一眼能分开。
+ * 天气胶囊(现在 / 今天 / 明天 / 后天): 白底黑字黑边 —— 半透明白填充、黑色文字、1dp 黑描边。
+ * 节气是淡白底+白描边白字、时令/节日是实心白底黑字无描边, 天气这颗靠黑描边区分开。
  */
 @Composable
 private fun WeatherTag(text: String, style: TextStyle) {
     BasicText(
         text,
-        style = style.copy(color = Color.White, fontSize = 13.sp, lineHeight = 22.sp, fontWeight = FontWeight.W600),
+        style = style.copy(color = Color.Black, fontSize = 13.sp, lineHeight = 22.sp, fontWeight = FontWeight.W600),
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(
-                Brush.verticalGradient(
-                    0f to Color.Black.copy(alpha = WEATHER_TAG_TOP),
-                    1f to Color.Black.copy(alpha = WEATHER_TAG_BOTTOM),
-                )
-            )
-            .padding(horizontal = 7.dp),
+            .clip(RoundedCornerShape(999.dp))
+            .background(Color.White.copy(alpha = WEATHER_TAG_ALPHA))
+            .smoothBorder(1.dp, Color.Black.copy(alpha = WEATHER_TAG_EDGE), 999.dp)
+            .padding(horizontal = 6.dp),
     )
 }
 
-/** 天气胶囊的渐变: 顶部压得住亮壁纸, 底部淡下来让壁纸透一点, 读作一块薄玻璃而不是贴纸。 */
-private const val WEATHER_TAG_TOP = 0.50f
-private const val WEATHER_TAG_BOTTOM = 0.22f
+/** 天气胶囊的白底与黑边: 底比时令/节日更实一点, 黑边勾出轮廓, 亮壁纸上也立得住。 */
+private const val WEATHER_TAG_ALPHA = 0.90f
+private const val WEATHER_TAG_EDGE = 0.62f
 
 /** 问候行的时令 / 节日胶囊: 实心半透明白底 + 黑字, 与常驻的节气胶囊、天气胶囊三者互相区分。 */
 @Composable
@@ -1304,8 +1328,8 @@ private fun GreetingTag(text: String, style: TextStyle) {
 /** 问候胶囊底色的不透明度: 1.0 实心白最扎眼, 越低越不抢眼。 */
 private const val TAG_ALPHA = 0.70f
 
-/** 预报单行的最大宽度: 最长天气文字 + 双图标 + 气温一档, 超出不再往外撑。 */
-private val FORECAST_MAX_WIDTH = 250.dp
+/** 预报单行的最大宽度: 留足双图标 + 长天气文字 + 两档气温, 再长也不往外撑。 */
+private val FORECAST_MAX_WIDTH = 300.dp
 
 private fun isDayNow(): Boolean {
     val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
