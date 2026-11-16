@@ -56,7 +56,7 @@ class LunarTest {
 
     @Test fun shuJiu() {
         val dongZhi = LocalDate.of(2026, 12, 22)
-        assertEquals("入九", Lunar.seasonal(dongZhi).firstOrNull())
+        assertEquals("入九天", Lunar.seasonal(dongZhi).firstOrNull())
         assertEquals("三九天", Lunar.seasonal(dongZhi.plusDays(19)).firstOrNull())
     }
 

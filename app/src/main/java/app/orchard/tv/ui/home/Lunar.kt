@@ -142,7 +142,7 @@ object Lunar {
         if (date.isBefore(dongZhi)) dongZhi = termDate(date.year - 1, "冬至") ?: return null
         val delta = (date.toEpochDay() - dongZhi.toEpochDay()).toInt() + 1
         if (delta !in 1..81) return null
-        val names = listOf("入九", "二九天", "三九天", "四九天", "五九天", "六九", "七九天", "八九天", "九九天")
+        val names = listOf("入九天", "二九天", "三九天", "四九天", "五九天", "六九天", "七九天", "八九天", "九九天")
         return names[(delta - 1) / 9]
     }
 
