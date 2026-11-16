@@ -926,27 +926,29 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
         modifier = modifier.then(aside),
         horizontalAlignment = Alignment.Start,
     ) {
-        // 问候语: "城市，xx好！" + 节日/节气后缀
+        // 问候语: "城市，xx好！" 后面依次跟 节气 / 时令 / 节日 三颗胶囊, 缺哪颗就不显示哪颗。
+        // 节日多于一个时, 跟天气预报一样停留 9 秒、1 秒向上轮播。
         val place = Weather.place ?: "南昌"
-        val fests = Lunar.festivals(now.toLocalDate())
-        val season = if (fests.isEmpty()) Lunar.seasonal(now.toLocalDate()) else emptyList()
-        val term = if (fests.isEmpty() && season.isEmpty()) Lunar.solarTerm(now.toLocalDate()) else null
-        val suffix = when {
-            fests.isNotEmpty() -> "今天是节日「${fests.joinToString("和")}」"
-            season.isNotEmpty() -> "今天是时令「${season.joinToString("和")}」"
-            term != null -> "今天是二十四节气「$term」"
-            else -> ""
-        }
-        BasicText(
-            "$place，${greetingText(now.hour)}！${suffix}",
-            style = Type.Caption.copy(
-                color = Color.White,
-                shadow = shadow,
-                letterSpacing = 0.08.em,
-                fontSize = 15.sp,
-                fontFamily = OutfitMedium,
-            ),
+        val date = now.toLocalDate()
+        val term = Lunar.solarTerm(date)
+        val season = Lunar.seasonal(date)
+        val fests = Lunar.festivals(date)
+        val greetingStyle = Type.Caption.copy(
+            color = Color.White,
+            shadow = shadow,
+            letterSpacing = 0.08.em,
+            fontSize = 15.sp,
+            fontFamily = OutfitMedium,
         )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            BasicText("$place，${greetingText(now.hour)}！", style = greetingStyle)
+            if (term != null) WeatherTag(term, greetingStyle)
+            if (season.isNotEmpty()) WeatherTag(season.joinToString("和"), greetingStyle)
+            if (fests.isNotEmpty()) FestivalCarousel(fests, greetingStyle)
+        }
         // 时间行: 大时间 + 时段 | 日期+农历
         Row(
             modifier = Modifier.padding(top = 4.dp),
@@ -1104,6 +1106,46 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
             if (d.display.isNotEmpty()) BasicText(d.display, style = weatherStyle)
             BasicText(" ${d.low}° / ${d.high}°", style = weatherStyle)
         }
+    }
+}
+
+/** 同一天多个节日: 与预报一致, 停留 9 秒、1 秒向上滚动轮换; 单个节日直接静态显示。 */
+@Composable
+private fun FestivalCarousel(items: List<String>, style: TextStyle) {
+    if (items.size == 1) {
+        WeatherTag(items.first(), style)
+        return
+    }
+    var idx by remember { mutableStateOf(0) }
+    val slots = remember(items.size) {
+        mutableStateListOf<String?>().apply { repeat(items.size) { add(null) } }
+    }
+    val latest by rememberUpdatedState(items)
+    LaunchedEffect(items) {
+        while (slots.size < items.size) slots.add(null)
+        items.forEachIndexed { i, s -> if (i != idx || slots[i] == null) slots[i] = s }
+    }
+    LaunchedEffect(items.size) {
+        if (items.size > 1) {
+            while (true) {
+                delay(9_000)
+                idx = (idx + 1) % latest.size
+                slots[idx] = latest.getOrNull(idx)
+            }
+        }
+    }
+    AnimatedContent(
+        targetState = idx,
+        label = "festival",
+        transitionSpec = {
+            val slide = tween<IntOffset>(1000)
+            val fade = tween<Float>(1000)
+            (slideInVertically(animationSpec = slide) { h -> h } + fadeIn(fade) togetherWith
+                slideOutVertically(animationSpec = slide) { h -> -h } + fadeOut(fade))
+        },
+    ) { i ->
+        val s = slots.getOrNull(i) ?: items[i]
+        WeatherTag(s, style)
     }
 }
 
