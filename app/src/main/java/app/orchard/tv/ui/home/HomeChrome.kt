@@ -1082,7 +1082,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     color = Color.White, shadow = shadow, fontSize = 16.sp,
                     fontFamily = OppoSans, letterSpacing = 0.em, lineHeight = 22.sp,
                 )
-                WeatherTag("现在", weatherStyle)
+                TermTag("现在", weatherStyle)
                 WeatherIcon(w.kind, isDayNow(), 20.dp, Modifier.padding(start = 6.dp))
                 BasicText("$cond ${w.celsius}°", style = weatherStyle)
                 ForecastCarousel(fc, weatherStyle)
@@ -1151,7 +1151,7 @@ private fun forecastLabel(i: Int): String = when (i) { 0 -> "今天"; 1 -> "明�
 @Composable
 private fun ForecastRow(d: ForecastDay, label: String, weatherStyle: TextStyle) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        WeatherTag(label, weatherStyle)
+        GreetingTag(label, weatherStyle)
         // 预报只表示"这一天", 图标一律用白天版本, 不跟当前时段走。
         WeatherIcon(d.dayKind, true, 20.dp, Modifier.padding(start = 6.dp))
         if (d.display.contains("转")) {
@@ -1253,27 +1253,6 @@ private fun TermTag(text: String, style: TextStyle) {
 /** 常驻胶囊(节气)的底与描边不透明度: 比实心白淡, 靠描边立住形状。 */
 private const val TERM_TAG_ALPHA = 0.16f
 private const val TERM_TAG_BORDER = 0.80f
-
-/**
- * 天气胶囊(现在 / 今天 / 明天 / 后天): 白底黑字黑边 —— 半透明白填充、黑色文字、1dp 黑描边。
- * 节气是淡白底+白描边白字、时令/节日是实心白底黑字无描边, 天气这颗靠黑描边区分开。
- */
-@Composable
-private fun WeatherTag(text: String, style: TextStyle) {
-    BasicText(
-        text,
-        style = style.copy(color = Color.Black, fontSize = 13.sp, lineHeight = 22.sp, fontWeight = FontWeight.W600),
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(Color.White.copy(alpha = WEATHER_TAG_ALPHA))
-            .smoothBorder(1.dp, Color.Black.copy(alpha = WEATHER_TAG_EDGE), 999.dp)
-            .padding(horizontal = 6.dp),
-    )
-}
-
-/** 天气胶囊的白底透明度与黑边: 底保留壁纸透出感, 靠黑边和黑字保证亮壁纸上仍读得清。 */
-private const val WEATHER_TAG_ALPHA = 0.72f
-private const val WEATHER_TAG_EDGE = 0.62f
 
 /** 问候行的时令 / 节日胶囊: 实心半透明白底 + 黑字, 与常驻的节气胶囊、天气胶囊三者互相区分。 */
 @Composable
