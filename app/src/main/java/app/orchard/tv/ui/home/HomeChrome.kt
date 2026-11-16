@@ -77,6 +77,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.SpanStyle
@@ -1089,7 +1090,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     color = Color.White, shadow = shadow, fontSize = 16.sp,
                     fontFamily = OppoSans, letterSpacing = 0.em, lineHeight = 22.sp,
                 )
-                TermTag("现在", weatherStyle)
+                WeatherTag("现在", weatherStyle, now = true)
                 WeatherIcon(w.kind, isDayNow(), 20.dp, Modifier.padding(start = 6.dp))
                 BasicText("$cond ${w.celsius}°", style = weatherStyle)
                 ForecastCarousel(fc, weatherStyle)
@@ -1158,7 +1159,7 @@ private fun forecastLabel(i: Int): String = when (i) { 0 -> "今天"; 1 -> "明�
 @Composable
 private fun ForecastRow(d: ForecastDay, label: String, weatherStyle: TextStyle) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        GreetingTag(label, weatherStyle)
+        WeatherTag(label, weatherStyle, now = false)
         // 预报只表示"这一天", 图标一律用白天版本, 不跟当前时段走。
         WeatherIcon(d.dayKind, true, 20.dp, Modifier.padding(start = 6.dp))
         if (d.display.contains("转")) {
@@ -1273,6 +1274,36 @@ private fun GreetingTag(text: String, style: TextStyle) {
             .padding(horizontal = 6.dp),
     )
 }
+
+/**
+ * 天气胶囊(现在 / 今天 / 明天 / 后天): 四方矩形圆角 + 斜向渐变 + 白字。
+ * "现在"用红系: 左上偏红白、右下偏中国红; "今天/明天/后天"用蓝系: 左上偏蓝白、右下偏天蓝。
+ * 底仍是半透明(与输入胶囊同一档 0.72), 壁纸透得出来, 靠白字和渐变保证亮壁纸上也读得清。
+ */
+@Composable
+private fun WeatherTag(text: String, style: TextStyle, now: Boolean) {
+    val fill = Brush.linearGradient(
+        listOf(
+            if (now) WEATHER_RED_LIGHT else WEATHER_BLUE_LIGHT,
+            if (now) WEATHER_RED else WEATHER_BLUE,
+        )
+    )
+    BasicText(
+        text,
+        style = style.copy(color = Color.White, fontSize = 13.sp, lineHeight = 22.sp, fontWeight = FontWeight.W600),
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(fill)
+            .padding(horizontal = 6.dp),
+    )
+}
+
+/** 天气胶囊的透明度(与问候胶囊同一档 0.72)与两套渐变端色。 */
+private const val WEATHER_TAG_ALPHA = 0.72f
+private val WEATHER_RED_LIGHT = Color(0xFFF3D8D6).copy(alpha = WEATHER_TAG_ALPHA)   // 左上: 偏红白
+private val WEATHER_RED = Color(0xFFC8102E).copy(alpha = WEATHER_TAG_ALPHA)        // 右下: 中国红
+private val WEATHER_BLUE_LIGHT = Color(0xFFD9EAFB).copy(alpha = WEATHER_TAG_ALPHA)  // 左上: 偏蓝白
+private val WEATHER_BLUE = Color(0xFF2F9BE0).copy(alpha = WEATHER_TAG_ALPHA)       // 右下: 天蓝
 
 /** 问候胶囊底色的不透明度: 1.0 实心白最扎眼, 越低越不抢眼。 */
 private const val TAG_ALPHA = 0.70f
