@@ -22,7 +22,6 @@ import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.AnimatedContentTransitionScope
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
@@ -1120,12 +1119,7 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
     }
     // 轮播协程长期存活, 必须始终读最新预报; 否则闭口号住首帧旧列表, 跨天后槽位不换代。
     val latest by rememberUpdatedState(days)
-    var rolling by remember { mutableStateOf(false) }
-    val edge by animateDpAsState(
-        targetValue = if (rolling) CAPSULE_FADE_EDGE else 0.dp,
-        animationSpec = tween(160),
-        label = "forecast-edge",
-    )
+    val bandPx = with(LocalDensity.current) { CAPSULE_FADE_BAND.roundToPx() }
     LaunchedEffect(days) {
         while (slots.size < days.size) slots.add(null)
         // 新数据到达: 非当前可见槽位先换代; 当前可见槽位保持旧条目, 轮到它再换。
@@ -1138,9 +1132,6 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
                 delay(9_000)
                 idx = (idx + 1) % latest.size
                 slots[idx] = latest.getOrNull(idx)
-                rolling = true
-                delay(CAPSULE_SCROLL_MS.toLong())
-                rolling = false
             }
         }
     }
@@ -1152,8 +1143,11 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
         modifier = Modifier
             .padding(start = 14.dp)
             .width(FORECAST_SLOT_WIDTH)
-            .capsuleEdgeFade(edge),
+            // 上下各留一条渐隐带(仍在胶囊外面), 内容滚进带里才淡掉; 上报高度不变, 下面几行不动。
+            .capsuleFadeSlot(bandPx)
+            .capsuleEdgeFade(bandPx),
         transitionSpec = { capsuleSlideScroll() },
+        contentAlignment = Alignment.Center,
     ) { i ->
         // slots 初始为空, 首轮组合时 effect 还没填充, 必须走兜底, 否则越界崩溃。
         val d = slots.getOrNull(i) ?: days[forecastIndex(i, days.size)]
@@ -1198,12 +1192,7 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
         mutableStateListOf<String?>().apply { repeat(items.size) { add(null) } }
     }
     val latest by rememberUpdatedState(items)
-    var rolling by remember { mutableStateOf(false) }
-    val edge by animateDpAsState(
-        targetValue = if (rolling) CAPSULE_FADE_EDGE else 0.dp,
-        animationSpec = tween(160),
-        label = "festival-edge",
-    )
+    val bandPx = with(LocalDensity.current) { CAPSULE_FADE_BAND.roundToPx() }
     LaunchedEffect(items) {
         while (slots.size < items.size) slots.add(null)
         items.forEachIndexed { i, s -> if (i != idx || slots[i] == null) slots[i] = s }
@@ -1214,9 +1203,6 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
                 delay(9_000)
                 idx = (idx + 1) % latest.size
                 slots[idx] = latest.getOrNull(idx)
-                rolling = true
-                delay(CAPSULE_SCROLL_MS.toLong())
-                rolling = false
             }
         }
     }
@@ -1228,8 +1214,10 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
         label = "festival",
         modifier = Modifier
             .width(FESTIVAL_SLOT_WIDTH)
-            .capsuleEdgeFade(edge),
+            .capsuleFadeSlot(bandPx)
+            .capsuleEdgeFade(bandPx),
         transitionSpec = { capsuleSlideScroll() },
+        contentAlignment = Alignment.Center,
     ) { i ->
         Box(contentAlignment = Alignment.CenterStart) {
             GreetingTag(slots.getOrNull(i) ?: items[i], style)
@@ -1240,23 +1228,36 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
 /** 节日胶囊槽位的固定宽度: 够放任何一天的多个节日名, 定宽是为了切换时不回缩不撑开。 */
 private val FESTIVAL_SLOT_WIDTH = 1000.dp
 
+/** 渐隐带高度: 上下各一条, 落在胶囊本体之外。 */
+private val CAPSULE_FADE_BAND = 6.dp
+
 /**
- * 滚动槽位上下边缘的渐隐: 内容滚到槽位上下边界时逐渐变透明, 换页是"溶解"而不是被裁出一条平口。
- * 用离屏层 + DstIn 竖向渐变当遮罩; 层自身仍按边界裁剪, 所以滚出槽位的那一半不会压到上下相邻的行。
- * edge = 0 时等价于普通裁剪: 静止状态下胶囊的圆头和描边保持原样, 不会被淡化。
+ * 把滚动槽位的上下各撑出一条 [CAPSULE_FADE_BAND] 的渐隐带, 但对外仍然只上报原来的高度。
+ * 关键是这条带在胶囊上下边缘之外: 静止时胶囊本体完全落在这条带里面之外, 不会被压暗,
+ * 滚动结束也不需要撤掉遮罩, 所以不会有"滚完突然从暗变亮"。
+ * 上报高度不变, 下面几行的位置一动不动。
  */
-private fun Modifier.capsuleEdgeFade(edge: Dp): Modifier =
+private fun Modifier.capsuleFadeSlot(bandPx: Int): Modifier = this.layout { measurable, constraints ->
+    val natural = measurable.measure(constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity))
+    val h = natural.height
+    val grown = measurable.measure(
+        constraints.copy(minHeight = h + 2 * bandPx, maxHeight = h + 2 * bandPx)
+    )
+    layout(grown.width, h) { grown.place(0, -bandPx) }
+}
+
+/**
+ * 上下两条渐隐带: 内容滚进带里逐渐变透明, 换页是"溶解"而不是被裁出一条平口。
+ * 遮罩固定在槽位最外侧 [bandPx] 内, 静止时带内什么都没有, 胶囊一点不受影响;
+ * 离屏层自身仍按边界裁剪, 所以滚出槽位的那一半不会压到相邻的行。
+ */
+private fun Modifier.capsuleEdgeFade(bandPx: Int): Modifier =
     this
-        .graphicsLayer {
-            // 只在滚动那一秒开离屏层: 静止时不需要 DstIn 遮罩, 省掉一层合成。
-            compositingStrategy =
-                if (edge > 0.dp) CompositingStrategy.Offscreen else CompositingStrategy.Auto
-        }
+        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
         .drawWithContent {
             drawContent()
-            val e = edge.toPx()
-            if (e <= 0f) return@drawWithContent
-            val stop = (e / size.height).coerceIn(0f, 0.5f)
+            if (bandPx <= 0) return@drawWithContent
+            val stop = (bandPx.toFloat() / size.height).coerceIn(0f, 0.5f)
             drawRect(
                 brush = Brush.verticalGradient(
                     0f to Color.Transparent,
@@ -1267,9 +1268,6 @@ private fun Modifier.capsuleEdgeFade(edge: Dp): Modifier =
                 blendMode = BlendMode.DstIn,
             )
         }
-
-/** 滚动时上下边缘的渐隐高度(约半颗胶囊): 滚出的一半在这段距离里淡到看不见。 */
-private val CAPSULE_FADE_EDGE = 5.dp
 
 /**
  * 轮播用的上下滚动: 1 秒, 新内容从下方滚入、旧内容向上滚出。
