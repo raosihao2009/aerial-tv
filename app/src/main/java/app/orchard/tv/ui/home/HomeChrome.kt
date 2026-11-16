@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
@@ -1078,7 +1079,9 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
     AnimatedContent(
         targetState = idx,
         label = "forecast",
-        modifier = Modifier.padding(start = 14.dp),
+        modifier = Modifier
+            .padding(start = 14.dp)
+            .widthIn(max = FORECAST_MAX_WIDTH),
         transitionSpec = {
             val slide = tween<IntOffset>(1000)
             val fade = tween<Float>(1000)
@@ -1117,6 +1120,9 @@ private fun WeatherTag(text: String, style: TextStyle) {
 
 /** 标签底色的不透明度: 1.0 实心白最扎眼, 越低越不抢眼。 */
 private const val TAG_ALPHA = 0.70f
+
+/** 预报单行的最大宽度: 最长天气文字 + 双图标 + 气温一档, 超出不再往外撑。 */
+private val FORECAST_MAX_WIDTH = 250.dp
 
 private fun isDayNow(): Boolean {
     val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
