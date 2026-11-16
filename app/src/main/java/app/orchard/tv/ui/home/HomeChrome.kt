@@ -17,6 +17,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.AnimatedContentTransitionScope
@@ -61,6 +63,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInRoot
@@ -951,6 +954,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            val capsuleHeight = with(LocalDensity.current) { 22.sp.toDp() }
             BasicText("$place，${greetingText(now.hour)}！", style = greetingStyle)
             // 节气: targetState 变了才动画, 所以只在换节气那一帧滚动。
             AnimatedContent(
@@ -963,14 +967,26 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             AnimatedContent(
                 targetState = tail,
                 label = "greeting-tail",
-                transitionSpec = { capsuleScroll() },
+                transitionSpec = {
+                    // 变空或从空变出时不做上下滚: 容器从右边往左收窄, 内容被裁掉, 直到收完。
+                    if (initialState.isEmpty() || targetState.isEmpty()) {
+                        capsuleShrink()
+                    } else {
+                        capsuleScroll()
+                    }
+                },
             ) { t ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    if (t.season.isNotEmpty()) GreetingTag(t.season.joinToString("和"), greetingStyle)
-                    if (t.fests.isNotEmpty()) FestivalCarousel(t.fests, greetingStyle)
+                if (t.isEmpty()) {
+                    // 空状态给一个 0 宽、同高的占位: 容器只收窄不塌高, 收窄过程才看得见。
+                    Box(Modifier.width(0.dp).height(capsuleHeight))
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        if (t.season.isNotEmpty()) GreetingTag(t.season.joinToString("和"), greetingStyle)
+                        if (t.fests.isNotEmpty()) FestivalCarousel(t.fests, greetingStyle)
+                    }
                 }
             }
         }
@@ -1213,7 +1229,21 @@ private fun <S> AnimatedContentTransitionScope<S>.capsuleScroll(): ContentTransf
 }
 
 /** 问候行后两颗胶囊(时令 + 节日)的一组状态: 作为一条 AnimatedContent 的 targetState, 变了两颗一起滚。 */
-private data class GreetingTail(val season: List<String>, val fests: List<String>)
+private data class GreetingTail(val season: List<String>, val fests: List<String>) {
+    fun isEmpty(): Boolean = season.isEmpty() && fests.isEmpty()
+}
+
+/**
+ * 变成空(或从空变出)时的收缩: 不做淡入淡出/上下滚, 只让容器宽度收到 0(或从 0 展开)。
+ * 内容左对齐、容器按宽度裁剪, 看上去就是胶囊从右边往左缩短直到消失;
+ * 旧内容用 KeepUntilTransitionsFinished 留住, 否则一进过渡就被丢掉, 看不到收缩过程。
+ */
+private fun <S> AnimatedContentTransitionScope<S>.capsuleShrink(): ContentTransform =
+    (EnterTransition.None togetherWith ExitTransition.KeepUntilTransitionsFinished)
+        .using(SizeTransform(clip = true, sizeAnimationSpec = { _, _ -> tween(CAPSULE_SHRINK_MS) }))
+
+/** 胶囊收窄/展开时长: 比轮播的 1 秒短一点, 收得利落也不突兀。 */
+private const val CAPSULE_SHRINK_MS = 500
 
 /** 标底半透明白 + 圆形描边 + 白色字: 常驻的节气胶囊用这套, 和临时出现、实心白底黑字的时令/节日胶囊区分开。 */
 @Composable
@@ -1233,23 +1263,30 @@ private fun TermTag(text: String, style: TextStyle) {
 private const val TERM_TAG_ALPHA = 0.16f
 private const val TERM_TAG_BORDER = 0.80f
 
-/** 天气胶囊(现在 / 今天 / 明天 / 后天): 深色玻璃样式 —— 半透明黑底、白字、细白描边。 */
+/**
+ * 天气胶囊(现在 / 今天 / 明天 / 后天): 深炭玻璃小牌 —— 上深下浅的黑色渐变、圆角矩形、白字、无描边。
+ * 与常驻节气(淡白底+白描边)和时令/节日(实心白底黑字)在底色、字色、形状三处都不同, 一眼能分开。
+ */
 @Composable
 private fun WeatherTag(text: String, style: TextStyle) {
     BasicText(
         text,
-        style = style.copy(color = Color.White, fontSize = 13.sp, lineHeight = 22.sp, fontWeight = FontWeight.W500),
+        style = style.copy(color = Color.White, fontSize = 13.sp, lineHeight = 22.sp, fontWeight = FontWeight.W600),
         modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(Color.Black.copy(alpha = WEATHER_TAG_ALPHA))
-            .smoothBorder(1.dp, Color.White.copy(alpha = WEATHER_TAG_BORDER), 999.dp)
-            .padding(horizontal = 6.dp),
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                Brush.verticalGradient(
+                    0f to Color.Black.copy(alpha = WEATHER_TAG_TOP),
+                    1f to Color.Black.copy(alpha = WEATHER_TAG_BOTTOM),
+                )
+            )
+            .padding(horizontal = 7.dp),
     )
 }
 
-/** 天气胶囊的底与描边: 淡黑底压住亮壁纸, 细描边勾出轮廓, 不靠实心白抢眼。 */
-private const val WEATHER_TAG_ALPHA = 0.32f
-private const val WEATHER_TAG_BORDER = 0.34f
+/** 天气胶囊的渐变: 顶部压得住亮壁纸, 底部淡下来让壁纸透一点, 读作一块薄玻璃而不是贴纸。 */
+private const val WEATHER_TAG_TOP = 0.50f
+private const val WEATHER_TAG_BOTTOM = 0.22f
 
 /** 问候行的时令 / 节日胶囊: 实心半透明白底 + 黑字, 与常驻的节气胶囊、天气胶囊三者互相区分。 */
 @Composable
