@@ -60,6 +60,21 @@ class LunarTest {
         assertEquals("三九天", Lunar.seasonal(dongZhi.plusDays(19)).firstOrNull())
     }
 
+    @Test fun solarTermOnTheDay() {
+        assertEquals("霜降", Lunar.solarTerm(LocalDate.of(2026, 10, 23)))
+        assertNull(Lunar.solarTerm(LocalDate.of(2026, 10, 24)))
+    }
+
+    @Test fun currentTermStaysUntilNext() {
+        val day = LocalDate.of(2026, 10, 23) // 霜降当天
+        assertEquals("霜降", Lunar.currentTerm(day))
+        assertEquals("霜降", Lunar.currentTerm(day.plusDays(1)))
+        assertEquals("立冬", Lunar.currentTerm(LocalDate.of(2026, 11, 7)))
+        // 元旦到小寒之前仍算上一年的冬至
+        assertEquals("冬至", Lunar.currentTerm(LocalDate.of(2027, 1, 1)))
+        assertEquals("小寒", Lunar.currentTerm(LocalDate.of(2027, 1, 6)))
+    }
+
     @Test fun lunarFestivals2026() {
         assertTrue(Lunar.festivals(LocalDate.of(2026, 3, 3)).contains("元宵节"))
         assertTrue(Lunar.festivals(LocalDate.of(2026, 6, 19)).contains("端午节"))

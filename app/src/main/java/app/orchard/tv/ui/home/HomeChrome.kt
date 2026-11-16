@@ -930,7 +930,8 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
         // 节日多于一个时, 跟天气预报一样停留 9 秒、1 秒向上轮播。
         val place = Weather.place ?: "南昌"
         val date = now.toLocalDate()
-        val term = Lunar.solarTerm(date)
+        // 节气常驻: 到下一个节气之前一直显示当前节气, 用描边胶囊与临时出现的时令/节日区分开。
+        val term = Lunar.currentTerm(date)
         val season = Lunar.seasonal(date)
         val fests = Lunar.festivals(date)
         val greetingStyle = Type.Caption.copy(
@@ -945,7 +946,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             BasicText("$place，${greetingText(now.hour)}！", style = greetingStyle)
-            if (term != null) WeatherTag(term, greetingStyle)
+            TermTag(term, greetingStyle)
             if (season.isNotEmpty()) WeatherTag(season.joinToString("和"), greetingStyle)
             if (fests.isNotEmpty()) FestivalCarousel(fests, greetingStyle)
         }
@@ -1148,6 +1149,24 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
         WeatherTag(s, style)
     }
 }
+
+/** 标底半透明白 + 圆形描边 + 白色字: 常驻的节气胶囊用这套, 和临时出现、实心白底黑字的时令/节日胶囊区分开。 */
+@Composable
+private fun TermTag(text: String, style: TextStyle) {
+    BasicText(
+        text,
+        style = style.copy(color = Color.White, fontSize = 13.sp, lineHeight = 22.sp),
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(Color.White.copy(alpha = TERM_TAG_ALPHA))
+            .smoothBorder(1.dp, Color.White.copy(alpha = TERM_TAG_BORDER), 999.dp)
+            .padding(horizontal = 6.dp),
+    )
+}
+
+/** 常驻胶囊(节气)的底与描边不透明度: 比实心白淡, 靠描边立住形状。 */
+private const val TERM_TAG_ALPHA = 0.16f
+private const val TERM_TAG_BORDER = 0.80f
 
 /** 圆角小标签: 现在 / 今天 / 明天 / 后天。底色半透明白, 高度贴合旁边文字, 字色黑色。 */
 @Composable

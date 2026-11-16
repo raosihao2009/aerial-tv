@@ -125,6 +125,17 @@ object Lunar {
     fun solarTerm(date: LocalDate): String? =
         TERMS.firstOrNull { termDate(date.year, it.first) == date }?.first
 
+    /**
+     * 当前所处节气: 最近一个已经到来的节气, 从它当天起一直到下一个节气前一天都返回它。
+     * 元旦到小寒之前仍属上一年的冬至, 所以年初回落冬至 (不跨年计算整年, 二十四节气表本身已覆盖)。
+     */
+    fun currentTerm(date: LocalDate): String {
+        val passed = TERMS
+            .mapNotNull { t -> termDate(date.year, t.first)?.let { if (it <= date) it to t.first else null } }
+            .maxByOrNull { it.first }
+        return passed?.second ?: "冬至"
+    }
+
     /** 儒略日数, 用于日干支推算。 */
     private fun jdn(date: LocalDate): Int {
         val a = (14 - date.monthValue) / 12
