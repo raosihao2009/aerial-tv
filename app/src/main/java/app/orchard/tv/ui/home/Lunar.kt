@@ -299,8 +299,8 @@ object Lunar {
                 12 -> when (ld) {
                     8 -> out += "腊八节"
                     16 -> out += "尾牙"
-                    23 -> out += "小年北"
-                    24 -> out += "小年南"
+                    23 -> out += "北方小年"
+                    24 -> out += "南方小年"
                     else -> {
                         val tm = of(date.plusDays(1))
                         if (tm != null && tm.first == 1 && tm.second == 1) out += "除夕"

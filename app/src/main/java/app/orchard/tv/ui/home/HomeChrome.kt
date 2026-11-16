@@ -93,6 +93,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.DpOffset
@@ -952,7 +953,6 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            val capsuleHeight = with(LocalDensity.current) { 22.sp.toDp() }
             BasicText("$place，${greetingText(now.hour)}！", style = greetingStyle)
             // 节气: targetState 变了才动画, 所以只在换节气那一帧滚动。
             AnimatedContent(
@@ -976,7 +976,14 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             ) { t ->
                 if (t.isEmpty()) {
                     // 空状态给一个 0 宽、同高的占位: 容器只收窄不塌高, 收窄过程才看得见。
-                    Box(Modifier.width(0.dp).height(capsuleHeight))
+                    // 占位用一颗真胶囊: 量到不限宽、但只上报 0 宽, 于是高度与真胶囊逐像素一致,
+                    // 不需要写死任何常量 —— 只出现节气时与再跟时令/节日时整行等高, 也不改动下面几行的行距。
+                    Box(
+                        Modifier.layout { measurable, constraints ->
+                            val p = measurable.measure(Constraints(0, Constraints.Infinity, 0, Constraints.Infinity))
+                            layout(0, p.height) {}
+                        }
+                    ) { GreetingTag("时", greetingStyle) }
                 } else {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -1236,7 +1243,7 @@ private fun <S> AnimatedContentTransitionScope<S>.capsuleShrink(): ContentTransf
 /** 胶囊收窄/展开时长: 比轮播的 1 秒短一点, 收得利落也不突兀。 */
 private const val CAPSULE_SHRINK_MS = 500
 
-/** 标底半透明白 + 圆形描边 + 白色字: 常驻的节气胶囊用这套, 和临时出现、实心白底黑字的时令/节日胶囊区分开。 */
+/** 淡白底 + 圆形描边 + 白色字: 常驻的节气胶囊用这套, 和临时出现、实心白底黑字的时令/节日胶囊区分开。 */
 @Composable
 private fun TermTag(text: String, style: TextStyle) {
     BasicText(
@@ -1254,7 +1261,7 @@ private fun TermTag(text: String, style: TextStyle) {
 private const val TERM_TAG_ALPHA = 0.16f
 private const val TERM_TAG_BORDER = 0.80f
 
-/** 问候行的时令 / 节日胶囊: 实心半透明白底 + 黑字, 与常驻的节气胶囊、天气胶囊三者互相区分。 */
+/** 问候行的时令 / 节日胶囊: 实心半透明白底 + 黑字, 与常驻的节气胶囊、天气胶囊互相区分。 */
 @Composable
 private fun GreetingTag(text: String, style: TextStyle) {
     BasicText(
