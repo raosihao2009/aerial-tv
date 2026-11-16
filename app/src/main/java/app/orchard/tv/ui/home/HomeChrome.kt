@@ -61,6 +61,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.CompositingStrategy
@@ -961,6 +962,8 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             AnimatedContent(
                 targetState = term,
                 label = "greeting-term",
+                // 裁到槽位边界: 滚动时滚出槽位的那一半不画, 否则会压到上下相邻的行, 看起来像重叠。
+                modifier = Modifier.clipToBounds(),
                 transitionSpec = { capsuleScroll() },
             ) { t -> TermTag(t, greetingStyle) }
             // 时令 + 节日: 同组一条 AnimatedContent, 变化时两颗一起滚。
@@ -968,6 +971,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             AnimatedContent(
                 targetState = tail,
                 label = "greeting-tail",
+                modifier = Modifier.clipToBounds(),
                 transitionSpec = {
                     // 变空或从空变出时不做上下滚: 容器从右边往左收窄, 内容被裁掉, 直到收完。
                     if (initialState.isEmpty() || targetState.isEmpty()) {
@@ -1137,12 +1141,7 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
         modifier = Modifier
             .padding(start = 14.dp)
             .width(FORECAST_SLOT_WIDTH),
-        transitionSpec = {
-            val slide = tween<IntOffset>(1000)
-            val fade = tween<Float>(1000)
-            (slideInVertically(animationSpec = slide) { h -> h } + fadeIn(fade) togetherWith
-                slideOutVertically(animationSpec = slide) { h -> -h } + fadeOut(fade))
-        },
+        transitionSpec = { capsuleSlideScroll() },
     ) { i ->
         // slots 初始为空, 首轮组合时 effect 还没填充, 必须走兜底, 否则越界崩溃。
         val d = slots.getOrNull(i) ?: days[forecastIndex(i, days.size)]
@@ -1201,11 +1200,14 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
         }
     }
     // 节日槽位同样写死宽度: 长名滚到短名时容器宽度不动, 不会回缩。
+    // 过渡与天气预报同一套(带默认 SizeTransform 裁剪), 两张内容各占一半, 滚动中不会叠在一起。
     AnimatedContent(
         targetState = idx,
         label = "festival",
-        modifier = Modifier.width(FESTIVAL_SLOT_WIDTH),
-        transitionSpec = { capsuleScroll() },
+        modifier = Modifier
+            .width(FESTIVAL_SLOT_WIDTH)
+            .clipToBounds(),
+        transitionSpec = { capsuleSlideScroll() },
     ) { i ->
         Box(contentAlignment = Alignment.CenterStart) {
             GreetingTag(slots.getOrNull(i) ?: items[i], style)
@@ -1217,13 +1219,28 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
 private val FESTIVAL_SLOT_WIDTH = 1000.dp
 
 /**
+ * 轮播用的上下滚动: 1 秒, 新内容从下方滚入、旧内容向上滚出。
+ * 保留默认的 SizeTransform(clip = true), 过渡期间内容被容器边界裁掉, 进出两张各占一半、不会重叠;
+ * 天气预报与节日轮播都用这一套, 节奏和观感保持一致。
+ */
+private fun capsuleSlideScroll(): ContentTransform {
+    val slide = tween<IntOffset>(CAPSULE_SCROLL_MS)
+    val fade = tween<Float>(CAPSULE_SCROLL_MS)
+    return (slideInVertically(animationSpec = slide) { h -> h } + fadeIn(fade))
+        .togetherWith(slideOutVertically(animationSpec = slide) { h -> -h } + fadeOut(fade))
+}
+
+/** 上下滚动时长: 1 秒。 */
+private const val CAPSULE_SCROLL_MS = 1000
+
+/**
  * 零点换代用的滚动: 新内容从下方滚上来、旧内容向上走, 1 秒走完, 与天气轮播同一节奏。
  * using(null) 去掉默认的 SizeTransform 与裁剪, 滚动中的字不会被槽位边界切掉;
  * using 是 AnimatedContentTransitionScope 上的成员, 所以这里按接收者扩展定义。
  */
 private fun <S> AnimatedContentTransitionScope<S>.capsuleScroll(): ContentTransform {
-    val slide = tween<IntOffset>(1000)
-    val fade = tween<Float>(1000)
+    val slide = tween<IntOffset>(CAPSULE_SCROLL_MS)
+    val fade = tween<Float>(CAPSULE_SCROLL_MS)
     return (slideInVertically(animationSpec = slide) { h -> h } + fadeIn(fade))
         .togetherWith(slideOutVertically(animationSpec = slide) { h -> -h } + fadeOut(fade))
         .using(null)
