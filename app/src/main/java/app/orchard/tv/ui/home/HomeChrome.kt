@@ -48,6 +48,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.animation.core.Animatable
@@ -1057,17 +1058,20 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
     val slots = remember(days.size) {
         mutableStateListOf<ForecastDay?>().apply { repeat(days.size) { add(null) } }
     }
+    // 轮播协程长期存活, 必须始终读最新预报; 否则闭口号住首帧旧列表, 跨天后槽位不换代。
+    val latest by rememberUpdatedState(days)
     LaunchedEffect(days) {
         while (slots.size < days.size) slots.add(null)
-        days.forEachIndexed { i, d -> if (slots[i] == null) slots[i] = d }
+        // 新数据到达: 非当前可见槽位先换代; 当前可见槽位保持旧条目, 轮到它再换。
+        days.forEachIndexed { i, d -> if (i != idx || slots[i] == null) slots[i] = d }
     }
     LaunchedEffect(days.size) {
         if (days.size > 1) {
             while (true) {
                 // 滑动 1 秒, 停 9 秒, 一轮仍是 10 秒。
                 delay(9_000)
-                idx = (idx + 1) % days.size
-                slots[idx] = days.getOrNull(idx)
+                idx = (idx + 1) % latest.size
+                slots[idx] = latest.getOrNull(idx)
             }
         }
     }

@@ -136,7 +136,11 @@ class MainActivity : ComponentActivity() {
      * (issue #1314). Registered only while resumed; a check that is not due does nothing.
      */
     private val minuteReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) = Wallpapers.rotateIfDue()
+        override fun onReceive(context: Context, intent: Intent) {
+            Wallpapers.rotateIfDue()
+            // 每分钟也跑一次天气闸门: 跨天那一刻不靠 5 秒网络轮询兜底。
+            Weather.refreshIfStale()
+        }
     }
     private var minuteReceiverOn = false
 

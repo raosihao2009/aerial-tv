@@ -71,7 +71,7 @@ object Weather {
         prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         place = prefs.getString("place_custom", null) ?: prefs.getString("place", null)
         chosen = prefs.getBoolean("chosen", false)
-        lastRefreshDay = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_MONTH)
+        lastRefreshKey = dayKey()
         if (System.currentTimeMillis() - prefs.getLong("fetched_at", 0) < STALE_MS) {
             val kind = runCatching { WeatherKind.valueOf(prefs.getString("kind", null) ?: "") }.getOrNull()
             if (kind != null) {
@@ -92,8 +92,17 @@ object Weather {
     }
 
     private var failed = false
-    /** 上次刷新所在的"日", 用于识别跨天那一刻; -1 表示尚未记录。 */
-    private var lastRefreshDay = -1
+    /** 上次成功刷新所在的完整日期键(yyyy-MM-dd), 用于识别跨天那一刻; 空串表示尚未记录。 */
+    private var lastRefreshKey = ""
+
+    private fun dayKey(): String {
+        val c = java.util.Calendar.getInstance()
+        return "%04d-%02d-%02d".format(
+            c.get(java.util.Calendar.YEAR),
+            c.get(java.util.Calendar.MONTH) + 1,
+            c.get(java.util.Calendar.DAY_OF_MONTH),
+        )
+    }
 
     fun refreshIfStale(networkCameUp: Boolean = false) {
         if (!started) return
@@ -101,10 +110,10 @@ object Weather {
         val since = nowMs - lastAttempt
         if (failed && (networkCameUp || since >= RETRY_MS)) { refresh(); return }
         val cal = java.util.Calendar.getInstance()
-        val day = cal.get(java.util.Calendar.DAY_OF_MONTH)
         val minute = cal.get(java.util.Calendar.MINUTE)
         // 跨天那一刻强制刷新一次; 平时只在 00/10/20/30/40/50 分、且距上次满 10 分钟才刷。
-        val crossedDay = lastRefreshDay >= 0 && day != lastRefreshDay
+        val today = dayKey()
+        val crossedDay = lastRefreshKey.isNotEmpty() && today != lastRefreshKey
         if (crossedDay || (minute % 10 == 0 && since >= REFRESH_MS)) {
             refresh()
         }
@@ -112,7 +121,6 @@ object Weather {
 
     private fun refresh() {
         lastAttempt = System.currentTimeMillis()
-        lastRefreshDay = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_MONTH)
         job?.cancel()
         job = scope.launch {
             val reading = withContext(Dispatchers.IO) {
@@ -121,7 +129,9 @@ object Weather {
             prefs.getString("place", null)?.let { place = it }
             failed = reading == null
             if (reading != null) {
+                lastRefreshKey = dayKey()
                 now = reading
+                Log.i(TAG, "天气刷新成功: 实况 ${reading.celsius}°, 预报 ${reading.forecast.joinToString { it.date.ifEmpty { it.week } }}")
                 prefs.edit {
                     putLong("fetched_at", System.currentTimeMillis())
                     putInt("celsius", reading.celsius)
