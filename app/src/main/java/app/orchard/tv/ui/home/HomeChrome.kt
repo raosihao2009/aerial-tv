@@ -1204,7 +1204,7 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
 }
 
 /** 节日胶囊槽位的固定宽度: 够放任何一天的多个节日名, 定宽是为了切换时不回缩不撑开。 */
-private val FESTIVAL_SLOT_WIDTH = 300.dp
+private val FESTIVAL_SLOT_WIDTH = 1000.dp
 
 /**
  * 零点换代用的滚动: 新内容从下方滚上来、旧内容向上走, 1 秒走完, 与天气轮播同一节奏。
@@ -1270,8 +1270,8 @@ private fun GreetingTag(text: String, style: TextStyle) {
 /** 问候胶囊底色的不透明度: 1.0 实心白最扎眼, 越低越不抢眼。 */
 private const val TAG_ALPHA = 0.70f
 
-/** 预报槽位的固定宽度: 给双图标 + 长天气文字 + 两档气温留足余量, 定宽后容器永不回缩。 */
-private val FORECAST_SLOT_WIDTH = 420.dp
+/** 预报槽位的固定宽度: 直接给一个远超实际需要的定值, 容器永不回缩, 也不会有任何测量误差。 */
+private val FORECAST_SLOT_WIDTH = 1000.dp
 
 private fun isDayNow(): Boolean {
     val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
