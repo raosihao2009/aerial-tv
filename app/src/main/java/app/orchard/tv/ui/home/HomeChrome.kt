@@ -69,7 +69,6 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.AlignmentLine
 import androidx.compose.ui.layout.FirstBaseline
-import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.TextUnit
@@ -95,7 +94,6 @@ import kotlinx.coroutines.withContext
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntSize
@@ -1121,26 +1119,24 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
             }
         }
     }
-    // 槽位宽度按三天里最宽那一行**实测**出来并固定: 长天气滚到短天气时容器不动, 不会往左回缩;
-    // 实测而不是估文字宽度, 温度与图标才不会被算窄导致折行。
-    WidestSlot(
-        count = days.size,
-        maxWidth = FORECAST_MAX_WIDTH,
-        modifier = Modifier.padding(start = 14.dp),
-        probe = { i -> ForecastRow(slots.getOrNull(i) ?: days[forecastIndex(i, days.size)], forecastLabel(i), weatherStyle) },
-    ) {
-        AnimatedContent(
-            targetState = idx,
-            label = "forecast",
-            transitionSpec = {
-                val slide = tween<IntOffset>(1000)
-                val fade = tween<Float>(1000)
-                (slideInVertically(animationSpec = slide) { h -> h } + fadeIn(fade) togetherWith
-                    slideOutVertically(animationSpec = slide) { h -> -h } + fadeOut(fade))
-            },
-        ) { i ->
-            // slots 初始为空, 首轮组合时 effect 还没填充, 必须走兜底, 否则越界崩溃。
-            val d = slots.getOrNull(i) ?: days[forecastIndex(i, days.size)]
+    // 槽位宽度直接写死一个够长够宽的定值, 不做任何测量: 容器宽度永不变化,
+    // 长短天气互相切换时既不会往左回缩, 也不会因为算窄把温度挤成两行。
+    AnimatedContent(
+        targetState = idx,
+        label = "forecast",
+        modifier = Modifier
+            .padding(start = 14.dp)
+            .width(FORECAST_SLOT_WIDTH),
+        transitionSpec = {
+            val slide = tween<IntOffset>(1000)
+            val fade = tween<Float>(1000)
+            (slideInVertically(animationSpec = slide) { h -> h } + fadeIn(fade) togetherWith
+                slideOutVertically(animationSpec = slide) { h -> -h } + fadeOut(fade))
+        },
+    ) { i ->
+        // slots 初始为空, 首轮组合时 effect 还没填充, 必须走兜底, 否则越界崩溃。
+        val d = slots.getOrNull(i) ?: days[forecastIndex(i, days.size)]
+        Box(contentAlignment = Alignment.CenterStart) {
             ForecastRow(d, forecastLabel(i), weatherStyle)
         }
     }
@@ -1194,54 +1190,21 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
             }
         }
     }
-    // 槽位宽度取最长那条节日实测出来的宽度: 长名滚到短名时容器不动, 不会回缩。
-    WidestSlot(
-        count = items.size,
-        maxWidth = FESTIVAL_MAX_WIDTH,
-        probe = { i -> GreetingTag(items[i], style) },
-    ) {
-        AnimatedContent(
-            targetState = idx,
-            label = "festival",
-            transitionSpec = { capsuleScroll() },
-        ) { i ->
+    // 节日槽位同样写死宽度: 长名滚到短名时容器宽度不动, 不会回缩。
+    AnimatedContent(
+        targetState = idx,
+        label = "festival",
+        modifier = Modifier.width(FESTIVAL_SLOT_WIDTH),
+        transitionSpec = { capsuleScroll() },
+    ) { i ->
+        Box(contentAlignment = Alignment.CenterStart) {
             GreetingTag(slots.getOrNull(i) ?: items[i], style)
         }
     }
 }
 
-/**
- * 轮播槽位: 先把所有候选内容按无限宽度实测一遍, 取最宽者作为固定宽度, 再在该宽度里放真正显示的内容。
- * 这样容器宽度只由最宽那条决定, 长短内容切换时不会一缩一撑; 实测也保证文字不会因算窄而折行。
- */
-@Composable
-private fun WidestSlot(
-    count: Int,
-    maxWidth: Dp,
-    modifier: Modifier = Modifier,
-    probe: @Composable (Int) -> Unit,
-    content: @Composable () -> Unit,
-) {
-    val density = LocalDensity.current
-    SubcomposeLayout(modifier) { constraints ->
-        val probeConstraints = Constraints(0, Constraints.Infinity, 0, Constraints.Infinity)
-        var widest = 0
-        for (i in 0 until count) {
-            val p = subcompose("probe$i", { probe(i) }).first().measure(probeConstraints)
-            if (p.width > widest) widest = p.width
-        }
-        val width = widest.coerceAtMost(with(density) { maxWidth.toPx() }.toInt())
-        val body = subcompose("slot") {
-            Box(Modifier.width(with(density) { width.toDp() })) { content() }
-        }.first().measure(
-            constraints.copy(minWidth = width, maxWidth = width, minHeight = 0, maxHeight = Constraints.Infinity)
-        )
-        layout(width, body.height) { body.place(0, 0) }
-    }
-}
-
-/** 节日胶囊槽位的最大宽度: 再长的节日名也不无限制外撑。 */
-private val FESTIVAL_MAX_WIDTH = 260.dp
+/** 节日胶囊槽位的固定宽度: 够放任何一天的多个节日名, 定宽是为了切换时不回缩不撑开。 */
+private val FESTIVAL_SLOT_WIDTH = 300.dp
 
 /**
  * 零点换代用的滚动: 新内容从下方滚上来、旧内容向上走, 1 秒走完, 与天气轮播同一节奏。
@@ -1308,8 +1271,8 @@ private fun WeatherTag(text: String, style: TextStyle) {
     )
 }
 
-/** 天气胶囊的白底与黑边: 底比时令/节日更实一点, 黑边勾出轮廓, 亮壁纸上也立得住。 */
-private const val WEATHER_TAG_ALPHA = 0.90f
+/** 天气胶囊的白底透明度与黑边: 底保留壁纸透出感, 靠黑边和黑字保证亮壁纸上仍读得清。 */
+private const val WEATHER_TAG_ALPHA = 0.72f
 private const val WEATHER_TAG_EDGE = 0.62f
 
 /** 问候行的时令 / 节日胶囊: 实心半透明白底 + 黑字, 与常驻的节气胶囊、天气胶囊三者互相区分。 */
@@ -1328,8 +1291,8 @@ private fun GreetingTag(text: String, style: TextStyle) {
 /** 问候胶囊底色的不透明度: 1.0 实心白最扎眼, 越低越不抢眼。 */
 private const val TAG_ALPHA = 0.70f
 
-/** 预报单行的最大宽度: 留足双图标 + 长天气文字 + 两档气温, 再长也不往外撑。 */
-private val FORECAST_MAX_WIDTH = 300.dp
+/** 预报槽位的固定宽度: 给双图标 + 长天气文字 + 两档气温留足余量, 定宽后容器永不回缩。 */
+private val FORECAST_SLOT_WIDTH = 420.dp
 
 private fun isDayNow(): Boolean {
     val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
