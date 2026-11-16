@@ -1143,15 +1143,13 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
         modifier = Modifier
             .padding(start = 14.dp)
             .width(FORECAST_SLOT_WIDTH)
-            // 上下各留一条渐隐带(仍在胶囊外面), 内容滚进带里才淡掉; 上报高度不变, 下面几行不动。
-            .capsuleFadeSlot(bandPx)
             .capsuleEdgeFade(bandPx),
         transitionSpec = { capsuleSlideScroll() },
-        contentAlignment = Alignment.Center,
     ) { i ->
         // slots 初始为空, 首轮组合时 effect 还没填充, 必须走兜底, 否则越界崩溃。
         val d = slots.getOrNull(i) ?: days[forecastIndex(i, days.size)]
-        Box(contentAlignment = Alignment.CenterStart) {
+        // 上下各留一条渐隐带: 胶囊本体在带内, 滚动的内容从带里进出才淡掉, 胶囊本身不落在带里。
+        Box(Modifier.padding(vertical = CAPSULE_FADE_BAND), contentAlignment = Alignment.CenterStart) {
             ForecastRow(d, forecastLabel(i), weatherStyle)
         }
     }
@@ -1214,12 +1212,10 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
         label = "festival",
         modifier = Modifier
             .width(FESTIVAL_SLOT_WIDTH)
-            .capsuleFadeSlot(bandPx)
             .capsuleEdgeFade(bandPx),
         transitionSpec = { capsuleSlideScroll() },
-        contentAlignment = Alignment.Center,
     ) { i ->
-        Box(contentAlignment = Alignment.CenterStart) {
+        Box(Modifier.padding(vertical = CAPSULE_FADE_BAND), contentAlignment = Alignment.CenterStart) {
             GreetingTag(slots.getOrNull(i) ?: items[i], style)
         }
     }
@@ -1228,27 +1224,13 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
 /** 节日胶囊槽位的固定宽度: 够放任何一天的多个节日名, 定宽是为了切换时不回缩不撑开。 */
 private val FESTIVAL_SLOT_WIDTH = 1000.dp
 
-/** 渐隐带高度: 上下各一条, 落在胶囊本体之外。 */
-private val CAPSULE_FADE_BAND = 6.dp
-
-/**
- * 把滚动槽位的上下各撑出一条 [CAPSULE_FADE_BAND] 的渐隐带, 但对外仍然只上报原来的高度。
- * 关键是这条带在胶囊上下边缘之外: 静止时胶囊本体完全落在这条带里面之外, 不会被压暗,
- * 滚动结束也不需要撤掉遮罩, 所以不会有"滚完突然从暗变亮"。
- * 上报高度不变, 下面几行的位置一动不动。
- */
-private fun Modifier.capsuleFadeSlot(bandPx: Int): Modifier = this.layout { measurable, constraints ->
-    val natural = measurable.measure(constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity))
-    val h = natural.height
-    val grown = measurable.measure(
-        constraints.copy(minHeight = h + 2 * bandPx, maxHeight = h + 2 * bandPx)
-    )
-    layout(grown.width, h) { grown.place(0, -bandPx) }
-}
+/** 渐隐带高度: 槽位上下各留一条, 落在胶囊本体之外, 胶囊不在带里。 */
+private val CAPSULE_FADE_BAND = 4.dp
 
 /**
  * 上下两条渐隐带: 内容滚进带里逐渐变透明, 换页是"溶解"而不是被裁出一条平口。
- * 遮罩固定在槽位最外侧 [bandPx] 内, 静止时带内什么都没有, 胶囊一点不受影响;
+ * 遮罩固定在槽位最外侧 [bandPx] 内: 槽位上下各留了同样宽的空白(胶囊本体在空白之内),
+ * 静止时带里什么都没有, 胶囊一点不受影响, 也就没有"滚完突然变亮";
  * 离屏层自身仍按边界裁剪, 所以滚出槽位的那一半不会压到相邻的行。
  */
 private fun Modifier.capsuleEdgeFade(bandPx: Int): Modifier =
