@@ -48,7 +48,9 @@ class LunarTest {
     }
 
     @Test fun sanFu2026() {
+        // 只在入伏/中伏/末伏当天出现
         assertEquals("入伏", Lunar.seasonal(LocalDate.of(2026, 7, 15)).firstOrNull())
+        assertTrue(Lunar.seasonal(LocalDate.of(2026, 7, 16)).isEmpty())
         assertEquals("中伏", Lunar.seasonal(LocalDate.of(2026, 7, 25)).firstOrNull())
         assertEquals("末伏", Lunar.seasonal(LocalDate.of(2026, 8, 14)).firstOrNull())
         assertTrue(Lunar.seasonal(LocalDate.of(2026, 7, 14)).isEmpty())
@@ -56,8 +58,10 @@ class LunarTest {
 
     @Test fun shuJiu() {
         val dongZhi = LocalDate.of(2026, 12, 22)
-        assertEquals("入九天", Lunar.seasonal(dongZhi).firstOrNull())
-        assertEquals("三九天", Lunar.seasonal(dongZhi.plusDays(19)).firstOrNull())
+        // 只在每一九的第一天出现, 九天之内不常驻
+        assertEquals("入九", Lunar.seasonal(dongZhi).firstOrNull())
+        assertTrue(Lunar.seasonal(dongZhi.plusDays(1)).isEmpty())
+        assertEquals("三九天", Lunar.seasonal(dongZhi.plusDays(18)).firstOrNull())
     }
 
     @Test fun solarTermOnTheDay() {

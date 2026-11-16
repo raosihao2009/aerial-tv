@@ -147,17 +147,18 @@ object Lunar {
     /** 日干序号: 甲0 … 庚6 … 癸9。 */
     private fun dayStem(date: LocalDate): Int = ((jdn(date) + 49) % 60).mod(10)
 
-    /** 数九: 冬至当天入九, 每九天一九; 返回当天的九九天名, 不在九九天内返回 null。 */
+    /** 数九: 冬至当天入九, 每九天一九; 只在每一九的第一天返回名字, 避免整个九天里一直挂着变成常驻。 */
     private fun shuJiu(date: LocalDate): String? {
         var dongZhi = termDate(date.year, "冬至") ?: return null
         if (date.isBefore(dongZhi)) dongZhi = termDate(date.year - 1, "冬至") ?: return null
         val delta = (date.toEpochDay() - dongZhi.toEpochDay()).toInt() + 1
         if (delta !in 1..81) return null
-        val names = listOf("入九天", "二九天", "三九天", "四九天", "五九天", "六九天", "七九天", "八九天", "九九天")
+        if ((delta - 1) % 9 != 0) return null
+        val names = listOf("入九", "二九天", "三九天", "四九天", "五九天", "六九天", "七九天", "八九天", "九九天")
         return names[(delta - 1) / 9]
     }
 
-    /** 三伏: 夏至后第三庚日入伏、第四庚日中伏, 立秋后首个庚日末伏。 */
+    /** 三伏: 夏至后第三庚日入伏、第四庚日中伏, 立秋后首个庚日末伏; 只在入伏/中伏/末伏当天返回。 */
     private fun sanFu(date: LocalDate): String? {
         if (date.monthValue !in 6..8) return null
         val xiaZhi = termDate(date.year, "夏至") ?: return null
@@ -178,10 +179,10 @@ object Lunar {
             q = q.plusDays(1)
         }
         val mo = moFu ?: return null
-        return when {
-            !date.isBefore(ruFu) && date.isBefore(zhongFu) -> "入伏"
-            !date.isBefore(zhongFu) && date.isBefore(mo) -> "中伏"
-            !date.isBefore(mo) && date.isBefore(mo.plusDays(10)) -> "末伏"
+        return when (date) {
+            ruFu -> "入伏"
+            zhongFu -> "中伏"
+            mo -> "末伏"
             else -> null
         }
     }

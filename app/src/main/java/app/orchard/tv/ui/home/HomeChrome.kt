@@ -18,6 +18,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
@@ -76,6 +78,8 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
@@ -928,9 +932,11 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
     ) {
         // 问候语: "城市，xx好！" 后面依次跟 节气 / 时令 / 节日 三颗胶囊, 缺哪颗就不显示哪颗。
         // 节日多于一个时, 跟天气预报一样停留 9 秒、1 秒向上轮播。
+        // 问候语: "城市，xx好！" 后面跟 节气 / 时令 / 节日 三颗胶囊。
+        // 节气常驻; 时令与节日只在当天命中才出现(不做整段常驻)。零点换代时:
+        // 节气有变化 → 三颗整组滚动; 只有时令/节日变化 → 后两颗一起滚动。
         val place = Weather.place ?: "南昌"
         val date = now.toLocalDate()
-        // 节气常驻: 到下一个节气之前一直显示当前节气, 用描边胶囊与临时出现的时令/节日区分开。
         val term = Lunar.currentTerm(date)
         val season = Lunar.seasonal(date)
         val fests = Lunar.festivals(date)
@@ -946,9 +952,27 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             BasicText("$place，${greetingText(now.hour)}！", style = greetingStyle)
-            TermTag(term, greetingStyle)
-            if (season.isNotEmpty()) WeatherTag(season.joinToString("和"), greetingStyle)
-            if (fests.isNotEmpty()) FestivalCarousel(fests, greetingStyle)
+            // 节气: targetState 变了才动画, 所以只在换节气那一帧滚动。
+            AnimatedContent(
+                targetState = term,
+                label = "greeting-term",
+                transitionSpec = { capsuleScroll() },
+            ) { t -> TermTag(t, greetingStyle) }
+            // 时令 + 节日: 同组一条 AnimatedContent, 变化时两颗一起滚。
+            val tail = remember(season, fests) { GreetingTail(season, fests) }
+            AnimatedContent(
+                targetState = tail,
+                label = "greeting-tail",
+                transitionSpec = { capsuleScroll() },
+            ) { t ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (t.season.isNotEmpty()) GreetingTag(t.season.joinToString("和"), greetingStyle)
+                    if (t.fests.isNotEmpty()) FestivalCarousel(t.fests, greetingStyle)
+                }
+            }
         }
         // 时间行: 大时间 + 时段 | 日期+农历
         Row(
@@ -1081,12 +1105,28 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
             }
         }
     }
+    // 槽位宽度按三天里最宽那一行算, 且不再随内容收缩: 长天气滚到短天气时容器保持不动, 不会往左回缩。
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val slotWidth = remember(days, weatherStyle) {
+        val tagPx = measurer.measure(AnnotatedString("今天"), weatherStyle.copy(fontSize = 13.sp, lineHeight = 22.sp)).size.width
+        val widest = days.maxOfOrNull { d ->
+            val dispPx = if (d.display.isNotEmpty()) measurer.measure(AnnotatedString(d.display), weatherStyle).size.width else 0
+            val tempPx = measurer.measure(AnnotatedString(" ${d.low}° / ${d.high}°"), weatherStyle).size.width
+            with(density) {
+                tagPx.toDp() + 12.dp + 6.dp + 20.dp +
+                    (if (d.display.contains("转")) 1.dp + 20.dp else 0.dp) +
+                    dispPx.toDp() + tempPx.toDp()
+            }
+        } ?: 0.dp
+        widest.coerceAtMost(FORECAST_MAX_WIDTH)
+    }
     AnimatedContent(
         targetState = idx,
         label = "forecast",
         modifier = Modifier
             .padding(start = 14.dp)
-            .widthIn(max = FORECAST_MAX_WIDTH),
+            .width(slotWidth),
         transitionSpec = {
             val slide = tween<IntOffset>(1000)
             val fade = tween<Float>(1000)
@@ -1113,8 +1153,19 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
 /** 同一天多个节日: 与预报一致, 停留 9 秒、1 秒向上滚动轮换; 单个节日直接静态显示。 */
 @Composable
 private fun FestivalCarousel(items: List<String>, style: TextStyle) {
+    if (items.isEmpty()) return
+    // 槽位宽度取最长那条节日的宽度: 长名滚到短名(如「七·七事变纪念日」→「元旦」)时不再回缩。
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val tagStyle = style.copy(color = Color.Black, fontSize = 13.sp, lineHeight = 22.sp)
+    val slotWidth = remember(items, tagStyle) {
+        val widest = items.maxOf { measurer.measure(AnnotatedString(it), tagStyle).size.width }
+        with(density) { widest.toDp() + 12.dp }
+    }
     if (items.size == 1) {
-        WeatherTag(items.first(), style)
+        Box(Modifier.width(slotWidth), contentAlignment = Alignment.CenterStart) {
+            GreetingTag(items.first(), style)
+        }
         return
     }
     var idx by remember { mutableStateOf(0) }
@@ -1138,17 +1189,31 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
     AnimatedContent(
         targetState = idx,
         label = "festival",
-        transitionSpec = {
-            val slide = tween<IntOffset>(1000)
-            val fade = tween<Float>(1000)
-            (slideInVertically(animationSpec = slide) { h -> h } + fadeIn(fade) togetherWith
-                slideOutVertically(animationSpec = slide) { h -> -h } + fadeOut(fade))
-        },
+        modifier = Modifier.width(slotWidth),
+        transitionSpec = { capsuleScroll() },
     ) { i ->
         val s = slots.getOrNull(i) ?: items[i]
-        WeatherTag(s, style)
+        Box(Modifier.width(slotWidth), contentAlignment = Alignment.CenterStart) {
+            GreetingTag(s, style)
+        }
     }
 }
+
+/**
+ * 零点换代用的滚动: 新内容从下方滚上来、旧内容向上走, 1 秒走完, 与天气轮播同一节奏。
+ * using(null) 去掉默认的 SizeTransform 与裁剪, 滚动中的字不会被槽位边界切掉;
+ * using 是 AnimatedContentTransitionScope 上的成员, 所以这里按接收者扩展定义。
+ */
+private fun <S> AnimatedContentTransitionScope<S>.capsuleScroll(): ContentTransform {
+    val slide = tween<IntOffset>(1000)
+    val fade = tween<Float>(1000)
+    return (slideInVertically(animationSpec = slide) { h -> h } + fadeIn(fade))
+        .togetherWith(slideOutVertically(animationSpec = slide) { h -> -h } + fadeOut(fade))
+        .using(null)
+}
+
+/** 问候行后两颗胶囊(时令 + 节日)的一组状态: 作为一条 AnimatedContent 的 targetState, 变了两颗一起滚。 */
+private data class GreetingTail(val season: List<String>, val fests: List<String>)
 
 /** 标底半透明白 + 圆形描边 + 白色字: 常驻的节气胶囊用这套, 和临时出现、实心白底黑字的时令/节日胶囊区分开。 */
 @Composable
@@ -1168,9 +1233,27 @@ private fun TermTag(text: String, style: TextStyle) {
 private const val TERM_TAG_ALPHA = 0.16f
 private const val TERM_TAG_BORDER = 0.80f
 
-/** 圆角小标签: 现在 / 今天 / 明天 / 后天。底色半透明白, 高度贴合旁边文字, 字色黑色。 */
+/** 天气胶囊(现在 / 今天 / 明天 / 后天): 深色玻璃样式 —— 半透明黑底、白字、细白描边。 */
 @Composable
 private fun WeatherTag(text: String, style: TextStyle) {
+    BasicText(
+        text,
+        style = style.copy(color = Color.White, fontSize = 13.sp, lineHeight = 22.sp, fontWeight = FontWeight.W500),
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(Color.Black.copy(alpha = WEATHER_TAG_ALPHA))
+            .smoothBorder(1.dp, Color.White.copy(alpha = WEATHER_TAG_BORDER), 999.dp)
+            .padding(horizontal = 6.dp),
+    )
+}
+
+/** 天气胶囊的底与描边: 淡黑底压住亮壁纸, 细描边勾出轮廓, 不靠实心白抢眼。 */
+private const val WEATHER_TAG_ALPHA = 0.32f
+private const val WEATHER_TAG_BORDER = 0.34f
+
+/** 问候行的时令 / 节日胶囊: 实心半透明白底 + 黑字, 与常驻的节气胶囊、天气胶囊三者互相区分。 */
+@Composable
+private fun GreetingTag(text: String, style: TextStyle) {
     BasicText(
         text,
         style = style.copy(color = Color.Black, fontSize = 13.sp, lineHeight = 22.sp),
@@ -1181,7 +1264,7 @@ private fun WeatherTag(text: String, style: TextStyle) {
     )
 }
 
-/** 标签底色的不透明度: 1.0 实心白最扎眼, 越低越不抢眼。 */
+/** 问候胶囊底色的不透明度: 1.0 实心白最扎眼, 越低越不抢眼。 */
 private const val TAG_ALPHA = 0.70f
 
 /** 预报单行的最大宽度: 最长天气文字 + 双图标 + 气温一档, 超出不再往外撑。 */
