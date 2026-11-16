@@ -97,112 +97,198 @@ object Lunar {
         return LocalDate.of(FIRST_YEAR + i, (info shr 22 and 0x3) + 1, info shr 17 and 0x1f)
     }
 
-    /** 二十四节气 (21世纪C值公式), 返回当天节气名, 否则 null */
-    fun solarTerm(date: LocalDate): String? {
-        val y = date.year % 100
+    private val TERMS = listOf(
+        Triple("小寒", 1, 5.4055), Triple("大寒", 1, 20.12),
+        Triple("立春", 2, 3.87), Triple("雨水", 2, 18.73),
+        Triple("惊蛰", 3, 5.63), Triple("春分", 3, 20.646),
+        Triple("清明", 4, 4.81), Triple("谷雨", 4, 20.10),
+        Triple("立夏", 5, 5.52), Triple("小满", 5, 21.04),
+        Triple("芒种", 6, 5.678), Triple("夏至", 6, 21.37),
+        Triple("小暑", 7, 7.108), Triple("大暑", 7, 22.83),
+        Triple("立秋", 8, 7.50), Triple("处暑", 8, 23.13),
+        Triple("白露", 9, 7.646), Triple("秋分", 9, 23.042),
+        Triple("寒露", 10, 8.318), Triple("霜降", 10, 23.438),
+        Triple("立冬", 11, 7.438), Triple("小雪", 11, 22.36),
+        Triple("大雪", 12, 7.18), Triple("冬至", 12, 21.94),
+    )
+
+    /** 某年某节气的公历日期 (21 世纪 C 值公式); 越界返回 null。 */
+    private fun termDate(year: Int, name: String): LocalDate? {
+        val t = TERMS.firstOrNull { it.first == name } ?: return null
+        val y = year % 100
         val leap = ((y - 1) / 4.0).toInt()
-        // name, month, C
-        val terms = arrayOf(
-            arrayOf("小寒", 1, 5.4055),
-            arrayOf("大寒", 1, 20.12),
-            arrayOf("立春", 2, 3.87),
-            arrayOf("雨水", 2, 18.73),
-            arrayOf("惊蛰", 3, 5.63),
-            arrayOf("春分", 3, 20.646),
-            arrayOf("清明", 4, 4.81),
-            arrayOf("谷雨", 4, 20.10),
-            arrayOf("立夏", 5, 5.52),
-            arrayOf("小满", 5, 21.04),
-            arrayOf("芒种", 6, 5.678),
-            arrayOf("夏至", 6, 21.37),
-            arrayOf("小暑", 7, 7.108),
-            arrayOf("大暑", 7, 22.83),
-            arrayOf("立秋", 8, 7.50),
-            arrayOf("处暑", 8, 23.13),
-            arrayOf("白露", 9, 7.646),
-            arrayOf("秋分", 9, 23.042),
-            arrayOf("寒露", 10, 8.318),
-            arrayOf("霜降", 10, 23.438),
-            arrayOf("立冬", 11, 7.438),
-            arrayOf("小雪", 11, 22.36),
-            arrayOf("大雪", 12, 7.18),
-            arrayOf("冬至", 12, 21.94),
-        )
-        for (t in terms) {
-            if ((t[1] as Int) != date.monthValue) continue
-            val day = Math.floor(y * 0.2422 + (t[2] as Double)).toInt() - leap
-            if (day == date.dayOfMonth) return t[0] as String
-        }
-        return null
+        val day = Math.floor(y * 0.2422 + t.third).toInt() - leap
+        return runCatching { LocalDate.of(year, t.second, day) }.getOrNull()
     }
+
+    /** 二十四节气, 返回当天节气名, 否则 null */
+    fun solarTerm(date: LocalDate): String? =
+        TERMS.firstOrNull { termDate(date.year, it.first) == date }?.first
+
+    /** 儒略日数, 用于日干支推算。 */
+    private fun jdn(date: LocalDate): Int {
+        val a = (14 - date.monthValue) / 12
+        val y = date.year + 4800 - a
+        val m = date.monthValue + 12 * a - 3
+        return date.dayOfMonth + (153 * m + 2) / 5 + 365 * y + y / 4 - y / 100 + y / 400 - 32045
+    }
+
+    /** 日干序号: 甲0 … 庚6 … 癸9。 */
+    private fun dayStem(date: LocalDate): Int = ((jdn(date) + 49) % 60).mod(10)
+
+    /** 数九: 冬至当天入九, 每九天一九; 返回当天的九九天名, 不在九九天内返回 null。 */
+    private fun shuJiu(date: LocalDate): String? {
+        var dongZhi = termDate(date.year, "冬至") ?: return null
+        if (date.isBefore(dongZhi)) dongZhi = termDate(date.year - 1, "冬至") ?: return null
+        val delta = (date.toEpochDay() - dongZhi.toEpochDay()).toInt() + 1
+        if (delta !in 1..81) return null
+        val names = listOf("入九", "二九天", "三九天", "四九天", "五九天", "六九", "七九天", "八九天", "九九天")
+        return names[(delta - 1) / 9]
+    }
+
+    /** 三伏: 夏至后第三庚日入伏、第四庚日中伏, 立秋后首个庚日末伏。 */
+    private fun sanFu(date: LocalDate): String? {
+        if (date.monthValue !in 6..8) return null
+        val xiaZhi = termDate(date.year, "夏至") ?: return null
+        val liQiu = termDate(date.year, "立秋") ?: return null
+        val geng = mutableListOf<LocalDate>()
+        var d = xiaZhi
+        while (geng.size < 5 && d <= liQiu.plusDays(20)) {
+            if (dayStem(d) == 6) geng += d
+            d = d.plusDays(1)
+        }
+        if (geng.size < 4) return null
+        val ruFu = geng[2]
+        val zhongFu = geng[3]
+        var moFu: LocalDate? = null
+        var q = liQiu
+        while (q <= liQiu.plusDays(20)) {
+            if (dayStem(q) == 6) { moFu = q; break }
+            q = q.plusDays(1)
+        }
+        val mo = moFu ?: return null
+        return when {
+            !date.isBefore(ruFu) && date.isBefore(zhongFu) -> "入伏"
+            !date.isBefore(zhongFu) && date.isBefore(mo) -> "中伏"
+            !date.isBefore(mo) && date.isBefore(mo.plusDays(10)) -> "末伏"
+            else -> null
+        }
+    }
+
+    /** 时令杂节气(数九、三伏), 与公历/农历节日分开。 */
+    fun seasonal(date: LocalDate): List<String> = listOfNotNull(shuJiu(date), sanFu(date))
 
     /** 当天所有节日 (可能多个, 如中秋+国庆), 无则返回空列表 */
     fun festivals(date: LocalDate): List<String> {
         val out = mutableListOf<String>()
-        // 清明既是节气也是重要传统节日
+        // 清明既是节气也是传统节日; 丰收节定在秋分节气当天。
         if (solarTerm(date) == "清明") out += "清明节"
+        if (solarTerm(date) == "秋分") out += "丰收节"
 
-        when (date.monthValue) {
-            1 -> if (date.dayOfMonth == 1) out += "元旦"
-            2 -> if (date.dayOfMonth == 14) out += "情人节"
-            3 -> when (date.dayOfMonth) {
+        val m = date.monthValue
+        val d = date.dayOfMonth
+        when (m) {
+            1 -> when (d) {
+                1 -> out += "元旦"
+                10 -> out += "中国人民警察节"
+            }
+            2 -> if (d == 14) out += "情人节"
+            3 -> when (d) {
                 8 -> out += "妇女节"
                 12 -> out += "植树节"
+                15 -> out += "消费者权益日"
             }
-            4 -> if (date.dayOfMonth == 1) out += "愚人节"
-            5 -> when (date.dayOfMonth) {
+            4 -> when (d) {
+                1 -> out += "愚人节"
+                22 -> out += "世界地球日"
+                23 -> out += "世界读书日"
+            }
+            5 -> when (d) {
                 1 -> out += "劳动节"
                 4 -> out += "青年节"
+                12 -> out += "护士节"
             }
-            6 -> if (date.dayOfMonth == 1) out += "儿童节"
-            7 -> if (date.dayOfMonth == 1) out += "建党节"
-            8 -> if (date.dayOfMonth == 1) out += "建军节"
-            9 -> if (date.dayOfMonth == 10) out += "教师节"
-            10 -> when (date.dayOfMonth) {
+            6 -> when (d) {
+                1 -> out += "儿童节"
+                5 -> out += "世界环境日"
+                26 -> out += "国际禁毒日"
+            }
+            7 -> when (d) {
+                1 -> { out += "建党节"; out += "香港回归纪念日" }
+                7 -> out += "七·七事变纪念日"
+            }
+            8 -> when (d) {
+                1 -> out += "建军节"
+                15 -> out += "日本投降日"
+                19 -> out += "中国医师节"
+            }
+            9 -> when (d) {
+                3 -> out += "抗战胜利纪念日"
+                10 -> out += "教师节"
+                18 -> out += "九·一八事变纪念日"
+                30 -> out += "烈士纪念日"
+            }
+            10 -> when (d) {
                 1 -> out += "国庆节"
-                31 -> out += "万圣节"
+                10 -> out += "辛亥革命纪念日"
+                25 -> { out += "台湾光复纪念日"; out += "抗美援朝纪念日" }
+                31 -> out += "万圣夜"
             }
-            12 -> when (date.dayOfMonth) {
-                24 -> out += "平安夜"
+            11 -> when (d) {
+                1 -> out += "万圣节"
+                8 -> out += "记者节"
+            }
+            12 -> when (d) {
+                13 -> out += "国家公祭日"
+                20 -> out += "澳门回归纪念日"
+                24 -> { out += "平安夜"; out += "长津湖战役胜利日" }
                 25 -> out += "圣诞节"
             }
         }
-        // 母亲节: 5月第二个周日; 父亲节: 6月第三个周日
-        if (date.monthValue == 5 && date.dayOfWeek == java.time.DayOfWeek.SUNDAY) {
+        // 母亲节: 5 月第二个周日; 父亲节: 6 月第三个周日; 感恩节: 11 月第四个周四。
+        if (m == 5 && date.dayOfWeek == java.time.DayOfWeek.SUNDAY) {
             val first = date.withDayOfMonth(1)
             val firstSunday = if (first.dayOfWeek == java.time.DayOfWeek.SUNDAY) 1
                 else 8 - first.dayOfWeek.value
-            if (date.dayOfMonth == firstSunday + 7) out += "母亲节"
+            if (d == firstSunday + 7) out += "母亲节"
         }
-        if (date.monthValue == 6 && date.dayOfWeek == java.time.DayOfWeek.SUNDAY) {
+        if (m == 6 && date.dayOfWeek == java.time.DayOfWeek.SUNDAY) {
             val first = date.withDayOfMonth(1)
             val firstSunday = if (first.dayOfWeek == java.time.DayOfWeek.SUNDAY) 1
                 else 8 - first.dayOfWeek.value
-            if (date.dayOfMonth == firstSunday + 14) out += "父亲节"
+            if (d == firstSunday + 14) out += "父亲节"
+        }
+        if (m == 11 && date.dayOfWeek == java.time.DayOfWeek.THURSDAY && (d - 1) / 7 == 3) {
+            out += "感恩节"
         }
         // 农历节日
         val lunar = of(date)
         if (lunar != null && !lunar.third) {
-            val (m, d) = lunar
-            when (m) {
-                1 -> when (d) {
+            val (lm, ld) = lunar
+            when (lm) {
+                1 -> when (ld) {
                     1 -> out += "春节"
+                    7 -> out += "人日节"
                     15 -> out += "元宵节"
                 }
-                2 -> if (d == 2) out += "龙抬头"
-                3 -> if (d == 3) out += "上巳节"
-                5 -> if (d == 5) out += "端午节"
-                7 -> when (d) {
+                2 -> if (ld == 2) out += "龙抬头"
+                3 -> if (ld == 3) out += "上巳节"
+                5 -> if (ld == 5) out += "端午节"
+                7 -> when (ld) {
                     7 -> out += "七夕节"
                     15 -> out += "中元节"
                 }
-                8 -> if (d == 15) out += "中秋节"
-                9 -> if (d == 9) out += "重阳节"
-                10 -> if (d == 1) out += "寒衣节"
-                12 -> when (d) {
-                    23 -> out += "北方小年"
-                    24 -> out += "南方小年"
+                8 -> if (ld == 15) out += "中秋节"
+                9 -> if (ld == 9) out += "重阳节"
+                10 -> when (ld) {
+                    1 -> out += "寒衣节"
+                    15 -> out += "下元节"
+                }
+                12 -> when (ld) {
                     8 -> out += "腊八节"
+                    16 -> out += "尾牙"
+                    23 -> out += "小年北"
+                    24 -> out += "小年南"
                     else -> {
                         val tm = of(date.plusDays(1))
                         if (tm != null && tm.first == 1 && tm.second == 1) out += "除夕"

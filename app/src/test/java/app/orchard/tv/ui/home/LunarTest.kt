@@ -3,6 +3,7 @@ package app.orchard.tv.ui.home
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -34,5 +35,41 @@ class LunarTest {
     @Test fun outsideTheTable() {
         assertNull(text(1901, 2, 18))
         assertNull(text(2101, 3, 1))
+    }
+
+    @Test fun fixedFestivals() {
+        assertEquals(listOf("元旦"), Lunar.festivals(LocalDate.of(2026, 1, 1)))
+        assertTrue(Lunar.festivals(LocalDate.of(2026, 1, 10)).contains("中国人民警察节"))
+        assertTrue(Lunar.festivals(LocalDate.of(2026, 10, 25))
+            .containsAll(listOf("台湾光复纪念日", "抗美援朝纪念日")))
+        assertTrue(Lunar.festivals(LocalDate.of(2026, 12, 24)).contains("长津湖战役胜利日"))
+        assertEquals("万圣夜", Lunar.festivals(LocalDate.of(2026, 10, 31)).first())
+        assertEquals("万圣节", Lunar.festivals(LocalDate.of(2026, 11, 1)).first())
+    }
+
+    @Test fun sanFu2026() {
+        assertEquals("入伏", Lunar.seasonal(LocalDate.of(2026, 7, 15)).firstOrNull())
+        assertEquals("中伏", Lunar.seasonal(LocalDate.of(2026, 7, 25)).firstOrNull())
+        assertEquals("末伏", Lunar.seasonal(LocalDate.of(2026, 8, 14)).firstOrNull())
+        assertTrue(Lunar.seasonal(LocalDate.of(2026, 7, 14)).isEmpty())
+    }
+
+    @Test fun shuJiu() {
+        val dongZhi = LocalDate.of(2026, 12, 22)
+        assertEquals("入九", Lunar.seasonal(dongZhi).firstOrNull())
+        assertEquals("三九天", Lunar.seasonal(dongZhi.plusDays(19)).firstOrNull())
+    }
+
+    @Test fun lunarFestivals2026() {
+        assertTrue(Lunar.festivals(LocalDate.of(2026, 3, 3)).contains("元宵节"))
+        assertTrue(Lunar.festivals(LocalDate.of(2026, 6, 19)).contains("端午节"))
+        assertTrue(Lunar.festivals(LocalDate.of(2026, 9, 25)).contains("中秋节"))
+    }
+
+    @Test fun thanksgiving() {
+        val first = LocalDate.of(2026, 11, 1)
+        val fourthThu = generateSequence(first) { it.plusDays(1) }
+            .filter { it.dayOfWeek == java.time.DayOfWeek.THURSDAY }.take(4).last()
+        assertTrue(Lunar.festivals(fourthThu).contains("感恩节"))
     }
 }
