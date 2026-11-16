@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -78,6 +79,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.SpanStyle
@@ -1244,66 +1246,82 @@ private fun <S> AnimatedContentTransitionScope<S>.capsuleShrink(): ContentTransf
 /** 胶囊收窄/展开时长: 比轮播的 1 秒短一点, 收得利落也不突兀。 */
 private const val CAPSULE_SHRINK_MS = 500
 
-/** 淡白底 + 圆形描边 + 白色字: 常驻的节气胶囊用这套, 和临时出现、实心白底黑字的时令/节日胶囊区分开。 */
-@Composable
-private fun TermTag(text: String, style: TextStyle) {
-    BasicText(
-        text,
-        style = style.copy(color = Color.White, fontSize = 13.sp, lineHeight = 22.sp),
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(Color.White.copy(alpha = TERM_TAG_ALPHA))
-            .smoothBorder(1.dp, Color.White.copy(alpha = TERM_TAG_BORDER), 999.dp)
-            .padding(horizontal = 6.dp),
-    )
-}
-
-/** 常驻胶囊(节气)的底与描边不透明度: 比实心白淡, 靠描边立住形状。 */
-private const val TERM_TAG_ALPHA = 0.16f
-private const val TERM_TAG_BORDER = 0.80f
-
-/** 问候行的时令 / 节日胶囊: 实心半透明白底 + 黑字, 与常驻的节气胶囊、天气胶囊互相区分。 */
-@Composable
-private fun GreetingTag(text: String, style: TextStyle) {
-    BasicText(
-        text,
-        style = style.copy(color = Color.Black, fontSize = 13.sp, lineHeight = 22.sp),
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(Color.White.copy(alpha = TAG_ALPHA))
-            .padding(horizontal = 6.dp),
-    )
-}
-
 /**
- * 天气胶囊(现在 / 今天 / 明天 / 后天): 四方矩形圆角 + 斜向渐变 + 白字。
- * "现在"用红系: 左上偏红白、右下偏中国红; "今天/明天/后天"用蓝系: 左上偏蓝白、右下偏天蓝。
- * 底仍是半透明(与输入胶囊同一档 0.72), 壁纸透得出来, 靠白字和渐变保证亮壁纸上也读得清。
+ * 胶囊通用外壳: 全圆形状 + 底色或渐变 + 1dp 不透明白色描边 + 文字。
+ * 四类胶囊(节气 / 时令 / 节日 / 天气)都走这里, 形状与描边因此完全一致。
+ * 文字整体上抬一点点: 22sp 行高里 CJK 字形本身就压得偏低, 不抬看起来像贴着下沿。
  */
 @Composable
-private fun WeatherTag(text: String, style: TextStyle, now: Boolean) {
-    val fill = Brush.linearGradient(
+private fun Capsule(
+    text: String,
+    style: TextStyle,
+    textColor: Color,
+    fill: Brush,
+    weight: FontWeight? = null,
+) {
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(fill)
+            .smoothBorder(1.dp, Color.White, 999.dp)
+            .padding(horizontal = 6.dp),
+    ) {
+        BasicText(
+            text,
+            style = style.copy(color = textColor, fontSize = 13.sp, lineHeight = 22.sp, fontWeight = weight),
+            modifier = Modifier.offset(y = CAPSULE_TEXT_LIFT),
+        )
+    }
+}
+
+/** 文字在胶囊里的竖直微调: 上抬 1.5dp 让字形视觉居中。只挪绘制, 不改尺寸与行距。 */
+private val CAPSULE_TEXT_LIFT = (-1.5).dp
+
+/** 常驻的节气胶囊: 淡白底 + 白描边 + 白字。 */
+@Composable
+private fun TermTag(text: String, style: TextStyle) = Capsule(
+    text = text,
+    style = style,
+    textColor = Color.White,
+    fill = SolidColor(Color.White.copy(alpha = TERM_TAG_ALPHA)),
+)
+
+/** 常驻胶囊(节气)底色不透明度: 比实心白淡, 靠白描边立住形状。 */
+private const val TERM_TAG_ALPHA = 0.16f
+
+/** 时令 / 节日胶囊: 实心半透明白底 + 黑字, 同样带白描边。 */
+@Composable
+private fun GreetingTag(text: String, style: TextStyle) = Capsule(
+    text = text,
+    style = style,
+    textColor = Color.Black,
+    fill = SolidColor(Color.White.copy(alpha = TAG_ALPHA)),
+)
+
+/**
+ * 天气胶囊(现在 / 今天 / 明天 / 后天): 与问候胶囊同款圆角与白描边, 底色换成斜向渐变。
+ * "现在"红系: 左上偏红白、右下偏中国红; "今天/明天/后天"蓝系: 左上偏蓝白、右下偏天蓝。
+ */
+@Composable
+private fun WeatherTag(text: String, style: TextStyle, now: Boolean) = Capsule(
+    text = text,
+    style = style,
+    textColor = Color.White,
+    fill = Brush.linearGradient(
         listOf(
             if (now) WEATHER_RED_LIGHT else WEATHER_BLUE_LIGHT,
             if (now) WEATHER_RED else WEATHER_BLUE,
         )
-    )
-    BasicText(
-        text,
-        style = style.copy(color = Color.White, fontSize = 13.sp, lineHeight = 22.sp, fontWeight = FontWeight.W600),
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(fill)
-            .padding(horizontal = 6.dp),
-    )
-}
+    ),
+    weight = FontWeight.W600,
+)
 
-/** 天气胶囊的透明度(与问候胶囊同一档 0.72)与两套渐变端色。 */
+/** 天气胶囊半透明底(与问候胶囊同一档 0.72)与两套渐变端色。 */
 private const val WEATHER_TAG_ALPHA = 0.72f
 private val WEATHER_RED_LIGHT = Color(0xFFF3D8D6).copy(alpha = WEATHER_TAG_ALPHA)   // 左上: 偏红白
-private val WEATHER_RED = Color(0xFFC8102E).copy(alpha = WEATHER_TAG_ALPHA)        // 右下: 中国红
+private val WEATHER_RED = Color(0xFFC8102E).copy(alpha = WEATHER_TAG_ALPHA)         // 右下: 中国红
 private val WEATHER_BLUE_LIGHT = Color(0xFFD9EAFB).copy(alpha = WEATHER_TAG_ALPHA)  // 左上: 偏蓝白
-private val WEATHER_BLUE = Color(0xFF2F9BE0).copy(alpha = WEATHER_TAG_ALPHA)       // 右下: 天蓝
+private val WEATHER_BLUE = Color(0xFF2F9BE0).copy(alpha = WEATHER_TAG_ALPHA)        // 右下: 天蓝
 
 /** 问候胶囊底色的不透明度: 1.0 实心白最扎眼, 越低越不抢眼。 */
 private const val TAG_ALPHA = 0.70f
