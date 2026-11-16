@@ -39,6 +39,10 @@ object Cities {
             ?: cities.firstOrNull { inProvince(it) && it.name == rest(it) }
             ?: cities.firstOrNull { short(q) in it.aliases }
             ?: cities.firstOrNull { inProvince(it) && rest(it) in it.aliases }
+            // 民族名较长的县级地名: 表里只写短名("新晃"), 输入的却是全称("新晃侗族自治县"),
+            // 去掉后缀仍对不上, 就按前缀匹配取最长的那个。
+            ?: cities.filter { short(q).startsWith(it.name) && it.name.length >= 2 }
+                .maxByOrNull { it.name.length }
     }
 
     /** The listed place called [name] nearest to a point, if one is within [km]. */

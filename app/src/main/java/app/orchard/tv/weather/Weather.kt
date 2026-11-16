@@ -220,25 +220,20 @@ object Weather {
      */
     suspend fun choose(name: String): Boolean {
         val userInput = name.trim()
-        // Strip suffix for search (API doesn't recognize 市/区/县)
-        val searchName = userInput.replace(Regex("(市|区|县|旗|州|盟)$"), "")
+        if (userInput.isEmpty()) return false
         val hit = withContext(Dispatchers.IO) {
-            runCatching {
-                val q = URLEncoder.encode(searchName, "UTF-8")
-                val resultsText = get("https://toy1.weather.com.cn/search?cityname=$q", "https://www.weather.com.cn/")
-                // Returns JSONP: ([{ref:"code~pinyin~中文名~..."}])
-                val arrayStr = resultsText.substringAfter("(").substringBefore(")")
-                val arr = JSONArray(arrayStr)
-                if (arr.length() > 0) {
-                    val ref = arr.getJSONObject(0).optString("ref")
-                    val parts = ref.split("~")
-                    if (parts.size >= 3) {
-                        // Save user's input as display name (if they added suffix), otherwise use API name
-                        val displayName = if (userInput != searchName) userInput else parts[2]
-                        Triple(parts[0], displayName, displayName)
-                    } else null
-                } else null
-            }.onFailure { Log.w(TAG, "could not look up $name: ${it.message}", it) }.getOrNull()
+            // 先走本地城市表(assets/cities-cn.tsv)查到经纬度, 再用中国天气网的站点接口换成城市代码。
+            // 这条链路和实时天气同一个数据源, 认得县级市与自治县(怀化市、新晃侗族自治县都查得到)。
+            val local = runCatching { Cities.find(app, userInput) }.getOrNull()
+            val byStation = local?.let { c ->
+                runCatching {
+                    stationAt(c.lat, c.lon)?.let { (code, official) ->
+                        Triple(code, if (userInput != c.name) userInput else (official ?: c.name), c.name)
+                    }
+                }.onFailure { Log.w(TAG, "station lookup failed for $userInput: ${it.message}", it) }.getOrNull()
+            }
+            // 本地表里没有的名字, 才退回旧的模糊搜索接口。
+            byStation ?: searchByName(userInput)
         } ?: return false
         prefs.edit {
             putString("city_code", hit.first)
@@ -251,6 +246,36 @@ object Weather {
         return true
     }
 
+    /**
+     * 旧的城市模糊搜索, 只作为本地城市表没命中时的兜底:
+     * 结果里混着景点(代码以 A 结尾), 因此只接受 9 位纯数字的站点代码, 并优先名字完全一致的条目。
+     */
+    private fun searchByName(userInput: String): Triple<String, String, String>? {
+        val tries = listOf(
+            userInput,
+            userInput.replace(Regex("(市|区|县|旗|州|盟)$"), ""),
+            userInput.replace(Regex("((\\p{IsHan}{1,3}族)+|各族)*自治(县|州|区|旗)$"), ""),
+        ).filter { it.isNotBlank() }.distinct()
+        for (n in tries) {
+            val arr = runCatching {
+                val q = URLEncoder.encode(n, "UTF-8")
+                val text = get("https://toy1.weather.com.cn/search?cityname=$q", "https://www.weather.com.cn/")
+                // JSONP: ([{"ref":"code~pinyin~中文名~..."}])
+                JSONArray(text.substringAfter("(").substringBefore(")"))
+            }.onFailure { Log.w(TAG, "could not look up $n: ${it.message}", it) }.getOrNull() ?: continue
+            val stations = (0 until arr.length())
+                .map { arr.getJSONObject(it).optString("ref").split("~") }
+                .filter { it.size >= 3 && STATION_CODE.matches(it[0]) }
+            if (stations.isEmpty()) continue
+            val best = stations.firstOrNull { it[2] == n || it[2] == userInput } ?: stations.first()
+            return Triple(best[0], userInput, best[2])
+        }
+        return null
+    }
+
+    /** 站点代码: 9 位纯数字, 景点条目是 101xxxxxxAx 之类, 不能当地址用。 */
+    private val STATION_CODE = Regex("\\d{9}")
+
     /** Choose location by GPS coordinates (from phone browser). Returns true on success. */
     /** Set a custom display name for the current city (does not change weather data). */
     fun setCustomPlaceName(name: String) {
@@ -260,19 +285,20 @@ object Weather {
         place = prefs.getString("place_custom", null) ?: prefs.getString("place", null)
     }
 
+    /** 经纬度 → 中国天气网站点: (areaid, 站名). Null when the service knows nothing there. */
+    private fun stationAt(lat: Double, lon: Double): Pair<String, String?>? = runCatching {
+        val params = URLEncoder.encode("""{"method":"stationinfo","lat":$lat,"lng":$lon}""", "UTF-8")
+        val text = get("https://d4.weather.com.cn/geong/v1/api?params=$params", "https://www.weather.com.cn/")
+        val json = JSONObject(text)
+        if (json.optString("status") != "success") return@runCatching null
+        val station = json.optJSONObject("data")?.optJSONObject("station") ?: return@runCatching null
+        val code = station.optString("areaid")
+        if (code.isBlank()) null else code to station.optString("namecn").takeIf { it.isNotBlank() }
+    }.onFailure { Log.w(TAG, "station lookup failed: ${it.message}", it) }.getOrNull()
+
     suspend fun chooseByLocation(lat: Double, lon: Double): Boolean {
         val hit = withContext(Dispatchers.IO) {
-            runCatching {
-                val params = URLEncoder.encode("""{"method":"stationinfo","lat":$lat,"lng":$lon}""", "UTF-8")
-                val text = get("https://d4.weather.com.cn/geong/v1/api?params=$params", "https://www.weather.com.cn/")
-                val json = JSONObject(text)
-                if (json.optString("status") == "success") {
-                    val station = json.getJSONObject("data").getJSONObject("station")
-                    val code = station.optString("areaid")
-                    val name = station.optString("namecn")
-                    if (code.isNotBlank()) Pair(code, name) else null
-                } else null
-            }.onFailure { Log.w(TAG, "reverse geocode failed", it) }.getOrNull()
+            stationAt(lat, lon)?.let { (code, name) -> Triple(code, name ?: code, name ?: code) }
         } ?: return false
         prefs.edit {
             putString("city_code", hit.first)
