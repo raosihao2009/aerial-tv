@@ -68,6 +68,7 @@ import app.orchard.tv.settings.AerialSettings
 import app.orchard.tv.apps.LiveQualityOptions
 import app.orchard.tv.system.DiagLog
 import app.orchard.tv.system.Sounds
+import app.orchard.tv.ui.components.GlassToast
 import app.orchard.tv.ui.components.liquidGlass
 import app.orchard.tv.ui.theme.Motion
 import app.orchard.tv.wallpaper.Wallpapers
@@ -623,28 +624,15 @@ fun LiveSourceMenu(
                 }
                 }
             }
-            if (movingId != null) {
-                BasicText(
-                    "用方向键移动 · 按确定键完成",
-                    style = TextStyle(Color.White, fontSize = 14.sp),
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 28.dp)
-                        .liquidGlass(20.dp)
-                        .padding(horizontal = 20.dp, vertical = 10.dp),
-                )
-            }
-            if (bannerMsg != null) {
-                BasicText(
-                    bannerMsg!!,
-                    style = TextStyle(Color.White, fontSize = 14.sp),
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 28.dp)
-                        .liquidGlass(20.dp)
-                        .padding(horizontal = 20.dp, vertical = 10.dp),
-                )
-            }
+            // 磨砂提示统一走 GlassToast: 出现时从屏底滑上来, 消失时滑下去
+            GlassToast(
+                message = if (movingId != null) "用方向键移动 · 按确定键完成" else null,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+            GlassToast(
+                message = bannerMsg,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
             if (menuForId != null) {
                 val source = sources.find { it.id == menuForId } ?: return@BoxWithConstraints
                 val sourceIndex = sources.indexOf(source)

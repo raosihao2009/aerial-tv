@@ -41,11 +41,11 @@ fun GlassToast(
         enter = slideInVertically(
             animationSpec = tween(TOAST_SLIDE_MS, easing = FastOutSlowInEasing),
             initialOffsetY = { fullHeight -> fullHeight },
-        ) + fadeIn(tween(TOAST_FADE_MS)),
+        ) + fadeIn(tween(TOAST_SLIDE_MS)),
         exit = slideOutVertically(
             animationSpec = tween(TOAST_SLIDE_MS, easing = FastOutSlowInEasing),
             targetOffsetY = { fullHeight -> fullHeight },
-        ) + fadeOut(tween(TOAST_FADE_MS)),
+        ) + fadeOut(tween(TOAST_SLIDE_MS)),
     ) {
         BasicText(
             lastMessage,
@@ -58,8 +58,9 @@ fun GlassToast(
     }
 }
 
-/** 滑上/滑下的时长: 太长像卡, 太短看不见动。 */
+/**
+ * 滑动时长: 太长像卡, 太短看不见动。
+ * 淡入淡出用同一个时长(以前淡出只有 160ms, 比滑动先结束, 收尾那 100ms 什么都看不见,
+ * 看着像"没有淡出动画", 直接消失)。
+ */
 private const val TOAST_SLIDE_MS = 260
-
-/** 淡入淡出比滑动短一些, 到位的瞬间就已经不透明了。 */
-private const val TOAST_FADE_MS = 160
