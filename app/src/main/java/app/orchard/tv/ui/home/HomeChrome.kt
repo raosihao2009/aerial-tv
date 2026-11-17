@@ -10,7 +10,10 @@ import android.graphics.Matrix
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -967,46 +970,54 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                 modifier = Modifier.clipToBounds(),
                 transitionSpec = { capsuleScroll() },
             ) { t -> TermTag(t, greetingStyle) }
-            // 时令 + 节日: 同组一条 AnimatedContent, 变化时两颗一起滚。
+            // 时令 + 节日: 非空↔非空时整组上下滚动; 空↔非空时按汉字数做横向收放。
+            //
+            // 收放改由 AnimatedVisibility 的 expand/shrink 驱动, 不再靠 AnimatedContent 的空槽位:
+            // 那条路里退场内容要等 SizeTransform 起算(还要等目标侧的 0 宽占位先量好),
+            // 所以"变空"要慢半拍才看到收窄, 而"变出"却是立刻展开。
+            // expand/shrink 在两个方向上都在状态变化的那一帧起步, 时长仍按汉字数算。
             val tail = remember(season, fests) { GreetingTail(season, fests) }
-            AnimatedContent(
-                targetState = tail,
-                label = "greeting-tail",
-                modifier = Modifier.clipToBounds(),
-                transitionSpec = {
-                    // 变空或从空变出时不做上下滚: 容器从右边往左收窄, 内容被裁掉, 直到收完。
-                    // 收得快慢按汉字个数走: 收起时看正在消失的那一侧, 展开时看正要出现的那一侧。
-                    if (initialState.isEmpty() || targetState.isEmpty()) {
-                        val text = if (targetState.isEmpty()) initialState.text() else targetState.text()
-                        capsuleShrink(capsuleShrinkMs(text))
-                    } else {
-                        capsuleScroll()
-                    }
-                },
-            ) { t ->
-                if (t.isEmpty()) {
-                    // 空状态给一个 0 宽、同高的占位: 容器只收窄不塌高, 收窄过程才看得见。
-                    // 占位用一颗真胶囊: 量到不限宽、但只上报 0 宽, 于是高度与真胶囊逐像素一致,
-                    // 不需要写死任何常量 —— 只出现节气时与再跟时令/节日时整行等高, 也不改动下面几行的行距。
-                    // 外面同样套一层渐隐留白: 有节日时槽位带 4dp 上下留白, 占位必须一致,
-                    // 否则"空 / 有时令 / 有节日"三种状态整行高各差 8dp, 一行变高会顶动下面几行。
-                    CapsuleBand {
-                        Box(
-                            Modifier.layout { measurable, constraints ->
-                                val p = measurable.measure(Constraints(0, Constraints.Infinity, 0, Constraints.Infinity))
-                                layout(0, p.height) {}
-                            }
-                        ) { GreetingTag("时", greetingStyle) }
-                    }
-                } else {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        if (t.season.isNotEmpty()) {
-                            CapsuleBand { GreetingTag(t.season.joinToString("和"), greetingStyle) }
+            // 最近一次非空内容: 收起时要按它画, 也拿它算收起时长
+            var shownTail by remember { mutableStateOf(tail) }
+            if (!tail.isEmpty() && shownTail != tail) shownTail = tail
+            val revealed = !tail.isEmpty()
+            val animMs = capsuleShrinkMs(shownTail.text())
+            Box(Modifier.clipToBounds()) {
+                // 恒高占位: 只占高度、不占宽度, 让"空 / 有时令 / 有节日"三种状态整行一样高
+                CapsuleBand {
+                    Box(
+                        Modifier.layout { measurable, constraints ->
+                            val p = measurable.measure(Constraints(0, Constraints.Infinity, 0, Constraints.Infinity))
+                            layout(0, p.height) {}
                         }
-                        if (t.fests.isNotEmpty()) FestivalCarousel(t.fests, greetingStyle)
+                    ) { GreetingTag("时", greetingStyle) }
+                }
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = revealed,
+                    enter = expandHorizontally(
+                        animationSpec = tween(animMs),
+                        expandFrom = Alignment.Start,
+                    ),
+                    exit = shrinkHorizontally(
+                        animationSpec = tween(animMs),
+                        shrinkTowards = Alignment.Start,
+                    ),
+                ) {
+                    AnimatedContent(
+                        targetState = shownTail,
+                        label = "greeting-tail",
+                        modifier = Modifier.clipToBounds(),
+                        transitionSpec = { capsuleScroll() },
+                    ) { t ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            if (t.season.isNotEmpty()) {
+                                CapsuleBand { GreetingTag(t.season.joinToString("和"), greetingStyle) }
+                            }
+                            if (t.fests.isNotEmpty()) FestivalCarousel(t.fests, greetingStyle)
+                        }
                     }
                 }
             }
@@ -1310,10 +1321,6 @@ private data class GreetingTail(val season: List<String>, val fests: List<String
  * 内容左对齐、容器按宽度裁剪, 看上去就是胶囊从右边往左缩短直到消失;
  * 旧内容用 KeepUntilTransitionsFinished 留住, 否则一进过渡就被丢掉, 看不到收缩过程。
  */
-private fun <S> AnimatedContentTransitionScope<S>.capsuleShrink(durationMs: Int): ContentTransform =
-    (EnterTransition.None togetherWith ExitTransition.KeepUntilTransitionsFinished)
-        .using(SizeTransform(clip = true, sizeAnimationSpec = { _, _ -> tween(durationMs) }))
-
 /**
  * 胶囊通用外壳: 全圆形状 + 底色或渐变 + 1dp 不透明白色描边 + 文字。
  * 四类胶囊(节气 / 时令 / 节日 / 天气)都走这里, 形状与描边因此完全一致。
