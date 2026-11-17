@@ -975,8 +975,10 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                 modifier = Modifier.clipToBounds(),
                 transitionSpec = {
                     // 变空或从空变出时不做上下滚: 容器从右边往左收窄, 内容被裁掉, 直到收完。
+                    // 收得快慢按汉字个数走: 收起时看正在消失的那一侧, 展开时看正要出现的那一侧。
                     if (initialState.isEmpty() || targetState.isEmpty()) {
-                        capsuleShrink()
+                        val text = if (targetState.isEmpty()) initialState.text() else targetState.text()
+                        capsuleShrink(capsuleShrinkMs(text))
                     } else {
                         capsuleScroll()
                     }
@@ -1282,6 +1284,9 @@ private fun <S> AnimatedContentTransitionScope<S>.capsuleScroll(): ContentTransf
 /** 问候行后两颗胶囊(时令 + 节日)的一组状态: 作为一条 AnimatedContent 的 targetState, 变了两颗一起滚。 */
 private data class GreetingTail(val season: List<String>, val fests: List<String>) {
     fun isEmpty(): Boolean = season.isEmpty() && fests.isEmpty()
+
+    /** 这一组胶囊的全部文字: 只用来数汉字, 定收缩时长。 */
+    fun text(): String = (season + fests).joinToString("")
 }
 
 /**
@@ -1289,12 +1294,9 @@ private data class GreetingTail(val season: List<String>, val fests: List<String
  * 内容左对齐、容器按宽度裁剪, 看上去就是胶囊从右边往左缩短直到消失;
  * 旧内容用 KeepUntilTransitionsFinished 留住, 否则一进过渡就被丢掉, 看不到收缩过程。
  */
-private fun <S> AnimatedContentTransitionScope<S>.capsuleShrink(): ContentTransform =
+private fun <S> AnimatedContentTransitionScope<S>.capsuleShrink(durationMs: Int): ContentTransform =
     (EnterTransition.None togetherWith ExitTransition.KeepUntilTransitionsFinished)
-        .using(SizeTransform(clip = true, sizeAnimationSpec = { _, _ -> tween(CAPSULE_SHRINK_MS) }))
-
-/** 胶囊收窄/展开时长: 比轮播的 1 秒短一点, 收得利落也不突兀。 */
-private const val CAPSULE_SHRINK_MS = 500
+        .using(SizeTransform(clip = true, sizeAnimationSpec = { _, _ -> tween(durationMs) }))
 
 /**
  * 胶囊通用外壳: 全圆形状 + 底色或渐变 + 1dp 不透明白色描边 + 文字。
