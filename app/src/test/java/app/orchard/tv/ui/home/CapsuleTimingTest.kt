@@ -37,6 +37,12 @@ class CapsuleTimingTest {
     }
 
     @Test
+    fun supplementaryPlaneIdeographsCountToo() {
+        // U+20000 一带的扩展 B 区汉字: 在字符串里是代理对, 不能被漏数
+        assertEquals(800, capsuleShrinkMs("\uD840\uDC00\uD840\uDC01\uD840\uDC02\uD840\uDC03"))
+    }
+
+    @Test
     fun veryLongTextIsCapped() {
         assertEquals(3000, capsuleShrinkMs("一二三四五六七八九十一二三四五六七八九十"))
     }
