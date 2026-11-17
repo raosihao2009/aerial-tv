@@ -1162,6 +1162,7 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
         modifier = Modifier
             .padding(start = 14.dp)
             .width(FORECAST_SLOT_WIDTH)
+            .clipToBounds()
             .capsuleEdgeFade(),
         transitionSpec = { capsuleSlideScroll() },
     ) { i ->
@@ -1227,6 +1228,7 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
         label = "festival",
         modifier = Modifier
             .width(FESTIVAL_SLOT_WIDTH)
+            .clipToBounds()
             .capsuleEdgeFade(),
         transitionSpec = { capsuleSlideScroll() },
     ) { i ->
@@ -1300,14 +1302,12 @@ private fun Modifier.capsuleEdgeFade(): Modifier =
  */
 private fun capsuleSlideScroll(): ContentTransform {
     val slide = tween<IntOffset>(CAPSULE_SCROLL_MS)
-    // 行程只走半个槽位: 两张内容各走一半, 合起来仍是一整格的滚动量。
-    // 以前各走整格时, 进场那张有一半行程在槽位外(被裁掉看不见), 淡入都花在看不见的地方,
-    // 等它露头透明度已经上去了 —— 看着像"只有淡出、没有淡入"; 退场那张走到后半也到槽位外空着。
-    // 只走半格, 两张从第一帧起就都在槽位里, 淡入淡出因此全程可见, 中间也不会出现空档。
+    // 行程取槽位的 4/5: 两张内容(各一颗胶囊高)之间正好留出一点点行距, 不会互相贴字;
+    // 走半格时两张会重叠, 走整格时中间空一大截, 4/5 是"几乎贴着、还留一线"的位置。
     val fadeInSpec = tween<Float>(CAPSULE_FADE_IN_MS, easing = LinearEasing)
     val fadeOutSpec = tween<Float>(CAPSULE_FADE_OUT_MS, easing = LinearEasing)
-    return (slideInVertically(animationSpec = slide) { h -> h / 2 } + fadeIn(fadeInSpec))
-        .togetherWith(slideOutVertically(animationSpec = slide) { h -> -(h / 2) } + fadeOut(fadeOutSpec))
+    return (slideInVertically(animationSpec = slide) { h -> h * 4 / 5 } + fadeIn(fadeInSpec))
+        .togetherWith(slideOutVertically(animationSpec = slide) { h -> -(h * 4 / 5) } + fadeOut(fadeOutSpec))
 }
 
 /** 上下滚动时长: 1 秒。 */
@@ -1328,8 +1328,8 @@ private fun <S> AnimatedContentTransitionScope<S>.capsuleScroll(): ContentTransf
     val slide = tween<IntOffset>(CAPSULE_SCROLL_MS)
     val fadeInSpec = tween<Float>(CAPSULE_FADE_IN_MS, easing = LinearEasing)
     val fadeOutSpec = tween<Float>(CAPSULE_FADE_OUT_MS, easing = LinearEasing)
-    return (slideInVertically(animationSpec = slide) { h -> h / 2 } + fadeIn(fadeInSpec))
-        .togetherWith(slideOutVertically(animationSpec = slide) { h -> -(h / 2) } + fadeOut(fadeOutSpec))
+    return (slideInVertically(animationSpec = slide) { h -> h * 4 / 5 } + fadeIn(fadeInSpec))
+        .togetherWith(slideOutVertically(animationSpec = slide) { h -> -(h * 4 / 5) } + fadeOut(fadeOutSpec))
         .using(null)
 }
 
