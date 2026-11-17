@@ -946,6 +946,8 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
         // 问候语: "城市，xx好！" 后面跟 节气 / 时令 / 节日 三颗胶囊。
         // 节气常驻; 时令与节日只在当天命中才出现(不做整段常驻)。零点换代时:
         // 节气有变化 → 三颗整组滚动; 只有时令/节日变化 → 后两颗一起滚动。
+        val termGapPx = with(LocalDensity.current) { CAPSULE_SCROLL_GAP.roundToPx() }
+        val tailGapPx = termGapPx
         val place = Weather.place ?: "南昌"
         val date = now.toLocalDate()
         val term = Lunar.currentTerm(date)
@@ -969,7 +971,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                 label = "greeting-term",
                 // 裁到槽位边界: 滚动时滚出槽位的那一半不画, 否则会压到上下相邻的行, 看起来像重叠。
                 modifier = Modifier.clipToBounds().capsuleEdgeFade(),
-                transitionSpec = { capsuleScroll() },
+                transitionSpec = { capsuleScroll(termGapPx) },
             ) { t -> CapsuleBand { TermTag(t, greetingStyle) } }
             // 时令 + 节日: 非空↔非空时整组上下滚动; 空↔非空时按汉字数做横向收放。
             //
@@ -1008,7 +1010,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                         targetState = shownTail,
                         label = "greeting-tail",
                         modifier = Modifier.clipToBounds(),
-                        transitionSpec = { capsuleScroll() },
+                        transitionSpec = { capsuleScroll(tailGapPx) },
                     ) { t ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -1139,6 +1141,7 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
     }
     // 轮播协程长期存活, 必须始终读最新预报; 否则闭口号住首帧旧列表, 跨天后槽位不换代。
     val latest by rememberUpdatedState(days)
+    val gapPx = with(LocalDensity.current) { CAPSULE_SCROLL_GAP.roundToPx() }
     LaunchedEffect(days) {
         while (slots.size < days.size) slots.add(null)
         // 新数据到达: 非当前可见槽位先换代; 当前可见槽位保持旧条目, 轮到它再换。
@@ -1164,7 +1167,7 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
             .width(FORECAST_SLOT_WIDTH)
             .clipToBounds()
             .capsuleEdgeFade(),
-        transitionSpec = { capsuleSlideScroll() },
+        transitionSpec = { capsuleSlideScroll(gapPx) },
     ) { i ->
         // slots 初始为空, 首轮组合时 effect 还没填充, 必须走兜底, 否则越界崩溃。
         // 预报中途可能被清空, 兜底同样要容错: 取不到就不画这一帧, 绝不能按空列表下标取值。
@@ -1207,6 +1210,7 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
         mutableStateListOf<String?>().apply { repeat(items.size) { add(null) } }
     }
     val latest by rememberUpdatedState(items)
+    val gapPx = with(LocalDensity.current) { CAPSULE_SCROLL_GAP.roundToPx() }
     LaunchedEffect(items) {
         while (slots.size < items.size) slots.add(null)
         items.forEachIndexed { i, s -> if (i != idx || slots[i] == null) slots[i] = s }
@@ -1230,7 +1234,7 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
             .width(FESTIVAL_SLOT_WIDTH)
             .clipToBounds()
             .capsuleEdgeFade(),
-        transitionSpec = { capsuleSlideScroll() },
+        transitionSpec = { capsuleSlideScroll(gapPx) },
     ) { i ->
         val text = slots.getOrNull(i) ?: items.getOrNull(i)
         CapsuleBand {
@@ -1300,15 +1304,23 @@ private fun Modifier.capsuleEdgeFade(): Modifier =
  * 保留默认的 SizeTransform(clip = true), 过渡期间内容被容器边界裁掉, 进出两张各占一半、不会重叠;
  * 天气预报与节日轮播都用这一套, 节奏和观感保持一致。
  */
-private fun capsuleSlideScroll(): ContentTransform {
+private fun capsuleSlideScroll(gapPx: Int): ContentTransform {
     val slide = tween<IntOffset>(CAPSULE_SCROLL_MS)
-    // 行程取槽位的 4/5: 两张内容(各一颗胶囊高)之间正好留出一点点行距, 不会互相贴字;
-    // 走半格时两张会重叠, 走整格时中间空一大截, 4/5 是"几乎贴着、还留一线"的位置。
     val fadeInSpec = tween<Float>(CAPSULE_FADE_IN_MS, easing = LinearEasing)
     val fadeOutSpec = tween<Float>(CAPSULE_FADE_OUT_MS, easing = LinearEasing)
-    return (slideInVertically(animationSpec = slide) { h -> h * 4 / 5 } + fadeIn(fadeInSpec))
-        .togetherWith(slideOutVertically(animationSpec = slide) { h -> -(h * 4 / 5) } + fadeOut(fadeOutSpec))
+    val travel = { h: Int -> contentTravel(h, gapPx) }
+    return (slideInVertically(animationSpec = slide) { h -> travel(h) } + fadeIn(fadeInSpec))
+        .togetherWith(slideOutVertically(animationSpec = slide) { h -> -travel(h) } + fadeOut(fadeOutSpec))
 }
+
+/**
+ * 滚动的行程: 两张内容各走这么远, 正好让它们之间留出 [gapPx] 的行距。
+ *
+ * 槽位是"一行半内容高"(见 CapsuleBand), 所以内容高 = 槽位高的 2/3; 行程 = 内容高 + 行距。
+ * 以前按槽位高取比例(半格 / 4/5), 行距就跟着内容高一起缩放 —— 天气预报那行内容比一颗胶囊高,
+ * 行距也跟着变宽, 和节日胶囊的疏密对不上。改成"内容高 + 固定行距"之后, 两类胶囊的疏密完全一致。
+ */
+private fun contentTravel(slotHeightPx: Int, gapPx: Int): Int = slotHeightPx * 2 / 3 + gapPx
 
 /** 上下滚动时长: 1 秒。 */
 private const val CAPSULE_SCROLL_MS = 1000
@@ -1319,17 +1331,21 @@ private const val CAPSULE_FADE_IN_MS = 700
 /** 退场淡出时长: 旧胶囊一边往上走一边变淡, 线性 1→0, 整段可见。 */
 private const val CAPSULE_FADE_OUT_MS = 700
 
+/** 滚动时两张内容之间的行距: 只留一线, 贴着但不叠字; 节气/时令/节日/预报共用同一个值。 */
+private val CAPSULE_SCROLL_GAP = 4.dp
+
 /**
  * 零点换代用的滚动: 新内容从下方滚上来、旧内容向上走, 1 秒走完, 与天气轮播同一节奏。
  * using(null) 去掉默认的 SizeTransform 与裁剪, 滚动中的字不会被槽位边界切掉;
  * using 是 AnimatedContentTransitionScope 上的成员, 所以这里按接收者扩展定义。
  */
-private fun <S> AnimatedContentTransitionScope<S>.capsuleScroll(): ContentTransform {
+private fun <S> AnimatedContentTransitionScope<S>.capsuleScroll(gapPx: Int): ContentTransform {
     val slide = tween<IntOffset>(CAPSULE_SCROLL_MS)
     val fadeInSpec = tween<Float>(CAPSULE_FADE_IN_MS, easing = LinearEasing)
     val fadeOutSpec = tween<Float>(CAPSULE_FADE_OUT_MS, easing = LinearEasing)
-    return (slideInVertically(animationSpec = slide) { h -> h * 4 / 5 } + fadeIn(fadeInSpec))
-        .togetherWith(slideOutVertically(animationSpec = slide) { h -> -(h * 4 / 5) } + fadeOut(fadeOutSpec))
+    val travel = { h: Int -> contentTravel(h, gapPx) }
+    return (slideInVertically(animationSpec = slide) { h -> travel(h) } + fadeIn(fadeInSpec))
+        .togetherWith(slideOutVertically(animationSpec = slide) { h -> -travel(h) } + fadeOut(fadeOutSpec))
         .using(null)
 }
 
