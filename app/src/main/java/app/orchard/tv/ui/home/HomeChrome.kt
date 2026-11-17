@@ -988,18 +988,24 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                     // 空状态给一个 0 宽、同高的占位: 容器只收窄不塌高, 收窄过程才看得见。
                     // 占位用一颗真胶囊: 量到不限宽、但只上报 0 宽, 于是高度与真胶囊逐像素一致,
                     // 不需要写死任何常量 —— 只出现节气时与再跟时令/节日时整行等高, 也不改动下面几行的行距。
-                    Box(
-                        Modifier.layout { measurable, constraints ->
-                            val p = measurable.measure(Constraints(0, Constraints.Infinity, 0, Constraints.Infinity))
-                            layout(0, p.height) {}
-                        }
-                    ) { GreetingTag("时", greetingStyle) }
+                    // 外面同样套一层渐隐留白: 有节日时槽位带 4dp 上下留白, 占位必须一致,
+                    // 否则"空 / 有时令 / 有节日"三种状态整行高各差 8dp, 一行变高会顶动下面几行。
+                    CapsuleBand {
+                        Box(
+                            Modifier.layout { measurable, constraints ->
+                                val p = measurable.measure(Constraints(0, Constraints.Infinity, 0, Constraints.Infinity))
+                                layout(0, p.height) {}
+                            }
+                        ) { GreetingTag("时", greetingStyle) }
+                    }
                 } else {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        if (t.season.isNotEmpty()) GreetingTag(t.season.joinToString("和"), greetingStyle)
+                        if (t.season.isNotEmpty()) {
+                            CapsuleBand { GreetingTag(t.season.joinToString("和"), greetingStyle) }
+                        }
                         if (t.fests.isNotEmpty()) FestivalCarousel(t.fests, greetingStyle)
                     }
                 }
@@ -1184,10 +1190,6 @@ private fun ForecastRow(d: ForecastDay, label: String, weatherStyle: TextStyle) 
 @Composable
 private fun FestivalCarousel(items: List<String>, style: TextStyle) {
     if (items.isEmpty()) return
-    if (items.size == 1) {
-        GreetingTag(items.first(), style)
-        return
-    }
     var idx by remember { mutableStateOf(0) }
     val slots = remember(items.size) {
         mutableStateListOf<String?>().apply { repeat(items.size) { add(null) } }
@@ -1223,6 +1225,18 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
             if (text != null) GreetingTag(text, style)
         }
     }
+}
+
+/**
+ * 胶囊槽位的上下渐隐留白: 所有会进问候行的胶囊都套这一层, 保证"只有节气 / 带时令 / 带节日"
+ * 三种状态下整行高度完全一致 —— 行高一变就会顶动时钟行和天气行。
+ */
+@Composable
+private fun CapsuleBand(content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier.padding(vertical = CAPSULE_FADE_BAND),
+        contentAlignment = Alignment.CenterStart,
+    ) { content() }
 }
 
 /** 节日胶囊槽位的固定宽度: 够放任何一天的多个节日名, 定宽是为了切换时不回缩不撑开。 */
