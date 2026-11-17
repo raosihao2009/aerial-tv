@@ -27,6 +27,7 @@ import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -1287,13 +1288,24 @@ private fun Modifier.capsuleEdgeFade(bandPx: Int): Modifier =
  */
 private fun capsuleSlideScroll(): ContentTransform {
     val slide = tween<IntOffset>(CAPSULE_SCROLL_MS)
-    val fade = tween<Float>(CAPSULE_SCROLL_MS)
-    return (slideInVertically(animationSpec = slide) { h -> h } + fadeIn(fade))
-        .togetherWith(slideOutVertically(animationSpec = slide) { h -> -h } + fadeOut(fade))
+    // 淡入淡出都用线性、且各自占满自己能看见的那段行程:
+    // 进场那一半先钻进槽位(此时在裁剪区外, 看不见), 所以淡入要延后一点才开始, 否则等它露头时
+    // 已经不透明了 —— 看上去"上面有淡出、下面没有淡入"。退场则从头就开始淡.
+    val fadeInSpec = tween<Float>(CAPSULE_FADE_IN_MS, delayMillis = CAPSULE_FADE_IN_DELAY_MS, easing = LinearEasing)
+    val fadeOutSpec = tween<Float>(CAPSULE_FADE_OUT_MS, easing = LinearEasing)
+    return (slideInVertically(animationSpec = slide) { h -> h } + fadeIn(fadeInSpec))
+        .togetherWith(slideOutVertically(animationSpec = slide) { h -> -h } + fadeOut(fadeOutSpec))
 }
 
 /** 上下滚动时长: 1 秒。 */
 private const val CAPSULE_SCROLL_MS = 1000
+
+/** 进场淡入的时长与起跑延迟: 等新胶囊钻进槽位再开始变实, 才看得见"淡入"。 */
+private const val CAPSULE_FADE_IN_MS = 700
+private const val CAPSULE_FADE_IN_DELAY_MS = 250
+
+/** 退场淡出时长: 旧胶囊一边往上走一边变淡, 整个可见行程都在变。 */
+private const val CAPSULE_FADE_OUT_MS = 700
 
 /**
  * 零点换代用的滚动: 新内容从下方滚上来、旧内容向上走, 1 秒走完, 与天气轮播同一节奏。
@@ -1302,9 +1314,10 @@ private const val CAPSULE_SCROLL_MS = 1000
  */
 private fun <S> AnimatedContentTransitionScope<S>.capsuleScroll(): ContentTransform {
     val slide = tween<IntOffset>(CAPSULE_SCROLL_MS)
-    val fade = tween<Float>(CAPSULE_SCROLL_MS)
-    return (slideInVertically(animationSpec = slide) { h -> h } + fadeIn(fade))
-        .togetherWith(slideOutVertically(animationSpec = slide) { h -> -h } + fadeOut(fade))
+    val fadeInSpec = tween<Float>(CAPSULE_FADE_IN_MS, delayMillis = CAPSULE_FADE_IN_DELAY_MS, easing = LinearEasing)
+    val fadeOutSpec = tween<Float>(CAPSULE_FADE_OUT_MS, easing = LinearEasing)
+    return (slideInVertically(animationSpec = slide) { h -> h } + fadeIn(fadeInSpec))
+        .togetherWith(slideOutVertically(animationSpec = slide) { h -> -h } + fadeOut(fadeOutSpec))
         .using(null)
 }
 
