@@ -1312,9 +1312,13 @@ private fun capsuleSlideScroll(): ContentTransform {
 /** 上下滚动时长: 1 秒。 */
 private const val CAPSULE_SCROLL_MS = 1000
 
-/** 进场淡入的时长与起跑延迟: 等新胶囊钻进槽位再开始变实, 才看得见"淡入"。 */
-private const val CAPSULE_FADE_IN_MS = 700
-private const val CAPSULE_FADE_IN_DELAY_MS = 250
+/**
+ * 进场淡入的时长与起跑延迟: 新胶囊从槽位下沿外爬进来, 前段整个被裁在槽位外(看不见),
+ * 所以淡入要等到它真正落进可见区再开始(500ms), 留 500ms 走完 0→1 ——
+ * 屏幕上看到的才是"从几乎透明渐渐变实", 和退场那边(一出发就是全实、一路变淡)对称。
+ */
+private const val CAPSULE_FADE_IN_MS = 500
+private const val CAPSULE_FADE_IN_DELAY_MS = 500
 
 /** 退场淡出时长: 旧胶囊一边往上走一边变淡, 整个可见行程都在变。 */
 private const val CAPSULE_FADE_OUT_MS = 700
