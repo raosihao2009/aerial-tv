@@ -1253,10 +1253,10 @@ private fun CapsuleBand(content: @Composable () -> Unit) {
                     maxHeight = Constraints.Infinity,
                 )
             )
-            // 槽位 = 两行胶囊高(0 行距): 胶囊本体居中, 上下各留半个胶囊高当淡入淡出带,
-            // 滚进/滚出的内容在这两半里淡掉, 胶囊本身永远落在不透明的中段。
-            val h = p.height * 2
-            layout(p.width, h) { p.place(0, p.height / 2) }
+            // 槽位 = 一行半胶囊高(0 行距): 胶囊本体居中, 上下各留四分之一颗胶囊当淡入淡出带,
+            // 滚进/滚出的内容在这两带里淡掉, 胶囊本身永远落在不透明的中段。
+            val h = p.height * 3 / 2
+            layout(p.width, h) { p.place(0, p.height / 4) }
         },
         contentAlignment = Alignment.CenterStart,
     ) { content() }
@@ -1266,7 +1266,7 @@ private fun CapsuleBand(content: @Composable () -> Unit) {
 private val FESTIVAL_SLOT_WIDTH = 1000.dp
 
 /*
- * 渐隐带不再写死高度: 槽位是"两行胶囊高"(0 行距), 上下各 1/4 即半颗胶囊, 由 CapsuleBand 量出。
+ * 渐隐带不再写死高度: 槽位是"一行半胶囊高"(0 行距), 上下各 1/6 即四分之一颗胶囊, 由 CapsuleBand 量出。
  */
 
 /**
@@ -1280,8 +1280,8 @@ private fun Modifier.capsuleEdgeFade(): Modifier =
         .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
         .drawWithContent {
             drawContent()
-            // 槽位是两行胶囊高, 所以上下各 1/4 正好是"半颗胶囊高"的渐隐带 —— 不用量、不写死高度
-            val stop = 0.25f
+            // 槽位是一行半胶囊高, 上下各 1/6 正好是"四分之一颗胶囊高"的渐隐带 —— 不用量、不写死高度
+            val stop = 1f / 6f
             drawRect(
                 brush = Brush.verticalGradient(
                     0f to Color.Transparent,
