@@ -268,7 +268,7 @@ fun ChannelFocusPreview(
             st.loading = true
             recovering.set(true)
             if (hintShown.compareAndSet(false, true)) {
-                showToast("正在重新获取「${stalled.name}」的直播地址")
+                showToast("正在尝试重新加载「${stalled.name}」")
             }
             var startAt = android.os.SystemClock.elapsedRealtime()
             var loaded = false
