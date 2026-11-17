@@ -1149,10 +1149,11 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
         transitionSpec = { capsuleSlideScroll() },
     ) { i ->
         // slots 初始为空, 首轮组合时 effect 还没填充, 必须走兜底, 否则越界崩溃。
-        val d = slots.getOrNull(i) ?: days[forecastIndex(i, days.size)]
+        // 预报中途可能被清空, 兜底同样要容错: 取不到就不画这一帧, 绝不能按空列表下标取值。
+        val d = slots.getOrNull(i) ?: days.getOrNull(forecastIndex(i, days.size))
         // 上下各留一条渐隐带: 胶囊本体在带内, 滚动的内容从带里进出才淡掉, 胶囊本身不落在带里。
         Box(Modifier.padding(vertical = CAPSULE_FADE_BAND), contentAlignment = Alignment.CenterStart) {
-            ForecastRow(d, forecastLabel(i), weatherStyle)
+            if (d != null) ForecastRow(d, forecastLabel(i), weatherStyle)
         }
     }
 }
@@ -1217,8 +1218,9 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
             .capsuleEdgeFade(bandPx),
         transitionSpec = { capsuleSlideScroll() },
     ) { i ->
+        val text = slots.getOrNull(i) ?: items.getOrNull(i)
         Box(Modifier.padding(vertical = CAPSULE_FADE_BAND), contentAlignment = Alignment.CenterStart) {
-            GreetingTag(slots.getOrNull(i) ?: items[i], style)
+            if (text != null) GreetingTag(text, style)
         }
     }
 }
