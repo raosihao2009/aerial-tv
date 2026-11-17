@@ -961,6 +961,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             fontFamily = OutfitMedium,
         )
         Row(
+            modifier = Modifier.trimCapsuleOverflow(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -1112,7 +1113,7 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
             // 左右互换: 实时天气固定在左侧; 右侧是今天/明天/后天预报, 10 秒一轮向上滚动。
             // 两组之间不再放竖线, 靠 14dp 留白与胶囊形状区分。
             Row(
-                modifier = Modifier.padding(top = 6.dp),
+                modifier = Modifier.padding(top = 6.dp).trimCapsuleOverflow(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val weatherStyle = Type.Caption.copy(
@@ -1247,6 +1248,17 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
  * 胶囊槽位的上下渐隐留白: 所有会进问候行的胶囊都套这一层, 保证"只有节气 / 带时令 / 带节日"
  * 三种状态下整行高度完全一致 —— 行高一变就会顶动时钟行和天气行。
  */
+/**
+ * 胶囊槽位为了留出上下渐隐带, 比一颗胶囊高一半; 但行距要维持"还没有胶囊"时的样子,
+ * 所以这里把多出来的那一半从布局里裁掉(上下各一颗胶囊的 1/4), 内容仍按原位置摆,
+ * 溢出的渐隐带画进相邻行的行距里 —— 行距不变, 又保留了渐隐的余量。
+ */
+private fun Modifier.trimCapsuleOverflow(): Modifier = layout { measurable, constraints ->
+    val p = measurable.measure(constraints)
+    val extra = p.height / 6
+    layout(p.width, p.height - extra * 2) { p.place(0, -extra) }
+}
+
 @Composable
 private fun CapsuleBand(content: @Composable () -> Unit) {
     Box(
