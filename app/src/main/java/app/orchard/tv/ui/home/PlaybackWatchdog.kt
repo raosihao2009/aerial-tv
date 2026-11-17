@@ -36,6 +36,11 @@ class PlaybackWatchdog(
      * 真冻住仍要交给宿主去查开播/下播, 只重载不换源。
      */
     private val frozenOnly: Boolean = false,
+    /**
+     * "疑似卡住"由假变真/由真变假时回调。外观上画面一停就该挂加载图, 但确认卡死还要再等
+     * 两三个采样窗口; 用它先把转圈图顶上去, 判明只是短暂停顿再收掉。
+     */
+    private val onSuspect: (Boolean) -> Unit = {},
 ) {
     private var job: Job? = null
 
@@ -78,6 +83,7 @@ class PlaybackWatchdog(
                 // `posDelta < 100` 判 frozen, 于是刚换完流正在出帧(rendered>0)也被判成冻住,
                 // 连续几次就白白再触发一次重载。这种情况只重置基准, 本轮不计异常。
                 if (posDelta < 0L || bufDelta < 0L) {
+                    if (stuckStreak > 0) onSuspect(false)
                     stuckStreak = 0
                     lastDropped = droppedNow
                     lastRendered = renderedNow
@@ -103,7 +109,14 @@ class PlaybackWatchdog(
                 val lowFps = !lowFpsLive && renderedDelta > 0L && renderedDelta < renderedThreshold
                 // frozenOnly(看门狗关闭): 只认"真冻住", 不把掉帧爆发/低帧率算成卡死。
                 val bad = if (frozenOnly) frozen else frozen || stuckBuffering || dropBurst || lowFps
+                val wasStuck = stuckStreak > 0
                 stuckStreak = if (bad) stuckStreak + 1 else 0
+                if (bad && stuckStreak == 1) {
+                    // 第一次采样就判异常: 立刻挂加载图, 别等凑满 streakNeeded 才转圈
+                    onSuspect(true)
+                } else if (!bad && wasStuck) {
+                    onSuspect(false)
+                }
                 if (bad && stuckStreak == 1) {
                     DiagLog.i("直播预览: 源 $sourceId 异常累积(frozen=$frozen stuckBuffering=$stuckBuffering pos=$posDelta buf=$bufDelta buffering=$buffering rendered=$renderedDelta)")
                 }
@@ -116,6 +129,7 @@ class PlaybackWatchdog(
                     val posAfter = try { exo.currentPosition } catch (t: Throwable) { posBefore }
                     val recheckAdvance = posAfter - posBefore
                     if (recheckAdvance >= RECHECK_ADVANCE_MS) {
+                        onSuspect(false)
                         DiagLog.i("直播预览: 源 $sourceId 并非真卡(复核 ${RECHECK_MS}ms 内推进 ${recheckAdvance}ms), 继续播放")
                         stuckStreak = 0
                         lastPos = posAfter

@@ -118,6 +118,8 @@ fun ChannelFocusPreview(
     val hintShown = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
     // 播放器报错计数: 重载循环靠它立刻判定这一路起不来, 不必等满 8 秒
     var errorTick by remember { mutableStateOf(0) }
+    // 恢复中"网络已断开"提示只弹一次, 免得每秒刷新
+    val netHint = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
     // 当前已在播放的源名称(用于切换失败时提示继续观看谁)
     var currentPlayingName by remember { mutableStateOf<String?>(null) }
     // 上一个正在播放的源 id(切换失败时回退焦点)
@@ -223,7 +225,7 @@ fun ChannelFocusPreview(
             if (hintShown.compareAndSet(false, true)) {
                 showToast("正在重新获取「${stalled.name}」的直播地址")
             }
-            val startAt = android.os.SystemClock.elapsedRealtime()
+            var startAt = android.os.SystemClock.elapsedRealtime()
             var loaded = false
             var handBack = false
             var rounds = 0
@@ -231,6 +233,7 @@ fun ChannelFocusPreview(
                 while (!st.disposed && !loaded &&
                     android.os.SystemClock.elapsedRealtime() - startAt < RECOVER_MAX_MS
                 ) {
+                    val waitStartAt = android.os.SystemClock.elapsedRealtime()
                     rounds++
                     val key = stalled.url ?: stalled.id
                     var cands = streamCache[key]
@@ -245,6 +248,26 @@ fun ChannelFocusPreview(
                         }
                         if (fresh.isEmpty()) {
                             DiagLog.i("直播预览: ${stalled.id} 原地重载取流失败, 第 $rounds 轮")
+                            // 取不到流先真探一次连通性: 路由器拉黑时系统 VALIDATED 位照样是连着的,
+                            // 只看那一位会把断网说成"地址失效"。断网就挂着转圈等恢复, 不耗恢复时限。
+                            if (!withContext(Dispatchers.IO) { SystemProbe.online(context) }) {
+                                if (netHint.compareAndSet(false, true)) {
+                                    showToast("网络已断开，正在等待恢复")
+                                }
+                                var waited = 0L
+                                while (!st.disposed &&
+                                    !withContext(Dispatchers.IO) { SystemProbe.online(context) }
+                                ) {
+                                    kotlinx.coroutines.delay(1000L)
+                                    waited += 1000L
+                                    if (waited % 15_000L == 0L) showToast("网络已断开，正在等待恢复")
+                                }
+                                netHint.set(false)
+                                if (st.disposed) break
+                                DiagLog.i("直播预览: ${stalled.id} 网络已恢复, 继续换流")
+                                // 等网络这段时间不计入恢复时限, 否则拉黑久了会被 60s 直接判死
+                                startAt = startAt + android.os.SystemClock.elapsedRealtime() - waitStartAt
+                            }
                             kotlinx.coroutines.delay(RECOVER_GAP_MS)
                             continue
                         }
@@ -612,6 +635,16 @@ fun ChannelFocusPreview(
                     val fatalDecoder = error.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
                         error.errorCode == PlaybackException.ERROR_CODE_FAILED_RUNTIME_CHECK
                     if (offline || retryCount >= 3 || fatalDecoder) {
+                        // 重试耗尽的这一路如果正是当前在播的那一路, 不要直接判"地址可能失效":
+                        // 路由器把盒子拉黑这类网络黑洞不会让系统掉 VALIDATED 位, 走不到断网分支,
+                        // 这里进转圈恢复, 由它等网络回来并重新取签名地址。
+                        val playingThisOne = player === exo && !hasOld
+                        if (!offline && !fatalDecoder && playingThisOne) {
+                            ready = true
+                            DiagLog.i("播放器错误: 当前源连续失败, 进入转圈恢复")
+                            reloadInPlace(source)
+                            return@launch
+                        }
                         // 下播或重试耗尽: 标记ready=true取消15s超时协程, 避免超时再触发一次onFallback
                         ready = true
                         if (hasOld) {
@@ -710,10 +743,18 @@ fun ChannelFocusPreview(
                 renderedThreshold = renderedThreshold,
                 streakNeeded = streakNeeded,
                 isActive = {
-                    !st.disposed && !st.paused && !st.loading && playingSourceId == source.id
+                    // 不能用 st.loading 当守卫: 疑似卡住会先把加载图挂上, 那样看门狗一停摆
+                    // 就永远等不到确认, 只能一直转圈。恢复中由 recovering 挡。
+                    !st.disposed && !st.paused && !recovering.get() && playingSourceId == source.id
                 },
                 frozenOnly = sens == AerialSettings.JankSensitivity.Off,
                 onJank = { id -> handleStall(id) },
+                // 画面一停就先顶加载图; 判明只是短暂停顿(复核通过/异常消失)再收掉
+                onSuspect = { suspected ->
+                    if (st.disposed) { /* 交给 dispose 收图 */ }
+                    else if (suspected) { st.loading = true }
+                    else if (!recovering.get()) { st.loading = false }
+                },
             )
             wd.start(scope)
             watchdogRef.value = wd
