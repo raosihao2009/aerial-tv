@@ -99,6 +99,7 @@ import app.orchard.tv.ui.wallpaper.WallpaperSheet
 import app.orchard.tv.wallpaper.AerialFormats
 import app.orchard.tv.wallpaper.ScreensaverMode
 import app.orchard.tv.wallpaper.Wallpapers
+import app.orchard.tv.ui.components.GlassToast
 import app.orchard.tv.ui.components.liquidGlass
 import app.orchard.tv.ui.theme.LocalReducedMotion
 import app.orchard.tv.ui.theme.Motion
@@ -1671,25 +1672,17 @@ fun HomeScreen(
             warm = ccWarm,
         )
 
-        // 全局玻璃胶囊轻提示(和直播切换同款)
+        // 全局玻璃胶囊轻提示(和直播切换同款: 从屏底滑上来, 消失时滑下去)
         vm.globalToast?.let { msg ->
             LaunchedEffect(msg) {
                 kotlinx.coroutines.delay(4000)
                 vm.globalToast = null
             }
-            androidx.compose.foundation.text.BasicText(
-                msg,
-                style = androidx.compose.ui.text.TextStyle(
-                    color = androidx.compose.ui.graphics.Color.White,
-                    fontSize = androidx.compose.ui.unit.TextUnit(14f, androidx.compose.ui.unit.TextUnitType.Sp),
-                ),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 28.dp)
-                    .liquidGlass(20.dp)
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-            )
         }
+        GlassToast(
+            message = vm.globalToast,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 }
 

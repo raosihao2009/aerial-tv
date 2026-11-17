@@ -27,6 +27,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import app.orchard.tv.ui.components.GlassToast
 import app.orchard.tv.ui.components.liquidGlass
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -249,8 +250,19 @@ fun ChannelFocusPreview(
             // 画面一停就先顶加载图; 判明只是短暂停顿(复核通过/异常消失)再收掉
             onSuspect = { suspected ->
                 if (st.disposed) { /* 交给 dispose 收图 */ }
-                else if (suspected) { st.loading = true }
-                else if (!recovering.get()) { st.loading = false }
+                else if (suspected) {
+                    // 图和提示必须同一时刻出现: 以前图在"疑似卡住"就挂上, 提示却要等确认卡死
+                    // (三次采样 + 复核 + 查开播) 才弹, 差五六秒, 看起来像两件不相干的事。
+                    st.loading = true
+                    val name = currentPlayingName ?: source?.name
+                    if (name != null && hintShown.compareAndSet(false, true)) {
+                        showToast("正在尝试重新加载「$name」")
+                    }
+                } else if (!recovering.get()) {
+                    st.loading = false
+                    // 只是短暂停顿: 提示状态复位, 下次真卡住时才会再提示一次
+                    hintShown.set(false)
+                }
             },
         )
         wd.start(scope)
@@ -269,6 +281,8 @@ fun ChannelFocusPreview(
             // 只有真出画面才撤; 期间任何播放器报错都不弹"地址可能失效"。
             st.loading = true
             recovering.set(true)
+            // 正常情况提示已由看门狗在"疑似卡住"时弹过; 只有播放器先报错、看门狗还没判定时
+            // 才由这里补一次, 保证一次恢复只提示一条。
             if (hintShown.compareAndSet(false, true)) {
                 showToast("正在尝试重新加载「${stalled.name}」")
             }
@@ -905,26 +919,18 @@ fun ChannelFocusPreview(
             }
         }
         // 加载图不再画在这里: 它要盖在壁纸/预览影片之上(见 HomeScreen 的 LiveLoadingOverlay)
-        // 回退提示(和移动卡片提示同款)
-        st.toastMessage?.let { msg ->
-            // key 用 toastTick 而不是 msg：即使文案相同(连续两条相同提示)也重置 4s 倒计时
+        // 回退提示(和全局提示同款: 从屏底滑上来, 消失时滑下去)
+        st.toastMessage?.let {
+            // key 用 toastTick 而不是文案：即使文案相同(连续两条相同提示)也重置 4s 倒计时
             LaunchedEffect(toastTick) {
                 kotlinx.coroutines.delay(4000)
                 st.toastMessage = null
             }
-            BasicText(
-                msg,
-                style = androidx.compose.ui.text.TextStyle(
-                    color = Color.White,
-                    fontSize = 14.sp,
-                ),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 28.dp)
-                    .liquidGlass(20.dp)
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-            )
         }
+        GlassToast(
+            message = st.toastMessage,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 }
 
