@@ -112,6 +112,12 @@ fun ChannelFocusPreview(
     val reloadBusy = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
     // 断网等待中: 网络不可达时不反复重试/切源, 只留一个等待网络恢复的协程
     val netWaitBusy = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
+    // 恢复中: 客户端的"转圈"状态。全程挂直播加载图, 期间播放器报错不弹失败提示
+    val recovering = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
+    // 一次恢复只提示一条"正在重新获取地址", 真出画面后复位, 下次卡住才再提示
+    val hintShown = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
+    // 播放器报错计数: 重载循环靠它立刻判定这一路起不来, 不必等满 8 秒
+    var errorTick by remember { mutableStateOf(0) }
     // 当前已在播放的源名称(用于切换失败时提示继续观看谁)
     var currentPlayingName by remember { mutableStateOf<String?>(null) }
     // 上一个正在播放的源 id(切换失败时回退焦点)
@@ -210,62 +216,84 @@ fun ChannelFocusPreview(
             return
         }
         scope.launch {
+            // 从卡住这一刻起就挂上直播加载图(那张转圈图), 一路换 URL 期间不撤,
+            // 只有真出画面才撤; 期间任何播放器报错都不弹"地址可能失效"。
+            st.loading = true
+            recovering.set(true)
+            if (hintShown.compareAndSet(false, true)) {
+                showToast("正在重新获取「${stalled.name}」的直播地址")
+            }
+            val startAt = android.os.SystemClock.elapsedRealtime()
+            var loaded = false
+            var handBack = false
+            var rounds = 0
             try {
-                val key = stalled.url ?: stalled.id
-                var cands = streamCache[key]
-                var url = cands?.pollNext()
-                if (url == null) {
-                    // 候选耗尽: 重拉 playinfo 取新地址, 最多 3 次
-                    var fresh: List<String> = emptyList()
-                    for (attempt in 1..3) {
-                        fresh = withContext(Dispatchers.IO) { resolveCandidates(stalled, context) }
-                        if (fresh.isNotEmpty()) break
-                        kotlinx.coroutines.delay(2000)
+                while (!st.disposed && !loaded &&
+                    android.os.SystemClock.elapsedRealtime() - startAt < RECOVER_MAX_MS
+                ) {
+                    rounds++
+                    val key = stalled.url ?: stalled.id
+                    var cands = streamCache[key]
+                    var url = cands?.pollNext()
+                    if (url == null) {
+                        // 候选耗尽: 重拉 playinfo 取新签名地址, 最多 3 次
+                        var fresh: List<String> = emptyList()
+                        for (attempt in 1..3) {
+                            fresh = withContext(Dispatchers.IO) { resolveCandidates(stalled, context) }
+                            if (fresh.isNotEmpty()) break
+                            kotlinx.coroutines.delay(2000)
+                        }
+                        if (fresh.isEmpty()) {
+                            DiagLog.i("直播预览: ${stalled.id} 原地重载取流失败, 第 $rounds 轮")
+                            kotlinx.coroutines.delay(RECOVER_GAP_MS)
+                            continue
+                        }
+                        cands = StreamCandidates(fresh)
+                        streamCache[key] = cands
+                        url = cands.pollNext()!!
                     }
-                    if (fresh.isEmpty()) {
-                        DiagLog.i("直播预览: ${stalled.id} 原地重载取流失败, 候选已耗尽")
-                        return@launch
+                    DiagLog.i("直播预览: ${stalled.id} 原地重载, 第 $rounds 轮 ${cands?.index ?: 0}/${cands?.urls?.size ?: 0} 路候选")
+                    val hls = buildHlsMediaSource(url, stalled.isBilibiliStream, context)
+                    // 不 release、不暂停: 上一轮最后一帧留在转圈图下面, 新流就绪后直接续播
+                    p.setMediaSource(hls)
+                    p.prepare()
+                    // 等这一路起流(最多 8s); 播放器一报错立刻换下一路, 不空等
+                    val tick = errorTick
+                    var ready = false
+                    val deadline = System.currentTimeMillis() + 8_000
+                    while (System.currentTimeMillis() < deadline) {
+                        kotlinx.coroutines.delay(200)
+                        if (errorTick != tick) break
+                        if (p.playbackState == Player.STATE_READY &&
+                            p.bufferedPosition - p.currentPosition >= 1500L
+                        ) { ready = true; break }
                     }
-                    cands = StreamCandidates(fresh)
-                    streamCache[key] = cands
-                    url = cands.pollNext()!!
+                    if (ready) {
+                        p.seekTo(p.bufferedPosition.coerceAtLeast(p.currentPosition))
+                        DiagLog.i("直播预览: ${stalled.id} 原地重载就绪(第 $rounds 轮)")
+                        loaded = true
+                    } else {
+                        DiagLog.i("直播预览: ${stalled.id} 第 $rounds 轮未就绪, 换下一路")
+                        kotlinx.coroutines.delay(RECOVER_GAP_MS)
+                    }
                 }
-                DiagLog.i("直播预览: ${stalled.id} 原地重载, 第 ${cands?.index ?: 0}/${cands?.urls?.size ?: 0} 路候选")
-                val hls = buildHlsMediaSource(url, stalled.isBilibiliStream, context)
-                // 不 release、不暂停: 最后一帧留在屏幕上, 新流就绪后自动续播
-                p.setMediaSource(hls)
-                p.prepare()
-                // 等新流就绪(最多 8s), 对齐直播边缘
-                val deadline = System.currentTimeMillis() + 8_000
-                val start = android.os.SystemClock.elapsedRealtime()
-                var ready = false
-                // 短时间恢复不提示(一闪反而像"没卡也说在重载"); 超过 1.5s 还没就绪才弹，
-                // 用户至少知道画面冻住是在换流而不是坏了。
-                var hinted = false
-                while (System.currentTimeMillis() < deadline) {
-                    kotlinx.coroutines.delay(200)
-                    if (!hinted && android.os.SystemClock.elapsedRealtime() - start >= 1500L) {
-                        hinted = true
-                        showToast("正在重新加载「${stalled.name}」")
-                    }
-                    if (p.playbackState == Player.STATE_READY &&
-                        p.bufferedPosition - p.currentPosition >= 1500L
-                    ) { ready = true; break }
-                }
-                if (ready) {
-                    p.seekTo(p.bufferedPosition.coerceAtLeast(p.currentPosition))
-                    DiagLog.i("直播预览: ${stalled.id} 原地重载就绪")
-                } else {
-                    // 换流没起来: 看门狗这次已 break, 不再轮询; 交给救场流程再判一次,
-                    // 30 秒窗口计数继续累加, 到阈值就会升级成切源, 不会永久冻在画面上。
-                    DiagLog.i("直播预览: ${stalled.id} 原地重载 8s 未就绪, 交回救场流程")
-                    retryStall(stalled.id)
+                if (!loaded && !st.disposed) {
+                    // 全部候选轮完还没起来: 撤转圈, 只弹一次真正的失败, 再交回救场流程
+                    DiagLog.i("直播预览: ${stalled.id} 恢复 ${RECOVER_MAX_MS / 1000}s 未成功, 交回救场流程")
+                    st.loading = false
+                    showToast("「${stalled.name}」暂时无法播放，请稍后再试")
+                    handBack = true
                 }
             } catch (t: Throwable) {
                 DiagLog.i("直播预览: 原地重载异常: ${t.message}")
+                st.loading = false
             } finally {
+                if (loaded) st.loading = false
+                recovering.set(false)
+                if (loaded || handBack) hintShown.set(false)
                 reloadBusy.set(false)
             }
+            if (handBack) retryStall(stalled.id)
         }
     }
 
@@ -529,7 +557,14 @@ fun ChannelFocusPreview(
             }
             override fun onPlayerError(error: PlaybackException) {
                 if (st.disposed) return  // 组合离开释放player触发的错误, 不处理
+                errorTick++
                 DiagLog.i("播放器错误: ${error.errorCodeName}, 第 $retryCount 次重试")
+                // 恢复中(正在转圈换地址): 这一路的失败只交回重载循环换下一路,
+                // 不在这里弹提示、不在这里升格切源, 免得一轮几路地址各弹一次"失效"。
+                if (recovering.get()) {
+                    DiagLog.i("播放器错误: 恢复中, 交给重载循环换下一路")
+                    return
+                }
                 // 网络不可达时既不重试也不切源: 断网时换节点、换台都拉不通, 只会把候选和重试
                 // 次数耗光, 最后走成"地址可能失效"提示或无奈切走。只等网络恢复再换流。
                 val netErr = error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
@@ -963,3 +998,9 @@ private const val STALL_ESCALATE_TIMES = 4
 
 /** 上面的滑动窗口长度。 */
 private const val STALL_WINDOW_MS = 30_000L
+
+/** 一次"转圈"恢复最多持续多久: 到点才撤加载图并提示一次失败。 */
+private const val RECOVER_MAX_MS = 60_000L
+
+/** 换下一路地址之间的间隔, 别把 CDN 打成限流。 */
+private const val RECOVER_GAP_MS = 2_000L
