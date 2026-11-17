@@ -968,9 +968,9 @@ fun CornerClock(now: LocalDateTime, modifier: Modifier = Modifier, toSaver: () -
                 targetState = term,
                 label = "greeting-term",
                 // 裁到槽位边界: 滚动时滚出槽位的那一半不画, 否则会压到上下相邻的行, 看起来像重叠。
-                modifier = Modifier.clipToBounds(),
+                modifier = Modifier.clipToBounds().capsuleEdgeFade(),
                 transitionSpec = { capsuleScroll() },
-            ) { t -> TermTag(t, greetingStyle) }
+            ) { t -> CapsuleBand { TermTag(t, greetingStyle) } }
             // 时令 + 节日: 非空↔非空时整组上下滚动; 空↔非空时按汉字数做横向收放。
             //
             // 收放改由 AnimatedVisibility 的 expand/shrink 驱动, 不再靠 AnimatedContent 的空槽位:
@@ -1139,7 +1139,6 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
     }
     // 轮播协程长期存活, 必须始终读最新预报; 否则闭口号住首帧旧列表, 跨天后槽位不换代。
     val latest by rememberUpdatedState(days)
-    val bandPx = with(LocalDensity.current) { CAPSULE_FADE_BAND.roundToPx() }
     LaunchedEffect(days) {
         while (slots.size < days.size) slots.add(null)
         // 新数据到达: 非当前可见槽位先换代; 当前可见槽位保持旧条目, 轮到它再换。
@@ -1163,14 +1162,14 @@ private fun ForecastCarousel(fc: List<ForecastDay>, weatherStyle: TextStyle) {
         modifier = Modifier
             .padding(start = 14.dp)
             .width(FORECAST_SLOT_WIDTH)
-            .capsuleEdgeFade(bandPx),
+            .capsuleEdgeFade(),
         transitionSpec = { capsuleSlideScroll() },
     ) { i ->
         // slots 初始为空, 首轮组合时 effect 还没填充, 必须走兜底, 否则越界崩溃。
         // 预报中途可能被清空, 兜底同样要容错: 取不到就不画这一帧, 绝不能按空列表下标取值。
         val d = slots.getOrNull(i) ?: days.getOrNull(forecastIndex(i, days.size))
-        // 上下各留一条渐隐带: 胶囊本体在带内, 滚动的内容从带里进出才淡掉, 胶囊本身不落在带里。
-        Box(Modifier.padding(vertical = CAPSULE_FADE_BAND), contentAlignment = Alignment.CenterStart) {
+        // 槽位两行胶囊高: 滚动的内容在上下两半里淡掉, 胶囊本身不落在带里。
+        CapsuleBand {
             if (d != null) ForecastRow(d, forecastLabel(i), weatherStyle)
         }
     }
@@ -1207,7 +1206,6 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
         mutableStateListOf<String?>().apply { repeat(items.size) { add(null) } }
     }
     val latest by rememberUpdatedState(items)
-    val bandPx = with(LocalDensity.current) { CAPSULE_FADE_BAND.roundToPx() }
     LaunchedEffect(items) {
         while (slots.size < items.size) slots.add(null)
         items.forEachIndexed { i, s -> if (i != idx || slots[i] == null) slots[i] = s }
@@ -1229,11 +1227,11 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
         label = "festival",
         modifier = Modifier
             .width(FESTIVAL_SLOT_WIDTH)
-            .capsuleEdgeFade(bandPx),
+            .capsuleEdgeFade(),
         transitionSpec = { capsuleSlideScroll() },
     ) { i ->
         val text = slots.getOrNull(i) ?: items.getOrNull(i)
-        Box(Modifier.padding(vertical = CAPSULE_FADE_BAND), contentAlignment = Alignment.CenterStart) {
+        CapsuleBand {
             if (text != null) GreetingTag(text, style)
         }
     }
@@ -1246,7 +1244,20 @@ private fun FestivalCarousel(items: List<String>, style: TextStyle) {
 @Composable
 private fun CapsuleBand(content: @Composable () -> Unit) {
     Box(
-        modifier = Modifier.padding(vertical = CAPSULE_FADE_BAND),
+        modifier = Modifier.layout { measurable, constraints ->
+            val p = measurable.measure(
+                Constraints(
+                    minWidth = constraints.minWidth,
+                    maxWidth = constraints.maxWidth,
+                    minHeight = 0,
+                    maxHeight = Constraints.Infinity,
+                )
+            )
+            // 槽位 = 两行胶囊高(0 行距): 胶囊本体居中, 上下各留半个胶囊高当淡入淡出带,
+            // 滚进/滚出的内容在这两半里淡掉, 胶囊本身永远落在不透明的中段。
+            val h = p.height * 2
+            layout(p.width, h) { p.place(0, p.height / 2) }
+        },
         contentAlignment = Alignment.CenterStart,
     ) { content() }
 }
@@ -1254,8 +1265,9 @@ private fun CapsuleBand(content: @Composable () -> Unit) {
 /** 节日胶囊槽位的固定宽度: 够放任何一天的多个节日名, 定宽是为了切换时不回缩不撑开。 */
 private val FESTIVAL_SLOT_WIDTH = 1000.dp
 
-/** 渐隐带高度: 槽位上下各留一条, 落在胶囊本体之外, 胶囊不在带里。 */
-private val CAPSULE_FADE_BAND = 4.dp
+/*
+ * 渐隐带不再写死高度: 槽位是"两行胶囊高"(0 行距), 上下各 1/4 即半颗胶囊, 由 CapsuleBand 量出。
+ */
 
 /**
  * 上下两条渐隐带: 内容滚进带里逐渐变透明, 换页是"溶解"而不是被裁出一条平口。
@@ -1263,13 +1275,13 @@ private val CAPSULE_FADE_BAND = 4.dp
  * 静止时带里什么都没有, 胶囊一点不受影响, 也就没有"滚完突然变亮";
  * 离屏层自身仍按边界裁剪, 所以滚出槽位的那一半不会压到相邻的行。
  */
-private fun Modifier.capsuleEdgeFade(bandPx: Int): Modifier =
+private fun Modifier.capsuleEdgeFade(): Modifier =
     this
         .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
         .drawWithContent {
             drawContent()
-            if (bandPx <= 0) return@drawWithContent
-            val stop = (bandPx.toFloat() / size.height).coerceIn(0f, 0.5f)
+            // 槽位是两行胶囊高, 所以上下各 1/4 正好是"半颗胶囊高"的渐隐带 —— 不用量、不写死高度
+            val stop = 0.25f
             drawRect(
                 brush = Brush.verticalGradient(
                     0f to Color.Transparent,
