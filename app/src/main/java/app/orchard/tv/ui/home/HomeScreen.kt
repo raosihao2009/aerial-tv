@@ -1418,23 +1418,13 @@ fun HomeScreen(
             )
         }
 
-        AnimatedVisibility(
-            visible = moving != null,
-            enter = fadeIn(tween(200, easing = Motion.EaseOut)) + slideInVertically(tween(260, easing = Motion.EaseOut)) { it / 2 },
-            exit = fadeOut(tween(150, easing = Motion.EaseOut)) + slideOutVertically(tween(150, easing = Motion.EaseOut)) { it / 2 },
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp),
-        ) {
-            // Screens that can be touched also say how to move with a finger.
-            val touch = LocalConfiguration.current.touchscreen != Configuration.TOUCHSCREEN_NOTOUCH
-            BasicText(
-                stringResource(if (touch) R.string.move_hint_touch else R.string.move_hint),
-                style = Type.Body,
-                modifier = Modifier
-                    .liquidGlass(20.dp)
-                    .height(40.dp)
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-            )
-        }
+        // 移动提示也走 GlassToast: 和其他磨砂提示同一套从屏底滑上来、滑下去
+        val touch = LocalConfiguration.current.touchscreen != Configuration.TOUCHSCREEN_NOTOUCH
+        val moveHint = stringResource(if (touch) R.string.move_hint_touch else R.string.move_hint)
+        GlassToast(
+            message = if (moving != null) moveHint else null,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
 
         // Once per process, while Home is idle: Control Center, then Personalize, drawn for a few
         // frames, nearly transparent, so that their first opening is not their first draw (see
