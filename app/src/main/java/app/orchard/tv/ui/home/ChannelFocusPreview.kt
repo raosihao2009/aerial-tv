@@ -210,6 +210,51 @@ fun ChannelFocusPreview(
      */
     // 重载失败后交回救场流程的入口: 两个局部函数互相引用, 用变量打破前向引用限制
     var retryStall: (String) -> Unit = {}
+    // handleStall 定义在 startWatchdog 之后, 用变量打破前向引用限制
+    var onJankHandler: (String) -> Unit = {}
+
+    /**
+     * 为"当前正在播的这一路"起一个卡顿看门狗。
+     * 创建新 player 时起一次; 原地重载(不换 player)之后也必须再起一次 ——
+     * 看门狗触发后会自己 break 结束, 不重启的话原地重载救回来以后就再没人盯着,
+     * 挨到下一次断网时画面冻住也不会有任何反应, 连加载图都不弹。
+     */
+    val startWatchdog: (androidx.media3.exoplayer.ExoPlayer, String) -> Unit = { exo, id ->
+        val sens = AerialSettings.jankSensitivity
+        val warmupMs: Long; val dropBurstPercent: Int; val renderedThreshold: Long; val streakNeeded: Int
+        when (sens) {
+            AerialSettings.JankSensitivity.Low -> { warmupMs = 12000L; dropBurstPercent = 25; renderedThreshold = 12L; streakNeeded = 3 }
+            AerialSettings.JankSensitivity.High -> { warmupMs = 4000L; dropBurstPercent = 12; renderedThreshold = 28L; streakNeeded = 2 }
+            // Medium / Off: 连续 3 次(约 6s)异常才动, 掉帧按 18% 比例算
+            else -> { warmupMs = 8000L; dropBurstPercent = 18; renderedThreshold = 20L; streakNeeded = 3 }
+        }
+        // 停掉旧看门狗(换源/重载), 再为新流起一个
+        watchdogRef.value?.stop()
+        val wd = PlaybackWatchdog(
+            exo = exo,
+            sourceId = id,
+            warmupMs = warmupMs,
+            dropBurstPercent = dropBurstPercent,
+            renderedThreshold = renderedThreshold,
+            streakNeeded = streakNeeded,
+            isActive = {
+                // 不能用 st.loading 当守卫: 疑似卡住会先把加载图挂上, 那样看门狗一停摆
+                // 就永远等不到确认, 只能一直转圈。恢复中由 recovering 挡。
+                !st.disposed && !st.paused && !recovering.get() && playingSourceId == id
+            },
+            frozenOnly = sens == AerialSettings.JankSensitivity.Off,
+            onJank = { sid -> onJankHandler(sid) },
+            // 画面一停就先顶加载图; 判明只是短暂停顿(复核通过/异常消失)再收掉
+            onSuspect = { suspected ->
+                if (st.disposed) { /* 交给 dispose 收图 */ }
+                else if (suspected) { st.loading = true }
+                else if (!recovering.get()) { st.loading = false }
+            },
+        )
+        wd.start(scope)
+        watchdogRef.value = wd
+    }
+
     fun reloadInPlace(stalled: LiveSource) {
         if (!reloadBusy.compareAndSet(false, true)) return
         val p = player
@@ -295,6 +340,9 @@ fun ChannelFocusPreview(
                         p.seekTo(p.bufferedPosition.coerceAtLeast(p.currentPosition))
                         DiagLog.i("直播预览: ${stalled.id} 原地重载就绪(第 $rounds 轮)")
                         loaded = true
+                        // 看门狗触发后已经 break 结束, 原地重载没换 player, 这里必须重新挂上看门狗,
+                        // 否则救回来以后就没人再盯着, 下一次断网冻住连加载图都不会弹。
+                        startWatchdog(p, stalled.id)
                     } else {
                         DiagLog.i("直播预览: ${stalled.id} 第 $rounds 轮未就绪, 换下一路")
                         kotlinx.coroutines.delay(RECOVER_GAP_MS)
@@ -305,6 +353,8 @@ fun ChannelFocusPreview(
                     DiagLog.i("直播预览: ${stalled.id} 恢复 ${RECOVER_MAX_MS / 1000}s 未成功, 交回救场流程")
                     st.loading = false
                     showToast("「${stalled.name}」暂时无法播放，请稍后再试")
+                    // 交给救场流程前先把看门狗挂回去: 否则之后又断网时没人盯着, 不会有任何反应
+                    startWatchdog(p, stalled.id)
                     handBack = true
                 }
             } catch (t: Throwable) {
@@ -416,6 +466,7 @@ fun ChannelFocusPreview(
     }
     // 现在 handleStall 已定义, 把重载失败的回落入口接上
     retryStall = { id -> handleStall(id) }
+    onJankHandler = { id -> handleStall(id) }
 
     LaunchedEffect(source?.url, restartSignal, externalReload) {
         if (source == null) {
@@ -725,39 +776,7 @@ fun ChannelFocusPreview(
             suppressSwitchToast = false
             // 卡顿探测: 关掉看门狗也照样跑 —— 关掉的是"卡了就自动换源", 不是"卡死了也不管"。
             // 关时只看真冻住(frozenOnly), 触发后走 handleStall 的救场流程(查开播/下播 → 重载或换源)。
-            val sens = AerialSettings.jankSensitivity
-            val warmupMs: Long; val dropBurstPercent: Int; val renderedThreshold: Long; val streakNeeded: Int
-            when (sens) {
-                AerialSettings.JankSensitivity.Low -> { warmupMs = 12000L; dropBurstPercent = 25; renderedThreshold = 12L; streakNeeded = 3 }
-                AerialSettings.JankSensitivity.High -> { warmupMs = 4000L; dropBurstPercent = 12; renderedThreshold = 28L; streakNeeded = 2 }
-                // Medium / Off: 连续 3 次(约 6s)异常才动, 掉帧按 18% 比例算
-                else -> { warmupMs = 8000L; dropBurstPercent = 18; renderedThreshold = 20L; streakNeeded = 3 }
-            }
-            // 停掉旧看门狗(换源/重载), 再为新流起一个
-            watchdogRef.value?.stop()
-            val wd = PlaybackWatchdog(
-                exo = exo,
-                sourceId = source.id,
-                warmupMs = warmupMs,
-                dropBurstPercent = dropBurstPercent,
-                renderedThreshold = renderedThreshold,
-                streakNeeded = streakNeeded,
-                isActive = {
-                    // 不能用 st.loading 当守卫: 疑似卡住会先把加载图挂上, 那样看门狗一停摆
-                    // 就永远等不到确认, 只能一直转圈。恢复中由 recovering 挡。
-                    !st.disposed && !st.paused && !recovering.get() && playingSourceId == source.id
-                },
-                frozenOnly = sens == AerialSettings.JankSensitivity.Off,
-                onJank = { id -> handleStall(id) },
-                // 画面一停就先顶加载图; 判明只是短暂停顿(复核通过/异常消失)再收掉
-                onSuspect = { suspected ->
-                    if (st.disposed) { /* 交给 dispose 收图 */ }
-                    else if (suspected) { st.loading = true }
-                    else if (!recovering.get()) { st.loading = false }
-                },
-            )
-            wd.start(scope)
-            watchdogRef.value = wd
+            startWatchdog(exo, source.id)
         } else {
             // 新流超时未就绪
             DiagLog.i("直播预览: 新流未就绪")
