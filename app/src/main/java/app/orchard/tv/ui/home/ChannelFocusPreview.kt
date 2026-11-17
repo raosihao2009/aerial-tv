@@ -219,7 +219,7 @@ fun ChannelFocusPreview(
      * 看门狗触发后会自己 break 结束, 不重启的话原地重载救回来以后就再没人盯着,
      * 挨到下一次断网时画面冻住也不会有任何反应, 连加载图都不弹。
      */
-    val startWatchdog: (androidx.media3.exoplayer.ExoPlayer, String) -> Unit = { exo, id ->
+    val startWatchdog: (androidx.media3.exoplayer.ExoPlayer, String, Long?) -> Unit = { exo, id, warmupOverride ->
         val sens = AerialSettings.jankSensitivity
         val warmupMs: Long; val dropBurstPercent: Int; val renderedThreshold: Long; val streakNeeded: Int
         when (sens) {
@@ -233,7 +233,9 @@ fun ChannelFocusPreview(
         val wd = PlaybackWatchdog(
             exo = exo,
             sourceId = id,
-            warmupMs = warmupMs,
+            // 预热期用来避开起播/切流那几秒的抖动。原地重载救回来时流已经在播、
+            // 也刚对齐过位置, 不需要 8 秒预热 —— 否则刚恢复就又冻住这段时间完全无人盯。
+            warmupMs = warmupOverride ?: warmupMs,
             dropBurstPercent = dropBurstPercent,
             renderedThreshold = renderedThreshold,
             streakNeeded = streakNeeded,
@@ -337,12 +339,18 @@ fun ChannelFocusPreview(
                         ) { ready = true; break }
                     }
                     if (ready) {
-                        p.seekTo(p.bufferedPosition.coerceAtLeast(p.currentPosition))
+                        // 不能 seekTo(bufferedPosition): 那是缓冲的最末端, 前面一秒数据都没有,
+                        // 一起播立刻就再饿一次 —— 表现就是"加载完 1~2 秒又卡"。往回留 2 秒安全垫。
+                        p.seekTo(
+                            (p.bufferedPosition - RECOVER_SEEK_BACK_MS)
+                                .coerceAtLeast(p.currentPosition.coerceAtLeast(0L))
+                        )
                         DiagLog.i("直播预览: ${stalled.id} 原地重载就绪(第 $rounds 轮)")
                         loaded = true
                         // 看门狗触发后已经 break 结束, 原地重载没换 player, 这里必须重新挂上看门狗,
                         // 否则救回来以后就没人再盯着, 下一次断网冻住连加载图都不会弹。
-                        startWatchdog(p, stalled.id)
+                        // 预热用短档: 刚恢复就又卡的情况要能立刻被发现。
+                        startWatchdog(p, stalled.id, RELOAD_WARMUP_MS)
                     } else {
                         DiagLog.i("直播预览: ${stalled.id} 第 $rounds 轮未就绪, 换下一路")
                         kotlinx.coroutines.delay(RECOVER_GAP_MS)
@@ -354,7 +362,7 @@ fun ChannelFocusPreview(
                     st.loading = false
                     showToast("「${stalled.name}」暂时无法播放，请稍后再试")
                     // 交给救场流程前先把看门狗挂回去: 否则之后又断网时没人盯着, 不会有任何反应
-                    startWatchdog(p, stalled.id)
+                    startWatchdog(p, stalled.id, RELOAD_WARMUP_MS)
                     handBack = true
                 }
             } catch (t: Throwable) {
@@ -763,7 +771,11 @@ fun ChannelFocusPreview(
             old?.release()
             player = exo
             // 跳到直播边缘(缓冲末尾), 避免音视频从不同位置开始导致画面超前声音
-            exo.seekTo(exo.bufferedPosition.coerceAtLeast(exo.currentPosition))
+            // 同样别贴死在缓冲末尾, 留 2 秒垫子, 否则起播瞬间就再饿一次
+            exo.seekTo(
+                (exo.bufferedPosition - RECOVER_SEEK_BACK_MS)
+                    .coerceAtLeast(exo.currentPosition.coerceAtLeast(0L))
+            )
             exo.playWhenReady = true
             onActuallyPlayingChange(true)
             currentPlayingName = source.name
@@ -776,7 +788,7 @@ fun ChannelFocusPreview(
             suppressSwitchToast = false
             // 卡顿探测: 关掉看门狗也照样跑 —— 关掉的是"卡了就自动换源", 不是"卡死了也不管"。
             // 关时只看真冻住(frozenOnly), 触发后走 handleStall 的救场流程(查开播/下播 → 重载或换源)。
-            startWatchdog(exo, source.id)
+            startWatchdog(exo, source.id, null)
         } else {
             // 新流超时未就绪
             DiagLog.i("直播预览: 新流未就绪")
@@ -1064,3 +1076,9 @@ private const val RECOVER_MAX_MS = 60_000L
 
 /** 换下一路地址之间的间隔, 别把 CDN 打成限流。 */
 private const val RECOVER_GAP_MS = 2_000L
+
+/** 就地恢复成功后往回对齐的安全垫: 提到缓冲最末端起播, 下一秒就会再饿一次。 */
+private const val RECOVER_SEEK_BACK_MS = 2_000L
+
+/** 原地重载救回来之后看门狗的预热: 流已在播, 只留一个采样窗口避开 seek 抖动。 */
+private const val RELOAD_WARMUP_MS = 2_000L
