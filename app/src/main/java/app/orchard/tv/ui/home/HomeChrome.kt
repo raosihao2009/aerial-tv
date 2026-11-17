@@ -1300,27 +1300,23 @@ private fun Modifier.capsuleEdgeFade(): Modifier =
  */
 private fun capsuleSlideScroll(): ContentTransform {
     val slide = tween<IntOffset>(CAPSULE_SCROLL_MS)
-    // 淡入淡出都用线性、且各自占满自己能看见的那段行程:
-    // 进场那一半先钻进槽位(此时在裁剪区外, 看不见), 所以淡入要延后一点才开始, 否则等它露头时
-    // 已经不透明了 —— 看上去"上面有淡出、下面没有淡入"。退场则从头就开始淡.
-    val fadeInSpec = tween<Float>(CAPSULE_FADE_IN_MS, delayMillis = CAPSULE_FADE_IN_DELAY_MS, easing = LinearEasing)
+    // 行程只走半个槽位: 两张内容各走一半, 合起来仍是一整格的滚动量。
+    // 以前各走整格时, 进场那张有一半行程在槽位外(被裁掉看不见), 淡入都花在看不见的地方,
+    // 等它露头透明度已经上去了 —— 看着像"只有淡出、没有淡入"; 退场那张走到后半也到槽位外空着。
+    // 只走半格, 两张从第一帧起就都在槽位里, 淡入淡出因此全程可见, 中间也不会出现空档。
+    val fadeInSpec = tween<Float>(CAPSULE_FADE_IN_MS, easing = LinearEasing)
     val fadeOutSpec = tween<Float>(CAPSULE_FADE_OUT_MS, easing = LinearEasing)
-    return (slideInVertically(animationSpec = slide) { h -> h } + fadeIn(fadeInSpec))
-        .togetherWith(slideOutVertically(animationSpec = slide) { h -> -h } + fadeOut(fadeOutSpec))
+    return (slideInVertically(animationSpec = slide) { h -> h / 2 } + fadeIn(fadeInSpec))
+        .togetherWith(slideOutVertically(animationSpec = slide) { h -> -(h / 2) } + fadeOut(fadeOutSpec))
 }
 
 /** 上下滚动时长: 1 秒。 */
 private const val CAPSULE_SCROLL_MS = 1000
 
-/**
- * 进场淡入的时长与起跑延迟: 新胶囊从槽位下沿外爬进来, 前段整个被裁在槽位外(看不见),
- * 所以淡入要等到它真正落进可见区再开始(500ms), 留 500ms 走完 0→1 ——
- * 屏幕上看到的才是"从几乎透明渐渐变实", 和退场那边(一出发就是全实、一路变淡)对称。
- */
-private const val CAPSULE_FADE_IN_MS = 500
-private const val CAPSULE_FADE_IN_DELAY_MS = 500
+/** 进场淡入时长: 从第一帧起就在槽位里, 线性 0→1, 整段可见。 */
+private const val CAPSULE_FADE_IN_MS = 700
 
-/** 退场淡出时长: 旧胶囊一边往上走一边变淡, 整个可见行程都在变。 */
+/** 退场淡出时长: 旧胶囊一边往上走一边变淡, 线性 1→0, 整段可见。 */
 private const val CAPSULE_FADE_OUT_MS = 700
 
 /**
@@ -1330,10 +1326,10 @@ private const val CAPSULE_FADE_OUT_MS = 700
  */
 private fun <S> AnimatedContentTransitionScope<S>.capsuleScroll(): ContentTransform {
     val slide = tween<IntOffset>(CAPSULE_SCROLL_MS)
-    val fadeInSpec = tween<Float>(CAPSULE_FADE_IN_MS, delayMillis = CAPSULE_FADE_IN_DELAY_MS, easing = LinearEasing)
+    val fadeInSpec = tween<Float>(CAPSULE_FADE_IN_MS, easing = LinearEasing)
     val fadeOutSpec = tween<Float>(CAPSULE_FADE_OUT_MS, easing = LinearEasing)
-    return (slideInVertically(animationSpec = slide) { h -> h } + fadeIn(fadeInSpec))
-        .togetherWith(slideOutVertically(animationSpec = slide) { h -> -h } + fadeOut(fadeOutSpec))
+    return (slideInVertically(animationSpec = slide) { h -> h / 2 } + fadeIn(fadeInSpec))
+        .togetherWith(slideOutVertically(animationSpec = slide) { h -> -(h / 2) } + fadeOut(fadeOutSpec))
         .using(null)
 }
 
