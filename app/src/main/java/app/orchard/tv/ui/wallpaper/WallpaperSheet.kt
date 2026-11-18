@@ -24,6 +24,8 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size as GeometrySize
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -188,6 +190,10 @@ fun WallpaperSheet(
         )
     }
 
+    // 左栏的分类: 焦点落在哪个分类, 右栏立即换成哪一组选项(不需要按 OK)。
+    val tab = remember { mutableStateOf(Category.Wallpaper) }
+    val navFirst = remember { FocusRequester() }
+
     // The sheet as it opens, or (takeFocus false) drawn once nearly clear for the warm-up.
     val sheet: @Composable (takeFocus: Boolean) -> Unit = { takeFocus ->
         Row(
@@ -201,266 +207,44 @@ fun WallpaperSheet(
                 .liquidGlass(SheetCorner, bottomCorners = false)
                 .padding(start = 40.dp, end = 32.dp, top = 24.dp),
         ) {
-            val scroll = rememberScrollState()
-            // How Home looks, in the order you see it: the picture behind everything, how Home
-            // is laid out over it, what replaces it when idle, then the weather and the PIN.
-            // Settings sit in tvOS-style grouped rows; each group's note follows the focused row.
-            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(scroll).latestBringIntoView(scroll)) {
-                BasicText(stringResource(R.string.wp_title), style = Type.LargeTitle)
-                Spacer(Modifier.height(16.dp))
-                SectionTitle(R.string.wp_wallpaper)
-                WallpaperRows(takeFocus)
-                // Only for the owner's videos: whether keys stop them. The aerial films always move.
-                if (Wallpapers.isVideo()) Group { note ->
-                    Choices(
-                        R.string.st_play, stringResource(R.string.st_play_hint), note,
-                        listOf(false to R.string.st_play_still, true to R.string.st_play_always),
-                        AerialSettings.wallpaperAlwaysMoves, AerialSettings::chooseWallpaperAlwaysMoves, first = true,
-                    )
+            // 左栏: 图标 + 分类名, 宽度与原来右侧二维码栏一致(220dp)。
+            Column(
+                Modifier.width(220.dp).fillMaxHeight(),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                BasicText(stringResource(R.string.wp_title), style = Type.Headline)
+                Spacer(Modifier.height(7.dp))
+                CategoryRow(Category.Wallpaper, Glyph.Photo, tab, navFirst)
+                CategoryRow(Category.Home, Glyph.Home, tab)
+                CategoryRow(Category.Live, Glyph.Play, tab)
+                CategoryRow(Category.Look, Glyph.Sun, tab)
+                CategoryRow(Category.Screensaver, Glyph.Moon, tab)
+                CategoryRow(Category.Weather, Glyph.CloudSun, tab)
+                CategoryRow(Category.Family, Glyph.Shield, tab)
+                CategoryRow(Category.Device, Glyph.Cast, tab)
+                // 打开面板时焦点落在第一个分类上, 右移才进选项; 换来的是"分类一眼看全"。
+                LaunchedEffect(takeFocus) {
+                    if (!takeFocus) return@LaunchedEffect
+                    withFrameNanos { }
+                    runCatching { navFirst.requestFocus() }
                 }
-                // 上游 #1314: 只有"我的照片, 轮流"才需要问多久换一张, 别的壁纸没有下一张
-                if (Wallpapers.selectedId == Wallpapers.ROTATE_PHOTOS) Group { note ->
-                    Choices(
-                        R.string.st_photo_every, stringResource(R.string.st_photo_every_hint), note,
-                        AerialSettings.PHOTO_MINUTES.map { m ->
-                            m to when {
-                                m >= AerialSettings.DAY_MINUTES -> stringResource(R.string.st_photo_every_day)
-                                m >= 60 -> stringResource(R.string.kids_h, m / 60)
-                                else -> stringResource(R.string.kids_m, m)
-                            }
-                        },
-                        AerialSettings.photoMinutes, { AerialSettings.choosePhotoMinutes(it); Wallpapers.rotateIfDue() }, first = true,
-                    )
-                }
-
-                Spacer(Modifier.height(6.dp))
-                SectionTitle(R.string.st_home_layout)
-                // What is on Home and where; then the clock; then how the remote feels.
-                Group { note ->
-                    Choices(
-                        R.string.st_columns, stringResource(R.string.st_columns_hint), note,
-                        AerialSettings.HOME_COLUMNS.map { it to it.toString() },
-                        AerialSettings.homeColumns, AerialSettings::chooseHomeColumns, first = true,
-                    )
-                    Choices(
-                        R.string.st_names, stringResource(R.string.st_names_hint), note,
-                        listOf(false to R.string.st_names_focused, true to R.string.st_names_all),
-                        AerialSettings.showAllNames, AerialSettings::chooseShowAllNames,
-                    )
-                    Choices(
-                        R.string.st_plate, stringResource(R.string.st_plate_hint), note,
-                        listOf(true to R.string.st_plate_glass, false to R.string.st_plate_none),
-                        AerialSettings.homePlate, AerialSettings::chooseHomePlate,
-                    )
-                    // 双排布局下也保留这个选项: 它也控制二级菜单(直播源)露出下一排的效果。
-                    Choices(
-                        R.string.st_peek, stringResource(R.string.st_peek_hint), note,
-                        listOf(true to R.string.st_peek_show, false to R.string.st_peek_hide),
-                        AerialSettings.peekNextRow, AerialSettings::choosePeekNextRow,
-                    )
-                    Choices(
-                        R.string.st_layout, stringResource(R.string.st_home_layout_hint), note,
-                        listOf(true to R.string.st_home_one_row, false to R.string.st_home_standard),
-                        AerialSettings.oneRowHome, AerialSettings::chooseOneRowHome,
-                    )
-                    // 应用/直播隐藏的卡片合并成一行: 左"应用·N个" 右"直播·N个", 分别进各自的恢复页
-                    SettingRow(R.string.st_hidden, stringResource(R.string.st_hidden_hint), note) {
-                        androidx.compose.foundation.layout.Row(
-                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                        ) {
-                            ActionChip(
-                                if (hiddenCount == 0) stringResource(R.string.st_hidden_app_none)
-                                else stringResource(R.string.st_hidden_app_count, hiddenCount),
-                                Glyph.ChevronRight,
-                                onHiddenApps,
-                            )
-                            ActionChip(
-                                if (hiddenLiveCount == 0) stringResource(R.string.st_hidden_live_none)
-                                else stringResource(R.string.st_hidden_live_count, hiddenLiveCount),
-                                Glyph.ChevronRight,
-                                onHiddenLiveSources,
-                            )
-                        }
-                    }
-                    // 上锁: 长按 OK / Menu 不再弹应用菜单, 免得误移动、误隐藏、误卸载
-                    Choices(
-                        R.string.st_home_lock, stringResource(R.string.st_home_lock_hint), note,
-                        listOf(true to R.string.st_on, false to R.string.st_off),
-                        AerialSettings.homeLocked, onHomeLock,
-                    )
-                }
-                Spacer(Modifier.height(10.dp))
-                Group { note ->
-                    // 二创：焦点选中 IPTV 应用时背景播放相关直播
-                    Choices(
-                        R.string.st_live_preview,
-                        "焦点选中IPTV应用时背景播放相关直播",
-                        note,
-                        listOf(true to R.string.st_on, false to R.string.st_off),
-                        AerialSettings.livePreviewEnabled, AerialSettings::chooseLivePreview, first = true,
-                    )
-                    // 画质不再有全局开关: 每张直播卡的画质在直播菜单里按台选(直播卡 → 上下文菜单 →
-                    // 直播画质)。全局档位(key)仍留着给没选过的台兜底, 只是不再给用户看到。
-                    Choices(
-                        R.string.st_live_jank,
-                        "高灵敏及早切备用源, 低灵敏减少误切, 关则不自动切换",
-                        note,
-                        listOf(
-                            AerialSettings.JankSensitivity.Off to "关闭",
-                            AerialSettings.JankSensitivity.Low to "低",
-                            AerialSettings.JankSensitivity.Medium to "中",
-                            AerialSettings.JankSensitivity.High to "高",
-                        ),
-                        AerialSettings.jankSensitivity, AerialSettings::chooseJankSensitivity,
-                    )
-                    BiliLoginRow(note)
-                    Choices(
-                        R.string.st_focus_style,
-                        stringResource(if (AerialSettings.focusStyle == FocusStyle.HighContrast) R.string.st_focus_high_hint else R.string.st_focus_standard_hint),
-                        note,
-                        listOf(FocusStyle.HighContrast to R.string.st_focus_high, FocusStyle.Standard to R.string.st_focus_standard),
-                        AerialSettings.focusStyle, AerialSettings::chooseFocusStyle,
-                    )
-                    Choices(
-                        R.string.st_sounds,
-                        stringResource(if (AerialSettings.uiSounds == UiSounds.Tv) R.string.st_sounds_tv_hint else R.string.st_sounds_hint),
-                        note,
-                        listOf(UiSounds.Tv to R.string.st_sounds_tv, UiSounds.Aerial to R.string.st_sounds_aerial, UiSounds.Off to R.string.st_off),
-                        AerialSettings.uiSounds, { AerialSettings.chooseUiSounds(it); Sounds.prepare() },
-                    )
-                    // Aerial 自带按键音的独立音量: 只在选「Aerial」时出现, 和电视音量滑块无关。
-                    if (AerialSettings.uiSounds == UiSounds.Aerial) {
-                        KeyVolumeRow(note)
-                    }
-                    Choices(
-                        R.string.st_splash_veil,
-                        stringResource(R.string.st_splash_veil_hint),
-                        note,
-                        listOf(true to R.string.st_on, false to R.string.st_off),
-                        AerialSettings.splashVeilEnabled, AerialSettings::chooseSplashVeil,
-                    )
-                    Choices(
-                        R.string.st_effects,
-                        stringResource(
-                            if (AerialSettings.effects == Effects.Auto && AerialSettings.lowEnd) R.string.st_effects_auto_lite_hint
-                            else R.string.st_effects_hint,
-                        ),
-                        note,
-                        listOf(Effects.Auto to R.string.st_effects_auto, Effects.Full to R.string.st_effects_full, Effects.Lite to R.string.st_effects_lite),
-                        AerialSettings.effects, AerialSettings::chooseEffects,
-                    )
-                }
-
-                Spacer(Modifier.height(22.dp))
-                SectionTitle(R.string.wp_screensaver)
-                Group { note ->
-                    SettingRow(
-                        R.string.ss_kind,
-                        when {
-                            Wallpapers.screensaver == ScreensaverMode.Videos -> stringResource(R.string.ss_videos_hint)
-                            Wallpapers.screensaver == ScreensaverMode.System -> stringResource(R.string.ss_system_hint)
-                            Wallpapers.screensaverFollows -> stringResource(R.string.ss_follow_hint)
-                            AerialSettings.backStartsScreensaver -> stringResource(R.string.ss_back_hint)
-                            else -> null
-                        },
-                        note, first = true,
-                    ) { ScreensaverChoice(onStartScreensaver) }
-                    // Only the qualities this TV can play; a 1080p-only TV has nothing to choose.
-                    val qualities = remember { AerialFormats.supported(context) }
-                    if (qualities.size > 1) {
-                        // The films kept on the TV (AerialSet, AerialStream): how many, how much
-                        // space at most, and how they change. In place of the quality's own note,
-                        // as a note shows two lines at most.
-                        val keeps = stringResource(
-                            R.string.ss_aerial_keeps,
-                            remember { android.text.format.Formatter.formatShortFileSize(context, AerialStream.keepLimit(context)) },
-                            AerialSet.MAX,
-                        )
-                        Choices(
-                            R.string.ss_quality, keeps, note,
-                            listOf(AerialQuality.Auto to R.string.ss_quality_auto, AerialQuality.Hd to R.string.ss_quality_hd) +
-                                listOf(AerialQuality.Uhd to R.string.ss_quality_uhd, AerialQuality.DolbyVision to R.string.ss_quality_dv)
-                                    .filter { it.first in qualities },
-                            AerialSettings.aerialQuality, AerialSettings::chooseAerialQuality,
-                        )
-                    }
-                    // The clock screensaver is its clock, and the others show none.
-                    if (Wallpapers.screensaver == ScreensaverMode.Aerial || Wallpapers.screensaver == ScreensaverMode.Photos) Choices(
-                        R.string.ss_show_time, stringResource(R.string.ss_show_time_hint), note,
-                        listOf(true to R.string.st_on, false to R.string.st_off),
-                        AerialSettings.screensaverClock, AerialSettings::chooseScreensaverClock,
-                    )
-                    // The firmware's screensaver starts on the firmware's timer: Aerial's delay
-                    // did nothing there, and Xiaomi's 1 minute came before the 5 chosen (issue #675).
-                    if (Wallpapers.screensaver == ScreensaverMode.System) SettingRow(R.string.ss_delay, null, note) {
-                        val delay = remember { SystemScreensaver.firmwareDelayMs(context) }
-                        BasicText(
-                            when {
-                                delay == null -> stringResource(R.string.ss_delay_system)
-                                delay == 0L -> stringResource(R.string.ss_delay_system_off)
-                                else -> stringResource(R.string.ss_delay_system_minutes, ((delay + 30_000) / 60_000).coerceAtLeast(1).toInt())
-                            },
-                            style = Type.Body.copy(color = Palette.SecondaryLabel),
-                            modifier = Modifier.padding(end = 8.dp),
-                        )
-                    } else Choices(
-                        R.string.ss_delay, null, note,
-                        AerialSettings.screensaverChoices.map {
-                            it to if (it == AerialSettings.NEVER) stringResource(R.string.ss_never) else stringResource(R.string.ss_minutes, it)
-                        },
-                        AerialSettings.screensaverMinutes, AerialSettings::chooseScreensaverMinutes,
-                    )
-                    Choices(
-                        R.string.ss_back, stringResource(R.string.ss_back_choice_hint), note,
-                        listOf(true to R.string.ss_back_on, false to R.string.ss_back_off),
-                        AerialSettings.backStartsScreensaver, AerialSettings::chooseBackStartsScreensaver,
-                    )
-                }
-
-                Spacer(Modifier.height(22.dp))
-                SectionTitle(R.string.wp_weather)
-                Group(stringResource(if (Weather.chosen) R.string.wp_weather_chosen else R.string.wp_weather_guessed)) { note ->
-                    // 时钟制式: 只给 24 小时制和 12 小时制两个选项(不跟系统设置, 免得被电视语言
-                    // 带成 12 小时制)。旧值 System 一律按 24 小时制显示。
-                    Choices(
-                        R.string.st_clock_hours, stringResource(R.string.st_clock_hours_hint), note,
-                        listOf(ClockHours.H24 to R.string.st_clock_hours_24, ClockHours.H12 to R.string.st_clock_hours_12),
-                        if (AerialSettings.clockHours == ClockHours.H12) ClockHours.H12 else ClockHours.H24,
-                        { AerialSettings.chooseClockHours(it) }, first = true,
-                    )
-                    // 天气是否显示在时钟下方
-                    Choices(
-                        R.string.st_weather_visibility, stringResource(R.string.st_weather_visibility_hint), note,
-                        listOf(true to R.string.st_on, false to R.string.st_off),
-                        AerialSettings.showWeather, AerialSettings::chooseShowWeather,
-                    )
-                    SettingRow(R.string.wp_weather_city, null, note) { WeatherValue() }
-                }
-
-                // One row says what it is; a title over it would only repeat it.
-                Spacer(Modifier.height(10.dp))
-                Group(stringResource(R.string.st_pin_hint)) { note ->
-                    SettingRow(R.string.st_pin, null, note, first = true) {
-                        PinChoice(onPin)
-                    }
-                    SettingRow(R.string.st_kids, stringResource(R.string.st_kids_hint), note) {
-                        ActionChip(
-                            when {
-                                !Restricted.enabled -> stringResource(R.string.st_off)
-                                Restricted.kind == RestrictedKind.Kids -> stringResource(R.string.kids_kind_kids)
-                                else -> stringResource(R.string.kids_kind_elders)
-                            },
-                            Glyph.ChevronRight,
-                            onKids,
-                        )
-                    }
-                }
-                // 整机备份只在手机页上做: 电视上用遥控器选文件太别扭, 备份包也拿不出来。
-                Spacer(Modifier.height(24.dp))
             }
             Spacer(Modifier.width(28.dp))
-            PhoneCard(phoneUrl, qr)
+            val rightScroll = rememberScrollState()
+            // 换分类时右栏回到顶部, 不从上一类滚到的位置接着显示。
+            LaunchedEffect(tab.value) { rightScroll.scrollTo(0) }
+            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rightScroll).latestBringIntoView(rightScroll)) {
+                when (tab.value) {
+                    Category.Wallpaper -> WallpaperSection()
+                    Category.Home -> HomeSection(hiddenCount, onHiddenApps, hiddenLiveCount, onHiddenLiveSources, onHomeLock)
+                    Category.Live -> LiveSection()
+                    Category.Look -> LookSection()
+                    Category.Screensaver -> ScreensaverSection(onStartScreensaver)
+                    Category.Weather -> WeatherSection()
+                    Category.Family -> FamilySection(onPin, onKids)
+                    Category.Device -> DeviceSection(phoneUrl, qr)
+                }
+            }
         }
     }
 
@@ -486,6 +270,342 @@ fun WallpaperSheet(
  * daily photos and the rest of the built-ins are left out unless one of them is the current
  * choice. The focused card's note is under the row, as under a group of settings.
  */
+/** 个性化面板左栏的分类: 焦点落在哪个分类, 右栏就换成哪一组选项。 */
+private enum class Category(val label: Int) {
+    Wallpaper(R.string.wp_wallpaper),
+    Home(R.string.st_home_layout),
+    Live(R.string.per_live),
+    Look(R.string.per_look),
+    Screensaver(R.string.wp_screensaver),
+    Weather(R.string.wp_weather),
+    Family(R.string.per_family),
+    Device(R.string.per_device),
+}
+
+/**
+ * 左栏的一行: 图标 + 分类名。焦点一停上来就切换右栏(不用按 OK); 未选中时是灰底,
+ * 和选项未选中时同一套配色。
+ */
+@Composable
+private fun CategoryRow(
+    category: Category,
+    glyph: Glyph,
+    tab: androidx.compose.runtime.MutableState<Category>,
+    focusRequester: FocusRequester? = null,
+) {
+    Pressable(
+        onClick = { tab.value = category },
+        focusRequester = focusRequester,
+        focusedScale = 1.0f,
+        modifier = Modifier.fillMaxWidth(),
+    ) { state ->
+        LaunchedEffect(state.focused) { if (state.focused) tab.value = category }
+        val bg by animateColorAsState(
+            when {
+                state.focused -> Palette.Focus
+                tab.value == category -> Palette.FillStrong
+                else -> Palette.Fill
+            },
+            tween(140, easing = Motion.EaseOut), label = "category-bg",
+        )
+        val fg = if (state.focused) Palette.OnFocus else Palette.Label
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).drawBehind { drawRect(bg) }.height(32.dp).padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            GlyphIcon(glyph, fg, 18.dp)
+            BasicText(
+                stringResource(category.label),
+                style = Type.Body.copy(color = fg),
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** 壁纸: 卡片 + 只在这类壁纸下才问的两个问题。 */
+@Composable
+private fun WallpaperSection() {
+    WallpaperRows(takeFocus = false)
+    // Only for the owner's videos: whether keys stop them. The aerial films always move.
+    if (Wallpapers.isVideo()) Group { note ->
+        Choices(
+            R.string.st_play, stringResource(R.string.st_play_hint), note,
+            listOf(false to R.string.st_play_still, true to R.string.st_play_always),
+            AerialSettings.wallpaperAlwaysMoves, AerialSettings::chooseWallpaperAlwaysMoves, first = true,
+        )
+    }
+    // 上游 #1314: 只有"我的照片, 轮流"才需要问多久换一张, 别的壁纸没有下一张
+    if (Wallpapers.selectedId == Wallpapers.ROTATE_PHOTOS) Group { note ->
+        Choices(
+            R.string.st_photo_every, stringResource(R.string.st_photo_every_hint), note,
+            AerialSettings.PHOTO_MINUTES.map { m ->
+                m to when {
+                    m >= AerialSettings.DAY_MINUTES -> stringResource(R.string.st_photo_every_day)
+                    m >= 60 -> stringResource(R.string.kids_h, m / 60)
+                    else -> stringResource(R.string.kids_m, m)
+                }
+            },
+            AerialSettings.photoMinutes, { AerialSettings.choosePhotoMinutes(it); Wallpapers.rotateIfDue() }, first = true,
+        )
+    }
+    Spacer(Modifier.height(12.dp))
+}
+
+/** 主屏幕: 怎么摆、叫什么、露多少、哪些卡片收起来了。 */
+@Composable
+private fun HomeSection(
+    hiddenCount: Int,
+    onHiddenApps: () -> Unit,
+    hiddenLiveCount: Int,
+    onHiddenLiveSources: () -> Unit,
+    onHomeLock: (on: Boolean) -> Unit,
+) {
+    Group { note ->
+        Choices(
+            R.string.st_columns, stringResource(R.string.st_columns_hint), note,
+            AerialSettings.HOME_COLUMNS.map { it to it.toString() },
+            AerialSettings.homeColumns, AerialSettings::chooseHomeColumns, first = true,
+        )
+        Choices(
+            R.string.st_names, stringResource(R.string.st_names_hint), note,
+            listOf(false to R.string.st_names_focused, true to R.string.st_names_all),
+            AerialSettings.showAllNames, AerialSettings::chooseShowAllNames,
+        )
+        Choices(
+            R.string.st_plate, stringResource(R.string.st_plate_hint), note,
+            listOf(true to R.string.st_plate_glass, false to R.string.st_plate_none),
+            AerialSettings.homePlate, AerialSettings::chooseHomePlate,
+        )
+        // 双排布局下也保留这个选项: 它也控制二级菜单(直播源)露出下一排的效果。
+        Choices(
+            R.string.st_peek, stringResource(R.string.st_peek_hint), note,
+            listOf(true to R.string.st_peek_show, false to R.string.st_peek_hide),
+            AerialSettings.peekNextRow, AerialSettings::choosePeekNextRow,
+        )
+        Choices(
+            R.string.st_layout, stringResource(R.string.st_home_layout_hint), note,
+            listOf(true to R.string.st_home_one_row, false to R.string.st_home_standard),
+            AerialSettings.oneRowHome, AerialSettings::chooseOneRowHome,
+        )
+        SettingRow(R.string.st_hidden, stringResource(R.string.st_hidden_hint), note) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                ActionChip(
+                    if (hiddenCount == 0) stringResource(R.string.st_hidden_app_none)
+                    else stringResource(R.string.st_hidden_app_count, hiddenCount),
+                    Glyph.ChevronRight,
+                    onHiddenApps,
+                )
+                ActionChip(
+                    if (hiddenLiveCount == 0) stringResource(R.string.st_hidden_live_none)
+                    else stringResource(R.string.st_hidden_live_count, hiddenLiveCount),
+                    Glyph.ChevronRight,
+                    onHiddenLiveSources,
+                )
+            }
+        }
+        // 上锁: 长按 OK / Menu 不再弹应用菜单, 免得误移动、误隐藏、误卸载
+        Choices(
+            R.string.st_home_lock, stringResource(R.string.st_home_lock_hint), note,
+            listOf(true to R.string.st_on, false to R.string.st_off),
+            AerialSettings.homeLocked, onHomeLock,
+        )
+    }
+    Spacer(Modifier.height(12.dp))
+}
+
+/** 直播与卡片: 背景预览、卡顿灵敏度、B 站账号。 */
+@Composable
+private fun LiveSection() {
+    Group { note ->
+        // 二创：焦点选中 IPTV 应用时背景播放相关直播
+        Choices(
+            R.string.st_live_preview,
+            "焦点选中IPTV应用时背景播放相关直播",
+            note,
+            listOf(true to R.string.st_on, false to R.string.st_off),
+            AerialSettings.livePreviewEnabled, AerialSettings::chooseLivePreview, first = true,
+        )
+        // 画质不再有全局开关: 每张直播卡的画质在直播菜单里按台选。
+        Choices(
+            R.string.st_live_jank,
+            "高灵敏及早切备用源, 低灵敏减少误切, 关则不自动切换",
+            note,
+            listOf(
+                AerialSettings.JankSensitivity.Off to "关闭",
+                AerialSettings.JankSensitivity.Low to "低",
+                AerialSettings.JankSensitivity.Medium to "中",
+                AerialSettings.JankSensitivity.High to "高",
+            ),
+            AerialSettings.jankSensitivity, AerialSettings::chooseJankSensitivity,
+        )
+        BiliLoginRow(note)
+    }
+    Spacer(Modifier.height(12.dp))
+}
+
+/** 外观与声音: 焦点框、特效、开场遮罩、按键音与它的音量。 */
+@Composable
+private fun LookSection() {
+    Group { note ->
+        Choices(
+            R.string.st_focus_style,
+            stringResource(if (AerialSettings.focusStyle == FocusStyle.HighContrast) R.string.st_focus_high_hint else R.string.st_focus_standard_hint),
+            note,
+            listOf(FocusStyle.HighContrast to R.string.st_focus_high, FocusStyle.Standard to R.string.st_focus_standard),
+            AerialSettings.focusStyle, AerialSettings::chooseFocusStyle, first = true,
+        )
+        Choices(
+            R.string.st_sounds,
+            stringResource(if (AerialSettings.uiSounds == UiSounds.Tv) R.string.st_sounds_tv_hint else R.string.st_sounds_hint),
+            note,
+            listOf(UiSounds.Tv to R.string.st_sounds_tv, UiSounds.Aerial to R.string.st_sounds_aerial, UiSounds.Off to R.string.st_off),
+            AerialSettings.uiSounds, { AerialSettings.chooseUiSounds(it); Sounds.prepare() },
+        )
+        // Aerial 自带按键音的独立音量: 只在选「Aerial」时出现, 和电视音量滑块无关。
+        if (AerialSettings.uiSounds == UiSounds.Aerial) {
+            KeyVolumeRow(note)
+        }
+        Choices(
+            R.string.st_splash_veil,
+            stringResource(R.string.st_splash_veil_hint),
+            note,
+            listOf(true to R.string.st_on, false to R.string.st_off),
+            AerialSettings.splashVeilEnabled, AerialSettings::chooseSplashVeil,
+        )
+        Choices(
+            R.string.st_effects,
+            stringResource(
+                if (AerialSettings.effects == Effects.Auto && AerialSettings.lowEnd) R.string.st_effects_auto_lite_hint
+                else R.string.st_effects_hint,
+            ),
+            note,
+            listOf(Effects.Auto to R.string.st_effects_auto, Effects.Full to R.string.st_effects_full, Effects.Lite to R.string.st_effects_lite),
+            AerialSettings.effects, AerialSettings::chooseEffects,
+        )
+    }
+    Spacer(Modifier.height(12.dp))
+}
+
+/** 屏幕保护程序: 类型、画质、时钟、延时、返回键。 */
+@Composable
+private fun ScreensaverSection(onStartScreensaver: () -> Unit) {
+    val context = LocalContext.current
+    Group { note ->
+        SettingRow(
+            R.string.ss_kind,
+            when {
+                Wallpapers.screensaver == ScreensaverMode.Videos -> stringResource(R.string.ss_videos_hint)
+                Wallpapers.screensaver == ScreensaverMode.System -> stringResource(R.string.ss_system_hint)
+                Wallpapers.screensaverFollows -> stringResource(R.string.ss_follow_hint)
+                AerialSettings.backStartsScreensaver -> stringResource(R.string.ss_back_hint)
+                else -> null
+            },
+            note, first = true,
+        ) { ScreensaverChoice(onStartScreensaver) }
+        // Only the qualities this TV can play; a 1080p-only TV has nothing to choose.
+        val qualities = remember { AerialFormats.supported(context) }
+        if (qualities.size > 1) {
+            val keeps = stringResource(
+                R.string.ss_aerial_keeps,
+                remember { android.text.format.Formatter.formatShortFileSize(context, AerialStream.keepLimit(context)) },
+                AerialSet.MAX,
+            )
+            Choices(
+                R.string.ss_quality, keeps, note,
+                listOf(AerialQuality.Auto to R.string.ss_quality_auto, AerialQuality.Hd to R.string.ss_quality_hd) +
+                    listOf(AerialQuality.Uhd to R.string.ss_quality_uhd, AerialQuality.DolbyVision to R.string.ss_quality_dv)
+                        .filter { it.first in qualities },
+                AerialSettings.aerialQuality, AerialSettings::chooseAerialQuality,
+            )
+        }
+        // The clock screensaver is its clock, and the others show none.
+        if (Wallpapers.screensaver == ScreensaverMode.Aerial || Wallpapers.screensaver == ScreensaverMode.Photos) Choices(
+            R.string.ss_show_time, stringResource(R.string.ss_show_time_hint), note,
+            listOf(true to R.string.st_on, false to R.string.st_off),
+            AerialSettings.screensaverClock, AerialSettings::chooseScreensaverClock,
+        )
+        // The firmware's screensaver starts on the firmware's timer.
+        if (Wallpapers.screensaver == ScreensaverMode.System) SettingRow(R.string.ss_delay, null, note) {
+            val delay = remember { SystemScreensaver.firmwareDelayMs(context) }
+            BasicText(
+                when {
+                    delay == null -> stringResource(R.string.ss_delay_system)
+                    delay == 0L -> stringResource(R.string.ss_delay_system_off)
+                    else -> stringResource(R.string.ss_delay_system_minutes, ((delay + 30_000) / 60_000).coerceAtLeast(1).toInt())
+                },
+                style = Type.Body.copy(color = Palette.SecondaryLabel),
+                modifier = Modifier.padding(end = 8.dp),
+            )
+        } else Choices(
+            R.string.ss_delay, null, note,
+            AerialSettings.screensaverChoices.map {
+                it to if (it == AerialSettings.NEVER) stringResource(R.string.ss_never) else stringResource(R.string.ss_minutes, it)
+            },
+            AerialSettings.screensaverMinutes, AerialSettings::chooseScreensaverMinutes,
+        )
+        Choices(
+            R.string.ss_back, stringResource(R.string.ss_back_choice_hint), note,
+            listOf(true to R.string.ss_back_on, false to R.string.ss_back_off),
+            AerialSettings.backStartsScreensaver, AerialSettings::chooseBackStartsScreensaver,
+        )
+    }
+    Spacer(Modifier.height(12.dp))
+}
+
+/** 天气与时钟。 */
+@Composable
+private fun WeatherSection() {
+    Group(stringResource(if (Weather.chosen) R.string.wp_weather_chosen else R.string.wp_weather_guessed)) { note ->
+        Choices(
+            R.string.st_clock_hours, stringResource(R.string.st_clock_hours_hint), note,
+            listOf(ClockHours.H24 to R.string.st_clock_hours_24, ClockHours.H12 to R.string.st_clock_hours_12),
+            if (AerialSettings.clockHours == ClockHours.H12) ClockHours.H12 else ClockHours.H24,
+            { AerialSettings.chooseClockHours(it) }, first = true,
+        )
+        // 天气是否显示在时钟下方
+        Choices(
+            R.string.st_weather_visibility, stringResource(R.string.st_weather_visibility_hint), note,
+            listOf(true to R.string.st_on, false to R.string.st_off),
+            AerialSettings.showWeather, AerialSettings::chooseShowWeather,
+        )
+        SettingRow(R.string.wp_weather_city, null, note) { WeatherValue() }
+    }
+    Spacer(Modifier.height(12.dp))
+}
+
+/** 家长控制: 密码与儿童/长辈模式的入口。 */
+@Composable
+private fun FamilySection(onPin: (on: Boolean) -> Unit, onKids: () -> Unit) {
+    // One row says what it is; a title over it would only repeat it.
+    Group(stringResource(R.string.st_pin_hint)) { note ->
+        SettingRow(R.string.st_pin, null, note, first = true) {
+            PinChoice(onPin)
+        }
+        SettingRow(R.string.st_kids, stringResource(R.string.st_kids_hint), note) {
+            ActionChip(
+                when {
+                    !Restricted.enabled -> stringResource(R.string.st_off)
+                    Restricted.kind == RestrictedKind.Kids -> stringResource(R.string.kids_kind_kids)
+                    else -> stringResource(R.string.kids_kind_elders)
+                },
+                Glyph.ChevronRight,
+                onKids,
+            )
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+}
+
+/** 智能设备设置: 原来在右侧常驻的二维码与说明, 现在收进自己的分类。 */
+@Composable
+private fun DeviceSection(phoneUrl: String?, qr: ImageBitmap?) {
+    PhoneCard(phoneUrl, qr)
+    Spacer(Modifier.height(12.dp))
+}
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun WallpaperRows(takeFocus: Boolean) {
     val items = Wallpapers.items
@@ -519,21 +639,21 @@ private fun WallpaperRows(takeFocus: Boolean) {
         }
     }
     var note by remember { mutableStateOf<String?>(null) }
-    // A row clips to its bounds, and the focused card grows by 8%: room on the left for that,
-    // with the row moved back by as much so the cards still line up with the titles.
-    LazyRow(
-        modifier = Modifier.offset(x = (-10).dp).drawWithContent {
-            // Keep the cards out of the phone column on old GPUs (#557), independently of the
-            // scroll layer's clip. Leave vertical room for the focused card's 8% zoom.
+    // 横向 + 纵向: 卡片按宽度自动折行(1080p 电视上一排五张), 焦点上下就能在网格里走,
+    // 不再靠一条横向翻页去翻十几张。左侧留出 8% 放大的余量, 与标题对齐。
+    FlowRow(
+        modifier = Modifier.fillMaxWidth().padding(start = 10.dp, end = 24.dp, top = 6.dp, bottom = 4.dp).drawWithContent {
+            // Keep the cards out of the pane on old GPUs (#557), independently of the scroll
+            // layer's clip. Leave room for the focused card's 8% zoom.
             val focusRoom = 16.dp.toPx()
             clipRect(top = -focusRoom, bottom = size.height + focusRoom) {
                 this@drawWithContent.drawContent()
             }
         },
         horizontalArrangement = Arrangement.spacedBy(18.dp),
-        contentPadding = PaddingValues(start = 14.dp, end = 24.dp, top = 6.dp, bottom = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        items(list, key = { it.id }) { wp ->
+        list.forEach { wp ->
             val hint = wallpaperNote(wp)
             WallpaperCard(wp, if (wp === list.first()) first else null, onFocused = { note = hint })
         }
