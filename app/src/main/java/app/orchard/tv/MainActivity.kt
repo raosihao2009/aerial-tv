@@ -350,8 +350,11 @@ class MainActivity : ComponentActivity() {
         // baked at the last start, so the window never shows black while Compose sets up. Without
         // one, keep what the window already shows (the kept backdrop of a locked start).
         val baked = Wallpapers.backdrop
-        DiagLog.i("启动调试: 窗口背景分支 cold=$coldBoot splashVeil=${AerialSettings.splashVeilEnabled} baked=${baked != null}")
-        if (coldBoot && AerialSettings.splashVeilEnabled) {
+        // 遮罩开关以磁盘上的值为准, 不信进程里那份状态: 14:27 那次冷启动记下的是
+        // splash_veil=false, 而设置里明明是开着的, 于是那次直接露了壁纸 —— 就是"闪一下壁纸"。
+        val veilOnDisk = getSharedPreferences("settings", Context.MODE_PRIVATE).getBoolean("splash_veil", true)
+        DiagLog.i("启动调试: 窗口背景分支 cold=$coldBoot splashVeil=${AerialSettings.splashVeilEnabled}/磁盘=$veilOnDisk baked=${baked != null}")
+        if (coldBoot && veilOnDisk) {
             // 冷启动: 窗口背景直接画开屏图(黑底+图标+Aerial字)。窗口一可见就是它, 不用等
             // 内容视图和 Compose 组合 —— 以前这里放的是上次烘焙的壁纸, 于是先看两秒壁纸才黑下来。
             // 直接铺开屏那页(渐变底 + 横排标志 + 一行小字): 窗口一可见就是它, 和遮罩画的是
@@ -420,7 +423,7 @@ class MainActivity : ComponentActivity() {
         )
         // 每一次进桌面都盖: 冷启动放开机影片 + 飞入, 热启动/重进放那 2.5 秒的标志动画。
         // 热启动不加遮罩的话, Compose 重建的那一两秒直接露在用户眼前(半张桌面、焦点框乱跳)。
-        if (AerialSettings.splashVeilEnabled) {
+        if (veilOnDisk) {
             DiagLog.i("启动调试: 启动遮罩已开启, 挂载遮罩")
             // 影片层在这台盒子上从来不出画面, 而且它会用一块 TextureView 把遮罩自己的绘制整块
             // 盖住(看起来像"开屏页不是遮罩画的")。开屏已经定成纯静态页, 影片不再挂。

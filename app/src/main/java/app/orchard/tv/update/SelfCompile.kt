@@ -44,8 +44,12 @@ object SelfCompile {
     /** Below this the oat file holds no compiled code (only verified: tens of KB). */
     private const val COMPILED_BYTES = 1L shl 20
 
-    /** How long another app stays in front before Aerial reinstalls itself behind it. */
-    private const val AUTO_DELAY_MS = 20_000L
+    /**
+     * How long another app stays in front before Aerial reinstalls itself behind it.
+     * 20 秒在这台当贝上等不到: 日志里退到后台十几次秒后进程就被系统收走, 20 秒的定时根本没机会响
+     * (诊断里 tried=false 就是这么来的)。缩到 6 秒, 后台动画早结束了, 重启也看不见。
+     */
+    private const val AUTO_DELAY_MS = 6_000L
 
     /** Android 9 to 11: Control Center offers the reinstall (it needs the owner's confirmation). */
     var offered by mutableStateOf(false); private set
@@ -163,12 +167,29 @@ object SelfCompile {
 
     private val auto = Runnable {
         val context = app ?: return@Runnable
-        if (inFront) return@Runnable
+        if (inFront) {
+            DiagLog.i("自编译: 跳过(人回到前台)")
+            return@Runnable
+        }
         if (Build.VERSION.SDK_INT < 31) {
             if (systemWorthIt(context)) Thread({ askSystem(context) }, "self-compile").start()
+            else DiagLog.i("自编译: 跳过(包管理器不必再问)")
             return@Runnable
         }
         if (worthIt(context)) run(context, auto = true)
+        else DiagLog.i("自编译: 跳过(" + skipReason(context) + ")")
+    }
+
+    /** Where [worthIt] said no: the diagnostic line that tells us which condition blocked it. */
+    private fun skipReason(context: Context): String {
+        if (Build.VERSION.SDK_INT < 28) return "系统低于 9"
+        if (!Updates.canInstall(context)) return "没有安装权限"
+        if (triedThisVersion(context)) return "本版本已试过"
+        val odex = odexBytes(context)
+        if (odex == null) return "找不到 odex"
+        if (odex >= COMPILED_BYTES) return "已经编译过(odex ${odex / 1024} KB)"
+        if (Updates.ownDexMetadata(context) == null) return "包里没有 dex 元数据"
+        return "未知"
     }
 
     /**
