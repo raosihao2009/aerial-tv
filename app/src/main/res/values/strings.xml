@@ -72,6 +72,8 @@
     <string name="unavailable">Not available on this TV</string>
     <string name="cc_brightness">Brightness</string>
     <string name="cc_brightness_in_settings">Picture Settings</string>
+    <string name="cc_check_update">Check for updates</string>
+    <string name="cc_checking">Checking…</string>
     <string name="cc_personalize">Personalize</string>
     <string name="wp_title">Personalize</string>
     <string name="wp_wallpaper">Wallpaper</string>

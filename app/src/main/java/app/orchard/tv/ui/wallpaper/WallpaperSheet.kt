@@ -6,6 +6,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -709,6 +711,7 @@ private fun <T> Choices(
 @Composable
 private fun KeyVolumeRow(note: (String?) -> Unit) {
     SettingRow(R.string.st_key_volume, stringResource(R.string.st_key_volume_hint), note) {
+        var bumpedEdge by remember { mutableStateOf(0) }
         Pressable(
             onClick = {},
             focusedScale = 1.0f,
@@ -720,8 +723,15 @@ private fun KeyVolumeRow(note: (String?) -> Unit) {
                     val delta = if (code == NativeKeyEvent.KEYCODE_DPAD_RIGHT) 1 else -1
                     val now = AerialSettings.keyVolume
                     val next = (now + delta).coerceIn(0, 100)
-                    // 到头就停住, 不响"撞边"音: 这一档本身是调音量的, 多一声更吵。
-                    if (next != now) { Sounds.step(); AerialSettings.chooseKeyVolume(next) }
+                    if (next != now) {
+                        bumpedEdge = 0
+                        Sounds.step()
+                        AerialSettings.chooseKeyVolume(next)
+                    } else if (bumpedEdge != delta) {
+                        // 到头的"撞边"声只响一下: 停在端点继续按不再重复, 离开再回来才算新的一次。
+                        bumpedEdge = delta
+                        Sounds.limit()
+                    }
                 }
                 true
             },
@@ -729,6 +739,12 @@ private fun KeyVolumeRow(note: (String?) -> Unit) {
             val bg by animateColorAsState(if (state.focused) Palette.Focus else Palette.Fill, tween(140, easing = Motion.EaseOut), label = "keyvol-bg")
             val fg = if (state.focused) Palette.OnFocus else Palette.Label
             val volume = AerialSettings.keyVolume
+            // 条形跟着数值走一段动画, 不再瞬时跳变。
+            val fraction by animateFloatAsState(
+                targetValue = volume / 100f,
+                animationSpec = tween(160, easing = LinearEasing),
+                label = "keyvol-level",
+            )
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).drawBehind { drawRect(bg) }.height(40.dp).padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -737,7 +753,7 @@ private fun KeyVolumeRow(note: (String?) -> Unit) {
                 Canvas(Modifier.weight(1f).height(6.dp)) {
                     val r = CornerRadius(size.height / 2)
                     drawRoundRect(fg.copy(alpha = 0.2f), cornerRadius = r)
-                    drawRoundRect(fg, size = GeometrySize(size.width * (volume / 100f), size.height), cornerRadius = r)
+                    drawRoundRect(fg, size = GeometrySize(size.width * fraction, size.height), cornerRadius = r)
                 }
                 BasicText(
                     volume.toString(),

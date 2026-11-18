@@ -109,6 +109,9 @@ object Updates {
      */
     val upToDate: Boolean get() = available == null && !checkFailed && freshAt > 0
 
+    /** 正在查(面板上手动点了"检查更新"时用来显示"检查中…")。 */
+    var checking by mutableStateOf(false); private set
+
     /** 最近一次检查失败了(源不通、超时、返回内容不对)。 */
     val checkFailed: Boolean get() = lastResult?.startsWith("failed") == true
 
@@ -136,7 +139,9 @@ object Updates {
                 loadNotes()
             },
             log = { Log.i(TAG, it); DiagLog.i("更新检查: $it") },
+            onStart = { checking = true },
             onResult = { result ->
+                checking = false
                 lastResult = result
                 if (result.startsWith("success")) freshAt = System.currentTimeMillis()
             },

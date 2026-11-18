@@ -20,6 +20,7 @@ internal class UpdateCheck(
     private val save: (String, Long) -> Unit,
     private val log: (String) -> Unit,
     private val onResult: (String) -> Unit = {},
+    private val onStart: () -> Unit = {},
     private val wallTime: () -> Long = System::currentTimeMillis,
     private val elapsedTime: () -> Long = SystemClock::elapsedRealtime,
 ) {
@@ -93,6 +94,7 @@ internal class UpdateCheck(
         handler.removeCallbacks(retry)
         retryAt = null
         checking = true
+        onStart()
         attemptedAt = wallTime()
         attemptedElapsed = now
         record("$source started")

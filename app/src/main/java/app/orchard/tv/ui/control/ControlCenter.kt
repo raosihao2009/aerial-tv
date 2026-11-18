@@ -368,6 +368,14 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
             stringResource(R.string.cc_personalize),
             onClick = { vm.overlay = Overlay.Wallpaper },
         )
+        // 手动查一次: 不跳页, 结论落在底部那行状态("Aerial x · 已是最新 / 检查更新失败");
+        // 真查到新版时, 下面会多出那条带版本号的更新入口。
+        MenuRow(
+            Glyph.Download,
+            stringResource(R.string.cc_check_update),
+            onClick = { Updates.checkIfStale(force = true, maxAgeMs = Updates.CONTROL_CENTER_MAX_AGE_MS) },
+            trailing = if (Updates.checking) stringResource(R.string.cc_checking) else null,
+        )
         // What the TV opens when switched on: easy to forget, and puzzling when it happens.
         vm.bootTargetLabel()?.let { name ->
             MenuRow(
@@ -666,8 +674,20 @@ private fun SliderRow(
     // the drag handler below is made once and outlives this composition's values.
     val atLevel by rememberUpdatedState(level)
     val doStep by rememberUpdatedState(onStep)
+    // 撞边声只响一下: 停在端点后继续按(或按住)不再重复"嗒", 离开端点再回来才算新的一次撞击。
+    var bumpedEdge by remember { mutableStateOf(0) }
     val step = { by: Int ->
-        if ((by > 0 && atLevel >= 0.999f) || (by < 0 && atLevel <= 0.001f)) Sounds.limit() else Sounds.step()
+        val edge = when {
+            by > 0 && atLevel >= 0.999f -> 1
+            by < 0 && atLevel <= 0.001f -> -1
+            else -> 0
+        }
+        if (edge != 0) {
+            if (bumpedEdge != edge) { Sounds.limit(); bumpedEdge = edge }
+        } else {
+            bumpedEdge = 0
+            Sounds.step()
+        }
         doStep(by)
     }
     val stepCount by rememberUpdatedState(steps.coerceAtLeast(1))
