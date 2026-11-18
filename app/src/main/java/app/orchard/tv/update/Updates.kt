@@ -48,8 +48,14 @@ import java.util.Locale
 object Updates {
     private const val TAG = "AerialUpdates"
     private const val PREFS = "updates"
-    private const val VERSION_URL = "https://aerial.qust.me/download/version.txt"
-    private const val NOTES_URL = "https://aerial.qust.me/download/notes.json"
+    /**
+     * 更新源换成这个 fork 自己的 GitHub Release: `/releases/latest/download/<资产名>` 是固定地址,
+     * 永远指向最新一版, 所以出包时只要在 Release 上挂好资产, 应用这边的地址不用跟着改。
+     * 上游那两个地址(aerial.qust.me 和 pengchujin 的仓库)给的是 app.orchard.tv 的包, 装不上也装不动。
+     */
+    private const val BASE = "https://github.com/raosihao2009/aerial-tv/releases/latest/download"
+    private const val VERSION_URL = "$BASE/version.txt"
+    private const val NOTES_URL = "$BASE/notes.json"
 
     /**
      * A source that delivers less than [STALL_BYTES] in [STALL_MS] is given up for the next one
@@ -171,7 +177,7 @@ object Updates {
         c.connectTimeout = 8_000
         c.readTimeout = 10_000
         return try {
-            c.inputStream.use { it.readBytes().decodeToString() }
+            c.inputStream.use { it.readBytes().decodeToString().trim() }
         } finally {
             c.disconnect()
         }
@@ -204,11 +210,12 @@ object Updates {
         NotNewer,
     }
 
-    /** The official package. Copies renamed for one firmware (OPPO, see docs/devices) cannot update from the release. */
-    private const val PACKAGE = "app.orchard.tv"
-
-    /** Whether this copy can update itself from the release at all. */
-    fun canInstall(context: Context): Boolean = context.packageName == PACKAGE
+    /**
+     * 能不能用这条更新链路。上游比的是写死的官方包名, 这个 fork 的包名是 app.orchard.tb, 那样写
+     * 等于永远 false(点了下载也只会回一句"不是官方包")。改成跟着本包的 applicationId 走:
+     * 只要装的确实是这份构建, 更新源给的也是它自己的包, 就允许。
+     */
+    fun canInstall(context: Context): Boolean = context.packageName == BuildConfig.APPLICATION_ID
 
     /**
      * 自编译用的判定: 它只是把自己包里的 APK 重装回自己, 不下载、不跨包名, 所以和
@@ -579,11 +586,9 @@ object Updates {
             if (Build.VERSION.SDK_INT < 24) file.setReadable(true, false)
             return verify(context, file)
         }
-        val name = "aerial-${BuildConfig.FLAVOR}.apk"
-        val sources = listOf(
-            "https://aerial.qust.me/download/$name",
-            "https://github.com/pengchujin/aerial-tv/releases/latest/download/$name",
-        )
+        val name = "AerialTV-${BuildConfig.FLAVOR}.apk"
+        // 只有我们自己的源; 上游那两处会下到 app.orchard.tv 的包, 签名与包名都对不上。
+        val sources = listOf("$BASE/$name")
         for (url in sources) {
             val ok = runCatching { download(url, file) }
                 .onFailure { Log.w(TAG, "could not download $url", it) }
