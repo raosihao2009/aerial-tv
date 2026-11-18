@@ -51,6 +51,13 @@ object SelfCompile {
      */
     private const val AUTO_DELAY_MS = 6_000L
 
+    /**
+     * 更新之后第一次启动带有遮罩, 那几秒正好把编译的开始藏起来: 不必等到熄屏或退后台
+     * (这台当贝屏保 24 小时, 桌面几乎不退后台, 实测常常错过时机)。延迟 3 秒让启动本身先跑完,
+     * 免得和首帧抢 IO。
+     */
+    private const val VEIL_DELAY_MS = 3_000L
+
     /** Android 9 to 11: Control Center offers the reinstall (it needs the owner's confirmation). */
     var offered by mutableStateOf(false); private set
 
@@ -168,6 +175,34 @@ object SelfCompile {
         inFront = false
         main.removeCallbacks(auto)
         if (Build.VERSION.SDK_INT >= 24) main.postDelayed(auto, AUTO_DELAY_MS)
+    }
+
+    /**
+     * 冷启动挂上遮罩那一刻调用(MainActivity)。只在还没编译过的版本上有动作; 编译是后台重装,
+     * 系统会在几十秒后重启 Aerial, 那时遮罩早已揭开, 所以只在这里抢时间, 不抢画面。
+     */
+    fun onVeilShown(context: Context) {
+        // init 在 IO 线程上跑, 可能还没把 app 设好; 这里自己兜一层。
+        app = context.applicationContext
+        main.removeCallbacks(veilAuto)
+        main.postDelayed(veilAuto, VEIL_DELAY_MS)
+    }
+
+    private val veilAuto = Runnable {
+        val context = app ?: return@Runnable
+        if (Build.VERSION.SDK_INT < 31) {
+            if (systemWorthIt(context)) {
+                DiagLog.i("自编译: 遮罩期问包管理器")
+                Thread({ askSystem(context) }, "self-compile").start()
+            }
+            return@Runnable
+        }
+        if (!worthIt(context)) {
+            DiagLog.i("自编译: 跳过(" + skipReason(context) + ")")
+            return@Runnable
+        }
+        DiagLog.i("自编译: 遮罩期开始")
+        run(context, auto = true)
     }
 
     private val auto = Runnable {

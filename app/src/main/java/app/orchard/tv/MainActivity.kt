@@ -435,6 +435,8 @@ class MainActivity : ComponentActivity() {
                 FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT),
             )
             BootVeil.attach(veil)
+            // 更新后的第一次启动: 遮罩盖着的这段时间用来开始自编译, 不用等熄屏/退后台。
+            if (coldBoot) SelfCompile.onVeilShown(this)
             // 热启动也不在这里定时撤: 撤罩要看"首排首列是不是直播", 那个判定在 HomeScreen
             // 里(它知道焦点落在哪、直播有没有出帧)。这里写死 600ms 会绕过判定, 直播还没出画面
             // 就被撤掉。兜底由下面那条 forceFinish 负责。
