@@ -640,12 +640,23 @@ object Updates {
         val mirror = runCatching { mirrorFor(BuildConfig.FLAVOR) }
             .onFailure { Log.i(TAG, "mirror lookup: ${it.javaClass.simpleName}") }
             .getOrNull()
-        val sources = listOfNotNull(mirror, "$BASE/$name").distinct()
-        for (url in sources) {
+        val sources = listOfNotNull(
+            mirror?.let { "镜像" to it },
+            "GitHub" to "$BASE/$name",
+        ).distinctBy { it.second }
+        for ((label, url) in sources) {
+            DiagLog.i("更新下载: 试$label 源")
+            val started = SystemClock.elapsedRealtime()
             val ok = runCatching { download(url, file) }
                 .onFailure { Log.w(TAG, "could not download $url", it) }
                 .isSuccess
-            if (ok) verify(context, file)?.let { return it }
+            if (ok) {
+                val seconds = (SystemClock.elapsedRealtime() - started) / 1000
+                DiagLog.i("更新下载: $label 源完成, 用时 ${seconds}s")
+                verify(context, file)?.let { return it }
+            } else {
+                DiagLog.i("更新下载: $label 源失败")
+            }
             file.delete()
         }
         return null
