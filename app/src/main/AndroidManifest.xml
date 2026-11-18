@@ -73,6 +73,7 @@
     <!-- largeHeap: up to Android 7 bitmaps live on the Java heap, and LeTV X3-55 Pro (Android 5.0.1)
          ran out of it drawing Home (issue #328). -->
     <application
+        android:name=".AerialApp"
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:banner="@drawable/banner"

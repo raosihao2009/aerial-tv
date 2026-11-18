@@ -359,6 +359,7 @@ fun ChannelFocusPreview(
                             (p.bufferedPosition - RECOVER_SEEK_BACK_MS)
                                 .coerceAtLeast(p.currentPosition.coerceAtLeast(0L))
                         )
+                        StreamHealth.markGood(url)
                         DiagLog.i("直播预览: ${stalled.id} 原地重载就绪(第 $rounds 轮)")
                         loaded = true
                         // 看门狗触发后已经 break 结束, 原地重载没换 player, 这里必须重新挂上看门狗,
@@ -366,6 +367,7 @@ fun ChannelFocusPreview(
                         // 预热用短档: 刚恢复就又卡的情况要能立刻被发现。
                         startWatchdog(p, stalled.id, RELOAD_WARMUP_MS)
                     } else {
+                        StreamHealth.markBad(url)
                         DiagLog.i("直播预览: ${stalled.id} 第 $rounds 轮未就绪, 换下一路")
                         kotlinx.coroutines.delay(RECOVER_GAP_MS)
                     }
@@ -1049,7 +1051,26 @@ private class StreamCandidates(val urls: List<String>) {
     var index = 0
         private set
     private var cycleIndex = 0
-    fun pollNext(): String? = if (index < urls.size) urls[index++] else null
+
+    /**
+     * 下一路: 已知坏掉的(冷却期内)先跳过, 从还能用的那路开始。
+     * 一轮里全是坏的才回退到全部重来 —— 总比"没有候选"直接判死强。
+     */
+    private var ignoringCooling = false
+
+    fun pollNext(): String? {
+        while (index < urls.size) {
+            val u = urls[index++]
+            if (ignoringCooling || !StreamHealth.cooling(u)) return u
+        }
+        // 一轮走完全是坏地址: 不认这个冷却, 从头再来一遍, 让播放器自己去判断
+        if (!ignoringCooling && urls.isNotEmpty()) {
+            ignoringCooling = true
+            index = 0
+            return pollNext()
+        }
+        return null
+    }
     fun cycleNext(): String {
         val u = urls[cycleIndex % urls.size]
         cycleIndex++
@@ -1069,6 +1090,33 @@ private fun buildHlsMediaSource(url: String, isBili: Boolean, context: android.c
         ))
     }
     return HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(Uri.parse(url)))
+}
+
+/**
+ * 坏地址冷却表: 一次原地重载里 4 路候选有 3 路是 BAD_HTTP_STATUS, 失败的往往不是"播放器不行",
+ * 而是这几条 URL 本身已经失效(下播/换地址/签名过期)。记住它们, 下次直接从能用的那路起,
+ * 省掉每路 2 秒的试错。只在本次进程内有效, 重启后从零开始。
+ */
+private object StreamHealth {
+    private const val COOLDOWN_MS = 10 * 60 * 1000L
+    private val badAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    fun markBad(url: String?) {
+        if (!url.isNullOrBlank()) badAt[url] = android.os.SystemClock.elapsedRealtime()
+    }
+
+    fun markGood(url: String?) {
+        if (!url.isNullOrBlank()) badAt.remove(url)
+    }
+
+    fun cooling(url: String): Boolean {
+        val at = badAt[url] ?: return false
+        if (android.os.SystemClock.elapsedRealtime() - at > COOLDOWN_MS) {
+            badAt.remove(url)
+            return false
+        }
+        return true
+    }
 }
 
 /** 30 秒窗口内救场超过 3 次(即第 4 次起), 看门狗才升级成真正的换源。 */

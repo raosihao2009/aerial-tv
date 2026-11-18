@@ -18,6 +18,12 @@ object FrameStats {
     private const val KEEP = 600
     private const val SKIP_START_MS = 5_000L
     private const val BUDGET_NS = 16_700_000L
+
+    /**
+     * 超过一秒的"帧耗时"不可能是真的: 有的固件对不支持的指标直接给 Long.MAX(或负数)。
+     * 这种样本一旦进统计, 排序后必然落在 p90/p99/最慢的位置, 诊断里就成了 9.2e12 ms。
+     */
+    private const val MAX_PLAUSIBLE_NS = 1_000_000_000L
     private val total = LongArray(KEEP)
     /** The GPU's part of the same frames (Android 12+): says whether a slow TV waits on its GPU. */
     private val gpu = LongArray(KEEP)
@@ -41,7 +47,10 @@ object FrameStats {
                 return@addOnFrameMetricsAvailableListener
             }
             val ns = metrics.getMetric(FrameMetrics.TOTAL_DURATION)
-            val gpuNs = if (Build.VERSION.SDK_INT >= 31) metrics.getMetric(FrameMetrics.GPU_DURATION) else 0L
+            if (ns <= 0L || ns > MAX_PLAUSIBLE_NS) return@addOnFrameMetricsAvailableListener
+            val gpuNs = if (Build.VERSION.SDK_INT >= 31) {
+                metrics.getMetric(FrameMetrics.GPU_DURATION).takeIf { it in 0..MAX_PLAUSIBLE_NS } ?: 0L
+            } else 0L
             synchronized(this) {
                 total[(count % KEEP).toInt()] = ns
                 gpu[(count % KEEP).toInt()] = gpuNs

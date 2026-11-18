@@ -116,6 +116,18 @@ object Sounds {
         if (on) audio?.playSoundEffect(effect, -1f)
     }
 
+    /**
+     * 音效要跟着电视的音量走。Aerial 自带那套挂在 sonification 流上, 而不少盒子(当贝 DBBOX-A2)
+     * 这一路没有音量项、电平固定, 于是音量调到 0 它还在响; TCL 换成了挂在主音量上的音效, 调到 0 就静。
+     * 这里按媒体音量的比例再乘一道, 两台机器的表现就一致了 —— 静音时没有声音, 音量越小越轻。
+     */
+    private fun mediaGain(): Float = runCatching {
+        val am = audio ?: return 1f
+        if (am.isStreamMute(AudioManager.STREAM_MUSIC)) return 0f
+        val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        (am.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / max).coerceIn(0f, 1f)
+    }.getOrDefault(1f)
+
     private fun play(effect: Int, kind: Kind) {
         when (AerialSettings.uiSounds) {
             UiSounds.Off -> Unit
@@ -128,7 +140,8 @@ object Sounds {
                     Kind.Back -> back to 0.9f
                     Kind.Limit -> limit to 0.9f
                 }
-                if (id != 0) p.play(id, volume, volume, 1, 0, 1f)
+                val gain = mediaGain()
+                if (id != 0 && gain > 0f) p.play(id, volume * gain, volume * gain, 1, 0, 1f)
             }
         }
     }
