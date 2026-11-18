@@ -167,11 +167,13 @@ private object ControlCenterWarmed { var done = false }
 private const val CC_WARM_AFTER_MS = 3_000L
 
 /**
- * 焦点移动动画(卡片缩放, 临界阻尼弹簧)落定后, 再挪出的一段时间。预览的起播和收尾都以它为界:
- * 起播等它跑完再开始(期间由加载图占位), 收尾等它跑完再消失, 免得动画和画面互相打脸。
- * 300ms 是弹簧本身的落定时间, 后面 +500ms 是给"视觉上真的停稳"留的余量(实机看得更顺)。
+ * 预览的起播等待: 卡片放大的弹簧落定(~300ms)之后再多留一段, 让"手停了、画面才动"更明显。
+ * 收播单独用 [PREVIEW_EXIT_MS], 缩回去的过程本身更快, 等 800ms 会让画面赖在已经移走的卡上。
  */
-internal const val PREVIEW_LEAVE_MS = 800L
+internal const val PREVIEW_ENTER_MS = 800L
+
+/** 预览的收播等待: 卡片缩回原位的动画时长, 走完就收。 */
+internal const val PREVIEW_EXIT_MS = 300L
 
 private val GridMargin = 56.dp
 
@@ -420,7 +422,7 @@ fun HomeScreen(
             previewLeaveNow = false
             previewHold = false
         } else {
-            kotlinx.coroutines.delay(PREVIEW_LEAVE_MS)
+            kotlinx.coroutines.delay(PREVIEW_EXIT_MS)
             previewHold = false
         }
     }

@@ -514,7 +514,7 @@ fun ChannelFocusPreview(
 
         // 从普通卡移进直播卡才等动画: 卡片缩放是临界阻尼弹簧, 早一步建 ExoPlayer 会和它抢主线程。
         // 已经在播的时候切换源(player 仍绑着)不必再等 —— 那股"等 0.8 秒"的迟滞会白加在切换上。
-        if (player == null) kotlinx.coroutines.delay(PREVIEW_LEAVE_MS)
+        if (player == null) kotlinx.coroutines.delay(PREVIEW_ENTER_MS)
 
         // 加载遮罩：始终显示加载图, 直到新流就绪
         st.loading = true

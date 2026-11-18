@@ -750,6 +750,14 @@ private fun KeyVolumeRow(note: (String?) -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                // 喇叭图标放在滑块条的左边(和控制中心音量滑块同一套 Atom: 同一 Glyph、同一尺寸),
+                // 音量格数用 level 表现, 不额外写字。
+                GlyphIcon(
+                    if (volume == 0) Glyph.SpeakerMuted else Glyph.Speaker,
+                    fg,
+                    18.dp,
+                    level = fraction,
+                )
                 Canvas(Modifier.weight(1f).height(6.dp)) {
                     val r = CornerRadius(size.height / 2)
                     drawRoundRect(fg.copy(alpha = 0.2f), cornerRadius = r)
