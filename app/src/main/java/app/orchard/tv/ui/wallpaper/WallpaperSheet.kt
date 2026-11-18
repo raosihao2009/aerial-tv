@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -711,15 +712,16 @@ private fun KeyVolumeRow(note: (String?) -> Unit) {
         Pressable(
             onClick = {},
             focusedScale = 1.0f,
-            modifier = Modifier.width(300.dp),
+            modifier = Modifier.width(250.dp),
             onKey = { e ->
                 val code = e.nativeKeyEvent.keyCode
                 if (code != NativeKeyEvent.KEYCODE_DPAD_LEFT && code != NativeKeyEvent.KEYCODE_DPAD_RIGHT) return@Pressable false
                 if (e.type == KeyEventType.KeyDown) {
-                    val delta = if (code == NativeKeyEvent.KEYCODE_DPAD_RIGHT) 5 else -5
+                    val delta = if (code == NativeKeyEvent.KEYCODE_DPAD_RIGHT) 1 else -1
                     val now = AerialSettings.keyVolume
                     val next = (now + delta).coerceIn(0, 100)
-                    if (next == now) Sounds.limit() else { Sounds.step(); AerialSettings.chooseKeyVolume(next) }
+                    // 到头就停住, 不响"撞边"音: 这一档本身是调音量的, 多一声更吵。
+                    if (next != now) { Sounds.step(); AerialSettings.chooseKeyVolume(next) }
                 }
                 true
             },
@@ -728,7 +730,7 @@ private fun KeyVolumeRow(note: (String?) -> Unit) {
             val fg = if (state.focused) Palette.OnFocus else Palette.Label
             val volume = AerialSettings.keyVolume
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).drawBehind { drawRect(bg) }.height(40.dp).padding(horizontal = 14.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).drawBehind { drawRect(bg) }.height(40.dp).padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -740,7 +742,8 @@ private fun KeyVolumeRow(note: (String?) -> Unit) {
                 BasicText(
                     volume.toString(),
                     style = Type.Body.copy(color = fg),
-                    modifier = Modifier.width(40.dp),
+                    modifier = Modifier.widthIn(min = 26.dp),
+                    maxLines = 1,
                 )
             }
         }

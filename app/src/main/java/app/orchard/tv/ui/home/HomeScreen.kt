@@ -167,10 +167,11 @@ private object ControlCenterWarmed { var done = false }
 private const val CC_WARM_AFTER_MS = 3_000L
 
 /**
- * 焦点移动动画(卡片缩放, 临界阻尼弹簧)完全落定所需的时间。预览的起播和收尾都以它为界:
+ * 焦点移动动画(卡片缩放, 临界阻尼弹簧)落定后, 再挪出的一段时间。预览的起播和收尾都以它为界:
  * 起播等它跑完再开始(期间由加载图占位), 收尾等它跑完再消失, 免得动画和画面互相打脸。
+ * 300ms 是弹簧本身的落定时间, 后面 +500ms 是给"视觉上真的停稳"留的余量(实机看得更顺)。
  */
-internal const val PREVIEW_LEAVE_MS = 300L
+internal const val PREVIEW_LEAVE_MS = 800L
 
 private val GridMargin = 56.dp
 
