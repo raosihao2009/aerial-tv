@@ -17,6 +17,7 @@ import android.provider.Settings
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import android.util.Log
+import androidx.core.app.NotificationManagerCompat
 import app.orchard.tv.MainActivity
 import app.orchard.tv.dream.AerialDream
 import app.orchard.tv.system.DiagLog
@@ -649,21 +650,38 @@ object GuardSetup {
      * WRITE_SECURE_SETTINGS there, so add itself after what is there, which stays as it is.
      */
     private fun ensureListenerBeforeNougat(context: Context) {
-        val me = ComponentName(context, RevivalListener::class.java).flattenToString()
-        val current = Settings.Secure.getString(context.contentResolver, ENABLED_LISTENERS).orEmpty()
-        if (current.split(':').any { it == me }) return
-        runCatching {
-            Settings.Secure.putString(context.contentResolver, ENABLED_LISTENERS, if (current.isEmpty()) me else "$current:$me")
+        val app = context.applicationContext
+        ensureListener(app)
+        // 每次装新版, 系统都会把通知使用权撤销(诊断里 allowed 从 true 变回 false 就是这次)。
+        // 写入当场可能读得回来、过一会儿又被清掉, 所以隔一会儿再看几次, 谁缺补谁。
+        listenerRecheck.removeCallbacksAndMessages(null)
+        for (delay in longArrayOf(3_000L, 15_000L, 60_000L)) {
+            listenerRecheck.postDelayed({ ensureListener(app) }, delay)
         }
-        // 回读确认: Android 7 起系统会校验这个列表, 有的固件收、有的固件直接抹掉。
-        // 当贝 DBBOX-A2 装完就是 allowed=false, 复活那条线只剩一半, 所以在每次开机都再试一次,
-        // 并且把结果写进诊断 —— 成了是自动修好, 不成就明确告诉人"要手动开"。
-        val after = runCatching {
-            Settings.Secure.getString(context.contentResolver, ENABLED_LISTENERS).orEmpty()
-        }.getOrDefault("")
-        val ok = after.split(':').any { it.equals(me, ignoreCase = true) }
-        if (ok) DiagLog.i("复活: 通知使用权已自动开启")
-        else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) DiagLog.i("复活: 通知使用权未生效, 需在设置里手动开(待机后自动回来)")
+    }
+
+    private val listenerRecheck by lazy { Handler(Looper.getMainLooper()) }
+    private var listenerSaid = false
+
+    /** 补上《通知使用权》: 写入 + 用系统自己的视角回读, 结果只记一次, 免得每次开机刷屏。 */
+    private fun ensureListener(context: Context) {
+        val me = ComponentName(context, RevivalListener::class.java).flattenToString()
+        val sys = runCatching { NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName) }.getOrDefault(false)
+        val raw = Settings.Secure.getString(context.contentResolver, ENABLED_LISTENERS).orEmpty()
+        if (sys && raw.split(':').any { it.equals(me, ignoreCase = true) }) return
+        val wrote = runCatching {
+            Settings.Secure.putString(context.contentResolver, ENABLED_LISTENERS, if (raw.isEmpty()) me else "$raw:$me")
+        }.isSuccess
+        val after = runCatching { NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName) }.getOrDefault(false)
+        if (listenerSaid && after) return
+        listenerSaid = true
+        DiagLog.i(
+            when {
+                after -> "复活: 通知使用权已开启"
+                wrote -> "复活: 通知使用权未生效(已写入, 系统未认, 需手动开)"
+                else -> "复活: 通知使用权写入失败(需手动开)"
+            }
+        )
     }
 
     fun ensureEnabled(context: Context): Boolean {

@@ -87,7 +87,7 @@ object SelfCompile {
 
     /** Whether reinstalling would help: Android 9+, the official package, uncompiled, metadata in the APK, not tried for this version. */
     private fun worthIt(context: Context): Boolean {
-        if (Build.VERSION.SDK_INT < 28 || !Updates.canInstall(context) || triedThisVersion(context)) return false
+        if (Build.VERSION.SDK_INT < 28 || !Updates.canReinstallSelf(context) || triedThisVersion(context)) return false
         val odex = odexBytes(context) ?: return false
         return odex < COMPILED_BYTES && Updates.ownDexMetadata(context) != null
     }
@@ -183,7 +183,7 @@ object SelfCompile {
     /** Where [worthIt] said no: the diagnostic line that tells us which condition blocked it. */
     private fun skipReason(context: Context): String {
         if (Build.VERSION.SDK_INT < 28) return "系统低于 9"
-        if (!Updates.canInstall(context)) return "没有安装权限"
+        if (!Updates.canReinstallSelf(context)) return "没有安装权限"
         if (triedThisVersion(context)) return "本版本已试过"
         val odex = odexBytes(context)
         if (odex == null) return "找不到 odex"

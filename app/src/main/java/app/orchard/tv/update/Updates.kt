@@ -211,6 +211,15 @@ object Updates {
     fun canInstall(context: Context): Boolean = context.packageName == PACKAGE
 
     /**
+     * 自编译用的判定: 它只是把自己包里的 APK 重装回自己, 不下载、不跨包名, 所以和
+     * [canInstall] 的"是不是官方包"无关 —— 之前借用 canInstall, 而这个 fork 的包名是
+     * app.orchard.tb, 于是永远等于 false, 自编译一次都没跑过(日志: 跳过(没有安装权限))。
+     * 这里只要求系统允许安装未知来源。
+     */
+    fun canReinstallSelf(context: Context): Boolean =
+        Build.VERSION.SDK_INT < 26 || context.packageManager.canRequestPackageInstalls()
+
+    /**
      * Downloads this flavor's APK of the latest release and installs it. Android 9 and later, a
      * PackageInstaller session first (installBySession), as only a session can carry the dex
      * metadata that has the system compile Aerial as it installs. Where the session fails, the system
