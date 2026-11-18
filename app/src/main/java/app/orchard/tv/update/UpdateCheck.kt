@@ -26,7 +26,8 @@ internal class UpdateCheck(
     companion object {
         const val MAX_AGE_MS = 3 * 60 * 60 * 1000L
         const val PANEL_MAX_AGE_MS = 10 * 60 * 1000L
-        private val RETRY_DELAYS = longArrayOf(30_000, 120_000, 600_000, 1_800_000)
+        // 多路读取已经把偶发失败压下去了, 第一次重试也提前到 15 秒: 面板开着的用户不用干等半分钟。
+        private val RETRY_DELAYS = longArrayOf(15_000, 60_000, 300_000, 900_000)
         private const val NETWORK_SETTLE_MS = 2_000L
         private const val NETWORK_MIN_INTERVAL_MS = 5_000L
     }

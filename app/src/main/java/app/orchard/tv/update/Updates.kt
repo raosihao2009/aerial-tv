@@ -30,6 +30,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
@@ -55,6 +56,13 @@ object Updates {
      */
     private const val BASE = "https://github.com/raosihao2009/aerial-tv/releases/latest/download"
     private const val VERSION_URL = "$BASE/version.txt"
+    /**
+     * 版本号的兜底地址: Release 资产偶尔因为 TLS 握手/解析卡住而失败(表现为"有时候检查更新失败"),
+     * 再挂一份同内容文件在仓库 update 分支根部, 走 raw 直链(和 github.com 不是同一条链路)。
+     * 顺序即优先级, 每条各试两次。
+     */
+    private const val VERSION_RAW = "https://raw.githubusercontent.com/raosihao2009/aerial-tv/update/version.txt"
+    private val VERSION_SOURCES = listOf("Release" to VERSION_URL, "raw" to VERSION_RAW)
     private const val NOTES_URL = "$BASE/notes.json"
     /**
      * 镜像清单: 与 version.txt 同处放一个小文件, 每行 "<flavor> <url>"。GitHub 的 APK 在国内往往
@@ -120,7 +128,7 @@ object Updates {
         checker = UpdateCheck(
             scope = scope,
             lastSuccess = { prefs.getLong("checked_at", 0) },
-            read = { withContext(Dispatchers.IO) { read(VERSION_URL) } },
+            read = { withContext(Dispatchers.IO) { readVersion() } },
             save = { latest, checkedAt ->
                 prefs.edit { putString("latest", latest); putLong("checked_at", checkedAt) }
                 if (available != latest) mirrorUrls = null
@@ -200,11 +208,39 @@ object Updates {
         return false
     }
 
-    private fun read(url: String): String {
+    /**
+     * 版本号的多路读取: 正本在 Release 资产, 兜底在仓库 update 分支的 raw 直链。
+     * 每条各试两次(第一次短超时快速失败, 第二次放宽), 任一拿到内容即返回; 全失败才抛。
+     * 为什么值得这么多: 国内到 github.com 的连接好坏参差, 单条 8 秒超时的偶发失败,
+     * 在面板上就是一句"检查更新失败"。
+     */
+    private fun readVersion(): String {
+        var last: Exception? = null
+        for ((name, url) in VERSION_SOURCES) {
+            for (attempt in 0..1) {
+                try {
+                    val text = read(url, fast = attempt == 0)
+                    if (text.isNotEmpty()) {
+                        if (attempt > 0) DiagLog.i("更新检查: $name 第 ${attempt + 1} 次成功")
+                        return text
+                    }
+                } catch (e: IOException) {
+                    last = e
+                    DiagLog.i("更新检查: $name 第 ${attempt + 1} 次失败 ${e.javaClass.simpleName}" +
+                        (e.cause?.let { "/${it.javaClass.simpleName}" } ?: ""))
+                }
+            }
+        }
+        throw last ?: IOException("no version source answered")
+    }
+
+    private fun read(url: String, fast: Boolean = false): String {
         val c = URL(url).openConnection() as HttpURLConnection
         LegacyUpdateTls.configure(appContext, c)
-        c.connectTimeout = 8_000
-        c.readTimeout = 10_000
+        c.connectTimeout = if (fast) 6_000 else 10_000
+        c.readTimeout = if (fast) 6_000 else 12_000
+        c.useCaches = false
+        c.setRequestProperty("Cache-Control", "no-cache")
         return try {
             c.inputStream.use { it.readBytes().decodeToString().trim() }
         } finally {
