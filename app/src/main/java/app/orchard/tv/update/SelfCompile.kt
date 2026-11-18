@@ -38,6 +38,10 @@ object SelfCompile {
     private const val TAG = "AerialUpdates"
     private const val PREFS = "self_compile"
     private const val KEY_TRIED = "tried_version"
+    private const val KEY_TRIED_AT = "tried_at_ms"
+
+    /** 同一个版本、又一次没编译成功时, 隔这么久才允许再重装一次, 免得反复重启。 */
+    private const val RETRY_AFTER_MS = 10 * 60 * 1000L
     private const val KEY_ASKED_SYSTEM = "system_install"
     private const val KEY_SYSTEM_RESULT = "system_result"
 
@@ -68,7 +72,21 @@ object SelfCompile {
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    private fun triedThisVersion(context: Context) = prefs(context).getLong(KEY_TRIED, 0) == BuildConfig.VERSION_CODE.toLong()
+    /**
+     * 这个版本已经试过了吗。
+     *
+     * 只看版本号是不够的: 我们这个 fork 每次出包版本号都是 1000, 而侧载安装(USB/手机推装)
+     * 会再次跳过预编译, 于是"已经试过"会把新装上的这份也挡住, 编译就又丢了。所以再放一条出路:
+     * 如果这份是上次尝试之后重新装上的, 并且离上次尝试超过 10 分钟, 允许再编一次。
+     * 已经编好的(odex 大于 1 MB)在任何情况下都跳过, 不会白折腾。
+     */
+    private fun triedThisVersion(context: Context): Boolean {
+        if (prefs(context).getLong(KEY_TRIED, 0) != BuildConfig.VERSION_CODE.toLong()) return false
+        val at = prefs(context).getLong(KEY_TRIED_AT, 0L)
+        val reinstalledSince = installedAt(context) > at
+        val longEnough = System.currentTimeMillis() - at > RETRY_AFTER_MS
+        return !(reinstalledSince && longEnough)
+    }
 
     /**
      * This install's time: the package manager is asked once per install, not per version, as an
@@ -120,7 +138,7 @@ object SelfCompile {
     }
 
     fun diagnostics(context: Context): String =
-        "tried for this version=${triedThisVersion(context)}, offered=$offered" +
+        "tried for this install=${triedThisVersion(context)}, offered=$offered" +
             (prefs(context).getString(KEY_SYSTEM_RESULT, null)?.let { ", package manager: $it" } ?: "")
 
     fun onHomeStarted(context: Context) {
@@ -220,7 +238,10 @@ object SelfCompile {
     /** From Control Center's row (Android 9 to 11), or by itself on 12+ ([auto]). */
     fun run(context: Context, auto: Boolean) {
         val app = context.applicationContext
-        prefs(app).edit { putLong(KEY_TRIED, BuildConfig.VERSION_CODE.toLong()) }
+        prefs(app).edit {
+            putLong(KEY_TRIED, BuildConfig.VERSION_CODE.toLong())
+            putLong(KEY_TRIED_AT, System.currentTimeMillis())
+        }
         offered = false
         Log.i(TAG, "self compile: reinstalling (${if (auto) "auto" else "asked"}), odex ${odexBytes(app)} bytes")
         DiagLog.i("自编译: 重装中(${if (auto) "自动" else "手动"})")
@@ -235,7 +256,7 @@ object SelfCompile {
 
     /** ConfigReceiver's self_compile: now, whether tried or not (for testing on a TV). */
     fun runNow(context: Context) {
-        prefs(context).edit { remove(KEY_TRIED) }
+        prefs(context).edit { remove(KEY_TRIED); remove(KEY_TRIED_AT) }
         run(context, auto = Build.VERSION.SDK_INT >= 31)
     }
 }
