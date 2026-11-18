@@ -35,6 +35,9 @@ import org.json.JSONObject
  * have addresses masked, since a film URL or a peer can turn up in them.
  */
 object Diagnostics {
+    /** 诊断报告里最多列多少行历史日志; 完整 24 小时由「显示日志文件」承担。 */
+    private const val LOG_CAP = 1200
+
 
     /** Packages Aerial looks for somewhere, by what they mean for it. */
     private val VENDOR_PACKAGES = listOf(
@@ -196,7 +199,12 @@ object Diagnostics {
         appendLine("<details><summary>Log</summary>")
         appendLine()
         appendLine("```")
-        DiagLog.recent(150).forEach { appendLine(mask(it)) }
+        // 24 小时的窗口按行数再截一道: 一整天的日志全塞进报告会把机型/状态那几段淹掉,
+        // 而完整的一天在「显示日志文件」里能看。截断时明说, 免得误以为日志只有这么点。
+        val window = DiagLog.recent(LOG_CAP)
+        appendLine(if (window.size >= LOG_CAP) "---- Aerial log (最近 24 小时, 只列最后 $LOG_CAP 行, 完整见日志文件) ----"
+                   else "---- Aerial log (最近 24 小时, ${window.size} 行) ----")
+        window.forEach { appendLine(mask(it)) }
         appendLine("--- logcat")
         logcat().forEach { appendLine(mask(it)) }
         appendLine("```")

@@ -15,31 +15,53 @@ import java.util.concurrent.Executors
 /**
  * A log of its own for firmwares whose logcat shows nothing from apps (Skyworth 7T631_T60,
  * Android 13: black Home, remote did nothing, no app line in logcat). Every line also goes to
- * logcat. The last lines are kept in memory and printed by
+ * logcat. The last 24 hours are kept in memory and printed by
  *   adb shell dumpsys activity app.orchard.tv/.MainActivity
  * and, in a diagnostic build (`./gradlew -Pdiag ...`) or after
  *   adb shell am broadcast -a app.orchard.tv.CONFIG -n app.orchard.tv/.guard.ConfigReceiver --ez diag true
- * also written to Android/data/app.orchard.tv/files/aerial-diag.log, which `adb pull` can fetch.
+ * also written to Android/data/app.orchard.tv/files/aerial-diag-YYYYMMDD.log, which `adb pull` can fetch.
  */
 object DiagLog {
     private const val TAG = "AerialDiag"
-    private const val KEEP = 600
-    private const val FILE_LIMIT = 1 shl 20
 
-    private val lines = ArrayDeque<String>()
+    /**
+     * 保留 24 小时: 早上 10 点的记录不该下午 12 点就被滚掉 —— 曾经的 600 行环形缓冲正是这样,
+     * 人出门一趟回来, 想看的时段刚好已经没了。
+     */
+    private const val WINDOW_MS = 24L * 60 * 60 * 1000
+
+    /** 内存里最多留这么多行; 只在日志暴涨时才会先到这条线, 正常一天差得远。 */
+    private const val MAX_LINES = 20_000
+
+    /** 单日文件上限: 超过就不再写, 不让某一天把存储写满。 */
+    private const val DAY_FILE_LIMIT = 64L * 1024 * 1024
+
+    private class Entry(val at: Long, val text: String)
+
+    private val lines = ArrayDeque<Entry>()
     // Made on the first line written to the file, so a release build without diag has no thread.
     private val writer by lazy {
         Executors.newSingleThreadExecutor { Thread(it, "AerialDiag").apply { isDaemon = true } }
     }
     private val stamp = SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US)
-    @Volatile private var file: File? = null
+    private val dayStamp = SimpleDateFormat("yyyyMMdd", Locale.US)
+    @Volatile private var fileOn = false
+    @Volatile private var dayKey: String? = null
+    @Volatile private var dayFile: File? = null
+    // 日期字符串 30 秒才重算一次: 每行都格式化一次太贵, 而 SimpleDateFormat 又不能跨线程用。
+    @Volatile private var dayCached: String? = null
+    @Volatile private var dayCachedAt = 0L
 
-    /** Whether lines go to the file as well; set from ConfigReceiver, on in a diagnostic build. */
-    fun enabled(context: Context): Boolean = BuildConfig.DIAG || prefs(context).getBoolean("diag", false)
+    /**
+     * Whether lines go to the file as well. 默认开着: 「保留 24 小时」得跨进程重启才算数,
+     * 只放内存的话进程一重启就归零, 那还是老样子。仍然可以用 ADB 关掉
+     *   am broadcast -a app.orchard.tv.CONFIG -n app.orchard.tv/.guard.ConfigReceiver --ez diag false
+     */
+    fun enabled(context: Context): Boolean = BuildConfig.DIAG || prefs(context).getBoolean("diag", true)
 
     fun setEnabled(context: Context, on: Boolean) {
         setOption(context, "diag", on)
-        if (on) init(context) else file = null
+        fileOn = on
     }
 
     /**
@@ -51,23 +73,21 @@ object DiagLog {
     fun softLayer(context: Context): Boolean = prefs(context).getBoolean("soft_layer", false)
 
     /**
-     * An experiment for issue #654 (Redmi X50, MiTV-NSOP0, Novatek): the apps fading into the
-     * screensaver each in a buffer of their own rather than with their alpha laid on every drawing.
+     * An experiment for issue #654 (Redmi X50, MiTV-NSOP0, Novatek): the apps fading into
+     * the screensaver each in a buffer of their own rather than with their alpha laid on every drawing.
      * Their frame and shadow are cut to the tile while they fade.
      */
     fun saverFadeOffscreen(context: Context): Boolean = prefs(context).getBoolean("saver_fade_offscreen", false)
     fun setOption(context: Context, key: String, on: Boolean) = prefs(context).edit().putBoolean(key, on).apply()
     private fun prefs(context: Context) = context.getSharedPreferences("system", Context.MODE_PRIVATE)
 
-    /** Lines go to this file only; set on the first [init] even when the log file itself is off. */
+    /** Directory of the logs; set on the first [init] even when the log file itself is off. */
     @Volatile private var dir: File? = null
 
     fun init(context: Context) {
         if (dir == null) dir = context.getExternalFilesDir(null) ?: context.filesDir
-        if (file != null || !enabled(context)) return
-        val d = dir ?: return
-        file = File(d, "aerial-diag.log")
-        i("log file ${file?.absolutePath}")
+        fileOn = enabled(context)
+        i("log file ${dailyFile(System.currentTimeMillis())?.absolutePath}")
     }
 
     /** 诊断日志所在目录; 别的模块(备份导入)往这里写独立记录, 导出日志时一并带出。 */
@@ -77,16 +97,19 @@ object DiagLog {
     fun i(message: String) {
         Log.i(TAG, message)
         // SimpleDateFormat is not thread-safe; lines come from the main thread and the player's.
+        val now = System.currentTimeMillis()
         val line = synchronized(lines) {
-            "${stamp.format(Date())} +${SystemClock.uptimeMillis()} $message".also {
-                lines.addLast(it)
-                while (lines.size > KEEP) lines.removeFirst()
+            "${stamp.format(Date(now))} +${SystemClock.uptimeMillis()} $message".also { text ->
+                lines.addLast(Entry(now, text))
+                while (lines.size > MAX_LINES) lines.removeFirst()
+                // 24 小时窗口: 过期的从头上一条条掉出去, 与行数上限谁先满足谁先删。
+                while (lines.isNotEmpty() && now - lines.first().at > WINDOW_MS) lines.removeFirst()
             }
         }
-        val f = file ?: return
+        val f = dailyFile(now) ?: return
         writer.execute {
             runCatching {
-                if (f.length() > FILE_LIMIT) f.renameTo(File(f.parentFile, "aerial-diag.old.log"))
+                if (f.length() > DAY_FILE_LIMIT) return@runCatching
                 val fresh = !f.exists()
                 f.appendText(line + "\n")
                 // Created 0600 on Xiaomi MiTV-MFTR0 (Android 14), which adb pull could not read.
@@ -106,10 +129,10 @@ object DiagLog {
 
     private class Crashes(val previous: Thread.UncaughtExceptionHandler?) : Thread.UncaughtExceptionHandler {
         override fun uncaughtException(t: Thread, e: Throwable) {
-            val f = file
-            val line = "${synchronized(lines) { stamp.format(Date()) }} crash on ${t.name}: ${Log.getStackTraceString(e)}"
+            val now = System.currentTimeMillis()
+            val line = "${stamp.format(Date(now))} crash on ${t.name}: ${Log.getStackTraceString(e)}"
             Log.e(TAG, line)
-            if (f != null) runCatching { f.appendText(line + "\n") }
+            dailyFile(now)?.let { f -> runCatching { f.appendText(line + "\n"); f.setReadable(true, false) } }
             // 崩溃总得留一份: 诊断日志要手动开, 而"黑屏后重启"恰恰是没开的那次, 于是下次启动
             // 什么也看不到。这里固定写一份 crash 文件, 与诊断日志开关无关。
             dir?.let { d -> runCatching {
@@ -127,12 +150,12 @@ object DiagLog {
             "Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT}), ${Build.FINGERPRINT}, " +
             "Aerial ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
 
-    /** The last [n] lines, oldest first. */
-    fun recent(n: Int): List<String> = synchronized(lines) { lines.toList().takeLast(n) }
+    /** The last [n] lines of this process, oldest first. */
+    fun recent(n: Int): List<String> = synchronized(lines) { lines.map { it.text }.takeLast(n) }
 
     fun dump(writer: PrintWriter) {
         writer.println("Aerial log (${device()}):")
-        synchronized(lines) { lines.forEach { writer.println("  $it") } }
+        synchronized(lines) { lines.forEach { writer.println("  ${it.text}") } }
         // 崩溃栈只落在文件里: 内存缓冲随进程重启清空, 于是"黑屏后重启再抓 dump"永远看不到
         // 上次为什么死。这里把文件里最近的 crash 行一并打出来。
         val dirNow = dir ?: return
@@ -146,7 +169,7 @@ object DiagLog {
     /** 已落盘的崩溃记录, 供诊断报告与手机端导出共用。 */
     fun crashes(): List<String> = dir?.let { crashLines(it) } ?: emptyList()
 
-    /** 崩溃行: aerial-crash.log 全部, 加诊断日志里可能残留的 crash 行。 */
+    /** 崩溃行: aerial-crash.log 全部, 加最近两天日志里可能残留的 crash 行。 */
     private fun crashLines(dirNow: File): List<String> = runCatching {
         // 一条崩溃记录以 " crash on " 起始, 但栈本身是多行的, 必须按记录整条切分:
         // 之前直接 takeLast(5) 只留了栈的尾巴, 看不出异常类型。
@@ -166,45 +189,99 @@ object DiagLog {
         File(dirNow, "aerial-crash.log").takeIf { it.exists() }?.useLines { seq ->
             collect(seq.joinToString("\n"))
         }
-        val f = file
-        if (f != null) {
-            listOf(f, File(dirNow, "aerial-diag.old.log")).filter { it.exists() }.forEach { each ->
-                each.useLines { seq ->
-                    collect(seq.filter { it.contains(" crash on ") }.joinToString("\n"))
-                }
+        dayFiles(dirNow).forEach { each ->
+            each.useLines { seq ->
+                collect(seq.filter { it.contains(" crash on ") }.joinToString("\n"))
             }
         }
         records.takeLast(2)
     }.getOrDefault(emptyList())
 
     /**
-     * 手机端「导出日志文件」: 设备信息、本进程内存里的日志, 以及已落盘的诊断日志与崩溃记录。
-     * 日志文件没开时后面两段为空, 头部会说明。
+     * 手机端「显示日志文件」/「下载日志文件」: 设备信息、最近 24 小时的日志、崩溃记录, 以及
+     * 备份导入留下的 restore-trace.log。日志文件开着时直接用落盘的分天文件 —— 它跨进程,
+     * 进程重启也不会把前面的记录抹掉。
      */
     fun exportText(): String = buildString {
         appendLine("Aerial log (${device()}):")
-        if (file == null) appendLine("(诊断日志文件未开启, 下面只含本进程内存里的日志; 崩溃记录另见 crash 段)")
+        if (!fileOn) appendLine("(诊断日志文件未开启, 下面只含本进程内存里最近 24 小时的日志; 崩溃记录另见 crash 段)")
         appendLine()
-        synchronized(lines) { lines.forEach { appendLine("  $it") } }
-        val dirNow = dir ?: return@buildString
-        val crashes = crashLines(dirNow)
+        val dirNow = dir
+        val disk = if (fileOn && dirNow != null) dayFiles(dirNow) else emptyList()
+        if (disk.isEmpty()) {
+            synchronized(lines) { lines.forEach { appendLine("  ${it.text}") } }
+        } else {
+            disk.forEach { each ->
+                appendLine("---- ${each.name} (${each.length()} bytes) ----")
+                runCatching { append(each.readText()) }
+            }
+        }
+        val crashes = dirNow?.let { crashLines(it) }.orEmpty()
         if (crashes.isNotEmpty()) {
             appendLine()
             appendLine("---- Crashes (${crashes.size}) ----")
             crashes.forEach { appendLine(it) }
         }
-        for (name in listOf("aerial-diag.log", "aerial-diag.old.log")) {
-            val each = File(dirNow, name).takeIf { it.exists() } ?: continue
-            appendLine()
-            appendLine("---- $name (${each.length()} bytes) ----")
-            runCatching { append(each.readText()) }
-        }
         // 备份导入/导出自己落盘的记录: 导入会重启进程, 内存日志正好断在那里。
-        val trace = File(dirNow, "restore-trace.log").takeIf { it.exists() }
+        val trace = dirNow?.let { File(it, "restore-trace.log").takeIf { t -> t.exists() } }
         if (trace != null) {
             appendLine()
             appendLine("---- restore-trace.log (${trace.length()} bytes) ----")
             runCatching { append(trace.readText()) }
         }
     }
+
+    /** 今天和昨天的日志文件, 老到新。 */
+    private fun dayFiles(dirNow: File): List<File> = runCatching {
+        dirNow.listFiles { f -> f.name.startsWith("aerial-diag-") && f.name.endsWith(".log") }
+            ?.sortedBy { it.name }?.toList().orEmpty()
+    }.getOrDefault(emptyList())
+
+    /** 今天的日志文件, 一天一个; 换天时顺手把更早的那份删掉。 */
+    private fun dailyFile(now: Long): File? {
+        if (!fileOn) return null
+        val d = dir ?: return null
+        val key = currentDay(now)
+        if (key == dayKey) dayFile?.let { return it }
+        return synchronized(this) {
+            if (key == dayKey && dayFile != null) {
+                dayFile
+            } else {
+                File(d, "aerial-diag-$key.log").also {
+                    dayKey = key
+                    dayFile = it
+                    pruneDays(d, key)
+                }
+            }
+        }
+    }
+
+    private fun currentDay(now: Long): String {
+        val cached = dayCached
+        if (cached != null && now - dayCachedAt < 30_000L) return cached
+        return synchronized(this) {
+            if (dayCached != null && now - dayCachedAt < 30_000L) dayCached!!
+            else dayStamp.format(Date(now)).also { dayCached = it; dayCachedAt = now }
+        }
+    }
+
+    /** 只留今天和昨天, 更早的整份删掉 —— 这就是"24 小时循环"在磁盘上的形态。 */
+    private fun pruneDays(d: File, today: String) {
+        val keep = setOf(today, olderKey(today))
+        runCatching {
+            d.listFiles()?.forEach { f ->
+                val name = f.name
+                if (!name.startsWith("aerial-diag") || !name.endsWith(".log")) return@forEach
+                val day = Regex("aerial-diag-(\\d{8})\\.log").find(name)?.groupValues?.get(1)
+                // 认不出日期的是旧版留下的 aerial-diag.log / .old.log, 一并清掉。
+                if (day == null || day !in keep) f.delete()
+            }
+        }
+    }
+
+    private fun olderKey(today: String): String = runCatching {
+        java.time.LocalDate.parse(today, java.time.format.DateTimeFormatter.BASIC_ISO_DATE)
+            .minusDays(1)
+            .format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE)
+    }.getOrDefault(today)
 }

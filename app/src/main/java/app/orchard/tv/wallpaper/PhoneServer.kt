@@ -100,10 +100,12 @@ class PhoneServer private constructor(private val context: Context, private val 
                     json(state().put("saved", can))
                 }
                 path == "/api/state" -> json(state())
-                path == "/api/diagnostics" -> text(Response.Status.OK, Diagnostics.report(context))
-                // 手机端「更多 → 导出日志文件」: 直接下载一份文本, 含本进程日志、落盘的诊断日志
-                // 与崩溃记录, 省得再去 Android/data 里翻文件。
-                path == "/api/log" -> logFile()
+                // 手机端「更多」: 默认把内容回到页面里显示, 带 download=1 才作为附件下载。
+                // 这两种是同一份文本, 区别只在响应头 —— 页面里看和存到手机上下载目录各走一条。
+                path == "/api/diagnostics" -> textFile(Diagnostics.report(context), "aerial-diag",
+                    download = queryOf(session.queryParameterString, "download") != null)
+                path == "/api/log" -> textFile(app.orchard.tv.system.DiagLog.exportText(), "aerial-log",
+                    download = queryOf(session.queryParameterString, "download") != null)
                 // 手机端「更多 → 备份」: 下载整机备份(zip), 或上传一个备份包覆盖本机
                 // 打包和下载拆成两步: 浏览器要等到响应头才会弹下载框, 若在同一步里边打边等,
                 // 用户看到的就是「点了没反应」。先打包(页面显示进度), 打完再让他去取现成的包。
@@ -794,14 +796,19 @@ class PhoneServer private constructor(private val context: Context, private val 
         String(out.toByteArray(), Charsets.UTF_8)
     }.getOrDefault("")
 
-    /** 日志文件下载: 附件名带时间, 浏览器直接存到手机的下载目录。 */
-    private fun logFile(): Response {
-        val body = app.orchard.tv.system.DiagLog.exportText()
-        app.orchard.tv.system.DiagLog.i("手机端导出日志: ${body.length} 字符")
-        val name = "aerial-log-" + java.text.SimpleDateFormat("MMdd-HHmm", java.util.Locale.US).format(java.util.Date()) + ".txt"
-        return newFixedLengthResponse(Response.Status.OK, "text/plain; charset=utf-8", body).apply {
-            addHeader("Content-Disposition", "attachment; filename=\"$name\"")
+    /**
+     * 一份文本: [download] 为真时作为附件, 文件名带时间戳, 浏览器直接存到手机的下载目录;
+     * 否则只回正文, 页面把内容内联显示出来(日志按钮点了不弹下载框, 就是走这条路)。
+     */
+    private fun textFile(body: String, prefix: String, download: Boolean): Response {
+        val r = newFixedLengthResponse(Response.Status.OK, "text/plain; charset=utf-8", body)
+        if (download) {
+            app.orchard.tv.system.DiagLog.i("手机端下载日志: ${body.length} 字符")
+            val name = prefix + "-" + java.text.SimpleDateFormat("MMdd-HHmm", java.util.Locale.US)
+                .format(java.util.Date()) + ".txt"
+            r.addHeader("Content-Disposition", "attachment; filename=\"$name\"")
         }
+        return r
     }
 
     /**

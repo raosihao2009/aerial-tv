@@ -373,8 +373,9 @@
   <pre class="diag" id="diag" hidden></pre>
   <div class="row" id="diagActions" hidden>
     <button class="btn" id="diagCopy" data-i18n="diag_copy"></button>
-    <a class="btn plain" id="diagGithub" href="https://github.com/pengchujin/aerial-tv/issues/new?template=device.yml" target="_blank" rel="noopener" data-i18n="diag_github"></a>
+    <button class="btn plain" id="diagDownload" data-i18n="diag_github"></button>
   </div>
+
   <p class="foot" data-i18n="feedback_hint"></p>
 </section>
 </main>
@@ -420,11 +421,11 @@ const TEXTS = {
   "设置",
   "添加照片",
   "反馈问题",
-  "这台电视上 Aerial 有问题，或者想让 Aerial 适配它：复制诊断信息，贴进 GitHub 的「机型适配」反馈里。里面是机型、系统版本、桌面接管状态、信号源和 Aerial 的日志，不含账号、Wi-Fi 名称、IP 地址和照片。",
+  "这台电视上 Aerial 有问题，或者想让 Aerial 适配它：复制或下载下面的诊断信息贴进反馈里。里面是机型、系统版本、桌面接管状态、信号源和 Aerial 最近 24 小时的日志，不含账号、Wi-Fi 名称、IP 地址和照片。",
   "显示诊断信息",
   "复制",
-  "去 GitHub 反馈",
-  "导出日志文件",
+  "下载",
+  "显示日志文件",
   "播放 Apple TV 航拍影片，画面会标出所在的地点。",
   "轮播每日精选和你的照片。",
   "大号时钟，配合当前壁纸。",
@@ -565,11 +566,11 @@ const TEXTS = {
   "Set",
   "Add Photos",
   "Report a Problem",
-  "Something is wrong with Aerial on this TV, or you want Aerial to support it: copy the diagnostics and paste them into a GitHub “Device” issue. They hold the model, the system version, the Home takeover status, the inputs and Aerial’s log, and no accounts, Wi-Fi names, IP addresses or photos.",
+  "Something is wrong with Aerial on this TV, or you want Aerial to support it: copy or download the diagnostics below and attach them to your report. They hold the model, the system version, the Home takeover status, the inputs and Aerial’s log of the last 24 hours, and no accounts, Wi-Fi names, IP addresses or photos.",
   "Show Diagnostics",
   "Copy",
-  "Report on GitHub",
-  "Export log file",
+  "Download",
+  "Show log file",
   "Plays Apple TV’s aerial films, with the place named on screen.",
   "Cycles through the daily photos and yours.",
   "A big clock over the current wallpaper.",
@@ -1771,8 +1772,7 @@ $('#iconFile').onchange = async e => {
 };
 
 /* More tab: diagnostics. */
-// 导出日志文件: 先把日志拉到页面内联展示并带出复制入口——内嵌 webview 禁掉下载时也能看到
-// 和复制内容; 再尝试用附件直链触发浏览器下载, webview 不支持下载时静默失败, 不影响页面展示。
+// 显示日志文件: 只把最近 24 小时的日志拉到页面里显示, 不弹下载框 —— 想存到手机上走下面的「下载」。
 $('#logBtn').onclick = async () => {
   const b = $('#logBtn'); b.disabled = true;
   try {
@@ -1780,9 +1780,7 @@ $('#logBtn').onclick = async () => {
     if (!r.ok) throw new Error(r.status);
     $('#diag').textContent = await r.text();
     $('#diag').hidden = false; $('#diagActions').hidden = false;
-    const a = document.createElement('a');
-    a.href = base + 'api/log'; a.download = 'aerial-log.txt';
-    document.body.appendChild(a); a.click(); a.remove();
+    shown = 'api/log';
   } catch (e) {
     toast(t('toast_diag_fail'));
   } finally { b.disabled = false; }
@@ -1924,6 +1922,7 @@ $('#diagBtn').onclick = async () => {
     if (!r.ok) throw new Error(r.status);
     $('#diag').textContent = await r.text();
     $('#diag').hidden = false; $('#diagActions').hidden = false;
+    shown = 'api/diagnostics';
     // 两个按钮始终显示: 只展开诊断区, 不隐藏诊断按钮本身(导出按钮也在同一卡片里)。
     b.textContent = t('diag_show');
     // Bring the Copy button out from under the tab bar.
@@ -1937,19 +1936,14 @@ $('#diagBtn').onclick = async () => {
 // copied from a field off screen: 16px so iOS does not zoom, and the scroll put back after, since
 // focusing it can still move the page.
 $('#diagCopy').onclick = () => toast(t(copyDiag() ? 'toast_copied' : 'toast_copy_manual'));
-// The issue form opens with what fits in its address filled in (GitHub fills form fields named in
-// the query): the model, the version and the TV's own input corrections. The diagnostics are too
-// long for an address, so they go to the clipboard for the owner to paste.
-$('#diagGithub').onclick = (e) => {
-  const text = $('#diag').textContent, q = new URLSearchParams({ template: 'device.yml' });
-  const model = (text.match(/^Device +(.+?) \(device /m) || [])[1]?.split(' / ').pop();
-  const version = (text.match(/^Aerial +(\S+) \(/m) || [])[1];
-  const profile = (text.match(/\*\*Device profile\*\* \(ThisTv\)\n```json\n(.+)\n```/) || [])[1];
-  if (model) { q.set('title', '[机型] ' + model); q.set('model', model); }
-  if (version) q.set('version', 'Aerial ' + version);
-  if (profile) q.set('profile', profile);
-  e.currentTarget.href = 'https://github.com/pengchujin/aerial-tv/issues/new?' + q;
-  toast(t(copyDiag() ? 'toast_diag_paste' : 'toast_copy_manual'));
+// 下载: 只下刚才那份 —— 先点了「显示日志文件」就下日志, 先点了「显示诊断信息」就下诊断。
+// 这份状态由两个"显示"按钮各自记下(shown), download=1 让电视那头回成附件。
+let shown = 'api/diagnostics';
+$('#diagDownload').onclick = () => {
+  const a = document.createElement('a');
+  a.href = base + shown + (shown.indexOf('?') < 0 ? '?' : '&') + 'download=1';
+  a.download = shown === 'api/log' ? 'aerial-log.txt' : 'aerial-diag.txt';
+  document.body.appendChild(a); a.click(); a.remove();
 };
 function copyDiag() {
   const text = $('#diag').textContent, x = window.scrollX, y = window.scrollY;
