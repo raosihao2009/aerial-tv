@@ -81,6 +81,19 @@ object Updates {
     /** Where an install started from Control Center has got to. */
     var install by mutableStateOf<Install>(Install.Idle); private set
 
+    /**
+     * 面板底部那行文案要用的两个事实: 最近一次检查的结论, 以及最近一次成功的时间。
+     * 之前没新版时面板什么都不显示, 于是"确实是最新"和"连不上更新源"看起来一模一样。
+     */
+    var lastResult by mutableStateOf<String?>(null); private set
+    var freshAt by mutableStateOf(0L); private set
+
+    /** 检查过而且连上了更新源, 但确实没有更新的版本。 */
+    val upToDate: Boolean get() = available == null && lastResult?.startsWith("success") == true
+
+    /** 最近一次检查失败了(源不通、超时、返回内容不对)。 */
+    val checkFailed: Boolean get() = lastResult?.startsWith("failed") == true
+
     private lateinit var prefs: SharedPreferences
     private lateinit var appContext: Context
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -93,6 +106,7 @@ object Updates {
         appContext = context.applicationContext
         prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         available = prefs.getString("latest", null)?.takeIf { newer(it, current) }
+        freshAt = prefs.getLong("checked_at", 0)
         checker = UpdateCheck(
             scope = scope,
             lastSuccess = { prefs.getLong("checked_at", 0) },
@@ -103,6 +117,10 @@ object Updates {
                 loadNotes()
             },
             log = { Log.i(TAG, it); DiagLog.i("更新检查: $it") },
+            onResult = { result ->
+                lastResult = result
+                if (result.startsWith("success")) freshAt = System.currentTimeMillis()
+            },
         )
         loadNotes()
         // A download left from an install that has since finished or been given up.

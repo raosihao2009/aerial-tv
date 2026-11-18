@@ -411,7 +411,18 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
             Box(Modifier.size(7.dp).clip(CircleShape).background(dot))
             Spacer(Modifier.width(8.dp))
             BasicText(text, style = Type.Caption, modifier = Modifier.weight(1f))
-            BasicText("Aerial ${Updates.current}", style = Type.Caption.copy(color = Palette.TertiaryLabel), modifier = Modifier.padding(end = 14.dp))
+            // 没有新版时也要说一句: 否则"确实是最新"和"连不上更新源"在面板上长得一样。
+            val status = when {
+                Updates.checkFailed -> stringResource(R.string.cc_update_failed)
+                Updates.upToDate -> stringResource(R.string.cc_update_uptodate)
+                else -> null
+            }
+            val caption = if (status != null) "Aerial ${Updates.current} · $status" else "Aerial ${Updates.current}"
+            BasicText(
+                caption,
+                style = Type.Caption.copy(color = if (Updates.checkFailed) Palette.Orange else Palette.TertiaryLabel),
+                modifier = Modifier.padding(end = 14.dp),
+            )
         }
     }
 }

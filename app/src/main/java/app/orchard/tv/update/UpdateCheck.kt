@@ -19,6 +19,7 @@ internal class UpdateCheck(
     private val read: suspend () -> String,
     private val save: (String, Long) -> Unit,
     private val log: (String) -> Unit,
+    private val onResult: (String) -> Unit = {},
     private val wallTime: () -> Long = System::currentTimeMillis,
     private val elapsedTime: () -> Long = SystemClock::elapsedRealtime,
 ) {
@@ -112,6 +113,7 @@ internal class UpdateCheck(
                 result = if (e is InvalidVersionResponse) "failed invalid version response"
                 else "failed ${e.javaClass.simpleName}" + (e.cause?.let { "/${it.javaClass.simpleName}" } ?: "")
             } finally {
+                onResult(result)
                 checking = false
                 scheduleRetry()
                 record("$source finished: $result")
