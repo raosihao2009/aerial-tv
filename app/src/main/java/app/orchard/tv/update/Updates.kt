@@ -88,8 +88,13 @@ object Updates {
     var lastResult by mutableStateOf<String?>(null); private set
     var freshAt by mutableStateOf(0L); private set
 
-    /** 检查过而且连上了更新源, 但确实没有更新的版本。 */
-    val upToDate: Boolean get() = available == null && lastResult?.startsWith("success") == true
+    /**
+     * 检查过而且连上了更新源, 但确实没有更新的版本。
+     *
+     * 判据用磁盘上的"上次检查成功时间", 不是本进程的结果: 面板打开时如果刚查过(10 分钟内)会
+     * 直接跳过不发请求, 那样本进程永远没有结果, 状态就一直不显示 —— 3.5 上就是这个毛病。
+     */
+    val upToDate: Boolean get() = available == null && !checkFailed && freshAt > 0
 
     /** 最近一次检查失败了(源不通、超时、返回内容不对)。 */
     val checkFailed: Boolean get() = lastResult?.startsWith("failed") == true
