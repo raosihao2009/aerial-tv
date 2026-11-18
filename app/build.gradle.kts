@@ -19,8 +19,8 @@ android {
         // Android 5.0. Compose 1.10 and later need 6.0, so the Compose BOM below stays on 1.9.
         minSdk = 21
         targetSdk = 34
-        versionCode = 1007
-        versionName = "3.7"
+        versionCode = 1008
+        versionName = "3.8"
         // 只保留中文和英文, 删掉其他语言资源减小包体
         resourceConfigurations += setOf("zh", "en")
         // `./gradlew -Pdiag ...`: a build for one reporter's TV whose logcat shows no app lines;
@@ -52,12 +52,17 @@ android {
     // The TVs only accept updates signed with the key Aerial was first installed with. That key
     // lives outside version control in local/ (see docs/HANDOFF.md); without it the build falls
     // back to this machine's debug key, which installs fresh but cannot update existing copies.
-    val signingProps = rootProject.file("local/signing.properties")
+    //
+    // 这个 fork 没有上游那把 key, 于是改成用仓库里固定的 signing/: CI 每次换一台干净的 runner,
+    // 回落到 debug 签名就等于每次换一把 key —— 桌面内下载的包和已装的签名对不上, 更新永远装不进去
+    // (实测 3.5/3.6/3.7 三个包的签名各不相同)。固定一把, 才能覆盖安装。
+    val signingProps: File? = listOf(rootProject.file("signing/signing.properties"), rootProject.file("local/signing.properties"))
+        .firstOrNull { it.exists() }
     signingConfigs {
-        if (signingProps.exists()) {
-            val p = Properties().apply { signingProps.inputStream().use { load(it) } }
+        signingProps?.let { file ->
+            val p = Properties().apply { file.inputStream().use { load(it) } }
             create("aerial") {
-                storeFile = rootProject.file("local/" + p.getProperty("storeFile"))
+                storeFile = file.parentFile.resolve(p.getProperty("storeFile"))
                 storePassword = p.getProperty("storePassword")
                 keyAlias = p.getProperty("keyAlias")
                 keyPassword = p.getProperty("keyPassword")
