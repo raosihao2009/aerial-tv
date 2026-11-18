@@ -410,8 +410,16 @@ fun HomeScreen(
         focusedRow == 0 &&
         !vm.screensaverVisible && moving == null
     var previewHold by remember { mutableStateOf(previewWanted) }
+    // 按下键离开直播卡是"明确的下一步", 不必等动画: 置一次标记, 让下面这次收尾直接生效。
+    var previewLeaveNow by remember { mutableStateOf(false) }
     LaunchedEffect(previewWanted) {
-        if (previewWanted) previewHold = true else {
+        if (previewWanted) {
+            previewHold = true
+            previewLeaveNow = false
+        } else if (previewLeaveNow) {
+            previewLeaveNow = false
+            previewHold = false
+        } else {
             kotlinx.coroutines.delay(PREVIEW_LEAVE_MS)
             previewHold = false
         }
@@ -869,6 +877,12 @@ fun HomeScreen(
                             if (liveMenuOpen) Overlay.LiveSourceMenu else Overlay.None
                         } else Overlay.ControlCenter()
                         true
+                    }
+                    NativeKeyEvent.KEYCODE_DPAD_DOWN -> {
+                        // 焦点在第一排直播卡上按下键: 离开是明确的下一步, 直播立刻收,
+                        // 不用像左右移卡那样等卡片缩放动画播完。
+                        if (previewWanted) previewLeaveNow = true
+                        false
                     }
                     NativeKeyEvent.KEYCODE_SETTINGS -> {
                         // The remote's gear key reaches Home where no firmware answers it: a stock

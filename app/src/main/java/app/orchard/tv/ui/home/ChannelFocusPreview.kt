@@ -512,10 +512,9 @@ fun ChannelFocusPreview(
         while (!BootVeil.revealed) kotlinx.coroutines.delay(100)
         DiagLog.i("预览 effect 遮罩已揭下 id=${source.id}")
 
-        // 焦点移动动画完全播完再起播: 卡片缩放是临界阻尼弹簧, 视觉上约 300ms 才落定。
-        // 早一步建 ExoPlayer/挂解码就会和缩放抢主线程(低端盒子上动画一顿), 而且加载图还没出来
-        // 画面就先动了。HomeScreen 那边收尾也等同一个时长, 两边对称。
-        kotlinx.coroutines.delay(PREVIEW_LEAVE_MS)
+        // 从普通卡移进直播卡才等动画: 卡片缩放是临界阻尼弹簧, 早一步建 ExoPlayer 会和它抢主线程。
+        // 已经在播的时候切换源(player 仍绑着)不必再等 —— 那股"等 0.8 秒"的迟滞会白加在切换上。
+        if (player == null) kotlinx.coroutines.delay(PREVIEW_LEAVE_MS)
 
         // 加载遮罩：始终显示加载图, 直到新流就绪
         st.loading = true
