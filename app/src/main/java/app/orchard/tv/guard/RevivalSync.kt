@@ -10,6 +10,7 @@ import android.content.ContentProviderClient
 import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
+import app.orchard.tv.system.DiagLog
 import android.content.SyncResult
 import android.os.Bundle
 import android.os.Handler
@@ -45,14 +46,30 @@ object RevivalSync {
             val accounts = AccountManager.get(context)
             val account = accounts.getAccountsByType(accountType).firstOrNull()
                 ?: Account("Aerial", accountType).also {
-                    if (!accounts.addAccountExplicitly(it, null, null)) return
+                    if (!accounts.addAccountExplicitly(it, null, null)) {
+                        Log.w(TAG, "could not add the account of type $accountType; the sync revival cannot run")
+                        DiagLog.i("复活: sync 账户建不了($accountType, 系统不认这个类型)")
+                        return
+                    }
                     Log.i(TAG, "added the account that lets the sync framework revive Aerial")
+                    DiagLog.i("复活: sync 账户已建($accountType)")
                 }
             if (ContentResolver.getIsSyncable(account, AUTHORITY) <= 0) ContentResolver.setIsSyncable(account, AUTHORITY, 1)
             if (!ContentResolver.getSyncAutomatically(account, AUTHORITY)) ContentResolver.setSyncAutomatically(account, AUTHORITY, true)
             if (!ContentResolver.getMasterSyncAutomatically()) Log.w(TAG, "auto-sync is off on this TV; the sync framework cannot revive Aerial")
         }.onFailure { Log.w(TAG, "could not set up the sync revival", it) }
     }
+
+    /** 诊断里用的一行, 让没有 ADB 的人也能看出这条备胎搭没搭起来。 */
+    fun diagnostics(context: Context): String = runCatching {
+        val accounts = AccountManager.get(context)
+        val type = context.packageName
+        val account = accounts.getAccountsByType(type).firstOrNull()
+        val syncable = account?.let { ContentResolver.getIsSyncable(it, AUTHORITY) } ?: -1
+        val auto = account?.let { ContentResolver.getSyncAutomatically(it, AUTHORITY) } == true
+        "account=$type names=${accounts.getAccountsByType(type).joinToString("/") { it.name }.ifEmpty { "-" }}" +
+            " syncable=$syncable autoSync=$auto master=${ContentResolver.getMasterSyncAutomatically()}"
+    }.getOrElse { "unreadable ${it.message}" }
 }
 
 class RevivalSyncService : Service() {

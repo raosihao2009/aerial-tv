@@ -109,6 +109,7 @@ object Diagnostics {
         appendLine("Home Guard  enabled=${accessibility?.contains("${context.packageName}/") == true} running=${HomeGuardService.isRunning}")
         appendLine("  accessibility services: ${accessibility ?: "-"}")
         appendLine("Revival     notification listener allowed=${NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)}, revivals in 10 min=${GuardSetup.revivedOften(context).let { if (it) "3 or more" else "fewer than 3" }}")
+        appendLine("RevivalSync ${app.orchard.tv.guard.RevivalSync.diagnostics(context)}")
         appendLine("Grants      WRITE_SECURE_SETTINGS=${granted(context, Manifest.permission.WRITE_SECURE_SETTINGS)}" +
             " overlay=${Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(context)}" +
             " WRITE_SETTINGS=${Build.VERSION.SDK_INT < 23 || Settings.System.canWrite(context)}" +

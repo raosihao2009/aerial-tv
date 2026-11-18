@@ -18,5 +18,10 @@ class AerialApp : Application() {
             runCatching { getProcessName() }.getOrNull()
         } else null
         DiagLog.i("进程启动 ${name ?: "?"}(pid ${android.os.Process.myPid()})")
+        // 进程一起来就把 sync 账户那条备胎搭一次, 否则只有开机广播或 sync 触发时才轮到它。
+        Thread {
+            runCatching { app.orchard.tv.guard.RevivalSync.ensure(this) }
+                .onFailure { DiagLog.e("复活: sync 账户准备失败", it) }
+        }.apply { this.name = "revival-sync-setup"; isDaemon = true }.start()
     }
 }
