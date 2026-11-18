@@ -56,6 +56,11 @@ object Updates {
     private const val BASE = "https://github.com/raosihao2009/aerial-tv/releases/latest/download"
     private const val VERSION_URL = "$BASE/version.txt"
     private const val NOTES_URL = "$BASE/notes.json"
+    /**
+     * 镜像清单: 与 version.txt 同处放一个小文件, 每行 "<flavor> <url>"。GitHub 的 APK 在国内往往
+     * 只有几十 KB/s, 6.5MB 要等好几分钟; 清单里给一个国内可达的地址, 优先从它下, 失败再回 GitHub。
+     */
+    private const val MIRROR_URL = "$BASE/mirror.txt"
 
     /**
      * A source that delivers less than [STALL_BYTES] in [STALL_MS] is given up for the next one
@@ -118,6 +123,7 @@ object Updates {
             read = { withContext(Dispatchers.IO) { read(VERSION_URL) } },
             save = { latest, checkedAt ->
                 prefs.edit { putString("latest", latest); putLong("checked_at", checkedAt) }
+                if (available != latest) mirrorUrls = null
                 available = latest.takeIf { newer(it, current) }
                 loadNotes()
             },
@@ -601,7 +607,26 @@ object Updates {
      */
     @Volatile var testApk: File? = null
 
-    /** The website first (reachable in China), then GitHub. Returns the APK's info once it parses. */
+    /** 缓存住的镜像清单; 换版本时清掉, 免得一直用上一版的地址。 */
+    @Volatile private var mirrorUrls: Map<String, String>? = null
+
+    private fun mirrorFor(flavor: String): String? {
+        val cached = mirrorUrls ?: runCatching {
+            read(MIRROR_URL).lineSequence()
+                .map { it.trim() }
+                .filter { it.isNotEmpty() && !it.startsWith("#") }
+                .mapNotNull { line ->
+                    val parts = line.split(' ', limit = 2)
+                    if (parts.size == 2) parts[0] to parts[1] else null
+                }
+                .toMap()
+        }.onFailure { Log.i(TAG, "mirror: ${it.javaClass.simpleName}") }.getOrNull()
+            ?.also { mirrorUrls = it }
+            ?: return null
+        return cached[flavor]
+    }
+
+    /** The mirror first (fast in China), then GitHub. Returns the APK's info once it parses. */
     private suspend fun downloadFrom(context: Context, file: File): PackageInfo? {
         testApk?.takeIf { it.isFile }?.let { test ->
             file.parentFile?.mkdirs()
@@ -610,8 +635,12 @@ object Updates {
             return verify(context, file)
         }
         val name = "AerialTV-${BuildConfig.FLAVOR}.apk"
-        // 只有我们自己的源; 上游那两处会下到 app.orchard.tv 的包, 签名与包名都对不上。
-        val sources = listOf("$BASE/$name")
+        // 上游那两处会下到 app.orchard.tv 的包, 签名与包名都对不上, 所以只用我们自己的源:
+        // 先是镜像清单里的国内地址(快), 再退回 GitHub Release(慢但地址固定)。
+        val mirror = runCatching { mirrorFor(BuildConfig.FLAVOR) }
+            .onFailure { Log.i(TAG, "mirror lookup: ${it.javaClass.simpleName}") }
+            .getOrNull()
+        val sources = listOfNotNull(mirror, "$BASE/$name").distinct()
         for (url in sources) {
             val ok = runCatching { download(url, file) }
                 .onFailure { Log.w(TAG, "could not download $url", it) }
