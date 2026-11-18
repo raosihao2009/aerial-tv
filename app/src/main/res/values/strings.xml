@@ -159,6 +159,8 @@
     <string name="st_sounds_tv_hint">The TV\'s own key sounds, as in its menus. Silent if key sounds are off in the TV\'s settings: choose Aerial then.</string>
     <string name="st_sounds_tv">TV</string>
     <string name="st_sounds_aerial">Aerial</string>
+    <string name="st_key_volume">Key volume</string>
+    <string name="st_key_volume_hint">Volume of Aerial\'s own key sounds, 0 to 100. Independent of the TV volume.</string>
     <string name="st_splash_veil">Boot veil</string>
     <string name="st_splash_veil_hint">Show the splash veil while the desktop loads. Off opens straight to Home.</string>
     <string name="st_on">On</string>

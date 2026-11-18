@@ -166,6 +166,12 @@ private object ControlCenterWarmed { var done = false }
 
 private const val CC_WARM_AFTER_MS = 3_000L
 
+/**
+ * 焦点移动动画(卡片缩放, 临界阻尼弹簧)完全落定所需的时间。预览的起播和收尾都以它为界:
+ * 起播等它跑完再开始(期间由加载图占位), 收尾等它跑完再消失, 免得动画和画面互相打脸。
+ */
+internal const val PREVIEW_LEAVE_MS = 300L
+
 private val GridMargin = 56.dp
 
 /** The highest the row above may sit once Home has scrolled into the grid: clear of the status pill. */
@@ -395,10 +401,21 @@ fun HomeScreen(
     // ccFromLiveMenu 已移到 ViewModel
     val liveStatusTickState = remember { mutableStateOf(0) }
     var lastKeyTime by remember { mutableStateOf(0L) }
-    val channelPreviewVisible = AerialSettings.livePreviewEnabled &&
+    // 焦点该不该有预览(即时判定), 和"现在是否还挂着预览"(带延后收尾)。
+    // 焦点从普通卡移到直播卡时, 卡片缩放动画还在跑; 从直播卡移走时, 也不能让画面在卡片缩回
+    // 去的途中就消失 —— 所以收尾统一等一个动画时长。
+    val previewWanted = AerialSettings.livePreviewEnabled &&
         focusedPkg in AerialSettings.liveAppPackages &&
         focusedRow == 0 &&
         !vm.screensaverVisible && moving == null
+    var previewHold by remember { mutableStateOf(previewWanted) }
+    LaunchedEffect(previewWanted) {
+        if (previewWanted) previewHold = true else {
+            kotlinx.coroutines.delay(PREVIEW_LEAVE_MS)
+            previewHold = false
+        }
+    }
+    val channelPreviewVisible = previewWanted || previewHold
     val uiAlpha by androidx.compose.animation.core.animateFloatAsState(
         targetValue = when {
             overlay is Overlay.LiveSourceMenu || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper -> 0f

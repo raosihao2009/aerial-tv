@@ -148,6 +148,13 @@ object AerialSettings {
     /** Interface sounds (system/Sounds), as tvOS plays them on every press. */
     var uiSounds by mutableStateOf(UiSounds.Tv); private set
 
+    /**
+     * Aerial 自带按键音的音量, 0..100, 只在 uiSounds == Aerial 时有用。
+     * 走自己的音量而不是系统媒体音量: 当贝那一路 sonification 电平固定, TCL 那一路跟着媒体音量,
+     * 两台的"最小"完全不一样; 独立一个数, 两台的 0 都真的静、100 都真的响(不受普通音量滑块影响)。
+     */
+    var keyVolume by mutableIntStateOf(70); private set
+
     const val DAY_MINUTES = 1440
     /** The choices for [photoMinutes]: a day, an hour, 15, 5 and 1 minutes. */
     val PHOTO_MINUTES = listOf(DAY_MINUTES, 60, 15, 5, 1)
@@ -284,6 +291,7 @@ object AerialSettings {
             Settings.System.getInt(app.contentResolver, Settings.System.SOUND_EFFECTS_ENABLED, 1) == 1 -> UiSounds.Tv
             else -> UiSounds.Aerial
         }
+        keyVolume = prefs.getInt("key_volume", 70).coerceIn(0, 100)
         backStartsScreensaver = prefs.getBoolean("back_starts_screensaver", true)
         screensaverMinutes = prefs.getInt("screensaver_minutes", DEFAULT_SCREENSAVER_MINUTES)
         aerialQuality = AerialQuality.of(prefs.getString("aerial_quality", null))
@@ -360,6 +368,12 @@ object AerialSettings {
     fun chooseUiSounds(kind: UiSounds) {
         uiSounds = kind
         app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putString("ui_sounds_kind", kind.key) }
+    }
+
+    fun chooseKeyVolume(volume: Int) {
+        val level = volume.coerceIn(0, 100)
+        keyVolume = level
+        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putInt("key_volume", level) }
     }
 
     fun chooseHomePlate(on: Boolean) {

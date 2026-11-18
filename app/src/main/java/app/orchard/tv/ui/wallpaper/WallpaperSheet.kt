@@ -1,6 +1,7 @@
 package app.orchard.tv.ui.wallpaper
 
 import android.os.Build
+import android.view.KeyEvent as NativeKeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -16,7 +17,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.relocation.BringIntoViewResponder
 import androidx.compose.foundation.relocation.bringIntoViewResponder
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size as GeometrySize
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -55,6 +58,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
@@ -321,6 +326,10 @@ fun WallpaperSheet(
                         listOf(UiSounds.Tv to R.string.st_sounds_tv, UiSounds.Aerial to R.string.st_sounds_aerial, UiSounds.Off to R.string.st_off),
                         AerialSettings.uiSounds, { AerialSettings.chooseUiSounds(it); Sounds.prepare() },
                     )
+                    // Aerial 自带按键音的独立音量: 只在选「Aerial」时出现, 和电视音量滑块无关。
+                    if (AerialSettings.uiSounds == UiSounds.Aerial) {
+                        KeyVolumeRow(note)
+                    }
                     Choices(
                         R.string.st_splash_veil,
                         stringResource(R.string.st_splash_veil_hint),
@@ -688,6 +697,51 @@ private fun <T> Choices(
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             options.forEach { (value, text) ->
                 Chip(if (text is Int) stringResource(text) else text.toString(), on = current == value) { choose(value) }
+            }
+        }
+    }
+}
+
+/**
+ * 「按键音量」: 0..100, 只靠左右键增减(遥控器友好)。改一个数就立即生效, 不用退出面板。
+ */
+@Composable
+private fun KeyVolumeRow(note: (String?) -> Unit) {
+    SettingRow(R.string.st_key_volume, stringResource(R.string.st_key_volume_hint), note) {
+        Pressable(
+            onClick = {},
+            focusedScale = 1.0f,
+            modifier = Modifier.width(300.dp),
+            onKey = { e ->
+                val code = e.nativeKeyEvent.keyCode
+                if (code != NativeKeyEvent.KEYCODE_DPAD_LEFT && code != NativeKeyEvent.KEYCODE_DPAD_RIGHT) return@Pressable false
+                if (e.type == KeyEventType.KeyDown) {
+                    val delta = if (code == NativeKeyEvent.KEYCODE_DPAD_RIGHT) 5 else -5
+                    val now = AerialSettings.keyVolume
+                    val next = (now + delta).coerceIn(0, 100)
+                    if (next == now) Sounds.limit() else { Sounds.step(); AerialSettings.chooseKeyVolume(next) }
+                }
+                true
+            },
+        ) { state ->
+            val bg by animateColorAsState(if (state.focused) Palette.Focus else Palette.Fill, tween(140, easing = Motion.EaseOut), label = "keyvol-bg")
+            val fg = if (state.focused) Palette.OnFocus else Palette.Label
+            val volume = AerialSettings.keyVolume
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).drawBehind { drawRect(bg) }.height(40.dp).padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Canvas(Modifier.weight(1f).height(6.dp)) {
+                    val r = CornerRadius(size.height / 2)
+                    drawRoundRect(fg.copy(alpha = 0.2f), cornerRadius = r)
+                    drawRoundRect(fg, size = GeometrySize(size.width * (volume / 100f), size.height), cornerRadius = r)
+                }
+                BasicText(
+                    volume.toString(),
+                    style = Type.Body.copy(color = fg),
+                    modifier = Modifier.width(40.dp),
+                )
             }
         }
     }

@@ -242,8 +242,6 @@ private fun KidsPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean) 
         Spacer(Modifier.height(12.dp))
         VolumeRow(vm, first)
         Spacer(Modifier.height(6.dp))
-        BrightnessRow(vm)
-        Spacer(Modifier.height(6.dp))
         MenuRow(
             Glyph.Shield,
             stringResource(if (Restricted.kind == RestrictedKind.Kids) R.string.cc_kids_leave else R.string.cc_elders_leave),
@@ -354,8 +352,6 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
 
         Spacer(Modifier.height(12.dp))
         VolumeRow(vm, cameFrom)
-        Spacer(Modifier.height(6.dp))
-        BrightnessRow(vm)
 
         Spacer(Modifier.height(6.dp))
         // A parent left Kids and Elders mode: one press back into it, no PIN.
@@ -735,47 +731,6 @@ private fun VolumeRow(vm: HomeViewModel, returnTo: FocusRequester) {
         modifier = Modifier.focusProperties { up = returnTo },
         onClick = vm::toggleMute,
     )
-}
-
-/**
- * Brightness where Aerial may change it; otherwise a row that opens the TV's picture settings, and
- * says so: a bare "Brightness" with no slider read as broken (Vidda 85V1F-S, FFalcon, issue #130).
- */
-@Composable
-private fun BrightnessRow(vm: HomeViewModel) {
-    val context = LocalContext.current
-    // XGIMI (GMUI): the real brightness is the DLP light-engine level. It reads through the HAL
-    // class (SystemProbe.xgimiBrightnessLevel) and, on this firmware, writes through it too, so the
-    // row is a slider of the light engine's own levels (1..10) rather than a percentage of the
-    // system setting that moves nothing. Poll the HAL while the row is on screen: the level can be
-    // changed from the TV's own overlay, which does not pause Aerial, so no onResume or
-    // screen_brightness observer ever fires for it.
-    val xgimi = remember { SystemProbe.xgimiBrightnessLevel() != null }
-    LaunchedEffect(xgimi) {
-        if (!xgimi) return@LaunchedEffect
-        vm.discoverBrightnessBoost()
-        while (isActive) {
-            delay(700)
-            vm.refreshBrightness()
-        }
-    }
-    val level = vm.brightness
-    if (level == null) {
-        MenuRow(Glyph.Sun, stringResource(R.string.cc_brightness), onClick = {
-            vm.overlay = Overlay.None
-            SystemProbe.openPictureSettings(context)
-        }, trailing = stringResource(R.string.cc_brightness_in_settings) + " ›")
-    } else {
-        SliderRow(
-            glyph = Glyph.Sun,
-            level = level,
-            value = if (vm.brightnessBoost == true) "10+" else Math.round(level * 100).toString(),
-            // Brightness.adjust moves 5% a step, and stops at 1%; XGIMI steps its own levels.
-            steps = if (xgimi) SystemProbe.xgimiBrightnessMax else 20,
-            onStep = vm::adjustBrightness,
-            onClick = {},
-        )
-    }
 }
 
 @Composable
