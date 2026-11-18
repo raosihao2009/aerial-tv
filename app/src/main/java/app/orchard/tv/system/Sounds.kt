@@ -123,7 +123,7 @@ object Sounds {
      */
     private fun mediaGain(): Float = runCatching {
         val am = audio ?: return 1f
-        if (am.isStreamMute(AudioManager.STREAM_MUSIC)) return 0f
+        if (Build.VERSION.SDK_INT >= 23 && am.isStreamMute(AudioManager.STREAM_MUSIC)) return 0f
         val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
         (am.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / max).coerceIn(0f, 1f)
     }.getOrDefault(1f)

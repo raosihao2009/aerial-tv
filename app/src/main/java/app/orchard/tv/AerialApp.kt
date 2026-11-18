@@ -14,7 +14,9 @@ class AerialApp : Application() {
     override fun onCreate() {
         super.onCreate()
         DiagLog.init(this)
-        val name = runCatching { getProcessName() }.getOrNull()
+        val name = if (android.os.Build.VERSION.SDK_INT >= 28) {
+            runCatching { getProcessName() }.getOrNull()
+        } else null
         DiagLog.i("进程启动 ${name ?: "?"}(pid ${android.os.Process.myPid()})")
     }
 }
