@@ -837,6 +837,22 @@ fun ChannelFocusPreview(
         }
     }
 
+    // 兜底: 冷/热启动后偶尔出现"焦点就在直播卡上、预览却不起播", 非要按一下方向键让焦点重落
+    // 才加载(#49)。这里每 3 秒自己看一眼: 人在前台、该播、却没有播放器, 就自己重来一次,
+    // 不等焦点变化。正在加载、正在重载、已暂停三种状态都跳过, 不和正常流程抢。
+    LaunchedEffect(source?.id) {
+        while (true) {
+            kotlinx.coroutines.delay(3_000)
+            val s = source ?: continue
+            if (st.disposed || st.paused || st.loading || reloadBusy.get()) continue
+            if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) continue
+            if (player == null && BootVeil.revealed) {
+                DiagLog.i("预览兜底: ${s.id} 无播放器, 自动重来")
+                restartSignal++
+            }
+        }
+    }
+
     DisposableEffect(Unit) {
         // HOME回弹(onPause后立刻onResume, 没走onStop)不暂停player: 延迟300ms暂停, onResume则取消
         var pauseJob: kotlinx.coroutines.Job? = null

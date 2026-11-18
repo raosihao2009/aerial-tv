@@ -1,6 +1,9 @@
 package app.orchard.tv.update
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -90,6 +93,7 @@ object SelfCompile {
         if (checkedThisRun) return
         checkedThisRun = true
         app = context.applicationContext
+        watchScreen(context)
         val worth = worthIt(context)
         val system = systemWorthIt(context)
         if (worth || system) DiagLog.i("自编译: 未编译(odex ${odexBytes(context)?.div(1024)} KB)")
@@ -119,6 +123,35 @@ object SelfCompile {
         recheck(context)
         inFront = true
         main.removeCallbacks(auto)
+    }
+
+    /**
+     * 熄屏也当"人不在": 这台当贝把屏保设成 24 小时, 桌面几乎从不退到后台, 于是 onHomeStopped
+     * 一辈子不触发, 自编译也就一次都没跑过(诊断里 tried=false)。关电视那一刻是最安全的时机 ——
+     * 画面本来就黑着, 重装、重启都看不见。
+     */
+    private fun watchScreen(context: Context) {
+        runCatching {
+            val filter = IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_OFF)
+                addAction(Intent.ACTION_SCREEN_ON)
+            }
+            context.applicationContext.registerReceiver(object : BroadcastReceiver() {
+                override fun onReceive(c: Context, intent: Intent) {
+                    when (intent.action) {
+                        Intent.ACTION_SCREEN_OFF -> {
+                            inFront = false
+                            main.removeCallbacks(auto)
+                            main.postDelayed(auto, AUTO_DELAY_MS)
+                        }
+                        Intent.ACTION_SCREEN_ON -> {
+                            inFront = true
+                            main.removeCallbacks(auto)
+                        }
+                    }
+                }
+            }, filter)
+        }.onFailure { Log.w(TAG, "self compile: no screen watch (${it.message})") }
     }
 
     /** Another app, standby or the system's screensaver in front: compile or reinstall behind it, if it stays. */

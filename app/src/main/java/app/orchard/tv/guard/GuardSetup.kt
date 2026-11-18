@@ -649,14 +649,21 @@ object GuardSetup {
      * WRITE_SECURE_SETTINGS there, so add itself after what is there, which stays as it is.
      */
     private fun ensureListenerBeforeNougat(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) return
         val me = ComponentName(context, RevivalListener::class.java).flattenToString()
         val current = Settings.Secure.getString(context.contentResolver, ENABLED_LISTENERS).orEmpty()
         if (current.split(':').any { it == me }) return
         runCatching {
             Settings.Secure.putString(context.contentResolver, ENABLED_LISTENERS, if (current.isEmpty()) me else "$current:$me")
-            Log.i(TAG, "notification listener was not allowed; added it")
-        }.onFailure { Log.w(TAG, "could not allow the notification listener", it) }
+        }
+        // 回读确认: Android 7 起系统会校验这个列表, 有的固件收、有的固件直接抹掉。
+        // 当贝 DBBOX-A2 装完就是 allowed=false, 复活那条线只剩一半, 所以在每次开机都再试一次,
+        // 并且把结果写进诊断 —— 成了是自动修好, 不成就明确告诉人"要手动开"。
+        val after = runCatching {
+            Settings.Secure.getString(context.contentResolver, ENABLED_LISTENERS).orEmpty()
+        }.getOrDefault("")
+        val ok = after.split(':').any { it.equals(me, ignoreCase = true) }
+        if (ok) DiagLog.i("复活: 通知使用权已自动开启")
+        else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) DiagLog.i("复活: 通知使用权未生效, 需在设置里手动开(待机后自动回来)")
     }
 
     fun ensureEnabled(context: Context): Boolean {
