@@ -834,9 +834,11 @@ private fun Cell(
     label: Int,
     hint: String?,
     modifier: Modifier = Modifier,
-    content: @Composable RowScope.(onFocus: (Boolean) -> Unit) -> Unit,
+    content: @Composable RowScope.(onFocus: (Any, Boolean) -> Unit) -> Unit,
 ) {
-    var focused by remember { mutableStateOf(false) }
+    // 记"哪颗按钮在聚焦"。布尔值会在同一格里换按钮时被后到的 false 抹掉, 描边就消失一下。
+    var focusOwner by remember { mutableStateOf<Any?>(null) }
+    val focused = focusOwner != null
     val borderWidth by animateFloatAsState(if (focused) 3f else 1f, tween(120, easing = Motion.EaseOut), label = "cell-border-width")
     val borderColor by animateColorAsState(
         if (focused) Palette.Focus else Palette.Hairline,
@@ -856,7 +858,9 @@ private fun Cell(
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            content { focused = it }
+            content { owner, on ->
+                if (on) focusOwner = owner else if (focusOwner === owner) focusOwner = null
+            }
         }
         Box(Modifier.fillMaxWidth().height(HintRoom)) {
             if (!hint.isNullOrBlank()) {
@@ -881,10 +885,11 @@ private fun ChipButton(
     icon: Glyph? = null,
     focusRequester: FocusRequester? = null,
     onClick: () -> Unit,
-    onFocus: (Boolean) -> Unit,
+    onFocus: (Any, Boolean) -> Unit,
 ) {
+    val owner = remember { Any() }
     Pressable(onClick = onClick, focusRequester = focusRequester, focusedScale = 1f) { state ->
-        LaunchedEffect(state.focused) { onFocus(state.focused) }
+        LaunchedEffect(state.focused) { onFocus(owner, state.focused) }
         val bg by animateColorAsState(
             when {
                 state.focused -> Palette.Focus
@@ -1113,6 +1118,7 @@ private fun KeyVolumeCell() {
         }
     }
     Cell(R.string.st_key_volume, stringResource(R.string.st_key_volume_hint)) { onFocus ->
+        val owner = remember { Any() }
         Pressable(
             onClick = { step(1) },
             focusedScale = 1f,
@@ -1123,7 +1129,7 @@ private fun KeyVolumeCell() {
                 true
             },
         ) { state ->
-            LaunchedEffect(state.focused) { onFocus(state.focused) }
+            LaunchedEffect(state.focused) { onFocus(owner, state.focused) }
             // 和按钮一样: 聚焦时白底, 没聚焦时淡底, 内容颜色随之反相。
             val bg by animateColorAsState(if (state.focused) Palette.Focus else Palette.Fill, tween(140, easing = Motion.EaseOut), label = "keyvol-bg")
             val fg = if (state.focused) Palette.OnFocus else Palette.Label
@@ -1188,8 +1194,9 @@ private fun WeatherCell() {
     // 只用一条提示: 以前把"城市在手机上设置…"接在它后面, 两句话说的是同一件事。
     val hint = stringResource(if (Weather.chosen) R.string.wp_weather_chosen else R.string.wp_weather_guessed)
     Cell(R.string.wp_weather_city, hint) { onFocus ->
+        val owner = remember { Any() }
         Pressable(onClick = {}, focusedScale = 1f) { state ->
-            LaunchedEffect(state.focused) { onFocus(state.focused) }
+            LaunchedEffect(state.focused) { onFocus(owner, state.focused) }
             val bg by animateColorAsState(if (state.focused) Palette.Focus else Palette.Fill, tween(140, easing = Motion.EaseOut), label = "weather-bg")
             val fg = if (state.focused) Palette.OnFocus else Palette.SecondaryLabel
             Row(
