@@ -1195,13 +1195,15 @@ private fun MenuWindowLayer(window: MenuWindow) {
     var originX by remember { mutableStateOf(0f) }
     var originY by remember { mutableStateOf(0f) }
     var winSize by remember { mutableStateOf(IntSize.Zero) }
-    val shown = remember { MutableTransitionState(false) }
-    shown.targetState = true
+    // 这里只用普通状态: MutableTransitionState 没有 transition 在跑, currentState 永远是 false,
+    // 窗口就一直停在 alpha=0(看不见), 表现正是"按了看似打开、其实屏幕上什么都没有"。
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { shown = true }
     val scale by animateFloatAsState(
-        if (shown.currentState) 1f else 0.92f,
+        if (shown) 1f else 0.92f,
         spring(dampingRatio = 0.72f, stiffness = 900f), label = "mini-scale",
     )
-    val alpha by animateFloatAsState(if (shown.currentState) 1f else 0f, tween(120, easing = Motion.EaseOut), label = "mini-alpha")
+    val alpha by animateFloatAsState(if (shown) 1f else 0f, tween(120, easing = Motion.EaseOut), label = "mini-alpha")
 
     BoxWithConstraints(
         Modifier.fillMaxSize().onGloballyPositioned {
