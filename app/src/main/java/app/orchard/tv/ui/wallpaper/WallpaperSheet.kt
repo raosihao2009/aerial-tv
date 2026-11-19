@@ -9,6 +9,7 @@ import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -195,13 +196,18 @@ fun WallpaperSheet(
     // 分类: 焦点落在右缘导航的哪一个, 左边内容就换成哪一组。
     val tab = remember { mutableStateOf(PerCategory.Wallpaper) }
     val railFirst = remember { FocusRequester() }
+    // 焦点在右缘导航里时, 导航整体显示图标 + 名字, 面板往左扩;
+    // 焦点进了左边的内容, 面板整体往右缩, 导航只剩图标(和当贝一样)。
+    var railFocused by remember { mutableStateOf(true) }
+    val panelWidth by animateDpAsState(if (railFocused) SheetWidth else SheetWidth - (RailWidth - RailWidthNarrow), tween(240, easing = Motion.EaseOut), label = "panel-w")
+    val railWidth by animateDpAsState(if (railFocused) RailWidth else RailWidthNarrow, tween(240, easing = Motion.EaseOut), label = "rail-w")
 
     // The sheet as it opens, or (takeFocus false) drawn once nearly clear for the warm-up.
     val sheet: @Composable (takeFocus: Boolean) -> Unit = { takeFocus ->
         Row(
             Modifier
                 .fillMaxHeight()
-                .width(SheetWidth)
+                .width(panelWidth)
                 .consumeTaps()
                 // Glass made from the wallpaper itself, opaque, as the Control Center's: what is
                 // left of Home beside it stays sharp while you choose.
@@ -248,17 +254,21 @@ fun WallpaperSheet(
             }
             // 右缘导航: 平时只一条图标(贴着屏幕右缘); 焦点停上来才向左展开成图标 + 名字的高亮胶囊。
             Column(
-                Modifier.width(RailWidth).fillMaxHeight(),
+                Modifier
+                    .width(railWidth)
+                    .fillMaxHeight()
+                    // 焦点只要还在这条导航里(含它的子项), 就一直显示文字。
+                    .onFocusChanged { railFocused = it.hasFocus },
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.End,
             ) {
-                RailItem(PerCategory.Wallpaper, Glyph.Photo, tab, railFirst)
-                RailItem(PerCategory.Home, Glyph.Home, tab)
-                RailItem(PerCategory.Live, Glyph.Play, tab)
-                RailItem(PerCategory.Look, Glyph.Sun, tab)
-                RailItem(PerCategory.Screensaver, Glyph.Moon, tab)
-                RailItem(PerCategory.Weather, Glyph.CloudSun, tab)
-                RailItem(PerCategory.Family, Glyph.Shield, tab)
+                RailItem(PerCategory.Wallpaper, Glyph.Photo, tab, railFocused, railFirst)
+                RailItem(PerCategory.Home, Glyph.Home, tab, railFocused)
+                RailItem(PerCategory.Live, Glyph.Play, tab, railFocused)
+                RailItem(PerCategory.Look, Glyph.Sun, tab, railFocused)
+                RailItem(PerCategory.Screensaver, Glyph.Moon, tab, railFocused)
+                RailItem(PerCategory.Weather, Glyph.CloudSun, tab, railFocused)
+                RailItem(PerCategory.Family, Glyph.Shield, tab, railFocused)
                 // 打开面板时焦点落在第一项分类上, 往左才进选项。
                 LaunchedEffect(takeFocus) {
                     if (!takeFocus) return@LaunchedEffect
@@ -311,6 +321,7 @@ private fun RailItem(
     category: PerCategory,
     glyph: Glyph,
     tab: androidx.compose.runtime.MutableState<PerCategory>,
+    labels: Boolean,
     focusRequester: FocusRequester? = null,
 ) {
     Pressable(
@@ -328,12 +339,12 @@ private fun RailItem(
                 .height(48.dp)
                 .clip(RoundedCornerShape(50))
                 .drawBehind { drawRect(bg) }
-                .padding(horizontal = if (state.focused) 18.dp else 10.dp),
+                .padding(horizontal = if (labels) 16.dp else 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            GlyphIcon(glyph, fg, if (state.focused) 24.dp else 30.dp)
-            if (state.focused) {
+            GlyphIcon(glyph, fg, if (labels) 24.dp else 30.dp)
+            if (labels) {
                 BasicText(
                     stringResource(category.label),
                     style = Type.Body.copy(color = fg),
@@ -1161,6 +1172,8 @@ val SheetWidth = 540.dp
 private val SheetCorner = 30.dp
 /** 右缘导航条留出的宽度: 只放图标时很窄, 选中那项要展开成"图标+名字", 靠右对齐向左长出去。 */
 private val RailWidth = 150.dp
+/** 焦点不在导航上时导航条的宽度: 只留图标, 面板整体往右缩这么多。 */
+private val RailWidthNarrow = 92.dp
 
 /**
  * 面板稳定后盖住的那一段宽度。Home 不必在它下面整屏作画(好几层全屏和没人看见的卡片,
