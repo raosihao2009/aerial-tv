@@ -24,8 +24,6 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size as GeometrySize
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -546,7 +544,6 @@ private fun FamilySection(onPin: (on: Boolean) -> Unit, onKids: () -> Unit) {
     Spacer(Modifier.height(12.dp))
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun WallpaperRows(takeFocus: Boolean) {
     val items = Wallpapers.items
@@ -580,21 +577,21 @@ private fun WallpaperRows(takeFocus: Boolean) {
         }
     }
     var note by remember { mutableStateOf<String?>(null) }
-    // 横向 + 纵向: 卡片按宽度自动折行(1080p 电视上一排五张), 焦点上下就能在网格里走,
-    // 不再靠一条横向翻页去翻十几张。左侧留出 8% 放大的余量, 与标题对齐。
-    FlowRow(
-        modifier = Modifier.fillMaxWidth().padding(start = 10.dp, end = 24.dp, top = 6.dp, bottom = 4.dp).drawWithContent {
-            // Keep the cards out of the pane on old GPUs (#557), independently of the scroll
-            // layer's clip. Leave room for the focused card's 8% zoom.
+    // A row clips to its bounds, and the focused card grows by 8%: room on the left for that,
+    // with the row moved back by as much so the cards still line up with the titles.
+    LazyRow(
+        modifier = Modifier.offset(x = (-10).dp).drawWithContent {
+            // Keep the cards out of the phone column on old GPUs (#557), independently of the
+            // scroll layer's clip. Leave vertical room for the focused card's 8% zoom.
             val focusRoom = 16.dp.toPx()
             clipRect(top = -focusRoom, bottom = size.height + focusRoom) {
                 this@drawWithContent.drawContent()
             }
         },
         horizontalArrangement = Arrangement.spacedBy(18.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(start = 14.dp, end = 24.dp, top = 6.dp, bottom = 4.dp),
     ) {
-        list.forEach { wp ->
+        items(list, key = { it.id }) { wp ->
             val hint = wallpaperNote(wp)
             WallpaperCard(wp, if (wp === list.first()) first else null, onFocused = { note = hint })
         }
