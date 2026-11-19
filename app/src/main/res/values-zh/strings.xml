@@ -358,7 +358,7 @@
     <string name="per_look">外观与声音</string>
     <string name="per_screensaver">屏保</string>
     <string name="per_weather">天气</string>
-    <string name="per_family">亲子守护</string>
+    <string name="per_family">家庭守护</string>
     <string name="st_live_preview_hint">焦点在 IPTV 应用时，背景播放相关直播。</string>
     <string name="st_live_jank_hint">高灵敏切得早，低灵敏切得少，关闭则不自动切换。</string>
     <string name="st_bili_account_hint">登录后直播可选更高画质；登录信息只存在本机。</string>

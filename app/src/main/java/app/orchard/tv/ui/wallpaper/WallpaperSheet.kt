@@ -69,6 +69,10 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
@@ -78,6 +82,8 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -668,14 +674,34 @@ private fun WallpaperRows(takeFocus: Boolean) {
     // A row clips to its bounds, and the focused card grows by 8%: room on the left for that,
     // with the row moved back by as much so the cards still line up with the titles.
     LazyRow(
-        modifier = Modifier.offset(x = (-10).dp).drawWithContent {
-            // Keep the cards out of the phone column on old GPUs (#557), independently of the
-            // scroll layer's clip. Leave vertical room for the focused card's 8% zoom.
-            val focusRoom = 16.dp.toPx()
-            clipRect(top = -focusRoom, bottom = size.height + focusRoom) {
-                this@drawWithContent.drawContent()
-            }
-        },
+        modifier = Modifier
+            .offset(x = (-10).dp)
+            // 画到自己的离屏层里, 才能用 DstIn 做左右两端的淡入淡出(不做层的话会连外面的壁纸一起擦掉)。
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .drawWithContent {
+                // Keep the cards out of the phone column on old GPUs (#557), independently of the
+                // scroll layer's clip. Leave vertical room for the focused card's 8% zoom.
+                val focusRoom = 16.dp.toPx()
+                clipRect(top = -focusRoom, bottom = size.height + focusRoom) {
+                    this@drawWithContent.drawContent()
+                }
+                // 左右各留一段渐隐: 卡片滚到边上时慢慢化掉, 而不是被硬切。
+                val fade = 26.dp.toPx()
+                val w = size.width.coerceAtLeast(1f)
+                if (w > fade * 2) {
+                    drawRect(
+                        brush = Brush.horizontalGradient(
+                            0f to Color.Transparent,
+                            (fade / w) to Color.Black,
+                            (1f - fade / w) to Color.Black,
+                            1f to Color.Transparent,
+                        ),
+                        topLeft = Offset(0f, -focusRoom),
+                        size = Size(w, size.height + focusRoom * 2),
+                        blendMode = BlendMode.DstIn,
+                    )
+                }
+            },
         horizontalArrangement = Arrangement.spacedBy(18.dp),
         contentPadding = PaddingValues(start = 14.dp, end = 24.dp, top = 6.dp, bottom = 4.dp),
     ) {
@@ -1011,27 +1037,36 @@ private fun <T> MenuCell(
     val labels = options.map { (_, text) -> if (text is Int) stringResource(text) else text.toString() }
     val entryRequester = remember { FocusRequester() }
     var wasOpen by remember { mutableStateOf(false) }
+    // 窗口要对准"入口按钮", 不是对准整格: 量出按钮中心和格子中心的差, 横向挪过去。
+    val cellCenterX = remember { mutableStateOf(0f) }
+    val chipCenterX = remember { mutableStateOf(0f) }
+    val alignDx = (chipCenterX.value - cellCenterX.value).roundToInt()
 
     Box {
-        Cell(label, hint, modifier) { onFocus ->
+        Cell(
+            label, hint,
+            modifier.onGloballyPositioned { cellCenterX.value = it.boundsInRoot().center.x },
+        ) { onFocus ->
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 leading?.let {
                     ChipButton(it.text, on = false, chevron = it.chevron, check = false, icon = it.icon, onClick = it.run, onFocus = onFocus)
                 }
-                ChipButton(
-                    labels.getOrElse(index) { "" },
-                    on = false, chevron = true, check = false,
-                    focusRequester = entryRequester,
-                    onClick = { open = true },
-                    onFocus = onFocus,
-                )
+                Box(Modifier.onGloballyPositioned { chipCenterX.value = it.boundsInRoot().center.x }) {
+                    ChipButton(
+                        labels.getOrElse(index) { "" },
+                        on = false, chevron = true, check = false,
+                        focusRequester = entryRequester,
+                        onClick = { open = true },
+                        onFocus = onFocus,
+                    )
+                }
             }
         }
         // Popup 放在入口按钮自己的 Box 里, alignment 就是相对这颗按钮算的, 所以窗口会贴在它上方。
         if (open) {
             Popup(
                 alignment = Alignment.TopCenter,
-                offset = IntOffset(0, -with(LocalDensity.current) { (MiniMenuHeight + MiniTailHeight + 12.dp).roundToPx() }),
+                offset = IntOffset(alignDx, -with(LocalDensity.current) { (MiniMenuHeight + MiniTailHeight + 12.dp).roundToPx() }),
                 onDismissRequest = { open = false },
                 properties = PopupProperties(focusable = true, dismissOnBackPress = true, dismissOnClickOutside = false),
             ) {
@@ -1065,6 +1100,8 @@ private fun MiniMenu(
 ) {
     val requesters = remember(labels.size) { List(labels.size) { FocusRequester() } }
     var shown by remember { mutableStateOf(false) }
+    // 打开时第一次落焦不响, 之后的每次移动都响。
+    var firstSeen by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { shown = true }
     LaunchedEffect(Unit) {
         withFrameNanos { }
@@ -1078,6 +1115,10 @@ private fun MiniMenu(
     )
     val alpha by animateFloatAsState(if (shown) 1f else 0f, tween(110, easing = Motion.EaseOut), label = "mini-alpha")
     // 撞边音只在按下的那一下响, 长按连续重复不再响。
+    fun close() {
+        Sounds.step()
+        onClose()
+    }
     fun bump(e: androidx.compose.ui.input.key.KeyEvent) {
         if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0) Sounds.limit()
     }
@@ -1116,17 +1157,19 @@ private fun MiniMenu(
                             NativeKeyEvent.KEYCODE_DPAD_UP -> { bump(e); true }
                             NativeKeyEvent.KEYCODE_DPAD_DOWN,
                             NativeKeyEvent.KEYCODE_BACK -> {
-                                if (e.type == KeyEventType.KeyDown) onClose()
+                                if (e.type == KeyEventType.KeyDown) close()
                                 true
                             }
                             else -> false
                         }
                     },
                 ) { st ->
-                    // Popup 里的焦点不经过全局音效, 这里自己放一声, 打开时第一颗不算移动。
-                    var seen by remember { mutableStateOf(false) }
+                    // Popup 里的焦点不经过全局音效, 这里自己放一声; 整窗共用一次标记,
+                    // 打开时落上去那一下不算移动。
                     LaunchedEffect(st.focused) {
-                        if (st.focused) { if (seen) Sounds.focusMoved() else seen = true }
+                        if (st.focused) {
+                            if (firstSeen) Sounds.focusMoved() else firstSeen = true
+                        }
                     }
                     val bg by animateColorAsState(if (st.focused) Palette.Focus else Palette.Fill, tween(140, easing = Motion.EaseOut), label = "mini-bg")
                     val fg = if (st.focused) Palette.OnFocus else Palette.Label

@@ -376,7 +376,7 @@
     <string name="per_look">外观与声音</string>
     <string name="per_screensaver">Screensaver</string>
     <string name="per_weather">Weather</string>
-    <string name="per_family">亲子守护</string>
+    <string name="per_family">Family guard</string>
     <string name="st_live_preview_hint">Plays live channels in the background while the IPTV app has focus.</string>
     <string name="st_live_jank_hint">High switches early, low switches less often, off never switches.</string>
     <string name="st_bili_sign_state">Signed in %1$s · Sign out</string>
