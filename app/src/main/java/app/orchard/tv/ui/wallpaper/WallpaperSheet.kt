@@ -80,7 +80,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import app.orchard.tv.R
@@ -401,7 +403,7 @@ private fun LiveSection() {
         Row2(
             {
                 ChoiceCell(
-                    R.string.st_live_preview, "焦点选中IPTV应用时背景播放相关直播",
+                    R.string.st_live_preview, stringResource(R.string.st_live_preview_hint),
                     listOf(true to R.string.st_on, false to R.string.st_off),
                     AerialSettings.livePreviewEnabled, AerialSettings::chooseLivePreview,
                 )
@@ -412,7 +414,7 @@ private fun LiveSection() {
             {
                 // 画质不再有全局开关: 每张直播卡的画质在直播菜单里按台选。
                 ChoiceCell(
-                    R.string.st_live_jank, "高灵敏及早切备用源, 低灵敏减少误切, 关则不自动切换",
+                    R.string.st_live_jank, stringResource(R.string.st_live_jank_hint),
                     listOf(
                         AerialSettings.JankSensitivity.Off to "关闭",
                         AerialSettings.JankSensitivity.Low to "低",
@@ -503,20 +505,15 @@ private fun ScreensaverSection(onStartScreensaver: () -> Unit) {
                     ),
                     Wallpapers.screensaver,
                     { Wallpapers.chooseScreensaver(it) },
-                    leading = CellAction(stringResource(R.string.ss_start), chevron = false) { onStartScreensaver() },
+                    leading = CellAction(stringResource(R.string.ss_start), chevron = false, icon = Glyph.Play) { onStartScreensaver() },
                 )
             },
             {
                 // Only the qualities this TV can play; a 1080p-only TV has nothing to choose.
                 val qualities = remember { AerialFormats.supported(context) }
                 if (qualities.size > 1) {
-                    val keeps = stringResource(
-                        R.string.ss_aerial_keeps,
-                        remember { android.text.format.Formatter.formatShortFileSize(context, AerialStream.keepLimit(context)) },
-                        AerialSet.MAX,
-                    )
                     ChoiceCell(
-                        R.string.ss_quality, keeps,
+                        R.string.ss_quality, stringResource(R.string.ss_quality_hint),
                         listOf(AerialQuality.Auto to R.string.ss_quality_auto, AerialQuality.Hd to R.string.ss_quality_hd) +
                             listOf(AerialQuality.Uhd to R.string.ss_quality_uhd, AerialQuality.DolbyVision to R.string.ss_quality_dv)
                                 .filter { it.first in qualities },
@@ -820,7 +817,12 @@ private fun Row2(left: @Composable () -> Unit, right: (@Composable () -> Unit)? 
 }
 
 /** 一颗按钮: 一段文字, 需要时带一个 ">"。 */
-private class CellAction(val text: String, val chevron: Boolean, val run: () -> Unit)
+private class CellAction(
+    val text: String,
+    val chevron: Boolean,
+    val icon: Glyph? = null,
+    val run: () -> Unit,
+)
 
 /**
  * 一个选项自己就是一颗气泡: 上面一行是名称和它的值, 下面一直显示这一项的小字提示
@@ -860,9 +862,9 @@ private fun Cell(
             if (!hint.isNullOrBlank()) {
                 BasicText(
                     hint,
-                    style = Type.Caption.copy(color = Palette.TertiaryLabel),
+                    style = Type.Caption.copy(color = Palette.TertiaryLabel, lineHeight = 15.sp),
                     maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         }
@@ -876,6 +878,7 @@ private fun ChipButton(
     on: Boolean,
     chevron: Boolean = false,
     check: Boolean = true,
+    icon: Glyph? = null,
     focusRequester: FocusRequester? = null,
     onClick: () -> Unit,
     onFocus: (Boolean) -> Unit,
@@ -900,6 +903,7 @@ private fun ChipButton(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
+            icon?.let { GlyphIcon(it, fg, 13.dp) }
             if (check && on) GlyphIcon(Glyph.Check, fg, 12.dp)
             BasicText(label, style = Type.Body.copy(color = fg), maxLines = 1)
             if (chevron) GlyphIcon(Glyph.ChevronRight, fg, 13.dp)
@@ -947,6 +951,7 @@ private fun ActionCell(
                     on = false,
                     chevron = a.chevron,
                     check = false,
+                    icon = a.icon,
                     onClick = a.run,
                     onFocus = onFocus,
                 )
@@ -958,6 +963,12 @@ private fun ActionCell(
 /**
  * 选项多的格子: 入口是"当前值 + >"那颗按钮(和「隐藏的卡片」同一套), OK 打开上下文菜单;
  * [leading] 是入口左边的一颗按钮, 比如「类型」的「立即开始」。
+ */
+/**
+ * 选项多的格子: 入口是"当前值 + >"那颗按钮(和「隐藏的卡片」同一套)。按下 OK,
+ * 入口按钮正上方浮出一个迷你窗口, 横向列出全部选项; 焦点自动落在打勾那颗上,
+ * 左右键在窗口内移动(到头响一声撞边音), 上键也响一声, 下键或返回键收起来并把
+ * 焦点还给入口按钮。入口按钮本身不打勾。
  */
 @Composable
 private fun <T> MenuCell(
@@ -974,92 +985,110 @@ private fun <T> MenuCell(
     val labels = options.map { (_, text) -> if (text is Int) stringResource(text) else text.toString() }
     val entryRequester = remember { FocusRequester() }
     var wasOpen by remember { mutableStateOf(false) }
-    Cell(label, hint, modifier) { onFocus ->
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            leading?.let {
-                ChipButton(it.text, on = false, chevron = it.chevron, check = false, onClick = it.run, onFocus = onFocus)
+
+    Box {
+        Cell(label, hint, modifier) { onFocus ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                leading?.let {
+                    ChipButton(it.text, on = false, chevron = it.chevron, check = false, icon = it.icon, onClick = it.run, onFocus = onFocus)
+                }
+                ChipButton(
+                    labels.getOrElse(index) { "" },
+                    on = false, chevron = true, check = false,
+                    focusRequester = entryRequester,
+                    onClick = { open = true },
+                    onFocus = onFocus,
+                )
             }
-            ChipButton(
-                labels.getOrElse(index) { "" },
-                on = true, chevron = true,
-                focusRequester = entryRequester,
-                onClick = { open = true },
-                onFocus = onFocus,
-            )
+        }
+        // Popup 放在入口按钮自己的 Box 里, alignment 就是相对这颗按钮算的, 所以窗口会贴在它上方。
+        if (open) {
+            Popup(
+                alignment = Alignment.TopCenter,
+                offset = IntOffset(0, -with(LocalDensity.current) { (MiniMenuHeight + 8.dp).roundToPx() }),
+                properties = PopupProperties(focusable = true, dismissOnBackPress = false, dismissOnClickOutside = false),
+            ) {
+                MiniMenu(
+                    labels = labels,
+                    selected = index,
+                    onPick = { choose(options[it].first); open = false },
+                    onClose = { open = false },
+                )
+            }
         }
     }
     if (open) wasOpen = true
-    // 菜单关上以后回到入口按钮上, 免得焦点落在看不见的地方。
     LaunchedEffect(open) {
         if (!open && wasOpen) runCatching { entryRequester.requestFocus() }
     }
-    if (open) {
-        ChoiceMenu(
-            title = stringResource(label),
-            options = labels,
-            selected = index,
-            onPick = { choose(options[it].first); open = false },
-            onDismiss = { open = false },
-        )
-    }
 }
 
-/** 上下文菜单: 居中一块深色面板, 当前值打勾, 焦点整行白底。 */
+/**
+ * 迷你窗口: 磨砂底 + 一圈亮边, 横向排开全部选项。当前值打勾; 焦点在窗口内左右走,
+ * 到两端各响一声撞边音(一次按键只响一次); 上键响一声不关, 下键和返回键关上。
+ */
 @Composable
-private fun ChoiceMenu(
-    title: String,
-    options: List<String>,
+private fun MiniMenu(
+    labels: List<String>,
     selected: Int,
     onPick: (Int) -> Unit,
-    onDismiss: () -> Unit,
+    onClose: () -> Unit,
 ) {
-    val first = remember { FocusRequester() }
+    val requesters = remember(labels.size) { List(labels.size) { FocusRequester() } }
     LaunchedEffect(Unit) {
         withFrameNanos { }
-        runCatching { first.requestFocus() }
+        runCatching { requesters.getOrNull(selected)?.requestFocus() }
     }
-    BackHandler { onDismiss() }
-    Popup(
-        alignment = Alignment.Center,
-        properties = PopupProperties(focusable = true, dismissOnBackPress = false, dismissOnClickOutside = false),
+    BackHandler { onClose() }
+    // 撞边音只在按下的那一下响, 长按连续重复不再响。
+    fun bump(e: androidx.compose.ui.input.key.KeyEvent) {
+        if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0) Sounds.limit()
+    }
+    Row(
+        Modifier
+            .smoothBackground(Palette.Glass, 20.dp)
+            .smoothBorder(1.dp, Color.White.copy(alpha = 0.22f), 20.dp)
+            .height(MiniMenuHeight)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Column(
-            Modifier
-                .width(340.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .drawBehind { drawRect(Color(0xFF1E1E20)) }
-                .padding(horizontal = 12.dp, vertical = 14.dp),
-        ) {
-            BasicText(
-                title,
-                style = Type.Headline.copy(color = Palette.SecondaryLabel),
-                modifier = Modifier.padding(start = 12.dp, bottom = 8.dp),
-            )
-            options.forEachIndexed { i, text ->
-                Pressable(
-                    onClick = { onPick(i) },
-                    focusRequester = if (i == selected) first else null,
-                    focusedScale = 1f,
-                ) { st ->
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(46.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .drawBehind { if (st.focused) drawRect(Palette.Focus) }
-                            .padding(horizontal = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        BasicText(
-                            text,
-                            style = Type.Body.copy(color = if (st.focused) Palette.OnFocus else Palette.Label),
-                            modifier = Modifier.weight(1f), maxLines = 1,
-                        )
-                        if (i == selected) {
-                            Spacer(Modifier.width(10.dp))
-                            GlyphIcon(Glyph.Check, if (st.focused) Palette.OnFocus else Palette.Label, 16.dp)
+        labels.forEachIndexed { i, text ->
+            Pressable(
+                onClick = { onPick(i) },
+                focusRequester = requesters.getOrNull(i),
+                focusedScale = 1f,
+                onKey = { e ->
+                    val code = e.nativeKeyEvent.keyCode
+                    when (code) {
+                        NativeKeyEvent.KEYCODE_DPAD_LEFT -> {
+                            if (i == 0) { bump(e); true } else false
                         }
+                        NativeKeyEvent.KEYCODE_DPAD_RIGHT -> {
+                            if (i == labels.lastIndex) { bump(e); true } else false
+                        }
+                        NativeKeyEvent.KEYCODE_DPAD_UP -> { bump(e); true }
+                        NativeKeyEvent.KEYCODE_DPAD_DOWN -> {
+                            if (e.type == KeyEventType.KeyDown) onClose()
+                            true
+                        }
+                        else -> false
                     }
+                },
+            ) { st ->
+                val bg by animateColorAsState(if (st.focused) Palette.Focus else Palette.Fill, tween(140, easing = Motion.EaseOut), label = "mini-bg")
+                val fg = if (st.focused) Palette.OnFocus else Palette.Label
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(50))
+                        .drawBehind { drawRect(bg) }
+                        .height(30.dp)
+                        .padding(horizontal = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    BasicText(text, style = Type.Body.copy(color = fg), maxLines = 1)
+                    if (i == selected) GlyphIcon(Glyph.Check, fg, 12.dp)
                 }
             }
         }
@@ -1095,7 +1124,10 @@ private fun KeyVolumeCell() {
             },
         ) { state ->
             LaunchedEffect(state.focused) { onFocus(state.focused) }
-            val fg = Palette.Label
+            // 和按钮一样: 聚焦时白底, 没聚焦时淡底, 内容颜色随之反相。
+            val bg by animateColorAsState(if (state.focused) Palette.Focus else Palette.Fill, tween(140, easing = Motion.EaseOut), label = "keyvol-bg")
+            val fg = if (state.focused) Palette.OnFocus else Palette.Label
+            val track = if (state.focused) Palette.OnFocus.copy(alpha = 0.22f) else Palette.Label.copy(alpha = 0.2f)
             val volume = AerialSettings.keyVolume
             // 条形跟着数值走一段动画, 不再瞬时跳变。
             val fraction by animateFloatAsState(
@@ -1104,9 +1136,13 @@ private fun KeyVolumeCell() {
                 label = "keyvol-level",
             )
             Row(
-                Modifier.width(180.dp).height(30.dp),
+                Modifier
+                    .clip(RoundedCornerShape(50))
+                    .drawBehind { drawRect(bg) }
+                    .height(30.dp)
+                    .padding(horizontal = 11.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(9.dp),
             ) {
                 // 喇叭图标放在滑块条的左边, 音量格数用 level 表现, 不额外写字。
                 GlyphIcon(
@@ -1115,9 +1151,9 @@ private fun KeyVolumeCell() {
                     16.dp,
                     level = fraction,
                 )
-                Canvas(Modifier.weight(1f).height(5.dp)) {
+                Canvas(Modifier.width(132.dp).height(5.dp)) {
                     val r = CornerRadius(size.height / 2)
-                    drawRoundRect(fg.copy(alpha = 0.2f), cornerRadius = r)
+                    drawRoundRect(track, cornerRadius = r)
                     drawRoundRect(fg, size = GeometrySize(size.width * fraction, size.height), cornerRadius = r)
                 }
                 BasicText(volume.toString(), style = Type.Body.copy(color = fg), modifier = Modifier.widthIn(min = 24.dp), maxLines = 1)
@@ -1203,10 +1239,11 @@ private fun BiliCell() {
     }
 
     val action = if (loggedIn) {
-        CellAction(
-            listOfNotNull(stringResource(R.string.st_bili_logged_in), uid).joinToString(" · "),
-            chevron = false,
-        ) {
+        // 登录后按钮写明状态和出口: 已登录 UID · 退出登录
+        val text = uid?.takeIf { it.isNotBlank() }
+            ?.let { stringResource(R.string.st_bili_logged_in_uid, it) }
+            ?: (stringResource(R.string.st_bili_logged_in) + " · " + stringResource(R.string.st_bili_logout))
+        CellAction(text, chevron = false) {
             BiliAccount.clear()
             loggedIn = false
             uid = null
@@ -1218,26 +1255,42 @@ private fun BiliCell() {
     }
     ActionCell(R.string.st_bili_account, stringResource(R.string.st_bili_account_hint), listOf(action))
 
+    // 扫码用弹窗: 和右侧手机二维码一样, 白底圆角卡片里放码, 下面一行状态。弹窗不吃焦点,
+    // 遥控器仍在面板上; 按返回键收起。
     if (!loggedIn && loginState != null) {
-        Column(
-            Modifier.padding(start = 18.dp, end = 10.dp, top = 4.dp, bottom = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            qrBitmap?.let {
-                Image(it, contentDescription = null, modifier = Modifier.size(160.dp))
+        val status = when (loginState) {
+            is BiliLoginState.QrReady -> stringResource(R.string.st_bili_qr_ready)
+            BiliLoginState.WaitingScan -> stringResource(R.string.st_bili_waiting)
+            BiliLoginState.ScannedConfirm -> stringResource(R.string.st_bili_scanned)
+            BiliLoginState.Success -> stringResource(R.string.st_bili_success)
+            BiliLoginState.Expired -> stringResource(R.string.st_bili_expired)
+            is BiliLoginState.Failed -> stringResource(R.string.st_bili_failed)
+            else -> ""
+        }
+        BackHandler {
+            loginState = null
+            qrBitmap = null
+        }
+        Popup(alignment = Alignment.Center, properties = PopupProperties(focusable = false)) {
+            Column(
+                Modifier
+                    .smoothBackground(Palette.Glass, 24.dp)
+                    .smoothBorder(1.dp, Color.White.copy(alpha = 0.22f), 24.dp)
+                    .padding(22.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Box(
+                    Modifier
+                        .size(190.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .drawBehind { drawRect(Color.White) }
+                        .padding(12.dp),
+                ) {
+                    qrBitmap?.let { Image(it, contentDescription = null, modifier = Modifier.fillMaxSize()) }
+                }
+                BasicText(status, style = Type.Body.copy(color = Palette.Label), maxLines = 1)
             }
-            BasicText(
-                when (loginState) {
-                    is BiliLoginState.QrReady -> stringResource(R.string.st_bili_qr_ready)
-                    BiliLoginState.WaitingScan -> stringResource(R.string.st_bili_waiting)
-                    BiliLoginState.ScannedConfirm -> stringResource(R.string.st_bili_scanned)
-                    BiliLoginState.Success -> stringResource(R.string.st_bili_success)
-                    BiliLoginState.Expired -> stringResource(R.string.st_bili_expired)
-                    is BiliLoginState.Failed -> stringResource(R.string.st_bili_failed)
-                    else -> ""
-                },
-                style = Type.Caption.copy(color = Palette.TertiaryLabel),
-            )
         }
     }
 }
@@ -1274,7 +1327,10 @@ private fun PhoneCard(url: String?, qr: ImageBitmap?) {
 private val CellGap = 14.dp
 
 /** 每格下面给小字提示留的高度: 有没有提示都一样高, 焦点移动不会让整页跳。 */
-private val HintRoom = 36.dp
+private val HintRoom = 32.dp
+
+/** 迷你窗口的高度: 上下留白 + 一颗胶囊按钮。 */
+private val MiniMenuHeight = 46.dp
 
 private val SheetHeight = 360.dp
 private val SheetCorner = 30.dp
