@@ -11,8 +11,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -188,53 +188,84 @@ fun WallpaperSheet(
         )
     }
 
+    // 分类: 焦点落在右缘导航的哪一个, 左边内容就换成哪一组。
+    val tab = remember { mutableStateOf(PerCategory.Wallpaper) }
+    val railFirst = remember { FocusRequester() }
+
     // The sheet as it opens, or (takeFocus false) drawn once nearly clear for the warm-up.
     val sheet: @Composable (takeFocus: Boolean) -> Unit = { takeFocus ->
         Row(
             Modifier
-                .fillMaxWidth()
-                .height(SheetHeight)
+                .fillMaxHeight()
+                .width(SheetWidth)
                 .consumeTaps()
-                // Glass made from the wallpaper itself, opaque: Home is not blurred behind
-                // this sheet, so the wallpaper above it stays sharp while you choose, and the
-                // app grid must not show through.
-                .liquidGlass(SheetCorner, bottomCorners = false)
-                .padding(start = 40.dp, end = 32.dp, top = 24.dp),
+                // Glass made from the wallpaper itself, opaque, as the Control Center's: what is
+                // left of Home beside it stays sharp while you choose.
+                .liquidGlass(SheetCorner)
+                .padding(start = 36.dp, end = 16.dp, top = 32.dp, bottom = 28.dp),
         ) {
-            val leftScroll = rememberScrollState()
-            // 一页往下走: 每个分类是"图标 + 分类名"的标题, 标题下就是那一组选项, 不再做左栏
-            // 焦点切换。分类图标保留, 是为了在这一长页里一眼认出走到哪一组。
-            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(leftScroll).latestBringIntoView(leftScroll)) {
-                BasicText(stringResource(R.string.wp_title), style = Type.LargeTitle)
-                Spacer(Modifier.height(18.dp))
-                CategoryTitle(Glyph.Photo, R.string.wp_wallpaper)
-                WallpaperSection(takeFocus)
-                Spacer(Modifier.height(18.dp))
-                CategoryTitle(Glyph.Home, R.string.st_home_layout)
-                HomeSection(hiddenCount, onHiddenApps, hiddenLiveCount, onHiddenLiveSources, onHomeLock)
-                Spacer(Modifier.height(18.dp))
-                CategoryTitle(Glyph.Play, R.string.per_live)
-                LiveSection()
-                Spacer(Modifier.height(18.dp))
-                CategoryTitle(Glyph.Sun, R.string.per_look)
-                LookSection()
-                Spacer(Modifier.height(18.dp))
-                CategoryTitle(Glyph.Moon, R.string.wp_screensaver)
-                ScreensaverSection(onStartScreensaver)
-                Spacer(Modifier.height(18.dp))
-                CategoryTitle(Glyph.CloudSun, R.string.wp_weather)
-                WeatherSection()
-                Spacer(Modifier.height(18.dp))
-                CategoryTitle(Glyph.Shield, R.string.per_family)
-                FamilySection(onPin, onKids)
+            val contentScroll = rememberScrollState()
+            // 换分类时内容回到顶部。
+            LaunchedEffect(tab.value) { contentScroll.scrollTo(0) }
+            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(contentScroll).latestBringIntoView(contentScroll)) {
+                when (tab.value) {
+                    PerCategory.Wallpaper -> {
+                        CategoryTitle(Glyph.Photo, R.string.per_wallpaper)
+                        WallpaperSection(takeFocus)
+                        Spacer(Modifier.height(18.dp))
+                        PhoneCard(phoneUrl, qr)
+                    }
+                    PerCategory.Home -> {
+                        CategoryTitle(Glyph.Home, R.string.per_home)
+                        HomeSection(hiddenCount, onHiddenApps, hiddenLiveCount, onHiddenLiveSources, onHomeLock)
+                    }
+                    PerCategory.Live -> {
+                        CategoryTitle(Glyph.Play, R.string.per_live)
+                        LiveSection()
+                    }
+                    PerCategory.Look -> {
+                        CategoryTitle(Glyph.Sun, R.string.per_look)
+                        LookSection()
+                    }
+                    PerCategory.Screensaver -> {
+                        CategoryTitle(Glyph.Moon, R.string.per_screensaver)
+                        ScreensaverSection(onStartScreensaver)
+                    }
+                    PerCategory.Weather -> {
+                        CategoryTitle(Glyph.CloudSun, R.string.per_weather)
+                        WeatherSection()
+                    }
+                    PerCategory.Family -> {
+                        CategoryTitle(Glyph.Shield, R.string.per_family)
+                        FamilySection(onPin, onKids)
+                    }
+                }
                 Spacer(Modifier.height(24.dp))
             }
-            Spacer(Modifier.width(28.dp))
-            PhoneCard(phoneUrl, qr)
+            // 右缘导航: 平时只一条图标; 焦点停上来才展开成图标 + 名字的高亮胶囊。
+            Column(
+                Modifier.width(RailWidth).fillMaxHeight(),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                RailItem(PerCategory.Wallpaper, Glyph.Photo, tab, railFirst)
+                RailItem(PerCategory.Home, Glyph.Home, tab)
+                RailItem(PerCategory.Live, Glyph.Play, tab)
+                RailItem(PerCategory.Look, Glyph.Sun, tab)
+                RailItem(PerCategory.Screensaver, Glyph.Moon, tab)
+                RailItem(PerCategory.Weather, Glyph.CloudSun, tab)
+                RailItem(PerCategory.Family, Glyph.Shield, tab)
+                // 打开面板时焦点落在第一项分类上, 往左才进选项。
+                LaunchedEffect(takeFocus) {
+                    if (!takeFocus) return@LaunchedEffect
+                    withFrameNanos { }
+                    runCatching { railFirst.requestFocus() }
+                }
+            }
         }
     }
 
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopEnd) {
         // The first opening composed the sheet and gave the GPU its pictures, glyphs and shaders
         // for the first time: frames of 250 and 316 ms, 1.16 s for the slide-in, against about
         // 140 ms at worst on later openings (Xiaomi MiTV-MFTR0). Drawn once at 1% while Home is
@@ -242,8 +273,8 @@ fun WallpaperSheet(
         if (warm && !visible) Box(Modifier.graphicsLayer { alpha = 0.01f }) { sheet(false) }
         AnimatedVisibility(
             visibleState = shown,
-            enter = fadeIn(tween(200, easing = Motion.EaseOut)) + slideInVertically(tween(380, easing = Motion.Drawer)) { it / 3 },
-            exit = fadeOut(tween(160, easing = Motion.EaseOut)) + slideOutVertically(tween(200, easing = Motion.EaseOut)) { it / 4 },
+            enter = fadeIn(tween(200, easing = Motion.EaseOut)) + slideInHorizontally(tween(380, easing = Motion.Drawer)) { it },
+            exit = fadeOut(tween(160, easing = Motion.EaseOut)) + slideOutHorizontally(tween(200, easing = Motion.EaseOut)) { it },
         ) {
             sheet(true)
         }
@@ -256,6 +287,60 @@ fun WallpaperSheet(
  * daily photos and the rest of the built-ins are left out unless one of them is the current
  * choice. The focused card's note is under the row, as under a group of settings.
  */
+/** 设置面板的分类, 对应右缘导航的一个图标。 */
+private enum class PerCategory(val label: Int) {
+    Wallpaper(R.string.per_wallpaper),
+    Home(R.string.per_home),
+    Live(R.string.per_live),
+    Look(R.string.per_look),
+    Screensaver(R.string.per_screensaver),
+    Weather(R.string.per_weather),
+    Family(R.string.per_family),
+}
+
+/**
+ * 右缘导航的一项: 没被选中就只有一个图标; 焦点停上来才展开成"图标 + 分类名"的高亮胶囊,
+ * 同时左边内容也跟着切过去(不用按 OK)。
+ */
+@Composable
+private fun RailItem(
+    category: PerCategory,
+    glyph: Glyph,
+    tab: androidx.compose.runtime.MutableState<PerCategory>,
+    focusRequester: FocusRequester? = null,
+) {
+    Pressable(
+        onClick = { tab.value = category },
+        focusRequester = focusRequester,
+        focusedScale = 1.0f,
+        modifier = Modifier.fillMaxWidth(),
+    ) { state ->
+        LaunchedEffect(state.focused) { if (state.focused) tab.value = category }
+        val bg by animateColorAsState(if (state.focused) Palette.Focus else Color.Transparent, tween(140, easing = Motion.EaseOut), label = "rail-bg")
+        val fg = if (state.focused) Palette.OnFocus else Palette.SecondaryLabel
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .padding(horizontal = 4.dp)
+                .clip(RoundedCornerShape(50))
+                .drawBehind { drawRect(bg) }
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = if (state.focused) Arrangement.spacedBy(10.dp) else Arrangement.Center,
+        ) {
+            GlyphIcon(glyph, fg, 20.dp)
+            if (state.focused) {
+                BasicText(
+                    stringResource(category.label),
+                    style = Type.Body.copy(color = fg),
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
 /** 分类标题: 图标 + 分类名, 这一组选项就在它下面。 */
 @Composable
 private fun CategoryTitle(glyph: Glyph, label: Int) {
@@ -1058,12 +1143,14 @@ private fun PhoneCard(url: String?, qr: ImageBitmap?) {
     }
 }
 
-private val SheetHeight = 360.dp
+/** 设置面板占屏幕右侧这一段的宽度(照当贝的设置页: 左边内容, 右缘一条图标导航)。 */
+val SheetWidth = 620.dp
 private val SheetCorner = 30.dp
+/** 右缘导航条的宽度: 只有图标时窄, 选中那项展开图标+文字也放得下。 */
+private val RailWidth = 132.dp
 
 /**
- * How much of the screen's bottom the settled sheet hides whole: its height less its rounded top
- * corners, under which Home shows. Home drew all of itself under the opaque sheet every frame,
- * three full-screen layers and the tiles that nobody sees (Xiaomi MiTV-MFTR0).
+ * 面板稳定后盖住的那一段宽度。Home 不必在它下面整屏作画(好几层全屏和没人看见的卡片,
+ * 低端机很吃这个), 只画左边露出来的部分。
  */
-val SheetCovers = SheetHeight - SheetCorner
+val SheetCovers = SheetWidth

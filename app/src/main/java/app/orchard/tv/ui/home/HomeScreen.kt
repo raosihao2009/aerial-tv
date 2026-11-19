@@ -1055,7 +1055,7 @@ fun HomeScreen(
                         drawLayer(homeLayer)
                     } else if (sheetIn) {
                         // Under Personalize's settled sheet, only what shows above it.
-                        clipRect(bottom = size.height - SheetCovers.toPx()) { this@drawWithContent.drawContent() }
+                        clipRect(left = 0f, top = 0f, right = size.width - SheetCovers.toPx(), bottom = size.height) { this@drawWithContent.drawContent() }
                     } else drawContent()
                 },
         ) {

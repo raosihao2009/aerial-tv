@@ -352,7 +352,11 @@
     <string name="home_locked_notice">主屏幕已锁定。要整理卡片，请在「个性化」里关闭「锁定主页」。</string>
 
     <!-- 备份与恢复: 一个 zip 装下全部设置和文件(照片、影片、图标)。 -->
-    <string name="per_live">直播与卡片</string>
-    <string name="per_look">外观与声音</string>
-    <string name="per_family">家长控制</string>
+    <string name="per_wallpaper">壁纸</string>
+    <string name="per_home">主屏</string>
+    <string name="per_live">直播</string>
+    <string name="per_look">外观</string>
+    <string name="per_screensaver">屏保</string>
+    <string name="per_weather">天气</string>
+    <string name="per_family">家长</string>
 </resources>
