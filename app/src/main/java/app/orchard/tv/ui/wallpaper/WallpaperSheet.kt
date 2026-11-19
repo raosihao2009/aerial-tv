@@ -207,10 +207,9 @@ fun WallpaperSheet(
 
     // The sheet as it opens, or (takeFocus false) drawn once nearly clear for the warm-up.
     val sheet: @Composable (takeFocus: Boolean) -> Unit = { takeFocus ->
-        Row(
+        Column(
             Modifier
-                .fillMaxWidth()
-                .height(SheetHeight)
+                .fillMaxSize()
                 .consumeTaps()
                 // Glass made from the wallpaper itself, opaque: Home is not blurred behind
                 // this sheet, so the wallpaper above it stays sharp while you choose, and the
@@ -218,12 +217,24 @@ fun WallpaperSheet(
                 .liquidGlass(SheetCorner, bottomCorners = false)
                 .padding(start = 40.dp, end = 32.dp, top = 24.dp),
         ) {
+            // 全屏之后, 标题常驻在最上面, 下面压一条分隔线; 分隔线以下才是可滚动的那一页。
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 44.dp, end = 36.dp, top = 22.dp, bottom = 12.dp)
+                    .drawBehind {
+                        val y = size.height + 12.dp.toPx()
+                        drawRect(Palette.Hairline, topLeft = Offset(0f, y), size = Size(size.width, 1.dp.toPx()))
+                    },
+            ) {
+                BasicText(stringResource(R.string.wp_title), style = Type.LargeTitle)
+            }
+            Row(Modifier.weight(1f).fillMaxWidth().padding(start = 44.dp, end = 36.dp)) {
             val leftScroll = rememberScrollState()
             // 一页往下走: 每个分类是"图标 + 分类名"的标题, 标题下就是那一组选项, 不再做左栏
             // 焦点切换。分类图标保留, 是为了在这一长页里一眼认出走到哪一组。
             Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(leftScroll).latestBringIntoView(leftScroll)) {
-                BasicText(stringResource(R.string.wp_title), style = Type.LargeTitle)
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(14.dp))
                 CategoryTitle(Glyph.Photo, R.string.wp_wallpaper)
                 WallpaperSection(takeFocus)
                 Spacer(Modifier.height(18.dp))
@@ -247,7 +258,11 @@ fun WallpaperSheet(
                 Spacer(Modifier.height(24.dp))
             }
             Spacer(Modifier.width(28.dp))
-            PhoneCard(phoneUrl, qr, biliMirror)
+            // 右侧二维码: 在"分隔线以下、屏幕底部以上"这块区域里上下居中。
+            Box(Modifier.width(220.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                PhoneCard(phoneUrl, qr, biliMirror)
+            }
+            }
         }
     }
 
