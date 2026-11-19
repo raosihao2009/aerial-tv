@@ -711,16 +711,17 @@ private fun Group(note: String? = null, rows: @Composable ColumnScope.(note: (St
     @OptIn(ExperimentalFoundationApi::class)
     Column(Modifier.fillMaxWidth().onSizeChanged { height = it.height.toFloat() }.bringIntoViewResponder(withNote)) {
         Column(Modifier.fillMaxWidth().smoothBackground(Color.White.copy(alpha = 0.05f), 16.dp)) {
-            // 组自己的说明(比如"按网络自动定位")仍在卡片开头, 一进这一组就看得到。
+            rows { }
+            // 组自己的说明(比如"按网络自动定位")放在这一组的最下面: 说明是给整组看的,
+            // 挂在卡片顶上会挡在第一个选项前面, 看着像没头的提示。
             note?.let {
                 BasicText(
                     it,
                     style = Type.Caption.copy(color = Palette.TertiaryLabel),
                     maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 4.dp),
+                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 4.dp, bottom = 12.dp),
                 )
             }
-            rows { }
         }
     }
 }
