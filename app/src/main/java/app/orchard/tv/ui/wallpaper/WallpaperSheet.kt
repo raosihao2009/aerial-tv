@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -529,16 +530,13 @@ private fun ScreensaverSection(onStartScreensaver: () -> Unit) {
                 // The firmware's screensaver starts on the firmware's timer: 只显示它的值。
                 if (Wallpapers.screensaver == ScreensaverMode.System) {
                     val delay = remember { SystemScreensaver.firmwareDelayMs(context) }
-                    Cell(R.string.ss_delay, null, onClick = {}) {
-                        BasicText(
-                            when {
-                                delay == null -> stringResource(R.string.ss_delay_system)
-                                delay == 0L -> stringResource(R.string.ss_delay_system_off)
-                                else -> stringResource(R.string.ss_delay_system_minutes, ((delay + 30_000) / 60_000).coerceAtLeast(1).toInt())
-                            },
-                            style = Type.Body.copy(color = Palette.SecondaryLabel),
-                            maxLines = 1,
-                        )
+                    val shown = when {
+                        delay == null -> stringResource(R.string.ss_delay_system)
+                        delay == 0L -> stringResource(R.string.ss_delay_system_off)
+                        else -> stringResource(R.string.ss_delay_system_minutes, ((delay + 30_000) / 60_000).coerceAtLeast(1).toInt())
+                    }
+                    Cell(R.string.ss_delay, null) { onFocus ->
+                        ChipButton(shown, on = true, check = false, onClick = {}, onFocus = onFocus)
                     }
                 } else {
                     MenuCell(
@@ -798,127 +796,118 @@ private fun Group(rows: @Composable ColumnScope.() -> Unit) {
     }
     @OptIn(ExperimentalFoundationApi::class)
     Column(Modifier.fillMaxWidth().onSizeChanged { height = it.height.toFloat() }.bringIntoViewResponder(withNote)) {
-        Column(Modifier.fillMaxWidth().smoothBackground(Color.White.copy(alpha = 0.05f), 16.dp)) {
+        Column(Modifier.fillMaxWidth()) {
             // 组的说明不再是常驻一行: 它并进了相关那一格的小字提示, 焦点落上去才出现。
             rows()
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
         }
     }
 }
 
 /**
- * 两列网格: 一行放两个选项; 只有一个时右边留空, 左右两格的宽度和它们小字提示的左边
- * 就总在同一条线上。
+ * 两列网格: 一行放两个选项; 只有一个时它自己占满整行, 右边照样留出位置, 所以两列时
+ * 左右两格的宽度和它们小字提示的左边总在同一条线上。
  */
 @Composable
 private fun Row2(left: @Composable () -> Unit, right: (@Composable () -> Unit)? = null) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 6.dp),
+        Modifier.fillMaxWidth().padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(CellGap),
     ) {
         Box(Modifier.weight(1f)) { left() }
-        // 一行只有一个选项时它自己占满整行: 小字提示的左边还是和两列时的那一格对齐。
         if (right != null) Box(Modifier.weight(1f)) { right() }
     }
 }
 
-/** 一个格子里的一颗按钮: 一段文字, 需要时带一个 ">"。 */
+/** 一颗按钮: 一段文字, 需要时带一个 ">"。 */
 private class CellAction(val text: String, val chevron: Boolean, val run: () -> Unit)
 
 /**
- * 一格里的一格选项: 左边是名称, 右边是它的值, 下面留出固定两行的小字提示位 —— 有没有提示
- * 都这么高, 焦点落到哪一格都不会让整页上下跳。聚焦时整格描一圈白边, 小字提示这时才出现,
- * 平时不占着地方亮着。
+ * 一个选项自己就是一颗气泡: 上面一行是名称和它的值, 下面一直显示这一项的小字提示
+ * (两行位置固定, 有没有内容都这么高)。气泡平时只有淡底和一圈细边, 焦点落在气泡里的
+ * 任何一颗按钮上时, 气泡整体描一圈白边 —— 宽度和壁纸卡片的选中框一致。
  */
 @Composable
 private fun Cell(
     label: Int,
     hint: String?,
     modifier: Modifier = Modifier,
-    onLeft: (() -> Unit)? = null,
-    onRight: (() -> Unit)? = null,
-    onClick: () -> Unit = {},
-    control: @Composable (focused: Boolean) -> Unit,
+    content: @Composable RowScope.(onFocus: (Boolean) -> Unit) -> Unit,
 ) {
-    Pressable(
-        onClick = onClick,
-        focusedScale = 1f,
-        modifier = modifier,
-        onKey = { e ->
-            val code = e.nativeKeyEvent.keyCode
-            val dir = when (code) {
-                NativeKeyEvent.KEYCODE_DPAD_LEFT -> -1
-                NativeKeyEvent.KEYCODE_DPAD_RIGHT -> 1
-                else -> 0
-            }
-            val move = if (dir < 0) onLeft else if (dir > 0) onRight else null
-            if (move == null) return@Pressable false
-            if (e.type == KeyEventType.KeyDown) move.invoke()
-            true
-        },
-    ) { state ->
-        val borderColor by animateColorAsState(
-            if (state.focused) Palette.Focus else Color.Transparent,
-            tween(120, easing = Motion.EaseOut), label = "cell-border",
-        )
-        val bg by animateColorAsState(
-            if (state.focused) Palette.Fill else Color.Transparent,
-            tween(120, easing = Motion.EaseOut), label = "cell-bg",
-        )
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .drawBehind { drawRect(bg) }
-                .border(2.dp, borderColor, RoundedCornerShape(14.dp))
-                .padding(start = 14.dp, end = 10.dp, top = 2.dp, bottom = 4.dp),
-        ) {
-            Row(Modifier.fillMaxWidth().height(42.dp), verticalAlignment = Alignment.CenterVertically) {
+    var focused by remember { mutableStateOf(false) }
+    val borderWidth by animateFloatAsState(if (focused) 3f else 1f, tween(120, easing = Motion.EaseOut), label = "cell-border-width")
+    val borderColor by animateColorAsState(
+        if (focused) Palette.Focus else Palette.Hairline,
+        tween(120, easing = Motion.EaseOut), label = "cell-border-color",
+    )
+    Column(
+        modifier
+            .fillMaxWidth()
+            .smoothBackground(Color.White.copy(alpha = 0.05f), 16.dp)
+            .smoothBorder(borderWidth.dp, borderColor, 16.dp)
+            .padding(start = 14.dp, end = 10.dp, top = 2.dp, bottom = 4.dp),
+    ) {
+        Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
+            BasicText(
+                stringResource(label),
+                style = Type.Body,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            content { focused = it }
+        }
+        Box(Modifier.fillMaxWidth().height(HintRoom)) {
+            if (!hint.isNullOrBlank()) {
                 BasicText(
-                    stringResource(label),
-                    style = Type.Body,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
+                    hint,
+                    style = Type.Caption.copy(color = Palette.TertiaryLabel),
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
                 )
-                control(state.focused)
-            }
-            Box(Modifier.fillMaxWidth().height(HintRoom)) {
-                if (state.focused && !hint.isNullOrBlank()) {
-                    BasicText(
-                        hint,
-                        style = Type.Caption.copy(color = Palette.TertiaryLabel),
-                        maxLines = 2, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 2.dp),
-                    )
-                }
             }
         }
     }
 }
 
-/** 格子里的一颗胶囊: 选中的打勾, 聚焦的整格变亮。 */
+/** 气泡里的一颗胶囊按钮: 聚焦时白底(和以前一样), 选中的打勾。 */
 @Composable
-private fun Pill(label: String, on: Boolean, hot: Boolean = false, chevron: Boolean = false, check: Boolean = true) {
-    Row(
-        Modifier
-            .clip(RoundedCornerShape(50))
-            .drawBehind { drawRect(if (hot) Palette.FillStrong else Palette.Fill) }
-            .height(32.dp)
-            .padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        if (check && on) GlyphIcon(Glyph.Check, Palette.Label, 12.dp)
-        BasicText(
-            label,
-            style = Type.Body.copy(color = if (on) Palette.Label else Palette.SecondaryLabel),
-            maxLines = 1,
+private fun ChipButton(
+    label: String,
+    on: Boolean,
+    chevron: Boolean = false,
+    check: Boolean = true,
+    focusRequester: FocusRequester? = null,
+    onClick: () -> Unit,
+    onFocus: (Boolean) -> Unit,
+) {
+    Pressable(onClick = onClick, focusRequester = focusRequester, focusedScale = 1f) { state ->
+        LaunchedEffect(state.focused) { onFocus(state.focused) }
+        val bg by animateColorAsState(
+            when {
+                state.focused -> Palette.Focus
+                on -> Palette.FillStrong
+                else -> Palette.Fill
+            },
+            tween(140, easing = Motion.EaseOut), label = "chip-bg",
         )
-        if (chevron) GlyphIcon(Glyph.ChevronRight, Palette.Label, 14.dp)
+        val fg = if (state.focused) Palette.OnFocus else Palette.Label
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(50))
+                .drawBehind { drawRect(bg) }
+                .height(30.dp)
+                .padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            if (check && on) GlyphIcon(Glyph.Check, fg, 12.dp)
+            BasicText(label, style = Type.Body.copy(color = fg), maxLines = 1)
+            if (chevron) GlyphIcon(Glyph.ChevronRight, fg, 13.dp)
+        }
     }
 }
 
-/** 二选一或几选一: 左右键换值, OK 也换到下一个。 */
+/** 二选一或几选一: 每颗按钮都能用左右键走到, OK 选中。 */
 @Composable
 private fun <T> ChoiceCell(
     label: Int,
@@ -928,47 +917,46 @@ private fun <T> ChoiceCell(
     choose: (T) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val index = options.indexOfFirst { it.first == current }.coerceAtLeast(0)
-    fun move(delta: Int) {
-        if (options.size < 2) return
-        choose(options[(index + delta + options.size) % options.size].first)
-    }
-    Cell(label, hint, modifier, onLeft = { move(-1) }, onRight = { move(1) }, onClick = { move(1) }) { focused ->
+    Cell(label, hint, modifier) { onFocus ->
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             options.forEach { (value, text) ->
-                Pill(if (text is Int) stringResource(text) else text.toString(), on = current == value, hot = focused)
+                ChipButton(
+                    if (text is Int) stringResource(text) else text.toString(),
+                    on = current == value,
+                    onClick = { choose(value) },
+                    onFocus = onFocus,
+                )
             }
         }
     }
 }
 
-/** 只做事不选值的格子: 左右键换到另一颗按钮, OK 做选中的那颗。 */
+/** 只做事不选值的格子: 一颗或几颗按钮, 左右键换着走。 */
 @Composable
 private fun ActionCell(
     label: Int,
     hint: String?,
     actions: List<CellAction>,
     modifier: Modifier = Modifier,
-    initial: Int = 0,
 ) {
-    var pick by remember(label, actions.size) {
-        mutableStateOf(initial.coerceIn(0, (actions.size - 1).coerceAtLeast(0)))
-    }
-    fun move(delta: Int) {
-        if (actions.size < 2) return
-        pick = (pick + delta + actions.size) % actions.size
-    }
-    Cell(label, hint, modifier, onLeft = { move(-1) }, onRight = { move(1) }, onClick = { actions.getOrNull(pick)?.run?.invoke() }) { focused ->
+    Cell(label, hint, modifier) { onFocus ->
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            actions.forEachIndexed { i, a ->
-                Pill(a.text, on = i == pick, hot = focused, chevron = a.chevron, check = false)
+            actions.forEach { a ->
+                ChipButton(
+                    a.text,
+                    on = false,
+                    chevron = a.chevron,
+                    check = false,
+                    onClick = a.run,
+                    onFocus = onFocus,
+                )
             }
         }
     }
 }
 
 /**
- * 选项多的格子: 入口是"当前值 + >"这颗按钮(和「隐藏的卡片」同一套), OK 打开上下文菜单选;
+ * 选项多的格子: 入口是"当前值 + >"那颗按钮(和「隐藏的卡片」同一套), OK 打开上下文菜单;
  * [leading] 是入口左边的一颗按钮, 比如「类型」的「立即开始」。
  */
 @Composable
@@ -984,8 +972,27 @@ private fun <T> MenuCell(
     var open by remember { mutableStateOf(false) }
     val index = options.indexOfFirst { it.first == current }.coerceAtLeast(0)
     val labels = options.map { (_, text) -> if (text is Int) stringResource(text) else text.toString() }
-    val entry = CellAction(labels.getOrElse(index) { "" }, chevron = true) { open = true }
-    ActionCell(label, hint, listOfNotNull(leading, entry), modifier, initial = if (leading == null) 0 else 1)
+    val entryRequester = remember { FocusRequester() }
+    var wasOpen by remember { mutableStateOf(false) }
+    Cell(label, hint, modifier) { onFocus ->
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            leading?.let {
+                ChipButton(it.text, on = false, chevron = it.chevron, check = false, onClick = it.run, onFocus = onFocus)
+            }
+            ChipButton(
+                labels.getOrElse(index) { "" },
+                on = true, chevron = true,
+                focusRequester = entryRequester,
+                onClick = { open = true },
+                onFocus = onFocus,
+            )
+        }
+    }
+    if (open) wasOpen = true
+    // 菜单关上以后回到入口按钮上, 免得焦点落在看不见的地方。
+    LaunchedEffect(open) {
+        if (!open && wasOpen) runCatching { entryRequester.requestFocus() }
+    }
     if (open) {
         ChoiceMenu(
             title = stringResource(label),
@@ -1076,44 +1083,50 @@ private fun KeyVolumeCell() {
             Sounds.limit()
         }
     }
-    Cell(
-        R.string.st_key_volume,
-        stringResource(R.string.st_key_volume_hint),
-        onLeft = { step(-1) },
-        onRight = { step(1) },
-        onClick = { step(1) },
-    ) { focused ->
-        val fg = Palette.Label
-        val volume = AerialSettings.keyVolume
-        // 条形跟着数值走一段动画, 不再瞬时跳变。
-        val fraction by animateFloatAsState(
-            targetValue = volume / 100f,
-            animationSpec = tween(160, easing = LinearEasing),
-            label = "keyvol-level",
-        )
-        Row(
-            Modifier.width(190.dp).height(32.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            // 喇叭图标放在滑块条的左边, 音量格数用 level 表现, 不额外写字。
-            GlyphIcon(
-                if (volume == 0) Glyph.SpeakerMuted else Glyph.Speaker,
-                fg,
-                16.dp,
-                level = fraction,
+    Cell(R.string.st_key_volume, stringResource(R.string.st_key_volume_hint)) { onFocus ->
+        Pressable(
+            onClick = { step(1) },
+            focusedScale = 1f,
+            onKey = { e ->
+                val code = e.nativeKeyEvent.keyCode
+                if (code != NativeKeyEvent.KEYCODE_DPAD_LEFT && code != NativeKeyEvent.KEYCODE_DPAD_RIGHT) return@Pressable false
+                if (e.type == KeyEventType.KeyDown) step(if (code == NativeKeyEvent.KEYCODE_DPAD_RIGHT) 1 else -1)
+                true
+            },
+        ) { state ->
+            LaunchedEffect(state.focused) { onFocus(state.focused) }
+            val fg = Palette.Label
+            val volume = AerialSettings.keyVolume
+            // 条形跟着数值走一段动画, 不再瞬时跳变。
+            val fraction by animateFloatAsState(
+                targetValue = volume / 100f,
+                animationSpec = tween(160, easing = LinearEasing),
+                label = "keyvol-level",
             )
-            Canvas(Modifier.weight(1f).height(5.dp)) {
-                val r = CornerRadius(size.height / 2)
-                drawRoundRect(fg.copy(alpha = 0.2f), cornerRadius = r)
-                drawRoundRect(fg, size = GeometrySize(size.width * fraction, size.height), cornerRadius = r)
+            Row(
+                Modifier.width(180.dp).height(30.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                // 喇叭图标放在滑块条的左边, 音量格数用 level 表现, 不额外写字。
+                GlyphIcon(
+                    if (volume == 0) Glyph.SpeakerMuted else Glyph.Speaker,
+                    fg,
+                    16.dp,
+                    level = fraction,
+                )
+                Canvas(Modifier.weight(1f).height(5.dp)) {
+                    val r = CornerRadius(size.height / 2)
+                    drawRoundRect(fg.copy(alpha = 0.2f), cornerRadius = r)
+                    drawRoundRect(fg, size = GeometrySize(size.width * fraction, size.height), cornerRadius = r)
+                }
+                BasicText(volume.toString(), style = Type.Body.copy(color = fg), modifier = Modifier.widthIn(min = 24.dp), maxLines = 1)
             }
-            BasicText(volume.toString(), style = Type.Body.copy(color = fg), modifier = Modifier.widthIn(min = 24.dp), maxLines = 1)
         }
     }
 }
 
-/** 天气位置: 能选中的一格, 只是把"这是哪、现在怎样"显示出来; 城市在手机上设置。 */
+/** 天气位置: 能选中的一格, 把"这是哪、现在怎样"显示出来; 城市在手机上设置。 */
 @Composable
 private fun WeatherCell() {
     val place = Weather.place
@@ -1136,17 +1149,25 @@ private fun WeatherCell() {
         )
     }
     val shown = if (w != null) listOfNotNull(place, "${w.celsius}° $kind").joinToString(" · ") else stringResource(R.string.wp_weather_none)
-    val hint = listOfNotNull(
-        stringResource(if (Weather.chosen) R.string.wp_weather_chosen else R.string.wp_weather_guessed),
-        "城市在手机上设置，扫右边的二维码可以更改。",
-    ).joinToString("\n")
-    Cell(R.string.wp_weather_city, hint) {
-        BasicText(
-            shown,
-            style = Type.Body.copy(color = Palette.SecondaryLabel),
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = 200.dp),
-        )
+    // 只用一条提示: 以前把"城市在手机上设置…"接在它后面, 两句话说的是同一件事。
+    val hint = stringResource(if (Weather.chosen) R.string.wp_weather_chosen else R.string.wp_weather_guessed)
+    Cell(R.string.wp_weather_city, hint) { onFocus ->
+        Pressable(onClick = {}, focusedScale = 1f) { state ->
+            LaunchedEffect(state.focused) { onFocus(state.focused) }
+            val bg by animateColorAsState(if (state.focused) Palette.Focus else Palette.Fill, tween(140, easing = Motion.EaseOut), label = "weather-bg")
+            val fg = if (state.focused) Palette.OnFocus else Palette.SecondaryLabel
+            Row(
+                Modifier
+                    .clip(RoundedCornerShape(50))
+                    .drawBehind { drawRect(bg) }
+                    .height(30.dp)
+                    .padding(horizontal = 10.dp)
+                    .widthIn(max = 210.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                BasicText(shown, style = Type.Body.copy(color = fg), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
     }
 }
 
