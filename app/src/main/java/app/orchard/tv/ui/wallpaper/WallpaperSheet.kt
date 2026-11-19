@@ -9,11 +9,10 @@ import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -28,16 +27,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -52,19 +47,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.Paint
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.key
-import androidx.compose.foundation.gestures.scrollBy
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.unit.Dp
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -206,115 +188,62 @@ fun WallpaperSheet(
         )
     }
 
-    // 分类: 焦点落在右缘导航的哪一个, 左边内容就换成哪一组。
-    val tab = remember { mutableStateOf(PerCategory.Wallpaper) }
-    // 每个分类一个焦点请求者: 打开面板落在第一个, 按返回键/右边缘回到当前那一类。
-    val railReqs = remember { PerCategory.entries.map { FocusRequester() } }
-    val railExit: () -> Unit = { runCatching { railReqs[tab.value.ordinal].requestFocus() } }
-    // 焦点在右缘导航里时, 导航整体显示图标 + 名字, 面板往左扩;
-    // 焦点进了左边的内容, 面板整体往右缩, 导航只剩图标(和当贝一样)。
-    var railFocused by remember { mutableStateOf(true) }
-    val panelWidth by animateDpAsState(if (railFocused) SheetWidth else SheetWidth - (RailWidth - RailWidthNarrow), tween(240, easing = Motion.EaseOut), label = "panel-w")
-    val railWidth by animateDpAsState(if (railFocused) RailWidth else RailWidthNarrow, tween(240, easing = Motion.EaseOut), label = "rail-w")
-
     // The sheet as it opens, or (takeFocus false) drawn once nearly clear for the warm-up.
     val sheet: @Composable (takeFocus: Boolean) -> Unit = { takeFocus ->
         Row(
             Modifier
-                .fillMaxHeight()
-                .width(panelWidth)
+                .fillMaxWidth()
+                .height(SheetHeight)
                 .consumeTaps()
-                // Glass made from the wallpaper itself, opaque, as the Control Center's: what is
-                // left of Home beside it stays sharp while you choose.
-                .liquidGlass(SheetCorner)
-                .padding(start = 28.dp, end = 8.dp, top = 28.dp, bottom = 24.dp),
+                // Glass made from the wallpaper itself, opaque: Home is not blurred behind
+                // this sheet, so the wallpaper above it stays sharp while you choose, and the
+                // app grid must not show through.
+                .liquidGlass(SheetCorner, bottomCorners = false)
+                .padding(start = 40.dp, end = 32.dp, top = 24.dp),
         ) {
-            val contentScroll = rememberScrollState()
-            // 换分类时内容回到顶部。
-            LaunchedEffect(tab.value) { contentScroll.scrollTo(0) }
-            Column(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .verticalScroll(contentScroll)
-                    .latestBringIntoView(contentScroll)
-                    // 焦点在左边内容时按返回键, 不关面板, 先回到当前那一类导航上。
-                    .onPreviewKeyEvent { e ->
-                        if (e.type == KeyEventType.KeyDown && e.key == Key.Back) {
-                            railExit(); true
-                        } else false
-                    },
-            ) {
-                CompositionLocalProvider(LocalRailExit provides railExit) {
-                when (tab.value) {
-                    PerCategory.Wallpaper -> {
-                        CategoryTitle(Glyph.Photo, R.string.per_wallpaper)
-                        WallpaperSection(takeFocus)
-                        Spacer(Modifier.height(18.dp))
-                        PhoneCard(phoneUrl, qr)
-                    }
-                    PerCategory.Home -> {
-                        CategoryTitle(Glyph.Home, R.string.per_home)
-                        HomeSection(hiddenCount, onHiddenApps, hiddenLiveCount, onHiddenLiveSources, onHomeLock)
-                    }
-                    PerCategory.Live -> {
-                        CategoryTitle(Glyph.Play, R.string.per_live)
-                        LiveSection()
-                    }
-                    PerCategory.Look -> {
-                        CategoryTitle(Glyph.Sun, R.string.per_look)
-                        LookSection()
-                    }
-                    PerCategory.Screensaver -> {
-                        CategoryTitle(Glyph.Moon, R.string.per_screensaver)
-                        ScreensaverSection(onStartScreensaver)
-                    }
-                    PerCategory.Weather -> {
-                        CategoryTitle(Glyph.CloudSun, R.string.per_weather)
-                        WeatherSection()
-                    }
-                    PerCategory.Family -> {
-                        CategoryTitle(Glyph.Shield, R.string.per_family)
-                        FamilySection(onPin, onKids)
-                    }
-                }
-                }
+            val leftScroll = rememberScrollState()
+            // 一页往下走: 每个分类是"图标 + 分类名"的标题, 标题下就是那一组选项, 不再做左栏
+            // 焦点切换。分类图标保留, 是为了在这一长页里一眼认出走到哪一组。
+            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(leftScroll).latestBringIntoView(leftScroll)) {
+                BasicText(stringResource(R.string.wp_title), style = Type.LargeTitle)
+                Spacer(Modifier.height(18.dp))
+                CategoryTitle(Glyph.Photo, R.string.wp_wallpaper)
+                WallpaperSection(takeFocus)
+                Spacer(Modifier.height(18.dp))
+                CategoryTitle(Glyph.Home, R.string.st_home_layout)
+                HomeSection(hiddenCount, onHiddenApps, hiddenLiveCount, onHiddenLiveSources, onHomeLock)
+                Spacer(Modifier.height(18.dp))
+                CategoryTitle(Glyph.Play, R.string.per_live)
+                LiveSection()
+                Spacer(Modifier.height(18.dp))
+                CategoryTitle(Glyph.Sun, R.string.per_look)
+                LookSection()
+                Spacer(Modifier.height(18.dp))
+                CategoryTitle(Glyph.Moon, R.string.wp_screensaver)
+                ScreensaverSection(onStartScreensaver)
+                Spacer(Modifier.height(18.dp))
+                CategoryTitle(Glyph.CloudSun, R.string.wp_weather)
+                WeatherSection()
+                Spacer(Modifier.height(18.dp))
+                CategoryTitle(Glyph.Shield, R.string.per_family)
+                FamilySection(onPin, onKids)
                 Spacer(Modifier.height(24.dp))
             }
-            // 右缘导航: 平时只一条图标(贴着屏幕右缘); 焦点停上来才向左展开成图标 + 名字的高亮胶囊。
-            Column(
-                Modifier
-                    .width(railWidth)
-                    .fillMaxHeight()
-                    // 焦点只要还在这条导航里(含它的子项), 就一直显示文字。
-                    .onFocusChanged { railFocused = it.hasFocus },
-                verticalArrangement = Arrangement.Center,
-            ) {
-                CompositionLocalProvider(LocalRailExit provides railExit) {
-                    PerCategory.entries.forEachIndexed { i, category ->
-                        RailItem(category, glyphOf(category), tab, railFocused, railReqs[i])
-                    }
-                }
-                // 打开面板时焦点落在第一项分类上, 往左才进选项。
-                LaunchedEffect(takeFocus) {
-                    if (!takeFocus) return@LaunchedEffect
-                    withFrameNanos { }
-                    runCatching { railReqs.first().requestFocus() }
-                }
-            }
+            Spacer(Modifier.width(28.dp))
+            PhoneCard(phoneUrl, qr)
         }
     }
 
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopEnd) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
         // The first opening composed the sheet and gave the GPU its pictures, glyphs and shaders
         // for the first time: frames of 250 and 316 ms, 1.16 s for the slide-in, against about
         // 140 ms at worst on later openings (Xiaomi MiTV-MFTR0). Drawn once at 1% while Home is
         // idle, without focus (HomeScreen, as Control Center), the first opening is like the next.
-        if (warm && !visible) Box(Modifier.graphicsLayer { alpha = 0.01f }) { sheet(true) }
+        if (warm && !visible) Box(Modifier.graphicsLayer { alpha = 0.01f }) { sheet(false) }
         AnimatedVisibility(
             visibleState = shown,
-            enter = fadeIn(tween(200, easing = Motion.EaseOut)) + slideInHorizontally(tween(380, easing = Motion.Drawer)) { it },
-            exit = fadeOut(tween(160, easing = Motion.EaseOut)) + slideOutHorizontally(tween(200, easing = Motion.EaseOut)) { it },
+            enter = fadeIn(tween(200, easing = Motion.EaseOut)) + slideInVertically(tween(380, easing = Motion.Drawer)) { it / 3 },
+            exit = fadeOut(tween(160, easing = Motion.EaseOut)) + slideOutVertically(tween(200, easing = Motion.EaseOut)) { it / 4 },
         ) {
             sheet(true)
         }
@@ -327,81 +256,6 @@ fun WallpaperSheet(
  * daily photos and the rest of the built-ins are left out unless one of them is the current
  * choice. The focused card's note is under the row, as under a group of settings.
  */
-/** 选项按钮滑到头再按右键 / 按返回键时, 焦点要回到右缘那条导航上。 */
-private val LocalRailExit = staticCompositionLocalOf<(() -> Unit)?> { null }
-
-/** 设置面板的分类, 对应右缘导航的一个图标。 */
-private enum class PerCategory(val label: Int) {
-    Wallpaper(R.string.per_wallpaper),
-    Home(R.string.per_home),
-    Live(R.string.per_live),
-    Look(R.string.per_look),
-    Screensaver(R.string.per_screensaver),
-    Weather(R.string.per_weather),
-    Family(R.string.per_family),
-}
-
-private fun glyphOf(category: PerCategory): Glyph = when (category) {
-    PerCategory.Wallpaper -> Glyph.Photo
-    PerCategory.Home -> Glyph.Home
-    PerCategory.Live -> Glyph.Play
-    PerCategory.Look -> Glyph.Sun
-    PerCategory.Screensaver -> Glyph.Moon
-    PerCategory.Weather -> Glyph.CloudSun
-    PerCategory.Family -> Glyph.Shield
-}
-
-/**
- * 右缘导航的一项: 没被选中就只有一个图标; 焦点停上来才展开成"图标 + 分类名"的高亮胶囊,
- * 同时左边内容也跟着切过去(不用按 OK)。
- */
-@Composable
-private fun RailItem(
-    category: PerCategory,
-    glyph: Glyph,
-    tab: androidx.compose.runtime.MutableState<PerCategory>,
-    labels: Boolean,
-    focusRequester: FocusRequester? = null,
-) {
-    Pressable(
-        onClick = { tab.value = category },
-        focusRequester = focusRequester,
-        focusedScale = 1.0f,
-        modifier = Modifier.fillMaxWidth(),
-    ) { state ->
-        LaunchedEffect(state.focused) { if (state.focused) tab.value = category }
-        val bg by animateColorAsState(if (state.focused) Palette.Focus else Color.Transparent, tween(140, easing = Motion.EaseOut), label = "rail-bg")
-        // 焦点在左边内容时, 当前这一类留着白色图标, 一眼还能看出停在哪一类。
-        val fg = when {
-            state.focused -> Palette.OnFocus
-            !labels && tab.value == category -> Palette.Label
-            else -> Palette.SecondaryLabel
-        }
-        Row(
-            Modifier
-                .padding(end = 8.dp)
-                .fillMaxWidth()
-                .height(52.dp)
-                .clip(RoundedCornerShape(50))
-                .drawBehind { drawRect(bg) }
-                // 宽度固定: 名字长短只会影响文字本身, 不会把图标左右挪。
-                .padding(start = if (labels) 18.dp else 0.dp, end = if (labels) 12.dp else 0.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = if (labels) Arrangement.Start else Arrangement.Center,
-        ) {
-            GlyphIcon(glyph, fg, 28.dp)
-            if (labels) {
-                BasicText(
-                    stringResource(category.label),
-                    style = Type.Body.copy(color = fg),
-                    maxLines = 1,
-                    modifier = Modifier.padding(start = 12.dp),
-                )
-            }
-        }
-    }
-}
-
 /** 分类标题: 图标 + 分类名, 这一组选项就在它下面。 */
 @Composable
 private fun CategoryTitle(glyph: Glyph, label: Int) {
@@ -585,7 +439,7 @@ private fun LookSection() {
 private fun ScreensaverSection(onStartScreensaver: () -> Unit) {
     val context = LocalContext.current
     Group { note ->
-        Choices(
+        SettingRow(
             R.string.ss_kind,
             when {
                 Wallpapers.screensaver == ScreensaverMode.Videos -> stringResource(R.string.ss_videos_hint)
@@ -594,18 +448,8 @@ private fun ScreensaverSection(onStartScreensaver: () -> Unit) {
                 AerialSettings.backStartsScreensaver -> stringResource(R.string.ss_back_hint)
                 else -> null
             },
-            note,
-            listOf(
-                ScreensaverMode.Aerial to R.string.ss_aerial,
-                ScreensaverMode.Photos to R.string.ss_photos,
-                ScreensaverMode.Clock to R.string.ss_clock,
-                ScreensaverMode.Videos to R.string.ss_videos,
-                ScreensaverMode.System to R.string.ss_system,
-            ),
-            Wallpapers.screensaver, Wallpapers::chooseScreensaver,
-            first = true,
-        )
-        ActionRow(R.string.ss_start, onStartScreensaver)
+            note, first = true,
+        ) { ScreensaverChoice(onStartScreensaver) }
         // Only the qualities this TV can play; a 1080p-only TV has nothing to choose.
         val qualities = remember { AerialFormats.supported(context) }
         if (qualities.size > 1) {
@@ -866,237 +710,51 @@ private fun Group(note: String? = null, rows: @Composable ColumnScope.(note: (St
     }
     @OptIn(ExperimentalFoundationApi::class)
     Column(Modifier.fillMaxWidth().onSizeChanged { height = it.height.toFloat() }.bringIntoViewResponder(withNote)) {
-        // 组自己的说明(比如"按网络自动定位")放在组前面, 一进这一组就看得到。
-        note?.let {
-            BasicText(
-                it,
-                style = Type.Caption.copy(color = Palette.TertiaryLabel),
-                maxLines = 2, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp),
-            )
+        Column(Modifier.fillMaxWidth().smoothBackground(Color.White.copy(alpha = 0.05f), 16.dp)) {
+            // 组自己的说明(比如"按网络自动定位")仍在卡片开头, 一进这一组就看得到。
+            note?.let {
+                BasicText(
+                    it,
+                    style = Type.Caption.copy(color = Palette.TertiaryLabel),
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 4.dp),
+                )
+            }
+            rows { }
         }
-        rows { }
     }
 }
 
 /** One row: the setting's name on the left, its control on the right, a hairline above all but the first. */
-private val RowCorner = 14.dp
-private val ControlWidth = 210.dp
-
-/**
- * 一行选项: 没有气泡, 常态就是一行字 + 右边的控件; 焦点落在这行时整行底色转白(tvOS 的焦点板)。
- * 小字提示直接排在选项下面, 只在这一行有焦点时出现。
- * [onClick] 有值时整行是一个可按的按钮(给上下文菜单和动作按钮用), 右侧显示 [value] 和一个">"。
- */
 @Composable
-private fun SettingRow(
-    label: Int,
-    hint: String?,
-    note: (String?) -> Unit,
-    first: Boolean = false,
-    onClick: (() -> Unit)? = null,
-    value: String? = null,
-    control: @Composable () -> Unit = {},
-) {
+private fun SettingRow(label: Int, hint: String?, note: (String?) -> Unit, first: Boolean = false, control: @Composable () -> Unit) {
     var focused by remember { mutableStateOf(false) }
+    // 小字提示就贴在这一行下面: 一页里选项多, 统一的提示框放在组尾就跑到屏幕外了。
+    // 只有焦点落在这一行时才出现, 移走就收起, 不占别处的空间。
     Column(Modifier.fillMaxWidth().onFocusChanged { focused = it.hasFocus; if (it.hasFocus) note(hint) }) {
-        val body: @Composable (highlight: Boolean) -> Unit = { on ->
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .defaultMinSize(minHeight = 52.dp)
-                    .clip(RoundedCornerShape(RowCorner))
-                    .drawBehind { if (on) drawRect(Palette.Focus) }
-                    .padding(start = 18.dp, end = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                BasicText(
-                    stringResource(label),
-                    style = Type.Body.copy(color = if (on) Palette.OnFocus else Palette.Label),
-                    modifier = Modifier.weight(1f), maxLines = 1,
-                )
-                if (onClick != null) {
-                    if (!value.isNullOrBlank()) {
-                        BasicText(
-                            value,
-                            style = Type.Body.copy(color = if (on) Palette.OnFocus.copy(alpha = 0.75f) else Palette.SecondaryLabel),
-                            maxLines = 1,
-                        )
-                    }
-                    GlyphIcon(Glyph.ChevronRight, if (on) Palette.OnFocus.copy(alpha = 0.75f) else Palette.SecondaryLabel, 14.dp)
-                } else {
-                    Box(Modifier.width(ControlWidth), contentAlignment = Alignment.CenterEnd) { control() }
-                }
-            }
-        }
-        if (onClick != null) {
-            Pressable(onClick = onClick, focusedScale = 1f) { st -> body(st.focused) }
-        } else {
-            body(focused)
+        if (!first) Box(Modifier.padding(start = 18.dp).fillMaxWidth().height(1.dp).background(Palette.Hairline))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(58.dp)
+                .padding(start = 18.dp, end = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BasicText(stringResource(label), style = Type.Body, modifier = Modifier.weight(1f), maxLines = 1)
+            control()
         }
         if (focused && !hint.isNullOrBlank()) {
             BasicText(
                 hint,
                 style = Type.Caption.copy(color = Palette.TertiaryLabel),
                 maxLines = 2, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp),
+                modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 10.dp),
             )
         }
-        Spacer(Modifier.height(8.dp))
     }
-}
-
-/** 一个只会"做一件事"的按钮行: 左边名字, 右边一个播放图标, 焦点时整行转白。 */
-@Composable
-private fun ActionRow(label: Int, onClick: () -> Unit) {
-    Pressable(onClick = onClick, focusedScale = 1f) { st ->
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .defaultMinSize(minHeight = 52.dp)
-                .clip(RoundedCornerShape(RowCorner))
-                .drawBehind { if (st.focused) drawRect(Palette.Focus) }
-                .padding(start = 18.dp, end = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            BasicText(
-                stringResource(label),
-                style = Type.Body.copy(color = if (st.focused) Palette.OnFocus else Palette.Label),
-                modifier = Modifier.weight(1f),
-            )
-            GlyphIcon(Glyph.Play, if (st.focused) Palette.OnFocus.copy(alpha = 0.75f) else Palette.SecondaryLabel, 16.dp)
-        }
-    }
-    Spacer(Modifier.height(8.dp))
-}
-
-/** 上下文菜单: 选项多的设置点开这一层, 当前值打勾, 选中即生效并收起。 */
-@Composable
-private fun ChoiceMenu(
-    title: String,
-    options: List<String>,
-    selected: Int,
-    onPick: (Int) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val first = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
-        withFrameNanos { }
-        runCatching { first.requestFocus() }
-    }
-    BackHandler { onDismiss() }
-    Popup(
-        alignment = Alignment.Center,
-        properties = PopupProperties(focusable = true, dismissOnBackPress = false, dismissOnClickOutside = false),
-    ) {
-        Column(
-            Modifier
-                .width(340.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .drawBehind { drawRect(Color(0xFF1E1E20)) }
-                .padding(horizontal = 12.dp, vertical = 14.dp),
-        ) {
-            BasicText(
-                title,
-                style = Type.Headline.copy(color = Palette.SecondaryLabel),
-                modifier = Modifier.padding(start = 12.dp, bottom = 8.dp),
-            )
-            options.forEachIndexed { i, text ->
-                Pressable(
-                    onClick = { onPick(i) },
-                    focusRequester = if (i == selected) first else null,
-                    focusedScale = 1f,
-                ) { st ->
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(46.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .drawBehind { if (st.focused) drawRect(Palette.Focus) }
-                            .padding(horizontal = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        BasicText(
-                            text,
-                            style = Type.Body.copy(color = if (st.focused) Palette.OnFocus else Palette.Label),
-                            modifier = Modifier.weight(1f), maxLines = 1,
-                        )
-                        if (i == selected) {
-                            Spacer(Modifier.width(10.dp))
-                            GlyphIcon(Glyph.Check, if (st.focused) Palette.OnFocus else Palette.Label, 16.dp)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * 行内两颗胶囊时用的横排: 固定 210dp 宽, 放不下就左右滑, 两端淡出; 没聚焦时选中那颗居中。
- */
-@Composable
-private fun ChipTrack(
-    selectedIndex: Int,
-    itemCount: Int,
-    item: @Composable (index: Int) -> Unit,
-) {
-    val railExit = LocalRailExit.current
-    val state = rememberLazyListState()
-    var focused by remember { mutableStateOf(false) }
-    var focusedIndex by remember { mutableStateOf(-1) }
-    LaunchedEffect(selectedIndex, focused) {
-        if (!focused && selectedIndex in 0 until itemCount) {
-            state.scrollToItem(selectedIndex)
-            val w = state.layoutInfo.visibleItemsInfo.firstOrNull { it.index == selectedIndex }?.size ?: 0
-            state.scrollBy(w / 2f - 65f)
-        }
-    }
-    LazyRow(
-        state = state,
-        modifier = Modifier
-            .width(ControlWidth)
-            .fadeEdges()
-            .onFocusChanged { focused = it.hasFocus }
-            .onPreviewKeyEvent { e ->
-                val last = focusedIndex == itemCount - 1
-                if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionRight && last && railExit != null) {
-                    railExit(); true
-                } else false
-            },
-        contentPadding = PaddingValues(horizontal = 40.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        items(itemCount) { index ->
-            Box(Modifier.onFocusChanged { if (it.isFocused) focusedIndex = index }) { item(index) }
-        }
-    }
-}
-
-/** 左右两端淡出: 内容在图层里按水平渐变做 DstIn, 边缘透明, 中间不透明。 */
-private fun Modifier.fadeEdges(edge: Dp = 16.dp) = drawWithContent {
-    val w = edge.toPx().coerceAtMost(size.width / 2f)
-    if (w <= 0f || size.width <= 0f) {
-        drawContent()
-        return@drawWithContent
-    }
-    drawContext.canvas.saveLayer(Rect(0f, 0f, size.width, size.height), Paint())
-    drawContent()
-    drawRect(
-        brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-            0f to Color.Transparent,
-            w / size.width to Color.Black,
-            1f - w / size.width to Color.Black,
-            1f to Color.Transparent,
-        ),
-        blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
-    )
-    drawContext.canvas.restore()
 }
 
 /** A row of chips for one of a few values. */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun <T> Choices(
     label: Int,
@@ -1107,28 +765,9 @@ private fun <T> Choices(
     choose: (T) -> Unit,
     first: Boolean = false,
 ) {
-    if (options.size > 2) {
-        // 切换式选项改走上下文菜单: 行上只显示当前值和一个">", 点开在选择层里选。
-        var open by remember { mutableStateOf(false) }
-        val labels = options.map { (_, text) -> if (text is Int) stringResource(text) else text.toString() }
-        val index = options.indexOfFirst { it.first == current }.coerceAtLeast(0)
-        SettingRow(
-            label, hint, note, first,
-            onClick = { open = true },
-            value = labels.getOrElse(index) { "" },
-        )
-        if (open) {
-            ChoiceMenu(
-                stringResource(label), labels, index,
-                onPick = { choose(options[it].first); open = false },
-                onDismiss = { open = false },
-            )
-        }
-    } else {
-        SettingRow(label, hint, note, first) {
-            val index = options.indexOfFirst { it.first == current }.coerceAtLeast(0)
-            ChipTrack(selectedIndex = index, itemCount = options.size) { i ->
-                val (value, text) = options[i]
+    SettingRow(label, hint, note, first) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            options.forEach { (value, text) ->
                 Chip(if (text is Int) stringResource(text) else text.toString(), on = current == value) { choose(value) }
             }
         }
@@ -1145,7 +784,7 @@ private fun KeyVolumeRow(note: (String?) -> Unit) {
         Pressable(
             onClick = {},
             focusedScale = 1.0f,
-            modifier = Modifier.width(210.dp),
+            modifier = Modifier.width(250.dp),
             onKey = { e ->
                 val code = e.nativeKeyEvent.keyCode
                 if (code != NativeKeyEvent.KEYCODE_DPAD_LEFT && code != NativeKeyEvent.KEYCODE_DPAD_RIGHT) return@Pressable false
@@ -1207,11 +846,11 @@ private fun KeyVolumeRow(note: (String?) -> Unit) {
 /** Parental PIN on or off; either way goes through the PIN pad (issue #10). */
 @Composable
 private fun PinChoice(onPin: (on: Boolean) -> Unit, onFocused: (() -> Unit)? = null) {
-    val options = listOf(true to R.string.st_pin_on, false to R.string.st_pin_off)
-    ChipTrack(selectedIndex = options.indexOfFirst { it.first == AerialSettings.pinSet }.coerceAtLeast(0), itemCount = options.size) { i ->
-        val (on, label) = options[i]
-        Chip(stringResource(label), on = AerialSettings.pinSet == on, onFocused = onFocused) {
-            if (AerialSettings.pinSet != on) onPin(on)
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        listOf(true to R.string.st_pin_on, false to R.string.st_pin_off).forEach { (on, label) ->
+            Chip(stringResource(label), on = AerialSettings.pinSet == on, onFocused = onFocused) {
+                if (AerialSettings.pinSet != on) onPin(on)
+            }
         }
     }
 }
@@ -1363,6 +1002,35 @@ private fun BiliLoginRow(note: (String?) -> Unit) {
 }
 
 @Composable
+private fun ScreensaverChoice(onStart: () -> Unit) {
+    // The choice first, then the action that tries it.
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        listOf(
+            ScreensaverMode.Aerial to R.string.ss_aerial,
+            ScreensaverMode.Photos to R.string.ss_photos,
+            ScreensaverMode.Clock to R.string.ss_clock,
+            ScreensaverMode.Videos to R.string.ss_videos,
+            ScreensaverMode.System to R.string.ss_system,
+        ).forEach { (mode, label) ->
+            Chip(stringResource(label), on = Wallpapers.screensaver == mode) { Wallpapers.chooseScreensaver(mode) }
+        }
+        Spacer(Modifier.width(6.dp))
+        Pressable(onClick = onStart, focusedScale = 1.06f) { state ->
+            val bg by animateColorAsState(if (state.focused) Palette.Focus else Palette.FillStrong, tween(140, easing = Motion.EaseOut), label = "ss-start")
+            val fg = if (state.focused) Palette.OnFocus else Palette.Label
+            Row(
+                Modifier.clip(RoundedCornerShape(50)).drawBehind { drawRect(bg) }.height(40.dp).padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                GlyphIcon(Glyph.Play, fg, 14.dp)
+                BasicText(stringResource(R.string.ss_start), style = Type.Body.copy(color = fg))
+            }
+        }
+    }
+}
+
+@Composable
 private fun PhoneCard(url: String?, qr: ImageBitmap?) {
     Column(Modifier.width(220.dp).padding(top = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
@@ -1390,16 +1058,12 @@ private fun PhoneCard(url: String?, qr: ImageBitmap?) {
     }
 }
 
-/** 设置面板占屏幕右侧这一段的宽度(照当贝的设置页: 左边内容, 右缘一条图标导航)。 */
-val SheetWidth = 540.dp
+private val SheetHeight = 360.dp
 private val SheetCorner = 30.dp
-/** 右缘导航条留出的宽度: 只放图标时很窄, 选中那项要展开成"图标+名字", 靠右对齐向左长出去。 */
-private val RailWidth = 150.dp
-/** 焦点不在导航上时导航条的宽度: 只留图标, 面板整体往右缩这么多。 */
-private val RailWidthNarrow = 92.dp
 
 /**
- * 面板稳定后盖住的那一段宽度。Home 不必在它下面整屏作画(好几层全屏和没人看见的卡片,
- * 低端机很吃这个), 只画左边露出来的部分。
+ * How much of the screen's bottom the settled sheet hides whole: its height less its rounded top
+ * corners, under which Home shows. Home drew all of itself under the opaque sheet every frame,
+ * three full-screen layers and the tiles that nobody sees (Xiaomi MiTV-MFTR0).
  */
-val SheetCovers = SheetWidth
+val SheetCovers = SheetHeight - SheetCorner

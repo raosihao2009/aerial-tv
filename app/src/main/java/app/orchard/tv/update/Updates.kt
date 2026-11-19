@@ -25,6 +25,7 @@ import app.orchard.tv.BuildConfig
 import app.orchard.tv.guard.GuardSetup
 import app.orchard.tv.system.DiagLog
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -80,6 +81,9 @@ object Updates {
      */
     private const val STALL_MS = 30_000L
     private const val STALL_BYTES = 256 * 1024L
+
+    /** 下载源不回 Content-Length 时, 用来把"已下多少"折算成百分比的近似大小。 */
+    private const val NOMINAL_APK_BYTES = 8_000_000L
     const val CONTROL_CENTER_MAX_AGE_MS = UpdateCheck.PANEL_MAX_AGE_MS
 
     /** This build's version, e.g. "1.17" (the guard build's "-guard" left off). */
@@ -334,27 +338,50 @@ object Updates {
             Log.i(TAG, "not allowed to install and no page to allow it on; trying the installer anyway")
         }
         install = Install.Downloading(0f)
+        DiagLog.i("更新: 开始下载 ${available ?: "?"}")
         scope.launch {
             val file = apkFile(app)
-            val ready = withContext(Dispatchers.IO) {
-                // A download kept from a moment ago, when the owner backed out of the installer.
-                verify(app, file)?.takeIf { testApk == null && it.versionName?.substringBefore('-') == available }
-                    ?: downloadFrom(app, file)
+            val ready = runCatching {
+                withContext(Dispatchers.IO) {
+                    // A download kept from a moment ago, when the owner backed out of the installer.
+                    verify(app, file)?.takeIf { testApk == null && it.versionName?.substringBefore('-') == available }
+                        ?: downloadFrom(app, file)
+                }
+            }.onFailure {
+                // 以前这里一出异常, 界面就永远停在"下载 100%": 现在至少有个结果。
+                Log.w(TAG, "update download broke off", it)
+                DiagLog.i("更新: 下载中断 ${it.javaClass.simpleName}: ${it.message}")
+            }.getOrNull()
+            // Downloading 只代表"在下载"; 下载一结束就换成等待, 不再停在 100%。
+            if (install is Install.Downloading) install = Install.Waiting
+            if (ready == null) {
+                DiagLog.i("更新: 没有可用的 APK, 放弃")
+                install = Install.Failed(Failure.Download)
+                return@launch
             }
             val failure = when {
-                ready == null -> Failure.Download
                 !sameSigner(app, ready) -> Failure.NotOfficial
                 versionCode(ready) < BuildConfig.VERSION_CODE -> Failure.NotNewer
                 else -> null
             }
             if (failure != null) {
                 Log.w(TAG, "not installing: $failure")
+                DiagLog.i("更新: 不安装($failure)")
                 if (failure != Failure.Download) file.delete()
                 install = Install.Failed(failure)
                 return@launch
             }
-            val opened = if (Build.VERSION.SDK_INT >= 28) installBySession(app, file) else openInstaller(context, app, file)
-            if (!opened) install = Install.Failed(Failure.Blocked)
+            DiagLog.i("更新: 校验通过, 交给安装会话 (${file.length()} 字节)")
+            val opened = runCatching {
+                if (Build.VERSION.SDK_INT >= 28) installBySession(app, file) else openInstaller(context, app, file)
+            }.onFailure {
+                Log.w(TAG, "install did not start", it)
+                DiagLog.i("更新: 安装会话没起来 ${it.javaClass.simpleName}: ${it.message}")
+            }.getOrDefault(false)
+            if (!opened) {
+                // 会话没起来就退回系统安装器, 让用户至少看到安装界面。
+                if (!openInstaller(context, app, file)) install = Install.Failed(Failure.Blocked)
+            }
         }
     }
 
@@ -689,7 +716,11 @@ object Updates {
         throw last ?: IOException("no mirror list answered")
     }
 
-    /** The mirror first (fast in China), then GitHub. Returns the APK's info once it parses. */
+    /**
+     * GitHub 立刻开始下, 镜像清单同时去查: 查到就再开一路, 谁先下完且校验通过就用谁。
+     * 以前是先等镜像清单(两条源各试两次, 最长几十秒), 这段时间界面一直停在 0%, 看起来像卡住。
+     * 进度取两路里最大的那个, 所以不管走哪条都会动。
+     */
     private suspend fun downloadFrom(context: Context, file: File): PackageInfo? {
         testApk?.takeIf { it.isFile }?.let { test ->
             file.parentFile?.mkdirs()
@@ -698,29 +729,27 @@ object Updates {
             return verify(context, file)
         }
         val name = "AerialTV-${BuildConfig.FLAVOR}.apk"
-        // 上游那两处会下到 app.orchard.tv 的包, 签名与包名都对不上, 所以只用我们自己的源:
-        // 先是镜像清单里的国内地址(快), 再退回 GitHub Release(慢但地址固定)。
-        val mirror = runCatching { mirrorFor(BuildConfig.FLAVOR) }
-            .onFailure { Log.i(TAG, "mirror lookup: ${it.javaClass.simpleName}") }
-            .getOrNull()
-        val sources = listOfNotNull(
-            mirror?.let { "镜像" to it },
-            "GitHub" to "$BASE/$name",
-        ).distinctBy { it.second }
         val directory = checkNotNull(file.parentFile)
-        // 两个源同时下, 谁先下完并通过校验就用谁: 镜像快就镜像, GitHub 快就 GitHub, 不必先干等
-        // 镜像 30 秒才回退(以前就是这样, 看起来像"下载很慢")。进度只报镜像那一路, 免得两条进度
-        // 互相打架。
-        return coroutineScope {
-            val candidates = sources.mapIndexed { i, (label, url) ->
-                Triple(label, url, File(directory, "${file.nameWithoutExtension}-$i.apk"))
+        val progressLock = Any()
+        var bestPercent = -1
+        val report: suspend (Int) -> Unit = { pct ->
+            val shown = synchronized(progressLock) {
+                if (pct > bestPercent) { bestPercent = pct; pct } else null
             }
+            if (shown != null) withContext(Dispatchers.Main) {
+                if (install is Install.Downloading) install = Install.Downloading(shown / 100f)
+            }
+        }
+        return coroutineScope {
             val results = Channel<Pair<String, File?>>(Channel.UNLIMITED)
-            val jobs = candidates.mapIndexed { i, (label, url, target) ->
+            val targets = mutableListOf<File>()
+            fun start(label: String, url: String) {
+                val target = File(directory, "${file.nameWithoutExtension}-${targets.size}.apk")
+                targets += target
                 launch(Dispatchers.IO) {
                     DiagLog.i("更新下载: 试$label 源")
                     val started = SystemClock.elapsedRealtime()
-                    val ok = runCatching { download(url, target, report = i == 0) }
+                    val ok = runCatching { download(url, target, report) }
                         .onFailure {
                             Log.w(TAG, "could not download $url", it)
                             DiagLog.i("更新下载: $label 源失败 ${it.message ?: it.javaClass.simpleName}")
@@ -730,9 +759,25 @@ object Updates {
                     results.send(label to if (ok) target else null)
                 }
             }
+            // GitHub 先开跑, 不等镜像清单。
+            start("GitHub", "$BASE/$name")
+            // 镜像那一行: 查到就再开一路, 查不到就回一个空结果让循环照样结束。
+            launch(Dispatchers.IO) {
+                val mirror = runCatching { mirrorFor(BuildConfig.FLAVOR) }
+                    .onFailure { Log.i(TAG, "mirror lookup: ${it.javaClass.simpleName}") }
+                    .getOrNull()
+                if (mirror == null) {
+                    DiagLog.i("更新下载: 没有镜像清单, 只走 GitHub")
+                    results.send("镜像" to null)
+                } else if (mirror == "$BASE/$name") {
+                    results.send("镜像" to null)
+                } else {
+                    start("镜像", mirror)
+                }
+            }
             var winner: Pair<String, File>? = null
             var received = 0
-            while (received < candidates.size && winner == null) {
+            while (received < 2 && winner == null) {
                 val (label, target) = results.receive()
                 received++
                 if (target == null) continue
@@ -743,16 +788,17 @@ object Updates {
                 }
                 winner = label to target
             }
-            jobs.forEach { it.cancel() }
+            // 全部子任务都结束(胜出的那一路除外), 别让另一条慢慢写完。
+            coroutineContext.cancelChildren()
             val kept = winner
             if (kept == null) {
-                candidates.forEach { it.third.delete() }
+                targets.forEach { it.delete() }
                 DiagLog.i("更新下载: 所有源都失败")
                 null
             } else {
                 kept.second.copyTo(file, overwrite = true)
                 if (Build.VERSION.SDK_INT < 24) file.setReadable(true, false)
-                candidates.forEach { if (it.third != kept.second) it.third.delete() }
+                targets.forEach { if (it != kept.second) it.delete() }
                 kept.second.delete()
                 DiagLog.i("更新下载: ${kept.first} 源完成")
                 verify(context, file)
@@ -760,7 +806,7 @@ object Updates {
         }
     }
 
-    private suspend fun download(url: String, file: File, report: Boolean = true) {
+    private suspend fun download(url: String, file: File, onPercent: (suspend (Int) -> Unit)? = null) {
         val directory = checkNotNull(file.parentFile)
         check(directory.isDirectory || directory.mkdirs()) { "Cannot create update directory: $directory" }
         check(directory.canWrite()) { "Cannot write update directory: $directory" }
@@ -793,10 +839,12 @@ object Updates {
                             windowAt = now
                             windowFrom = done
                         }
-                        val percent = if (total > 0) (done * 100 / total).toInt() else 0
-                        if (report && percent != shown) {
+                        // 长度未知(分块传输)时按 APK 的大致大小估, 免得进度条一直停在 0%。
+                        val percent = if (total > 0) (done * 100 / total).toInt()
+                        else ((done * 100 / NOMINAL_APK_BYTES).toInt()).coerceIn(0, 95)
+                        if (onPercent != null && percent != shown) {
                             shown = percent
-                            withContext(Dispatchers.Main) { install = Install.Downloading(percent / 100f) }
+                            onPercent(percent)
                         }
                     }
                 }
