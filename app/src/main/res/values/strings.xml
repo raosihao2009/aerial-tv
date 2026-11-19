@@ -171,8 +171,8 @@
     <string name="st_live_quality">Live quality</string>
     <string name="st_live_1080">1080p</string>
     <string name="st_live_original">Original</string>
-    <string name="st_live_jank">直播卡顿自动切换</string>
-    <string name="st_bili_account">B 站账号</string>
+    <string name="st_live_jank">直播卡顿时自动切换</string>
+    <string name="st_bili_account">B站账号</string>
     <string name="st_bili_account_hint">登录后直播可取更高画质档位；登录凭据只存在本机，不上报</string>
     <string name="st_bili_login">扫码登录</string>
     <string name="st_bili_logout">退出登录</string>
@@ -204,7 +204,7 @@
     <string name="st_focus_standard">Standard</string>
     <string name="st_focus_high_hint">A white frame around the selected app, easy to spot from across the room.</string>
     <string name="st_focus_standard_hint">As on Apple TV out of the box: the selected app only lifts.</string>
-    <string name="st_effects">Effects</string>
+    <string name="st_effects">界面效果</string>
     <string name="st_effects_auto">Auto</string>
     <string name="st_effects_full">Full</string>
     <string name="st_effects_lite">Lite</string>
@@ -373,8 +373,8 @@
     <string name="per_wallpaper">Wallpaper</string>
     <string name="per_home">Home</string>
     <string name="per_live">Live</string>
-    <string name="per_look">Look</string>
+    <string name="per_look">外观与声音</string>
     <string name="per_screensaver">Screensaver</string>
     <string name="per_weather">Weather</string>
-    <string name="per_family">Protection</string>
+    <string name="per_family">亲子守护</string>
 </resources>

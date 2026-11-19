@@ -16,6 +16,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.relocation.BringIntoViewResponder
 import androidx.compose.foundation.relocation.bringIntoViewResponder
@@ -79,6 +80,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import app.orchard.tv.R
 import app.orchard.tv.apps.BiliAccount
 import app.orchard.tv.apps.BiliLogin
@@ -210,7 +213,7 @@ fun WallpaperSheet(
                 CategoryTitle(Glyph.Photo, R.string.wp_wallpaper)
                 WallpaperSection(takeFocus)
                 Spacer(Modifier.height(18.dp))
-                CategoryTitle(Glyph.Home, R.string.st_home_layout)
+                CategoryTitle(Glyph.Home, R.string.per_home)
                 HomeSection(hiddenCount, onHiddenApps, hiddenLiveCount, onHiddenLiveSources, onHomeLock)
                 Spacer(Modifier.height(18.dp))
                 CategoryTitle(Glyph.Play, R.string.per_live)
@@ -219,7 +222,7 @@ fun WallpaperSheet(
                 CategoryTitle(Glyph.Sun, R.string.per_look)
                 LookSection()
                 Spacer(Modifier.height(18.dp))
-                CategoryTitle(Glyph.Moon, R.string.wp_screensaver)
+                CategoryTitle(Glyph.Moon, R.string.per_screensaver)
                 ScreensaverSection(onStartScreensaver)
                 Spacer(Modifier.height(18.dp))
                 CategoryTitle(Glyph.CloudSun, R.string.wp_weather)
@@ -275,28 +278,35 @@ private fun CategoryTitle(glyph: Glyph, label: Int) {
 private fun WallpaperSection(takeFocus: Boolean) {
     WallpaperRows(takeFocus)
     // Only for the owner's videos: whether keys stop them. The aerial films always move.
-    if (Wallpapers.isVideo()) Group { note ->
-        Choices(
-            R.string.st_play, stringResource(R.string.st_play_hint), note,
-            listOf(false to R.string.st_play_still, true to R.string.st_play_always),
-            AerialSettings.wallpaperAlwaysMoves, AerialSettings::chooseWallpaperAlwaysMoves, first = true,
-        )
+    if (Wallpapers.isVideo()) {
+        Row2({
+            ChoiceCell(
+                R.string.st_play, stringResource(R.string.st_play_hint),
+                listOf(false to R.string.st_play_still, true to R.string.st_play_always),
+                AerialSettings.wallpaperAlwaysMoves, AerialSettings::chooseWallpaperAlwaysMoves,
+            )
+        })
+        Spacer(Modifier.height(6.dp))
     }
     // 上游 #1314: 只有"我的照片, 轮流"才需要问多久换一张, 别的壁纸没有下一张
-    if (Wallpapers.selectedId == Wallpapers.ROTATE_PHOTOS) Group { note ->
-        Choices(
-            R.string.st_photo_every, stringResource(R.string.st_photo_every_hint), note,
-            AerialSettings.PHOTO_MINUTES.map { m ->
-                m to when {
-                    m >= AerialSettings.DAY_MINUTES -> stringResource(R.string.st_photo_every_day)
-                    m >= 60 -> stringResource(R.string.kids_h, m / 60)
-                    else -> stringResource(R.string.kids_m, m)
-                }
-            },
-            AerialSettings.photoMinutes, { AerialSettings.choosePhotoMinutes(it); Wallpapers.rotateIfDue() }, first = true,
-        )
+    if (Wallpapers.selectedId == Wallpapers.ROTATE_PHOTOS) {
+        Row2({
+            ChoiceCell(
+                R.string.st_photo_every, stringResource(R.string.st_photo_every_hint),
+                AerialSettings.PHOTO_MINUTES.map { m ->
+                    m to when {
+                        m >= AerialSettings.DAY_MINUTES -> stringResource(R.string.st_photo_every_day)
+                        m >= 60 -> stringResource(R.string.kids_h, m / 60)
+                        else -> stringResource(R.string.kids_m, m)
+                    }
+                },
+                AerialSettings.photoMinutes,
+                { AerialSettings.choosePhotoMinutes(it); Wallpapers.rotateIfDue() },
+            )
+        })
+        Spacer(Modifier.height(6.dp))
     }
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(6.dp))
 }
 
 /** 主屏幕: 怎么摆、叫什么、露多少、哪些卡片收起来了。 */
@@ -308,54 +318,75 @@ private fun HomeSection(
     onHiddenLiveSources: () -> Unit,
     onHomeLock: (on: Boolean) -> Unit,
 ) {
-    Group { note ->
-        Choices(
-            R.string.st_columns, stringResource(R.string.st_columns_hint), note,
-            AerialSettings.HOME_COLUMNS.map { it to it.toString() },
-            AerialSettings.homeColumns, AerialSettings::chooseHomeColumns, first = true,
-        )
-        Choices(
-            R.string.st_names, stringResource(R.string.st_names_hint), note,
-            listOf(false to R.string.st_names_focused, true to R.string.st_names_all),
-            AerialSettings.showAllNames, AerialSettings::chooseShowAllNames,
-        )
-        Choices(
-            R.string.st_plate, stringResource(R.string.st_plate_hint), note,
-            listOf(true to R.string.st_plate_glass, false to R.string.st_plate_none),
-            AerialSettings.homePlate, AerialSettings::chooseHomePlate,
-        )
-        // 双排布局下也保留这个选项: 它也控制二级菜单(直播源)露出下一排的效果。
-        Choices(
-            R.string.st_peek, stringResource(R.string.st_peek_hint), note,
-            listOf(true to R.string.st_peek_show, false to R.string.st_peek_hide),
-            AerialSettings.peekNextRow, AerialSettings::choosePeekNextRow,
-        )
-        Choices(
-            R.string.st_layout, stringResource(R.string.st_home_layout_hint), note,
-            listOf(true to R.string.st_home_one_row, false to R.string.st_home_standard),
-            AerialSettings.oneRowHome, AerialSettings::chooseOneRowHome,
-        )
-        SettingRow(R.string.st_hidden, stringResource(R.string.st_hidden_hint), note) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                ActionChip(
-                    if (hiddenCount == 0) stringResource(R.string.st_hidden_app_none)
-                    else stringResource(R.string.st_hidden_app_count, hiddenCount),
-                    Glyph.ChevronRight,
-                    onHiddenApps,
+    Group {
+        Row2(
+            {
+                ChoiceCell(
+                    R.string.st_columns, stringResource(R.string.st_columns_hint),
+                    AerialSettings.HOME_COLUMNS.map { it to it.toString() },
+                    AerialSettings.homeColumns, AerialSettings::chooseHomeColumns,
                 )
-                ActionChip(
-                    if (hiddenLiveCount == 0) stringResource(R.string.st_hidden_live_none)
-                    else stringResource(R.string.st_hidden_live_count, hiddenLiveCount),
-                    Glyph.ChevronRight,
-                    onHiddenLiveSources,
+            },
+            {
+                ChoiceCell(
+                    R.string.st_names, stringResource(R.string.st_names_hint),
+                    listOf(false to R.string.st_names_focused, true to R.string.st_names_all),
+                    AerialSettings.showAllNames, AerialSettings::chooseShowAllNames,
                 )
-            }
-        }
-        // 上锁: 长按 OK / Menu 不再弹应用菜单, 免得误移动、误隐藏、误卸载
-        Choices(
-            R.string.st_home_lock, stringResource(R.string.st_home_lock_hint), note,
-            listOf(true to R.string.st_on, false to R.string.st_off),
-            AerialSettings.homeLocked, onHomeLock,
+            },
+        )
+        Row2(
+            {
+                ChoiceCell(
+                    R.string.st_plate, stringResource(R.string.st_plate_hint),
+                    listOf(true to R.string.st_plate_glass, false to R.string.st_plate_none),
+                    AerialSettings.homePlate, AerialSettings::chooseHomePlate,
+                )
+            },
+            {
+                // 双排布局下也保留这个选项: 它也控制二级菜单(直播源)露出下一排的效果。
+                ChoiceCell(
+                    R.string.st_peek, stringResource(R.string.st_peek_hint),
+                    listOf(true to R.string.st_peek_show, false to R.string.st_peek_hide),
+                    AerialSettings.peekNextRow, AerialSettings::choosePeekNextRow,
+                )
+            },
+        )
+        Row2(
+            {
+                ChoiceCell(
+                    R.string.st_layout, stringResource(R.string.st_home_layout_hint),
+                    listOf(true to R.string.st_home_one_row, false to R.string.st_home_standard),
+                    AerialSettings.oneRowHome, AerialSettings::chooseOneRowHome,
+                )
+            },
+            {
+                // 上锁: 长按 OK / Menu 不再弹应用菜单, 免得误移动、误隐藏、误卸载
+                ChoiceCell(
+                    R.string.st_home_lock, stringResource(R.string.st_home_lock_hint),
+                    listOf(true to R.string.st_on, false to R.string.st_off),
+                    AerialSettings.homeLocked, onHomeLock,
+                )
+            },
+        )
+        Row2(
+            {
+                ActionCell(
+                    R.string.st_hidden, stringResource(R.string.st_hidden_hint),
+                    listOf(
+                        CellAction(
+                            if (hiddenCount == 0) stringResource(R.string.st_hidden_app_none)
+                            else stringResource(R.string.st_hidden_app_count, hiddenCount),
+                            chevron = true,
+                        ) { onHiddenApps() },
+                        CellAction(
+                            if (hiddenLiveCount == 0) stringResource(R.string.st_hidden_live_none)
+                            else stringResource(R.string.st_hidden_live_count, hiddenLiveCount),
+                            chevron = true,
+                        ) { onHiddenLiveSources() },
+                    ),
+                )
+            },
         )
     }
     Spacer(Modifier.height(12.dp))
@@ -364,138 +395,179 @@ private fun HomeSection(
 /** 直播与卡片: 背景预览、卡顿灵敏度、B 站账号。 */
 @Composable
 private fun LiveSection() {
-    Group { note ->
+    Group {
         // 二创：焦点选中 IPTV 应用时背景播放相关直播
-        Choices(
-            R.string.st_live_preview,
-            "焦点选中IPTV应用时背景播放相关直播",
-            note,
-            listOf(true to R.string.st_on, false to R.string.st_off),
-            AerialSettings.livePreviewEnabled, AerialSettings::chooseLivePreview, first = true,
+        Row2(
+            {
+                ChoiceCell(
+                    R.string.st_live_preview, "焦点选中IPTV应用时背景播放相关直播",
+                    listOf(true to R.string.st_on, false to R.string.st_off),
+                    AerialSettings.livePreviewEnabled, AerialSettings::chooseLivePreview,
+                )
+            },
+            { BiliCell() },
         )
-        // 画质不再有全局开关: 每张直播卡的画质在直播菜单里按台选。
-        Choices(
-            R.string.st_live_jank,
-            "高灵敏及早切备用源, 低灵敏减少误切, 关则不自动切换",
-            note,
-            listOf(
-                AerialSettings.JankSensitivity.Off to "关闭",
-                AerialSettings.JankSensitivity.Low to "低",
-                AerialSettings.JankSensitivity.Medium to "中",
-                AerialSettings.JankSensitivity.High to "高",
-            ),
-            AerialSettings.jankSensitivity, AerialSettings::chooseJankSensitivity,
+        Row2(
+            {
+                // 画质不再有全局开关: 每张直播卡的画质在直播菜单里按台选。
+                ChoiceCell(
+                    R.string.st_live_jank, "高灵敏及早切备用源, 低灵敏减少误切, 关则不自动切换",
+                    listOf(
+                        AerialSettings.JankSensitivity.Off to "关闭",
+                        AerialSettings.JankSensitivity.Low to "低",
+                        AerialSettings.JankSensitivity.Medium to "中",
+                        AerialSettings.JankSensitivity.High to "高",
+                    ),
+                    AerialSettings.jankSensitivity, AerialSettings::chooseJankSensitivity,
+                )
+            },
         )
-        BiliLoginRow(note)
     }
     Spacer(Modifier.height(12.dp))
 }
 
-/** 外观与声音: 焦点框、特效、开场遮罩、按键音与它的音量。 */
+/** 外观与声音: 焦点框、界面效果、开场遮罩、按键音与它的音量。 */
 @Composable
 private fun LookSection() {
-    Group { note ->
-        Choices(
-            R.string.st_focus_style,
-            stringResource(if (AerialSettings.focusStyle == FocusStyle.HighContrast) R.string.st_focus_high_hint else R.string.st_focus_standard_hint),
-            note,
-            listOf(FocusStyle.HighContrast to R.string.st_focus_high, FocusStyle.Standard to R.string.st_focus_standard),
-            AerialSettings.focusStyle, AerialSettings::chooseFocusStyle, first = true,
+    Group {
+        Row2(
+            {
+                ChoiceCell(
+                    R.string.st_focus_style,
+                    stringResource(if (AerialSettings.focusStyle == FocusStyle.HighContrast) R.string.st_focus_high_hint else R.string.st_focus_standard_hint),
+                    listOf(FocusStyle.HighContrast to R.string.st_focus_high, FocusStyle.Standard to R.string.st_focus_standard),
+                    AerialSettings.focusStyle, AerialSettings::chooseFocusStyle,
+                )
+            },
+            {
+                ChoiceCell(
+                    R.string.st_effects,
+                    stringResource(
+                        if (AerialSettings.effects == Effects.Auto && AerialSettings.lowEnd) R.string.st_effects_auto_lite_hint
+                        else R.string.st_effects_hint,
+                    ),
+                    listOf(Effects.Auto to R.string.st_effects_auto, Effects.Full to R.string.st_effects_full, Effects.Lite to R.string.st_effects_lite),
+                    AerialSettings.effects, AerialSettings::chooseEffects,
+                )
+            },
         )
-        Choices(
-            R.string.st_sounds,
-            stringResource(if (AerialSettings.uiSounds == UiSounds.Tv) R.string.st_sounds_tv_hint else R.string.st_sounds_hint),
-            note,
-            listOf(UiSounds.Tv to R.string.st_sounds_tv, UiSounds.Aerial to R.string.st_sounds_aerial, UiSounds.Off to R.string.st_off),
-            AerialSettings.uiSounds, { AerialSettings.chooseUiSounds(it); Sounds.prepare() },
+        Row2(
+            {
+                ChoiceCell(
+                    R.string.st_splash_veil, stringResource(R.string.st_splash_veil_hint),
+                    listOf(true to R.string.st_on, false to R.string.st_off),
+                    AerialSettings.splashVeilEnabled, AerialSettings::chooseSplashVeil,
+                )
+            },
+            {
+                ChoiceCell(
+                    R.string.st_sounds,
+                    stringResource(if (AerialSettings.uiSounds == UiSounds.Tv) R.string.st_sounds_tv_hint else R.string.st_sounds_hint),
+                    listOf(UiSounds.Tv to R.string.st_sounds_tv, UiSounds.Aerial to R.string.st_sounds_aerial, UiSounds.Off to R.string.st_off),
+                    AerialSettings.uiSounds, { AerialSettings.chooseUiSounds(it); Sounds.prepare() },
+                )
+            },
         )
         // Aerial 自带按键音的独立音量: 只在选「Aerial」时出现, 和电视音量滑块无关。
         if (AerialSettings.uiSounds == UiSounds.Aerial) {
-            KeyVolumeRow(note)
+            Row2({ KeyVolumeCell() })
         }
-        Choices(
-            R.string.st_splash_veil,
-            stringResource(R.string.st_splash_veil_hint),
-            note,
-            listOf(true to R.string.st_on, false to R.string.st_off),
-            AerialSettings.splashVeilEnabled, AerialSettings::chooseSplashVeil,
-        )
-        Choices(
-            R.string.st_effects,
-            stringResource(
-                if (AerialSettings.effects == Effects.Auto && AerialSettings.lowEnd) R.string.st_effects_auto_lite_hint
-                else R.string.st_effects_hint,
-            ),
-            note,
-            listOf(Effects.Auto to R.string.st_effects_auto, Effects.Full to R.string.st_effects_full, Effects.Lite to R.string.st_effects_lite),
-            AerialSettings.effects, AerialSettings::chooseEffects,
-        )
     }
     Spacer(Modifier.height(12.dp))
 }
 
-/** 屏幕保护程序: 类型、画质、时钟、延时、返回键。 */
+/** 屏幕保护程序: 类型、画质、开始时间、返回键、时钟。 */
 @Composable
 private fun ScreensaverSection(onStartScreensaver: () -> Unit) {
     val context = LocalContext.current
-    Group { note ->
-        SettingRow(
-            R.string.ss_kind,
-            when {
-                Wallpapers.screensaver == ScreensaverMode.Videos -> stringResource(R.string.ss_videos_hint)
-                Wallpapers.screensaver == ScreensaverMode.System -> stringResource(R.string.ss_system_hint)
-                Wallpapers.screensaverFollows -> stringResource(R.string.ss_follow_hint)
-                AerialSettings.backStartsScreensaver -> stringResource(R.string.ss_back_hint)
-                else -> null
+    val kindHint = when {
+        Wallpapers.screensaver == ScreensaverMode.Videos -> stringResource(R.string.ss_videos_hint)
+        Wallpapers.screensaver == ScreensaverMode.System -> stringResource(R.string.ss_system_hint)
+        Wallpapers.screensaverFollows -> stringResource(R.string.ss_follow_hint)
+        AerialSettings.backStartsScreensaver -> stringResource(R.string.ss_back_hint)
+        else -> null
+    }
+    Group {
+        Row2(
+            {
+                // 类型: 入口按钮(当前类型 + ">")在右, 左边是"立即开始"。
+                MenuCell(
+                    R.string.ss_kind, kindHint,
+                    listOf(
+                        ScreensaverMode.Aerial to R.string.ss_aerial,
+                        ScreensaverMode.Photos to R.string.ss_photos,
+                        ScreensaverMode.Clock to R.string.ss_clock,
+                        ScreensaverMode.Videos to R.string.ss_videos,
+                        ScreensaverMode.System to R.string.ss_system,
+                    ),
+                    Wallpapers.screensaver,
+                    { Wallpapers.chooseScreensaver(it) },
+                    leading = CellAction(stringResource(R.string.ss_start), chevron = false) { onStartScreensaver() },
+                )
             },
-            note, first = true,
-        ) { ScreensaverChoice(onStartScreensaver) }
-        // Only the qualities this TV can play; a 1080p-only TV has nothing to choose.
-        val qualities = remember { AerialFormats.supported(context) }
-        if (qualities.size > 1) {
-            val keeps = stringResource(
-                R.string.ss_aerial_keeps,
-                remember { android.text.format.Formatter.formatShortFileSize(context, AerialStream.keepLimit(context)) },
-                AerialSet.MAX,
-            )
-            Choices(
-                R.string.ss_quality, keeps, note,
-                listOf(AerialQuality.Auto to R.string.ss_quality_auto, AerialQuality.Hd to R.string.ss_quality_hd) +
-                    listOf(AerialQuality.Uhd to R.string.ss_quality_uhd, AerialQuality.DolbyVision to R.string.ss_quality_dv)
-                        .filter { it.first in qualities },
-                AerialSettings.aerialQuality, AerialSettings::chooseAerialQuality,
-            )
-        }
+            {
+                // Only the qualities this TV can play; a 1080p-only TV has nothing to choose.
+                val qualities = remember { AerialFormats.supported(context) }
+                if (qualities.size > 1) {
+                    val keeps = stringResource(
+                        R.string.ss_aerial_keeps,
+                        remember { android.text.format.Formatter.formatShortFileSize(context, AerialStream.keepLimit(context)) },
+                        AerialSet.MAX,
+                    )
+                    ChoiceCell(
+                        R.string.ss_quality, keeps,
+                        listOf(AerialQuality.Auto to R.string.ss_quality_auto, AerialQuality.Hd to R.string.ss_quality_hd) +
+                            listOf(AerialQuality.Uhd to R.string.ss_quality_uhd, AerialQuality.DolbyVision to R.string.ss_quality_dv)
+                                .filter { it.first in qualities },
+                        AerialSettings.aerialQuality, AerialSettings::chooseAerialQuality,
+                    )
+                }
+            },
+        )
+        Row2(
+            {
+                // The firmware's screensaver starts on the firmware's timer: 只显示它的值。
+                if (Wallpapers.screensaver == ScreensaverMode.System) {
+                    val delay = remember { SystemScreensaver.firmwareDelayMs(context) }
+                    Cell(R.string.ss_delay, null, onClick = {}) {
+                        BasicText(
+                            when {
+                                delay == null -> stringResource(R.string.ss_delay_system)
+                                delay == 0L -> stringResource(R.string.ss_delay_system_off)
+                                else -> stringResource(R.string.ss_delay_system_minutes, ((delay + 30_000) / 60_000).coerceAtLeast(1).toInt())
+                            },
+                            style = Type.Body.copy(color = Palette.SecondaryLabel),
+                            maxLines = 1,
+                        )
+                    }
+                } else {
+                    MenuCell(
+                        R.string.ss_delay, null,
+                        AerialSettings.screensaverChoices.map {
+                            it to if (it == AerialSettings.NEVER) stringResource(R.string.ss_never) else stringResource(R.string.ss_minutes, it)
+                        },
+                        AerialSettings.screensaverMinutes, AerialSettings::chooseScreensaverMinutes,
+                    )
+                }
+            },
+            {
+                ChoiceCell(
+                    R.string.ss_back, stringResource(R.string.ss_back_choice_hint),
+                    listOf(true to R.string.ss_back_on, false to R.string.ss_back_off),
+                    AerialSettings.backStartsScreensaver, AerialSettings::chooseBackStartsScreensaver,
+                )
+            },
+        )
         // The clock screensaver is its clock, and the others show none.
-        if (Wallpapers.screensaver == ScreensaverMode.Aerial || Wallpapers.screensaver == ScreensaverMode.Photos) Choices(
-            R.string.ss_show_time, stringResource(R.string.ss_show_time_hint), note,
-            listOf(true to R.string.st_on, false to R.string.st_off),
-            AerialSettings.screensaverClock, AerialSettings::chooseScreensaverClock,
-        )
-        // The firmware's screensaver starts on the firmware's timer.
-        if (Wallpapers.screensaver == ScreensaverMode.System) SettingRow(R.string.ss_delay, null, note) {
-            val delay = remember { SystemScreensaver.firmwareDelayMs(context) }
-            BasicText(
-                when {
-                    delay == null -> stringResource(R.string.ss_delay_system)
-                    delay == 0L -> stringResource(R.string.ss_delay_system_off)
-                    else -> stringResource(R.string.ss_delay_system_minutes, ((delay + 30_000) / 60_000).coerceAtLeast(1).toInt())
-                },
-                style = Type.Body.copy(color = Palette.SecondaryLabel),
-                modifier = Modifier.padding(end = 8.dp),
-            )
-        } else Choices(
-            R.string.ss_delay, null, note,
-            AerialSettings.screensaverChoices.map {
-                it to if (it == AerialSettings.NEVER) stringResource(R.string.ss_never) else stringResource(R.string.ss_minutes, it)
-            },
-            AerialSettings.screensaverMinutes, AerialSettings::chooseScreensaverMinutes,
-        )
-        Choices(
-            R.string.ss_back, stringResource(R.string.ss_back_choice_hint), note,
-            listOf(true to R.string.ss_back_on, false to R.string.ss_back_off),
-            AerialSettings.backStartsScreensaver, AerialSettings::chooseBackStartsScreensaver,
-        )
+        if (Wallpapers.screensaver == ScreensaverMode.Aerial || Wallpapers.screensaver == ScreensaverMode.Photos) {
+            Row2({
+                ChoiceCell(
+                    R.string.ss_show_time, stringResource(R.string.ss_show_time_hint),
+                    listOf(true to R.string.st_on, false to R.string.st_off),
+                    AerialSettings.screensaverClock, AerialSettings::chooseScreensaverClock,
+                )
+            })
+        }
     }
     Spacer(Modifier.height(12.dp))
 }
@@ -503,43 +575,59 @@ private fun ScreensaverSection(onStartScreensaver: () -> Unit) {
 /** 天气与时钟。 */
 @Composable
 private fun WeatherSection() {
-    Group(stringResource(if (Weather.chosen) R.string.wp_weather_chosen else R.string.wp_weather_guessed)) { note ->
-        Choices(
-            R.string.st_clock_hours, stringResource(R.string.st_clock_hours_hint), note,
-            listOf(ClockHours.H24 to R.string.st_clock_hours_24, ClockHours.H12 to R.string.st_clock_hours_12),
-            if (AerialSettings.clockHours == ClockHours.H12) ClockHours.H12 else ClockHours.H24,
-            { AerialSettings.chooseClockHours(it) }, first = true,
+    Group {
+        Row2(
+            {
+                ChoiceCell(
+                    R.string.st_clock_hours, stringResource(R.string.st_clock_hours_hint),
+                    listOf(ClockHours.H24 to R.string.st_clock_hours_24, ClockHours.H12 to R.string.st_clock_hours_12),
+                    if (AerialSettings.clockHours == ClockHours.H12) ClockHours.H12 else ClockHours.H24,
+                    { AerialSettings.chooseClockHours(it) },
+                )
+            },
+            {
+                // 天气是否显示在时钟下方
+                ChoiceCell(
+                    R.string.st_weather_visibility, stringResource(R.string.st_weather_visibility_hint),
+                    listOf(true to R.string.st_on, false to R.string.st_off),
+                    AerialSettings.showWeather, AerialSettings::chooseShowWeather,
+                )
+            },
         )
-        // 天气是否显示在时钟下方
-        Choices(
-            R.string.st_weather_visibility, stringResource(R.string.st_weather_visibility_hint), note,
-            listOf(true to R.string.st_on, false to R.string.st_off),
-            AerialSettings.showWeather, AerialSettings::chooseShowWeather,
-        )
-        SettingRow(R.string.wp_weather_city, null, note) { WeatherValue() }
+        Row2({ WeatherCell() })
     }
     Spacer(Modifier.height(12.dp))
 }
 
-/** 家长控制: 密码与儿童/长辈模式的入口。 */
+/** 亲子守护: 密码与儿童/长辈模式的入口。 */
 @Composable
 private fun FamilySection(onPin: (on: Boolean) -> Unit, onKids: () -> Unit) {
-    // One row says what it is; a title over it would only repeat it.
-    Group(stringResource(R.string.st_pin_hint)) { note ->
-        SettingRow(R.string.st_pin, null, note, first = true) {
-            PinChoice(onPin)
-        }
-        SettingRow(R.string.st_kids, stringResource(R.string.st_kids_hint), note) {
-            ActionChip(
-                when {
-                    !Restricted.enabled -> stringResource(R.string.st_off)
-                    Restricted.kind == RestrictedKind.Kids -> stringResource(R.string.kids_kind_kids)
-                    else -> stringResource(R.string.kids_kind_elders)
-                },
-                Glyph.ChevronRight,
-                onKids,
-            )
-        }
+    Group {
+        Row2(
+            {
+                ChoiceCell(
+                    R.string.st_pin, stringResource(R.string.st_pin_hint),
+                    listOf(true to R.string.st_pin_on, false to R.string.st_pin_off),
+                    AerialSettings.pinSet,
+                    { if (AerialSettings.pinSet != it) onPin(it) },
+                )
+            },
+            {
+                ActionCell(
+                    R.string.st_kids, stringResource(R.string.st_kids_hint),
+                    listOf(
+                        CellAction(
+                            when {
+                                !Restricted.enabled -> stringResource(R.string.st_off)
+                                Restricted.kind == RestrictedKind.Kids -> stringResource(R.string.kids_kind_kids)
+                                else -> stringResource(R.string.kids_kind_elders)
+                            },
+                            chevron = true,
+                        ) { onKids() },
+                    ),
+                )
+            },
+        )
     }
     Spacer(Modifier.height(12.dp))
 }
@@ -693,7 +781,7 @@ private fun SectionTitle(title: Int) {
  * sheet does not shift as focus moves.
  */
 @Composable
-private fun Group(note: String? = null, rows: @Composable ColumnScope.(note: (String?) -> Unit) -> Unit) {
+private fun Group(rows: @Composable ColumnScope.() -> Unit) {
     var height by remember { mutableStateOf(0f) }
     // A focused row asks the sheet to show it from its top down to the group's note: the
     // screensaver's group sits at the sheet's bottom, and showing the row alone (on TV, Compose
@@ -711,156 +799,325 @@ private fun Group(note: String? = null, rows: @Composable ColumnScope.(note: (St
     @OptIn(ExperimentalFoundationApi::class)
     Column(Modifier.fillMaxWidth().onSizeChanged { height = it.height.toFloat() }.bringIntoViewResponder(withNote)) {
         Column(Modifier.fillMaxWidth().smoothBackground(Color.White.copy(alpha = 0.05f), 16.dp)) {
-            rows { }
-            // 组自己的说明(比如"按网络自动定位")放在这一组的最下面: 说明是给整组看的,
-            // 挂在卡片顶上会挡在第一个选项前面, 看着像没头的提示。
-            note?.let {
+            // 组的说明不再是常驻一行: 它并进了相关那一格的小字提示, 焦点落上去才出现。
+            rows()
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+/**
+ * 两列网格: 一行放两个选项; 只有一个时右边留空, 左右两格的宽度和它们小字提示的左边
+ * 就总在同一条线上。
+ */
+@Composable
+private fun Row2(left: @Composable () -> Unit, right: (@Composable () -> Unit)? = null) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(CellGap),
+    ) {
+        Box(Modifier.weight(1f)) { left() }
+        // 一行只有一个选项时它自己占满整行: 小字提示的左边还是和两列时的那一格对齐。
+        if (right != null) Box(Modifier.weight(1f)) { right() }
+    }
+}
+
+/** 一个格子里的一颗按钮: 一段文字, 需要时带一个 ">"。 */
+private class CellAction(val text: String, val chevron: Boolean, val run: () -> Unit)
+
+/**
+ * 一格里的一格选项: 左边是名称, 右边是它的值, 下面留出固定两行的小字提示位 —— 有没有提示
+ * 都这么高, 焦点落到哪一格都不会让整页上下跳。聚焦时整格描一圈白边, 小字提示这时才出现,
+ * 平时不占着地方亮着。
+ */
+@Composable
+private fun Cell(
+    label: Int,
+    hint: String?,
+    modifier: Modifier = Modifier,
+    onLeft: (() -> Unit)? = null,
+    onRight: (() -> Unit)? = null,
+    onClick: () -> Unit = {},
+    control: @Composable (focused: Boolean) -> Unit,
+) {
+    Pressable(
+        onClick = onClick,
+        focusedScale = 1f,
+        modifier = modifier,
+        onKey = { e ->
+            val code = e.nativeKeyEvent.keyCode
+            val dir = when (code) {
+                NativeKeyEvent.KEYCODE_DPAD_LEFT -> -1
+                NativeKeyEvent.KEYCODE_DPAD_RIGHT -> 1
+                else -> 0
+            }
+            val move = if (dir < 0) onLeft else if (dir > 0) onRight else null
+            if (move == null) return@Pressable false
+            if (e.type == KeyEventType.KeyDown) move.invoke()
+            true
+        },
+    ) { state ->
+        val borderColor by animateColorAsState(
+            if (state.focused) Palette.Focus else Color.Transparent,
+            tween(120, easing = Motion.EaseOut), label = "cell-border",
+        )
+        val bg by animateColorAsState(
+            if (state.focused) Palette.Fill else Color.Transparent,
+            tween(120, easing = Motion.EaseOut), label = "cell-bg",
+        )
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .drawBehind { drawRect(bg) }
+                .border(2.dp, borderColor, RoundedCornerShape(14.dp))
+                .padding(start = 14.dp, end = 10.dp, top = 2.dp, bottom = 4.dp),
+        ) {
+            Row(Modifier.fillMaxWidth().height(42.dp), verticalAlignment = Alignment.CenterVertically) {
                 BasicText(
-                    it,
-                    style = Type.Caption.copy(color = Palette.TertiaryLabel),
-                    maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 4.dp, bottom = 12.dp),
+                    stringResource(label),
+                    style = Type.Body,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
+                control(state.focused)
+            }
+            Box(Modifier.fillMaxWidth().height(HintRoom)) {
+                if (state.focused && !hint.isNullOrBlank()) {
+                    BasicText(
+                        hint,
+                        style = Type.Caption.copy(color = Palette.TertiaryLabel),
+                        maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
             }
         }
     }
 }
 
-/** One row: the setting's name on the left, its control on the right, a hairline above all but the first. */
+/** 格子里的一颗胶囊: 选中的打勾, 聚焦的整格变亮。 */
 @Composable
-private fun SettingRow(label: Int, hint: String?, note: (String?) -> Unit, first: Boolean = false, control: @Composable () -> Unit) {
-    var focused by remember { mutableStateOf(false) }
-    // 小字提示就贴在这一行下面: 一页里选项多, 统一的提示框放在组尾就跑到屏幕外了。
-    // 只有焦点落在这一行时才出现, 移走就收起, 不占别处的空间。
-    Column(Modifier.fillMaxWidth().onFocusChanged { focused = it.hasFocus; if (it.hasFocus) note(hint) }) {
-        if (!first) Box(Modifier.padding(start = 18.dp).fillMaxWidth().height(1.dp).background(Palette.Hairline))
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .height(58.dp)
-                .padding(start = 18.dp, end = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            BasicText(stringResource(label), style = Type.Body, modifier = Modifier.weight(1f), maxLines = 1)
-            control()
-        }
-        if (focused && !hint.isNullOrBlank()) {
-            BasicText(
-                hint,
-                style = Type.Caption.copy(color = Palette.TertiaryLabel),
-                maxLines = 2, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 10.dp),
-            )
+private fun Pill(label: String, on: Boolean, hot: Boolean = false, chevron: Boolean = false, check: Boolean = true) {
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(50))
+            .drawBehind { drawRect(if (hot) Palette.FillStrong else Palette.Fill) }
+            .height(32.dp)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        if (check && on) GlyphIcon(Glyph.Check, Palette.Label, 12.dp)
+        BasicText(
+            label,
+            style = Type.Body.copy(color = if (on) Palette.Label else Palette.SecondaryLabel),
+            maxLines = 1,
+        )
+        if (chevron) GlyphIcon(Glyph.ChevronRight, Palette.Label, 14.dp)
+    }
+}
+
+/** 二选一或几选一: 左右键换值, OK 也换到下一个。 */
+@Composable
+private fun <T> ChoiceCell(
+    label: Int,
+    hint: String?,
+    options: List<Pair<T, Any>>,
+    current: T,
+    choose: (T) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val index = options.indexOfFirst { it.first == current }.coerceAtLeast(0)
+    fun move(delta: Int) {
+        if (options.size < 2) return
+        choose(options[(index + delta + options.size) % options.size].first)
+    }
+    Cell(label, hint, modifier, onLeft = { move(-1) }, onRight = { move(1) }, onClick = { move(1) }) { focused ->
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            options.forEach { (value, text) ->
+                Pill(if (text is Int) stringResource(text) else text.toString(), on = current == value, hot = focused)
+            }
         }
     }
 }
 
-/** A row of chips for one of a few values. */
+/** 只做事不选值的格子: 左右键换到另一颗按钮, OK 做选中的那颗。 */
 @Composable
-private fun <T> Choices(
+private fun ActionCell(
     label: Int,
     hint: String?,
-    note: (String?) -> Unit,
-    options: List<Pair<T, Any>>,
-    current: T,
-    choose: (T) -> Unit,
-    first: Boolean = false,
+    actions: List<CellAction>,
+    modifier: Modifier = Modifier,
+    initial: Int = 0,
 ) {
-    SettingRow(label, hint, note, first) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            options.forEach { (value, text) ->
-                Chip(if (text is Int) stringResource(text) else text.toString(), on = current == value) { choose(value) }
+    var pick by remember(label, actions.size) {
+        mutableStateOf(initial.coerceIn(0, (actions.size - 1).coerceAtLeast(0)))
+    }
+    fun move(delta: Int) {
+        if (actions.size < 2) return
+        pick = (pick + delta + actions.size) % actions.size
+    }
+    Cell(label, hint, modifier, onLeft = { move(-1) }, onRight = { move(1) }, onClick = { actions.getOrNull(pick)?.run?.invoke() }) { focused ->
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            actions.forEachIndexed { i, a ->
+                Pill(a.text, on = i == pick, hot = focused, chevron = a.chevron, check = false)
             }
         }
     }
 }
 
 /**
- * 「按键音量」: 0..100, 只靠左右键增减(遥控器友好)。改一个数就立即生效, 不用退出面板。
+ * 选项多的格子: 入口是"当前值 + >"这颗按钮(和「隐藏的卡片」同一套), OK 打开上下文菜单选;
+ * [leading] 是入口左边的一颗按钮, 比如「类型」的「立即开始」。
  */
 @Composable
-private fun KeyVolumeRow(note: (String?) -> Unit) {
-    SettingRow(R.string.st_key_volume, stringResource(R.string.st_key_volume_hint), note) {
-        var bumpedEdge by remember { mutableStateOf(0) }
-        Pressable(
-            onClick = {},
-            focusedScale = 1.0f,
-            modifier = Modifier.width(250.dp),
-            onKey = { e ->
-                val code = e.nativeKeyEvent.keyCode
-                if (code != NativeKeyEvent.KEYCODE_DPAD_LEFT && code != NativeKeyEvent.KEYCODE_DPAD_RIGHT) return@Pressable false
-                if (e.type == KeyEventType.KeyDown) {
-                    val delta = if (code == NativeKeyEvent.KEYCODE_DPAD_RIGHT) 1 else -1
-                    val now = AerialSettings.keyVolume
-                    val next = (now + delta).coerceIn(0, 100)
-                    if (next != now) {
-                        bumpedEdge = 0
-                        Sounds.step()
-                        AerialSettings.chooseKeyVolume(next)
-                    } else if (bumpedEdge != delta) {
-                        // 到头的"撞边"声只响一下: 停在端点继续按不再重复, 离开再回来才算新的一次。
-                        bumpedEdge = delta
-                        Sounds.limit()
+private fun <T> MenuCell(
+    label: Int,
+    hint: String?,
+    options: List<Pair<T, Any>>,
+    current: T,
+    choose: (T) -> Unit,
+    modifier: Modifier = Modifier,
+    leading: CellAction? = null,
+) {
+    var open by remember { mutableStateOf(false) }
+    val index = options.indexOfFirst { it.first == current }.coerceAtLeast(0)
+    val labels = options.map { (_, text) -> if (text is Int) stringResource(text) else text.toString() }
+    val entry = CellAction(labels.getOrElse(index) { "" }, chevron = true) { open = true }
+    ActionCell(label, hint, listOfNotNull(leading, entry), modifier, initial = if (leading == null) 0 else 1)
+    if (open) {
+        ChoiceMenu(
+            title = stringResource(label),
+            options = labels,
+            selected = index,
+            onPick = { choose(options[it].first); open = false },
+            onDismiss = { open = false },
+        )
+    }
+}
+
+/** 上下文菜单: 居中一块深色面板, 当前值打勾, 焦点整行白底。 */
+@Composable
+private fun ChoiceMenu(
+    title: String,
+    options: List<String>,
+    selected: Int,
+    onPick: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        withFrameNanos { }
+        runCatching { first.requestFocus() }
+    }
+    BackHandler { onDismiss() }
+    Popup(
+        alignment = Alignment.Center,
+        properties = PopupProperties(focusable = true, dismissOnBackPress = false, dismissOnClickOutside = false),
+    ) {
+        Column(
+            Modifier
+                .width(340.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .drawBehind { drawRect(Color(0xFF1E1E20)) }
+                .padding(horizontal = 12.dp, vertical = 14.dp),
+        ) {
+            BasicText(
+                title,
+                style = Type.Headline.copy(color = Palette.SecondaryLabel),
+                modifier = Modifier.padding(start = 12.dp, bottom = 8.dp),
+            )
+            options.forEachIndexed { i, text ->
+                Pressable(
+                    onClick = { onPick(i) },
+                    focusRequester = if (i == selected) first else null,
+                    focusedScale = 1f,
+                ) { st ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(46.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .drawBehind { if (st.focused) drawRect(Palette.Focus) }
+                            .padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        BasicText(
+                            text,
+                            style = Type.Body.copy(color = if (st.focused) Palette.OnFocus else Palette.Label),
+                            modifier = Modifier.weight(1f), maxLines = 1,
+                        )
+                        if (i == selected) {
+                            Spacer(Modifier.width(10.dp))
+                            GlyphIcon(Glyph.Check, if (st.focused) Palette.OnFocus else Palette.Label, 16.dp)
+                        }
                     }
                 }
-                true
-            },
-        ) { state ->
-            val bg by animateColorAsState(if (state.focused) Palette.Focus else Palette.Fill, tween(140, easing = Motion.EaseOut), label = "keyvol-bg")
-            val fg = if (state.focused) Palette.OnFocus else Palette.Label
-            val volume = AerialSettings.keyVolume
-            // 条形跟着数值走一段动画, 不再瞬时跳变。
-            val fraction by animateFloatAsState(
-                targetValue = volume / 100f,
-                animationSpec = tween(160, easing = LinearEasing),
-                label = "keyvol-level",
+            }
+        }
+    }
+}
+
+/** 「按键音量」: 0..100, 只靠左右键增减(遥控器友好)。改一个数就立即生效, 不用退出面板。 */
+@Composable
+private fun KeyVolumeCell() {
+    var bumpedEdge by remember { mutableStateOf(0) }
+    fun step(delta: Int) {
+        val now = AerialSettings.keyVolume
+        val next = (now + delta).coerceIn(0, 100)
+        if (next != now) {
+            bumpedEdge = 0
+            Sounds.step()
+            AerialSettings.chooseKeyVolume(next)
+        } else if (bumpedEdge != delta) {
+            // 到头的"撞边"声只响一下: 停在端点继续按不再重复, 离开再回来才算新的一次。
+            bumpedEdge = delta
+            Sounds.limit()
+        }
+    }
+    Cell(
+        R.string.st_key_volume,
+        stringResource(R.string.st_key_volume_hint),
+        onLeft = { step(-1) },
+        onRight = { step(1) },
+        onClick = { step(1) },
+    ) { focused ->
+        val fg = Palette.Label
+        val volume = AerialSettings.keyVolume
+        // 条形跟着数值走一段动画, 不再瞬时跳变。
+        val fraction by animateFloatAsState(
+            targetValue = volume / 100f,
+            animationSpec = tween(160, easing = LinearEasing),
+            label = "keyvol-level",
+        )
+        Row(
+            Modifier.width(190.dp).height(32.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            // 喇叭图标放在滑块条的左边, 音量格数用 level 表现, 不额外写字。
+            GlyphIcon(
+                if (volume == 0) Glyph.SpeakerMuted else Glyph.Speaker,
+                fg,
+                16.dp,
+                level = fraction,
             )
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).drawBehind { drawRect(bg) }.height(40.dp).padding(horizontal = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                // 喇叭图标放在滑块条的左边(和控制中心音量滑块同一套 Atom: 同一 Glyph、同一尺寸),
-                // 音量格数用 level 表现, 不额外写字。
-                GlyphIcon(
-                    if (volume == 0) Glyph.SpeakerMuted else Glyph.Speaker,
-                    fg,
-                    18.dp,
-                    level = fraction,
-                )
-                Canvas(Modifier.weight(1f).height(6.dp)) {
-                    val r = CornerRadius(size.height / 2)
-                    drawRoundRect(fg.copy(alpha = 0.2f), cornerRadius = r)
-                    drawRoundRect(fg, size = GeometrySize(size.width * fraction, size.height), cornerRadius = r)
-                }
-                BasicText(
-                    volume.toString(),
-                    style = Type.Body.copy(color = fg),
-                    modifier = Modifier.widthIn(min = 26.dp),
-                    maxLines = 1,
-                )
+            Canvas(Modifier.weight(1f).height(5.dp)) {
+                val r = CornerRadius(size.height / 2)
+                drawRoundRect(fg.copy(alpha = 0.2f), cornerRadius = r)
+                drawRoundRect(fg, size = GeometrySize(size.width * fraction, size.height), cornerRadius = r)
             }
+            BasicText(volume.toString(), style = Type.Body.copy(color = fg), modifier = Modifier.widthIn(min = 24.dp), maxLines = 1)
         }
     }
 }
 
-/** Parental PIN on or off; either way goes through the PIN pad (issue #10). */
+/** 天气位置: 能选中的一格, 只是把"这是哪、现在怎样"显示出来; 城市在手机上设置。 */
 @Composable
-private fun PinChoice(onPin: (on: Boolean) -> Unit, onFocused: (() -> Unit)? = null) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        listOf(true to R.string.st_pin_on, false to R.string.st_pin_off).forEach { (on, label) ->
-            Chip(stringResource(label), on = AerialSettings.pinSet == on, onFocused = onFocused) {
-                if (AerialSettings.pinSet != on) onPin(on)
-            }
-        }
-    }
-}
-
-/** Where the weather is for and what it is now. The city is set on the phone page. */
-@Composable
-private fun WeatherValue() {
-    val w = Weather.now
+private fun WeatherCell() {
     val place = Weather.place
+    val w = Weather.now
     val kind = w?.let {
         stringResource(
             when (it.kind) {
@@ -878,58 +1135,24 @@ private fun WeatherValue() {
             },
         )
     }
-    BasicText(
-        if (w != null) listOfNotNull(place, "${w.celsius}° $kind").joinToString(" · ") else stringResource(R.string.wp_weather_none),
-        style = Type.Body.copy(color = Palette.SecondaryLabel),
-        modifier = Modifier.padding(end = 8.dp),
-    )
-}
-
-/** A pill to pick one of a few options: a check on the chosen one, white when focused. */
-@Composable
-private fun Chip(label: String, on: Boolean, onFocused: (() -> Unit)? = null, onClick: () -> Unit) {
-    Pressable(onClick = onClick, focusedScale = 1.06f) { state ->
-        if (onFocused != null) LaunchedEffect(state.focused) { if (state.focused) onFocused() }
-        val bg by animateColorAsState(
-            when {
-                state.focused -> Palette.Focus
-                on -> Palette.FillStrong
-                else -> Palette.Fill
-            },
-            tween(140, easing = Motion.EaseOut), label = "chip-bg",
+    val shown = if (w != null) listOfNotNull(place, "${w.celsius}° $kind").joinToString(" · ") else stringResource(R.string.wp_weather_none)
+    val hint = listOfNotNull(
+        stringResource(if (Weather.chosen) R.string.wp_weather_chosen else R.string.wp_weather_guessed),
+        "城市在手机上设置，扫右边的二维码可以更改。",
+    ).joinToString("\n")
+    Cell(R.string.wp_weather_city, hint) {
+        BasicText(
+            shown,
+            style = Type.Body.copy(color = Palette.SecondaryLabel),
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 200.dp),
         )
-        val fg = if (state.focused) Palette.OnFocus else Palette.Label
-        Row(
-            Modifier.clip(RoundedCornerShape(50)).drawBehind { drawRect(bg) }.height(40.dp).padding(horizontal = 20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            if (on) GlyphIcon(Glyph.Check, fg, 14.dp)
-            BasicText(label, style = Type.Body.copy(color = fg))
-        }
-    }
-}
-
-/** A pill that does something rather than choosing a value: white when focused, a glyph after its label. */
-@Composable
-private fun ActionChip(label: String, glyph: Glyph, onClick: () -> Unit) {
-    Pressable(onClick = onClick, focusedScale = 1.06f) { state ->
-        val bg by animateColorAsState(if (state.focused) Palette.Focus else Palette.FillStrong, tween(140, easing = Motion.EaseOut), label = "action-bg")
-        val fg = if (state.focused) Palette.OnFocus else Palette.Label
-        Row(
-            Modifier.clip(RoundedCornerShape(50)).drawBehind { drawRect(bg) }.height(40.dp).padding(start = 20.dp, end = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            BasicText(label, style = Type.Body.copy(color = fg))
-            GlyphIcon(glyph, fg, 18.dp)
-        }
     }
 }
 
 /** B 站扫码登录: 未登录出扫码入口并展开二维码与状态; 已登录显示账号与退出。 */
 @Composable
-private fun BiliLoginRow(note: (String?) -> Unit) {
+private fun BiliCell() {
     var loggedIn by remember { mutableStateOf(BiliAccount.loggedIn) }
     var uid by remember { mutableStateOf(BiliAccount.uid) }
     var loginState by remember { mutableStateOf<BiliLoginState?>(null) }
@@ -958,25 +1181,21 @@ private fun BiliLoginRow(note: (String?) -> Unit) {
         }
     }
 
-    SettingRow(R.string.st_bili_account, stringResource(R.string.st_bili_account_hint), note) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (loggedIn) {
-                BasicText(
-                    listOfNotNull(stringResource(R.string.st_bili_logged_in), uid).joinToString(" · "),
-                    style = Type.Body.copy(color = Palette.SecondaryLabel),
-                )
-                ActionChip(stringResource(R.string.st_bili_logout), Glyph.Trash) {
-                    BiliAccount.clear()
-                    loggedIn = false
-                    uid = null
-                    loginState = null
-                    qrBitmap = null
-                }
-            } else {
-                ActionChip(stringResource(R.string.st_bili_login), Glyph.ChevronRight) { startLogin() }
-            }
+    val action = if (loggedIn) {
+        CellAction(
+            listOfNotNull(stringResource(R.string.st_bili_logged_in), uid).joinToString(" · "),
+            chevron = false,
+        ) {
+            BiliAccount.clear()
+            loggedIn = false
+            uid = null
+            loginState = null
+            qrBitmap = null
         }
+    } else {
+        CellAction(stringResource(R.string.st_bili_login), chevron = true) { startLogin() }
     }
+    ActionCell(R.string.st_bili_account, stringResource(R.string.st_bili_account_hint), listOf(action))
 
     if (!loggedIn && loginState != null) {
         Column(
@@ -998,35 +1217,6 @@ private fun BiliLoginRow(note: (String?) -> Unit) {
                 },
                 style = Type.Caption.copy(color = Palette.TertiaryLabel),
             )
-        }
-    }
-}
-
-@Composable
-private fun ScreensaverChoice(onStart: () -> Unit) {
-    // The choice first, then the action that tries it.
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        listOf(
-            ScreensaverMode.Aerial to R.string.ss_aerial,
-            ScreensaverMode.Photos to R.string.ss_photos,
-            ScreensaverMode.Clock to R.string.ss_clock,
-            ScreensaverMode.Videos to R.string.ss_videos,
-            ScreensaverMode.System to R.string.ss_system,
-        ).forEach { (mode, label) ->
-            Chip(stringResource(label), on = Wallpapers.screensaver == mode) { Wallpapers.chooseScreensaver(mode) }
-        }
-        Spacer(Modifier.width(6.dp))
-        Pressable(onClick = onStart, focusedScale = 1.06f) { state ->
-            val bg by animateColorAsState(if (state.focused) Palette.Focus else Palette.FillStrong, tween(140, easing = Motion.EaseOut), label = "ss-start")
-            val fg = if (state.focused) Palette.OnFocus else Palette.Label
-            Row(
-                Modifier.clip(RoundedCornerShape(50)).drawBehind { drawRect(bg) }.height(40.dp).padding(horizontal = 20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                GlyphIcon(Glyph.Play, fg, 14.dp)
-                BasicText(stringResource(R.string.ss_start), style = Type.Body.copy(color = fg))
-            }
         }
     }
 }
@@ -1058,6 +1248,12 @@ private fun PhoneCard(url: String?, qr: ImageBitmap?) {
         }
     }
 }
+
+/** 两列网格的格间距。 */
+private val CellGap = 14.dp
+
+/** 每格下面给小字提示留的高度: 有没有提示都一样高, 焦点移动不会让整页跳。 */
+private val HintRoom = 36.dp
 
 private val SheetHeight = 360.dp
 private val SheetCorner = 30.dp

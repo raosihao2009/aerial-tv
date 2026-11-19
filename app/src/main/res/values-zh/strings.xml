@@ -190,7 +190,7 @@
     <string name="st_focus_standard">标准</string>
     <string name="st_focus_high_hint">选中的卡片外面加一圈白色描边，离得远也看得清。</string>
     <string name="st_focus_standard_hint">与 Apple TV 默认一致：选中的卡片只放大浮起。</string>
-    <string name="st_effects">效果</string>
+    <string name="st_effects">界面效果</string>
     <string name="st_effects_auto">自动</string>
     <string name="st_effects_full">完整</string>
     <string name="st_effects_lite">流畅</string>
@@ -355,8 +355,8 @@
     <string name="per_wallpaper">壁纸</string>
     <string name="per_home">主屏幕</string>
     <string name="per_live">直播</string>
-    <string name="per_look">外观</string>
+    <string name="per_look">外观与声音</string>
     <string name="per_screensaver">屏保</string>
     <string name="per_weather">天气</string>
-    <string name="per_family">保护</string>
+    <string name="per_family">亲子守护</string>
 </resources>

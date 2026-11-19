@@ -25,7 +25,10 @@ import app.orchard.tv.BuildConfig
 import app.orchard.tv.guard.GuardSetup
 import app.orchard.tv.system.DiagLog
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -82,6 +85,10 @@ object Updates {
     private const val STALL_MS = 30_000L
     private const val STALL_BYTES = 256 * 1024L
 
+    /** 下载太久没有进展就当它死了: 期间再按"下载"会重新开始, 不会一直锁在 0%。 */
+    private const val STALL_GIVE_UP_MS = 60_000L
+    private const val STALE_REPRESS_MS = 12_000L
+
     /** 下载源不回 Content-Length 时, 用来把"已下多少"折算成百分比的近似大小。 */
     private const val NOMINAL_APK_BYTES = 8_000_000L
     const val CONTROL_CENTER_MAX_AGE_MS = UpdateCheck.PANEL_MAX_AGE_MS
@@ -101,6 +108,10 @@ object Updates {
 
     /** Where an install started from Control Center has got to. */
     var install by mutableStateOf<Install>(Install.Idle); private set
+
+    /** 下载上一次动过的时间(elapsedRealtime), 用来判断它是不是已经卡死。 */
+    private var progressAt = 0L
+    private var downloading: Job? = null
 
     /**
      * 面板底部那行文案要用的两个事实: 最近一次检查的结论, 以及最近一次成功的时间。
@@ -314,7 +325,14 @@ object Updates {
      * with this copy's key and no older, or the installer would only fail with a less clear message.
      */
     fun install(context: Context) {
-        if (install is Install.Downloading || install == Install.Opened) return
+        // 下载卡住时以前是死锁: 状态一直停在 Downloading(0f/100%), 再按也直接被这里挡回去。
+        // 现在盯着"多久没动过", 太久就当上一次已经死掉, 重新来一次。
+        val now = SystemClock.elapsedRealtime()
+        if (install is Install.Downloading) {
+            if (now - progressAt < STALE_REPRESS_MS) return
+            DiagLog.i("更新: 上一次下载 ${(now - progressAt) / 1000} 秒没有进展, 重新开始")
+        }
+        if (install == Install.Opened) return
         // A second press while the first session's confirmation is awaited (#1004: two sessions).
         if (awaiting != null) return
         val app = context.applicationContext
@@ -338,9 +356,24 @@ object Updates {
             Log.i(TAG, "not allowed to install and no page to allow it on; trying the installer anyway")
         }
         install = Install.Downloading(0f)
+        progressAt = now
         DiagLog.i("更新: 开始下载 ${available ?: "?"}")
-        scope.launch {
+        downloading?.cancel()
+        downloading = scope.launch {
             val file = apkFile(app)
+            // 下载 60 秒一点没动就放弃: 以前这种卡住没有任何兜底, 界面就永远停在 0%。
+            val watchdog = launch {
+                while (isActive) {
+                    kotlinx.coroutines.delay(10_000)
+                    val idle = SystemClock.elapsedRealtime() - progressAt
+                    if (idle >= STALL_GIVE_UP_MS) {
+                        DiagLog.i("更新: 下载 ${idle / 1000} 秒没有进展, 放弃")
+                        if (install is Install.Downloading) install = Install.Failed(Failure.Download)
+                        break
+                    }
+                }
+            }
+            fun stopWatchdog() { watchdog.cancel() }
             val ready = runCatching {
                 withContext(Dispatchers.IO) {
                     // A download kept from a moment ago, when the owner backed out of the installer.
@@ -352,6 +385,7 @@ object Updates {
                 Log.w(TAG, "update download broke off", it)
                 DiagLog.i("更新: 下载中断 ${it.javaClass.simpleName}: ${it.message}")
             }.getOrNull()
+            stopWatchdog()
             // Downloading 只代表"在下载"; 下载一结束就换成等待, 不再停在 100%。
             if (install is Install.Downloading) install = Install.Waiting
             if (ready == null) {
@@ -736,8 +770,14 @@ object Updates {
             val shown = synchronized(progressLock) {
                 if (pct > bestPercent) { bestPercent = pct; pct } else null
             }
-            if (shown != null) withContext(Dispatchers.Main) {
-                if (install is Install.Downloading) install = Install.Downloading(shown / 100f)
+            if (shown != null) {
+                progressAt = SystemClock.elapsedRealtime()
+                withContext(Dispatchers.Main) {
+                    if (install is Install.Downloading) {
+                        // 100% 时立刻转成"等待", 后面还有校验和安装, 不再把 100% 挂在那儿。
+                        install = if (shown >= 100) Install.Waiting else Install.Downloading(shown / 100f)
+                    }
+                }
             }
         }
         return coroutineScope {
