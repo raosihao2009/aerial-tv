@@ -694,8 +694,6 @@ private fun SectionTitle(title: Int) {
  */
 @Composable
 private fun Group(note: String? = null, rows: @Composable ColumnScope.(note: (String?) -> Unit) -> Unit) {
-    var focusedNote by remember { mutableStateOf<String?>(null) }
-    var inside by remember { mutableStateOf(false) }
     var height by remember { mutableStateOf(0f) }
     // A focused row asks the sheet to show it from its top down to the group's note: the
     // screensaver's group sits at the sheet's bottom, and showing the row alone (on TV, Compose
@@ -712,16 +710,17 @@ private fun Group(note: String? = null, rows: @Composable ColumnScope.(note: (St
     }
     @OptIn(ExperimentalFoundationApi::class)
     Column(Modifier.fillMaxWidth().onSizeChanged { height = it.height.toFloat() }.bringIntoViewResponder(withNote)) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .smoothBackground(Color.White.copy(alpha = 0.05f), 16.dp)
-                .onFocusChanged { inside = it.hasFocus },
-        ) { rows { focusedNote = it } }
-        Box(Modifier.height(38.dp).padding(start = 16.dp, top = 7.dp)) {
-            (if (inside) focusedNote ?: note else note)?.let {
-                BasicText(it, style = Type.Caption.copy(color = Palette.TertiaryLabel), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.fillMaxWidth().smoothBackground(Color.White.copy(alpha = 0.05f), 16.dp)) {
+            // 组自己的说明(比如"按网络自动定位")仍在卡片开头, 一进这一组就看得到。
+            note?.let {
+                BasicText(
+                    it,
+                    style = Type.Caption.copy(color = Palette.TertiaryLabel),
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 4.dp),
+                )
             }
+            rows { }
         }
     }
 }
@@ -729,17 +728,29 @@ private fun Group(note: String? = null, rows: @Composable ColumnScope.(note: (St
 /** One row: the setting's name on the left, its control on the right, a hairline above all but the first. */
 @Composable
 private fun SettingRow(label: Int, hint: String?, note: (String?) -> Unit, first: Boolean = false, control: @Composable () -> Unit) {
-    if (!first) Box(Modifier.padding(start = 18.dp).fillMaxWidth().height(1.dp).background(Palette.Hairline))
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .height(58.dp)
-            .padding(start = 18.dp, end = 10.dp)
-            .onFocusChanged { if (it.hasFocus) note(hint) },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        BasicText(stringResource(label), style = Type.Body, modifier = Modifier.weight(1f), maxLines = 1)
-        control()
+    var focused by remember { mutableStateOf(false) }
+    // 小字提示就贴在这一行下面: 一页里选项多, 统一的提示框放在组尾就跑到屏幕外了。
+    // 只有焦点落在这一行时才出现, 移走就收起, 不占别处的空间。
+    Column(Modifier.fillMaxWidth().onFocusChanged { focused = it.hasFocus; if (it.hasFocus) note(hint) }) {
+        if (!first) Box(Modifier.padding(start = 18.dp).fillMaxWidth().height(1.dp).background(Palette.Hairline))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(58.dp)
+                .padding(start = 18.dp, end = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BasicText(stringResource(label), style = Type.Body, modifier = Modifier.weight(1f), maxLines = 1)
+            control()
+        }
+        if (focused && !hint.isNullOrBlank()) {
+            BasicText(
+                hint,
+                style = Type.Caption.copy(color = Palette.TertiaryLabel),
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 10.dp),
+            )
+        }
     }
 }
 
