@@ -25,6 +25,8 @@ import app.orchard.tv.BuildConfig
 import app.orchard.tv.guard.GuardSetup
 import app.orchard.tv.system.DiagLog
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -69,6 +71,8 @@ object Updates {
      * 只有几十 KB/s, 6.5MB 要等好几分钟; 清单里给一个国内可达的地址, 优先从它下, 失败再回 GitHub。
      */
     private const val MIRROR_URL = "$BASE/mirror.txt"
+    /** 镜像清单的另一份副本(update 分支): Release 那头偶尔读不到时还有一条国内能通的 raw 地址。 */
+    private const val MIRROR_RAW = "https://raw.githubusercontent.com/raosihao2009/aerial-tv/update/mirror.txt"
 
     /**
      * A source that delivers less than [STALL_BYTES] in [STALL_MS] is given up for the next one
@@ -653,7 +657,7 @@ object Updates {
 
     private fun mirrorFor(flavor: String): String? {
         val cached = mirrorUrls ?: runCatching {
-            read(MIRROR_URL).lineSequence()
+            readMirror().lineSequence()
                 .map { it.trim() }
                 .filter { it.isNotEmpty() && !it.startsWith("#") }
                 .mapNotNull { line ->
@@ -665,6 +669,24 @@ object Updates {
             ?.also { mirrorUrls = it }
             ?: return null
         return cached[flavor]
+    }
+
+    /** 镜像清单: Release 的 mirror.txt 与 update 分支的副本各试两次, 读不到就按"没有镜像"处理。 */
+    private fun readMirror(): String {
+        val sources = listOf("Release" to MIRROR_URL, "raw" to MIRROR_RAW)
+        var last: IOException? = null
+        for ((name, url) in sources) {
+            for (attempt in 0..1) {
+                try {
+                    val text = read(url, fast = attempt == 0)
+                    if (text.isNotEmpty()) return text
+                } catch (e: IOException) {
+                    last = e
+                    DiagLog.i("更新下载: 镜像清单 $name 第 ${attempt + 1} 次失败 ${e.javaClass.simpleName}")
+                }
+            }
+        }
+        throw last ?: IOException("no mirror list answered")
     }
 
     /** The mirror first (fast in China), then GitHub. Returns the APK's info once it parses. */
@@ -685,25 +707,60 @@ object Updates {
             mirror?.let { "镜像" to it },
             "GitHub" to "$BASE/$name",
         ).distinctBy { it.second }
-        for ((label, url) in sources) {
-            DiagLog.i("更新下载: 试$label 源")
-            val started = SystemClock.elapsedRealtime()
-            val ok = runCatching { download(url, file) }
-                .onFailure { Log.w(TAG, "could not download $url", it) }
-                .isSuccess
-            if (ok) {
-                val seconds = (SystemClock.elapsedRealtime() - started) / 1000
-                DiagLog.i("更新下载: $label 源完成, 用时 ${seconds}s")
-                verify(context, file)?.let { return it }
-            } else {
-                DiagLog.i("更新下载: $label 源失败")
+        val directory = checkNotNull(file.parentFile)
+        // 两个源同时下, 谁先下完并通过校验就用谁: 镜像快就镜像, GitHub 快就 GitHub, 不必先干等
+        // 镜像 30 秒才回退(以前就是这样, 看起来像"下载很慢")。进度只报镜像那一路, 免得两条进度
+        // 互相打架。
+        return coroutineScope {
+            val candidates = sources.mapIndexed { i, (label, url) ->
+                Triple(label, url, File(directory, "${file.nameWithoutExtension}-$i.apk"))
             }
-            file.delete()
+            val results = Channel<Pair<String, File?>>(Channel.UNLIMITED)
+            val jobs = candidates.mapIndexed { i, (label, url, target) ->
+                launch(Dispatchers.IO) {
+                    DiagLog.i("更新下载: 试$label 源")
+                    val started = SystemClock.elapsedRealtime()
+                    val ok = runCatching { download(url, target, report = i == 0) }
+                        .onFailure {
+                            Log.w(TAG, "could not download $url", it)
+                            DiagLog.i("更新下载: $label 源失败 ${it.message ?: it.javaClass.simpleName}")
+                        }
+                        .isSuccess
+                    if (ok) DiagLog.i("更新下载: $label 源下完, 用时 ${(SystemClock.elapsedRealtime() - started) / 1000}s")
+                    results.send(label to if (ok) target else null)
+                }
+            }
+            var winner: Pair<String, File>? = null
+            var received = 0
+            while (received < candidates.size && winner == null) {
+                val (label, target) = results.receive()
+                received++
+                if (target == null) continue
+                if (verify(context, target) == null) {
+                    DiagLog.i("更新下载: $label 源下完但校验不过")
+                    target.delete()
+                    continue
+                }
+                winner = label to target
+            }
+            jobs.forEach { it.cancel() }
+            val kept = winner
+            if (kept == null) {
+                candidates.forEach { it.third.delete() }
+                DiagLog.i("更新下载: 所有源都失败")
+                null
+            } else {
+                kept.second.copyTo(file, overwrite = true)
+                if (Build.VERSION.SDK_INT < 24) file.setReadable(true, false)
+                candidates.forEach { if (it.third != kept.second) it.third.delete() }
+                kept.second.delete()
+                DiagLog.i("更新下载: ${kept.first} 源完成")
+                verify(context, file)
+            }
         }
-        return null
     }
 
-    private suspend fun download(url: String, file: File) {
+    private suspend fun download(url: String, file: File, report: Boolean = true) {
         val directory = checkNotNull(file.parentFile)
         check(directory.isDirectory || directory.mkdirs()) { "Cannot create update directory: $directory" }
         check(directory.canWrite()) { "Cannot write update directory: $directory" }
@@ -737,7 +794,7 @@ object Updates {
                             windowFrom = done
                         }
                         val percent = if (total > 0) (done * 100 / total).toInt() else 0
-                        if (percent != shown) {
+                        if (report && percent != shown) {
                             shown = percent
                             withContext(Dispatchers.Main) { install = Install.Downloading(percent / 100f) }
                         }
