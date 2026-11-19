@@ -190,10 +190,6 @@ fun WallpaperSheet(
         )
     }
 
-    // 左栏的分类: 焦点落在哪个分类, 右栏立即换成哪一组选项(不需要按 OK)。
-    val tab = remember { mutableStateOf(Category.Wallpaper) }
-    val navFirst = remember { FocusRequester() }
-
     // The sheet as it opens, or (takeFocus false) drawn once nearly clear for the warm-up.
     val sheet: @Composable (takeFocus: Boolean) -> Unit = { takeFocus ->
         Row(
@@ -207,44 +203,36 @@ fun WallpaperSheet(
                 .liquidGlass(SheetCorner, bottomCorners = false)
                 .padding(start = 40.dp, end = 32.dp, top = 24.dp),
         ) {
-            // 左栏: 图标 + 分类名, 宽度与原来右侧二维码栏一致(220dp)。
-            Column(
-                Modifier.width(220.dp).fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(3.dp),
-            ) {
-                BasicText(stringResource(R.string.wp_title), style = Type.Headline)
-                Spacer(Modifier.height(7.dp))
-                CategoryRow(Category.Wallpaper, Glyph.Photo, tab, navFirst)
-                CategoryRow(Category.Home, Glyph.Home, tab)
-                CategoryRow(Category.Live, Glyph.Play, tab)
-                CategoryRow(Category.Look, Glyph.Sun, tab)
-                CategoryRow(Category.Screensaver, Glyph.Moon, tab)
-                CategoryRow(Category.Weather, Glyph.CloudSun, tab)
-                CategoryRow(Category.Family, Glyph.Shield, tab)
-                CategoryRow(Category.Device, Glyph.Cast, tab)
-                // 打开面板时焦点落在第一个分类上, 右移才进选项; 换来的是"分类一眼看全"。
-                LaunchedEffect(takeFocus) {
-                    if (!takeFocus) return@LaunchedEffect
-                    withFrameNanos { }
-                    runCatching { navFirst.requestFocus() }
-                }
+            val leftScroll = rememberScrollState()
+            // 一页往下走: 每个分类是"图标 + 分类名"的标题, 标题下就是那一组选项, 不再做左栏
+            // 焦点切换。分类图标保留, 是为了在这一长页里一眼认出走到哪一组。
+            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(leftScroll).latestBringIntoView(leftScroll)) {
+                BasicText(stringResource(R.string.wp_title), style = Type.LargeTitle)
+                Spacer(Modifier.height(18.dp))
+                CategoryTitle(Glyph.Photo, R.string.wp_wallpaper)
+                WallpaperSection(takeFocus)
+                Spacer(Modifier.height(18.dp))
+                CategoryTitle(Glyph.Home, R.string.st_home_layout)
+                HomeSection(hiddenCount, onHiddenApps, hiddenLiveCount, onHiddenLiveSources, onHomeLock)
+                Spacer(Modifier.height(18.dp))
+                CategoryTitle(Glyph.Play, R.string.per_live)
+                LiveSection()
+                Spacer(Modifier.height(18.dp))
+                CategoryTitle(Glyph.Sun, R.string.per_look)
+                LookSection()
+                Spacer(Modifier.height(18.dp))
+                CategoryTitle(Glyph.Moon, R.string.wp_screensaver)
+                ScreensaverSection(onStartScreensaver)
+                Spacer(Modifier.height(18.dp))
+                CategoryTitle(Glyph.CloudSun, R.string.wp_weather)
+                WeatherSection()
+                Spacer(Modifier.height(18.dp))
+                CategoryTitle(Glyph.Shield, R.string.per_family)
+                FamilySection(onPin, onKids)
+                Spacer(Modifier.height(24.dp))
             }
             Spacer(Modifier.width(28.dp))
-            val rightScroll = rememberScrollState()
-            // 换分类时右栏回到顶部, 不从上一类滚到的位置接着显示。
-            LaunchedEffect(tab.value) { rightScroll.scrollTo(0) }
-            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rightScroll).latestBringIntoView(rightScroll)) {
-                when (tab.value) {
-                    Category.Wallpaper -> WallpaperSection()
-                    Category.Home -> HomeSection(hiddenCount, onHiddenApps, hiddenLiveCount, onHiddenLiveSources, onHomeLock)
-                    Category.Live -> LiveSection()
-                    Category.Look -> LookSection()
-                    Category.Screensaver -> ScreensaverSection(onStartScreensaver)
-                    Category.Weather -> WeatherSection()
-                    Category.Family -> FamilySection(onPin, onKids)
-                    Category.Device -> DeviceSection(phoneUrl, qr)
-                }
-            }
+            PhoneCard(phoneUrl, qr)
         }
     }
 
@@ -270,64 +258,24 @@ fun WallpaperSheet(
  * daily photos and the rest of the built-ins are left out unless one of them is the current
  * choice. The focused card's note is under the row, as under a group of settings.
  */
-/** 个性化面板左栏的分类: 焦点落在哪个分类, 右栏就换成哪一组选项。 */
-private enum class Category(val label: Int) {
-    Wallpaper(R.string.wp_wallpaper),
-    Home(R.string.st_home_layout),
-    Live(R.string.per_live),
-    Look(R.string.per_look),
-    Screensaver(R.string.wp_screensaver),
-    Weather(R.string.wp_weather),
-    Family(R.string.per_family),
-    Device(R.string.per_device),
-}
-
-/**
- * 左栏的一行: 图标 + 分类名。焦点一停上来就切换右栏(不用按 OK); 未选中时是灰底,
- * 和选项未选中时同一套配色。
- */
+/** 分类标题: 图标 + 分类名, 这一组选项就在它下面。 */
 @Composable
-private fun CategoryRow(
-    category: Category,
-    glyph: Glyph,
-    tab: androidx.compose.runtime.MutableState<Category>,
-    focusRequester: FocusRequester? = null,
-) {
-    Pressable(
-        onClick = { tab.value = category },
-        focusRequester = focusRequester,
-        focusedScale = 1.0f,
-        modifier = Modifier.fillMaxWidth(),
-    ) { state ->
-        LaunchedEffect(state.focused) { if (state.focused) tab.value = category }
-        val bg by animateColorAsState(
-            when {
-                state.focused -> Palette.Focus
-                tab.value == category -> Palette.FillStrong
-                else -> Palette.Fill
-            },
-            tween(140, easing = Motion.EaseOut), label = "category-bg",
-        )
-        val fg = if (state.focused) Palette.OnFocus else Palette.Label
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).drawBehind { drawRect(bg) }.height(32.dp).padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            GlyphIcon(glyph, fg, 18.dp)
-            BasicText(
-                stringResource(category.label),
-                style = Type.Body.copy(color = fg),
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-        }
+private fun CategoryTitle(glyph: Glyph, label: Int) {
+    Row(
+        Modifier.padding(start = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        GlyphIcon(glyph, Palette.SecondaryLabel, 20.dp)
+        BasicText(stringResource(label), style = Type.Title)
     }
+    Spacer(Modifier.height(10.dp))
 }
 
 /** 壁纸: 卡片 + 只在这类壁纸下才问的两个问题。 */
 @Composable
-private fun WallpaperSection() {
-    WallpaperRows(takeFocus = false)
+private fun WallpaperSection(takeFocus: Boolean) {
+    WallpaperRows(takeFocus)
     // Only for the owner's videos: whether keys stop them. The aerial films always move.
     if (Wallpapers.isVideo()) Group { note ->
         Choices(
@@ -595,13 +543,6 @@ private fun FamilySection(onPin: (on: Boolean) -> Unit, onKids: () -> Unit) {
             )
         }
     }
-    Spacer(Modifier.height(12.dp))
-}
-
-/** 智能设备设置: 原来在右侧常驻的二维码与说明, 现在收进自己的分类。 */
-@Composable
-private fun DeviceSection(phoneUrl: String?, qr: ImageBitmap?) {
-    PhoneCard(phoneUrl, qr)
     Spacer(Modifier.height(12.dp))
 }
 
