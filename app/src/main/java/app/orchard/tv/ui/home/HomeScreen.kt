@@ -983,6 +983,16 @@ fun HomeScreen(
 
         val ambientApp = apps.getOrNull(focusedIndex) ?: apps.firstOrNull()
 
+        // 个性化面板是否还开着(含它开出来的子页): 进面板置 true, 回到 Home 或别的浮层置 false。
+        var personalizeOpen by remember { mutableStateOf(false) }
+        LaunchedEffect(overlay) {
+            when (overlay) {
+                is Overlay.Wallpaper -> personalizeOpen = true
+                is Overlay.AppMenu, is Overlay.LiveSourceMenu, is Overlay.Folder -> Unit
+                else -> personalizeOpen = false
+            }
+        }
+
         val dragState = rememberDraggableState { delta ->
             dragged = true
             scope.launch(start = CoroutineStart.UNDISPATCHED) { scroll.snapTo(scroll.value - delta) }
@@ -993,13 +1003,16 @@ fun HomeScreen(
         // 一级菜单卡片"移动"模式和直播菜单(含菜单里移动卡片)都只是压在 Home 上的浮层, 壁纸照旧播:
         // 以前这里挡了 moving==null 且不认 LiveSourceMenu, 一进"移动"整块壁纸就冻住, 移动完才继续。
         val filmMoves = vm.filmFront && (overlay == Overlay.None || overlay is Overlay.ControlCenter ||
-            overlay is Overlay.Wallpaper || overlay is Overlay.AppMenu || overlay is Overlay.Folder ||
-            overlay is Overlay.LiveSourceMenu) &&
+            // 个性化面板和它下面的子页(隐藏的卡片、隐藏的直播源)打开时, 视频壁纸停下来:
+            // 一整页选项要看清楚, 后面一帧帧在动太扰。关上就自己接着播。
+            (!personalizeOpen && (overlay is Overlay.AppMenu || overlay is Overlay.Folder ||
+                overlay is Overlay.LiveSourceMenu)) || (overlay is Overlay.Wallpaper && !personalizeOpen)) &&
             (!vm.screensaverVisible || videoSaver) && !pastShelf && !inGrid &&
             // 直播画面真的放出来之后才停壁纸影片: 否则视频壁纸的影片层会压住直播画面;
             // 直播还在加载(或没源)的时候壁纸照旧播, 不能因为停在直播卡片上就冻住
             !(channelPreviewVisible && liveReadyState.value)
         // Nothing over Home blurs it: a paused film stays.
+        // 个性化/子页打开时影片停下来, 也要让停下的那一帧留在原处, 不能露出底下的静态层。
         val filmStandsIn = overlay == Overlay.None || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper ||
             (overlay is Overlay.AppMenu && overlay.inFolder == null)
         when {
