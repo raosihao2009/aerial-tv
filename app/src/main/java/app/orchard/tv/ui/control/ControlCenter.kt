@@ -368,13 +368,18 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
             stringResource(R.string.cc_personalize),
             onClick = { vm.overlay = Overlay.Wallpaper },
         )
-        // 手动查一次: 不跳页, 结论落在底部那行状态("Aerial x · 已是最新 / 检查更新失败");
-        // 真查到新版时, 下面会多出那条带版本号的更新入口。
+        // 手动查一次: 不跳页, 结论落在底部那行状态("Aerial x · 已是最新 / 检查更新失败")。
+        // 查到新版后这一行自己变成"有新版本 3.xx", 按下去直接进更新页下载, 不再多出一条入口。
+        val latestVersion = Updates.available
         MenuRow(
-            Glyph.Download,
-            stringResource(R.string.cc_check_update),
-            onClick = { Updates.checkIfStale(force = true, maxAgeMs = Updates.CONTROL_CENTER_MAX_AGE_MS) },
-            trailing = if (Updates.checking) stringResource(R.string.cc_checking) else null,
+            if (latestVersion == null) Glyph.Download else Glyph.Info,
+            if (latestVersion == null) stringResource(R.string.cc_check_update)
+            else stringResource(R.string.cc_update_available, latestVersion),
+            onClick = {
+                if (latestVersion == null) Updates.checkIfStale(force = true, maxAgeMs = Updates.CONTROL_CENTER_MAX_AGE_MS)
+                else vm.overlay = Overlay.ControlCenter(CcPage.Update)
+            },
+            trailing = if (latestVersion == null && Updates.checking) stringResource(R.string.cc_checking) else null,
         )
         // What the TV opens when switched on: easy to forget, and puzzling when it happens.
         vm.bootTargetLabel()?.let { name ->
@@ -383,13 +388,6 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
                 stringResource(R.string.cc_boot),
                 onClick = { vm.overlay = Overlay.ControlCenter(CcPage.InputSettings) },
                 trailing = "$name ›",
-            )
-        }
-        Updates.available?.let { latest ->
-            MenuRow(
-                Glyph.Info,
-                stringResource(R.string.cc_update_available, latest),
-                onClick = { vm.overlay = Overlay.ControlCenter(CcPage.Update) },
             )
         }
 
