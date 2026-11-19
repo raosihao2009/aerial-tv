@@ -1,6 +1,7 @@
 package app.orchard.tv.ui.wallpaper
 
 import android.os.Build
+import android.os.SystemClock
 import android.view.KeyEvent as NativeKeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -187,7 +188,15 @@ fun WallpaperSheet(
     val settled = shown.isIdle && shown.currentState
     LaunchedEffect(settled) { onSettled(settled) }
 
-    AnimatedVisibility(visible = visible, enter = fadeIn(tween(220, easing = Motion.EaseOut)), exit = fadeOut(tween(180, easing = Motion.EaseOut)), modifier = Modifier.fillMaxSize()) {
+    // 全屏面板: 不再从小面板回弹, 改成从屏底略微升起 + 淡入; 关闭时往回落 + 淡出。
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(240, easing = Motion.EaseOut)) +
+            slideInVertically(tween(280, easing = Motion.EaseOut)) { it / 10 },
+        exit = fadeOut(tween(170, easing = Motion.EaseOut)) +
+            slideOutVertically(tween(220, easing = Motion.EaseOut)) { it / 12 },
+        modifier = Modifier.fillMaxSize(),
+    ) {
         // A tap above the sheet closes it, back to Control Center as Back does. Once the sheet is
         // in, the dimming stops where it starts: the sheet is opaque.
         Box(
@@ -214,22 +223,26 @@ fun WallpaperSheet(
                 // Glass made from the wallpaper itself, opaque: Home is not blurred behind
                 // this sheet, so the wallpaper above it stays sharp while you choose, and the
                 // app grid must not show through.
-                .liquidGlass(SheetCorner, bottomCorners = false)
-                .padding(start = 40.dp, end = 32.dp, top = 24.dp),
+                // 全屏: 四边不留圆角, 也不画那圈亮边。
+                .liquidGlass(0.dp, bottomCorners = false, edge = false)
         ) {
             // 全屏之后, 标题常驻在最上面, 下面压一条分隔线; 分隔线以下才是可滚动的那一页。
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .padding(start = 44.dp, end = 36.dp, top = 22.dp, bottom = 12.dp)
+                    .padding(start = 32.dp, end = 32.dp, top = 20.dp, bottom = 12.dp)
                     .drawBehind {
                         val y = size.height + 12.dp.toPx()
                         drawRect(Palette.Hairline, topLeft = Offset(0f, y), size = Size(size.width, 1.dp.toPx()))
                     },
             ) {
-                BasicText(stringResource(R.string.wp_title), style = Type.LargeTitle)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    GlyphIcon(Glyph.Pencil, Palette.Label, 26.dp)
+                    Spacer(Modifier.width(14.dp))
+                    BasicText(stringResource(R.string.wp_title), style = Type.LargeTitle)
+                }
             }
-            Row(Modifier.weight(1f).fillMaxWidth().padding(start = 44.dp, end = 36.dp)) {
+            Row(Modifier.weight(1f).fillMaxWidth().padding(start = 32.dp, end = 32.dp)) {
             val leftScroll = rememberScrollState()
             // 一页往下走: 每个分类是"图标 + 分类名"的标题, 标题下就是那一组选项, 不再做左栏
             // 焦点切换。分类图标保留, 是为了在这一长页里一眼认出走到哪一组。
@@ -257,9 +270,9 @@ fun WallpaperSheet(
                 FamilySection(onPin, onKids)
                 Spacer(Modifier.height(24.dp))
             }
-            Spacer(Modifier.width(28.dp))
+            Spacer(Modifier.width(18.dp))
             // 右侧二维码: 在"分隔线以下、屏幕底部以上"这块区域里上下居中。
-            Box(Modifier.width(220.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
+            Box(Modifier.width(200.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
                 PhoneCard(phoneUrl, qr, biliMirror)
             }
             }
@@ -1083,7 +1096,8 @@ private fun <T> MenuCell(
                 alignment = Alignment.TopCenter,
                 offset = IntOffset(alignDx, -with(LocalDensity.current) { (MiniMenuHeight + MiniTailHeight + 12.dp).roundToPx() }),
                 onDismissRequest = { open = false },
-                properties = PopupProperties(focusable = true, dismissOnBackPress = true, dismissOnClickOutside = false),
+                // 打开/关闭全由我们自己处理: 让系统窗口自己 dismiss 会和落焦抢, 出现"按了没反应"。
+                properties = PopupProperties(focusable = true, dismissOnBackPress = false, dismissOnClickOutside = false),
             ) {
                 MiniMenu(
                     labels = labels,
@@ -1117,10 +1131,16 @@ private fun MiniMenu(
     var shown by remember { mutableStateOf(false) }
     // 打开时第一次落焦不响, 之后的每次移动都响。
     var firstSeen by remember { mutableStateOf(false) }
+    // 刚打开的这一小会儿, 忽略确认键: 打开它的那次按键, 抬手也可能落进这个窗口,
+    // 一落进来就把当前值"选"了, 看着就像窗口一闪而过、很难打开。
+    val openedAt = remember { SystemClock.uptimeMillis() }
     LaunchedEffect(Unit) { shown = true }
     LaunchedEffect(Unit) {
-        withFrameNanos { }
-        runCatching { requesters.getOrNull(selected)?.requestFocus() }
+        // 窗口的焦点要等它真正挂到窗口上才要得到, 多等几帧再落焦。
+        repeat(3) {
+            withFrameNanos { }
+            runCatching { requesters.getOrNull(selected)?.requestFocus() }
+        }
     }
     BackHandler { onClose() }
 
@@ -1157,7 +1177,10 @@ private fun MiniMenu(
         ) {
             labels.forEachIndexed { i, text ->
                 Pressable(
-                    onClick = { Sounds.select(); onPick(i) },
+                    onClick = {
+                        if (SystemClock.uptimeMillis() - openedAt < 350) return@Pressable
+                        Sounds.select(); onPick(i)
+                    },
                     focusRequester = requesters.getOrNull(i),
                     focusedScale = 1f,
                     onKey = { e ->
@@ -1380,16 +1403,22 @@ private fun BiliCell(mirror: BiliMirror) {
     } else {
         CellAction(stringResource(R.string.st_bili_login), chevron = true) { startLogin() }
     }
-    // 登录后标题自己带上状态: B站账号（已登录 · UID）
+    // 标题只写到"已登录"; UID 放进下面那行小字, 免得标题太长被截成省略号。
     val currentUid = mirror.uid
-    val title = if (mirror.loggedIn && !currentUid.isNullOrBlank()) {
-        stringResource(R.string.st_bili_account_logged_in, currentUid)
+    val loggedUid = currentUid?.takeIf { mirror.loggedIn && it.isNotBlank() }
+    val title = if (loggedUid != null) {
+        stringResource(R.string.st_bili_account_on)
     } else {
         stringResource(R.string.st_bili_account)
     }
+    val hint = if (loggedUid != null) {
+        stringResource(R.string.st_bili_hint_uid, loggedUid)
+    } else {
+        stringResource(R.string.st_bili_account_hint)
+    }
     // 焦点在不在这一格, 决定右侧那张卡显示什么。
     val focusOwner = remember { mutableStateOf<Any?>(null) }
-    Cell(title, stringResource(R.string.st_bili_account_hint)) { onFocus ->
+    Cell(title, hint) { onFocus ->
         ChipButton(
             action.text,
             on = false, chevron = action.chevron, check = false,

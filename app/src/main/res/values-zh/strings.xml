@@ -133,7 +133,7 @@
     <string name="st_clock_large">大</string>
     <string name="st_clock_size_hint">小：时间和天气在角上一行小字。大：屏幕上方一个大时钟，上面是日期，下面是天气。</string>
     <string name="st_names">卡片名称</string>
-    <string name="st_names_focused">只显示选中的</string>
+    <string name="st_names_focused">只显示选中</string>
     <string name="st_names_all">全部显示</string>
     <string name="st_names_hint">卡片下面显示名称，或者只显示焦点选中的那一张。</string>
     <string name="ss_kind">类型</string>
@@ -362,6 +362,8 @@
     <string name="st_live_preview_hint">焦点在 IPTV 应用时，背景播放相关直播。</string>
     <string name="st_live_jank_hint">高灵敏切得早，低灵敏切得少，关闭则不自动切换。</string>
     <string name="st_bili_account_hint">登录后直播可选更高画质；登录信息只存在本机。</string>
+    <string name="st_bili_account_on">B站账号（已登录）</string>
+    <string name="st_bili_hint_uid">UID %1$s · 登录后可选更高直播画质，只存本机。</string>
     <string name="st_bili_sign_state">已登录 %1$s · 退出登录</string>
     <string name="st_bili_logged_in_uid">已登录 %1$s · 退出登录</string>
     <string name="st_bili_account_logged_in">B站账号（已登录 · %1$s）</string>

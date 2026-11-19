@@ -61,7 +61,13 @@ import kotlin.math.roundToInt
  * rounded rect, which holds it. [seeThroughFilm]: nothing but the film lies under the panel, which
  * over a film without frames (Wallpapers.filmGlassless) is then see-through like the plate.
  */
-fun Modifier.liquidGlass(corner: Dp, bottomCorners: Boolean = true, seeThroughFilm: Boolean = false): Modifier = composed {
+fun Modifier.liquidGlass(
+    corner: Dp,
+    bottomCorners: Boolean = true,
+    seeThroughFilm: Boolean = false,
+    // 全屏面板不画那圈亮边: 屏边本来就没有圆角可勾。
+    edge: Boolean = true,
+): Modifier = composed {
     // The glass a panel opened with stays while it is open, unless the wallpaper itself changes
     // (chosen in Personalize). A moving film that stops as a panel opens gets its glass made again
     // twice within the next second or so, from a frame near where it stopped and then from that
@@ -123,17 +129,17 @@ fun Modifier.liquidGlass(corner: Dp, bottomCorners: Boolean = true, seeThroughFi
                 if (solid) {
                     drawImage(flat, dstSize = IntSize(w, h), colorFilter = ColorFilter.tint(if (seeThroughFilm) FilmGlass else FilmPanel))
                     if (seeThroughFilm) drawImage(filmSheen, dstSize = IntSize(w, h), filterQuality = FilterQuality.Low)
-                    drawGlassEdge(size, radius, bottomCorners)
+                    if (edge) drawGlassEdge(size, radius, bottomCorners)
                 } else if (shader == null || brush == null || root == IntSize.Zero) {
                     drawImage(flat, dstSize = IntSize(w, h), colorFilter = ColorFilter.tint(Palette.Glass))
-                    drawGlassEdge(size, radius, bottomCorners)
+                    if (edge) drawGlassEdge(size, radius, bottomCorners)
                 } else if (AerialSettings.lite) {
                     // Lite (AerialSettings.lite): one solid color, the frosted wallpaper's average as
                     // the glass would dim it, without the layer the glass needs every frame, which
                     // weak GPUs feel most while a panel slides in. Solid: the plain glass color is
                     // see-through and showed the tiles under the Personalize sheet.
                     drawImage(flat, dstSize = IntSize(w, h), colorFilter = ColorFilter.tint(liteGlass(frost)))
-                    drawGlassEdge(size, radius, bottomCorners)
+                    if (edge) drawGlassEdge(size, radius, bottomCorners)
                 } else {
                     val t = swap()
                     if (drawnAt != at || drawnRoot != root || drawnT != t) {
@@ -160,7 +166,7 @@ fun Modifier.liquidGlass(corner: Dp, bottomCorners: Boolean = true, seeThroughFi
                             } else {
                                 drawRect(brush, colorFilter = PanelTint, blendMode = BlendMode.SrcIn)
                             }
-                            drawGlassEdge(size, radius, bottomCorners)
+                            if (edge) drawGlassEdge(size, radius, bottomCorners)
                         }
                     }
                     drawLayer(glass)
