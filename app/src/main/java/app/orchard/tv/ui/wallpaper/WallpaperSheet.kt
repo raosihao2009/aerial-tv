@@ -28,6 +28,9 @@ import androidx.compose.ui.geometry.Size as GeometrySize
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -85,6 +88,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -216,6 +220,9 @@ fun WallpaperSheet(
 
     // The sheet as it opens, or (takeFocus false) drawn once nearly clear for the warm-up.
     val sheet: @Composable (takeFocus: Boolean) -> Unit = { takeFocus ->
+        val menuWindow = remember { MenuWindow() }
+        Box(Modifier.fillMaxSize()) {
+        CompositionLocalProvider(LocalMenuWindow provides menuWindow) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -276,6 +283,10 @@ fun WallpaperSheet(
                 PhoneCard(phoneUrl, qr, biliMirror)
             }
             }
+        }
+        }
+        // 迷你窗口画在最上层: 不用独立窗口, 焦点始终在入口按钮上。
+        MenuWindowLayer(menuWindow)
         }
     }
 
@@ -953,9 +964,10 @@ private fun ChipButton(
     focusRequester: FocusRequester? = null,
     onClick: () -> Unit,
     onFocus: (Any, Boolean) -> Unit,
+    onKey: ((androidx.compose.ui.input.key.KeyEvent) -> Boolean)? = null,
 ) {
     val owner = remember { Any() }
-    Pressable(onClick = onClick, focusRequester = focusRequester, focusedScale = 1f) { state ->
+    Pressable(onClick = onClick, focusRequester = focusRequester, focusedScale = 1f, onKey = onKey) { state ->
         LaunchedEffect(state.focused) { onFocus(owner, state.focused) }
         val bg by animateColorAsState(
             when {
@@ -1041,14 +1053,43 @@ private fun ActionCell(
 }
 
 /**
- * 选项多的格子: 入口是"当前值 + >"那颗按钮(和「隐藏的卡片」同一套), OK 打开上下文菜单;
- * [leading] 是入口左边的一颗按钮, 比如「类型」的「立即开始」。
+ * 面板里的一个"迷你窗口"。
+ *
+ * 之前用 Popup 做: 那是独立窗口, 在当贝这类电视上要抢到焦点很不稳, 经常按了 OK
+ * 什么都不出来(3.32~3.36 一直没解决)。现在不用独立窗口了, 窗口直接画在面板最上层,
+ * 按键仍然由入口按钮那颗按钮自己处理, 焦点一直没离开过它, 打开/移动/确认/关上
+ * 都不会再丢事件。
  */
+private class MenuWindow {
+    var open by mutableStateOf(false)
+    var labels by mutableStateOf<List<String>>(emptyList())
+    var selected = 0
+    var index by mutableStateOf(0)
+    var anchorX = 0f
+    var anchorY = 0f
+    var openedAt = 0L
+    var pick: (Int) -> Unit = {}
+
+    fun show(labels: List<String>, selected: Int, anchorX: Float, anchorY: Float, pick: (Int) -> Unit) {
+        this.labels = labels
+        this.selected = selected
+        this.index = selected
+        this.anchorX = anchorX
+        this.anchorY = anchorY
+        this.pick = pick
+        this.openedAt = SystemClock.uptimeMillis()
+        open = true
+    }
+
+    fun hide() { open = false }
+}
+
+private val LocalMenuWindow = compositionLocalOf<MenuWindow?> { null }
+
 /**
  * 选项多的格子: 入口是"当前值 + >"那颗按钮(和「隐藏的卡片」同一套)。按下 OK,
- * 入口按钮正上方浮出一个迷你窗口, 横向列出全部选项; 焦点自动落在打勾那颗上,
- * 左右键在窗口内移动(到头响一声撞边音), 上键也响一声, 下键或返回键收起来并把
- * 焦点还给入口按钮。入口按钮本身不打勾。
+ * 入口按钮正上方浮出一个迷你窗口, 横向列出全部选项, 打勾那颗先亮起来; 左右键在
+ * 窗口里换, 到头响一声撞边音, 上键也响一声; 下键或返回键收起来。入口按钮本身不打勾。
  */
 @Composable
 private fun <T> MenuCell(
@@ -1060,157 +1101,149 @@ private fun <T> MenuCell(
     modifier: Modifier = Modifier,
     leading: CellAction? = null,
 ) {
-    var open by remember { mutableStateOf(false) }
+    val window = LocalMenuWindow.current
     val index = options.indexOfFirst { it.first == current }.coerceAtLeast(0)
     val labels = options.map { (_, text) -> if (text is Int) stringResource(text) else text.toString() }
-    val entryRequester = remember { FocusRequester() }
-    var wasOpen by remember { mutableStateOf(false) }
-    // 窗口要对准"入口按钮", 不是对准整格: 量出按钮中心和格子中心的差, 横向挪过去。
-    val cellCenterX = remember { mutableStateOf(0f) }
-    val chipCenterX = remember { mutableStateOf(0f) }
-    val alignDx = (chipCenterX.value - cellCenterX.value).roundToInt()
+    // 窗口要对准"入口按钮"的顶边中点, 所以量按钮的位置, 不是量整格。
+    var chipTop by remember { mutableStateOf(0f) }
+    var chipCenterX by remember { mutableStateOf(0f) }
+
+    fun bump(e: androidx.compose.ui.input.key.KeyEvent) {
+        if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0) Sounds.limit()
+    }
 
     Box {
-        Cell(
-            label, hint,
-            modifier.onGloballyPositioned { cellCenterX.value = it.boundsInRoot().center.x },
-        ) { onFocus ->
+        Cell(label, hint, modifier) { onFocus ->
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 leading?.let {
                     ChipButton(it.text, on = false, chevron = it.chevron, check = false, icon = it.icon, onClick = it.run, onFocus = onFocus)
                 }
-                Box(Modifier.onGloballyPositioned { chipCenterX.value = it.boundsInRoot().center.x }) {
+                Box(
+                    Modifier.onGloballyPositioned { c ->
+                        val b = c.boundsInRoot()
+                        chipTop = b.top
+                        chipCenterX = b.center.x
+                    },
+                ) {
                     ChipButton(
                         labels.getOrElse(index) { "" },
                         on = false, chevron = true, check = false,
-                        focusRequester = entryRequester,
-                        onClick = { open = true },
+                        onClick = {
+                            window?.show(labels, index, chipCenterX, chipTop) { choose(options[it].first) }
+                        },
                         onFocus = onFocus,
+                        // 窗口开着的时候, 按键全在这颗按钮里处理: 焦点从没离开过它。
+                        onKey = { e ->
+                            if (window == null || !window.open) {
+                                false
+                            } else {
+                                val down = e.type == KeyEventType.KeyDown
+                                when (e.nativeKeyEvent.keyCode) {
+                                    NativeKeyEvent.KEYCODE_DPAD_LEFT -> {
+                                        if (down) {
+                                            if (window.index > 0) {
+                                                window.index--
+                                                Sounds.focusMoved()
+                                            } else bump(e)
+                                        }
+                                        true
+                                    }
+                                    NativeKeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                        if (down) {
+                                            if (window.index < window.labels.lastIndex) {
+                                                window.index++
+                                                Sounds.focusMoved()
+                                            } else bump(e)
+                                        }
+                                        true
+                                    }
+                                    NativeKeyEvent.KEYCODE_DPAD_UP -> { bump(e); true }
+                                    NativeKeyEvent.KEYCODE_DPAD_DOWN,
+                                    NativeKeyEvent.KEYCODE_BACK -> {
+                                        if (down) window.hide()
+                                        true
+                                    }
+                                    NativeKeyEvent.KEYCODE_DPAD_CENTER,
+                                    NativeKeyEvent.KEYCODE_ENTER,
+                                    NativeKeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                                        // 打开它的那一下, 抬手也可能落在这里, 别顺手就把值选了。
+                                        if (down && SystemClock.uptimeMillis() - window.openedAt > 350) {
+                                            Sounds.select()
+                                            window.pick(window.index)
+                                            window.hide()
+                                        }
+                                        true
+                                    }
+                                    else -> false
+                                }
+                            }
+                        },
                     )
                 }
             }
         }
-        // Popup 放在入口按钮自己的 Box 里, alignment 就是相对这颗按钮算的, 所以窗口会贴在它上方。
-        if (open) {
-            Popup(
-                alignment = Alignment.TopCenter,
-                offset = IntOffset(alignDx, -with(LocalDensity.current) { (MiniMenuHeight + MiniTailHeight + 12.dp).roundToPx() }),
-                onDismissRequest = { open = false },
-                // 打开/关闭全由我们自己处理: 让系统窗口自己 dismiss 会和落焦抢, 出现"按了没反应"。
-                properties = PopupProperties(focusable = true, dismissOnBackPress = false, dismissOnClickOutside = false),
-            ) {
-                MiniMenu(
-                    labels = labels,
-                    selected = index,
-                    onPick = { choose(options[it].first); open = false },
-                    onClose = { open = false },
-                )
-            }
-        }
-    }
-    // Popup 里的 BackHandler 拿不到分发器, 这里再兜一次底: 窗口开着时返回键就是收起它。
-    if (open) BackHandler { open = false }
-    if (open) wasOpen = true
-    LaunchedEffect(open) {
-        if (!open && wasOpen) runCatching { entryRequester.requestFocus() }
     }
 }
 
-/**
- * 迷你窗口: 磨砂玻璃 + 一圈亮边, 下沿带一个小三角形指向入口按钮。打开时从按钮那一侧
- * 由小放大淡入; 窗口内左右移动放移动音, 确认放确认音, 到两端各响一声撞边音。
- */
+/** 迷你窗口那一层: 画在面板最上层, 位置对着入口按钮的顶边, 下沿带一个指向它的小三角。 */
 @Composable
-private fun MiniMenu(
-    labels: List<String>,
-    selected: Int,
-    onPick: (Int) -> Unit,
-    onClose: () -> Unit,
-) {
-    val requesters = remember(labels.size) { List(labels.size) { FocusRequester() } }
-    var shown by remember { mutableStateOf(false) }
-    // 打开时第一次落焦不响, 之后的每次移动都响。
-    var firstSeen by remember { mutableStateOf(false) }
-    // 刚打开的这一小会儿, 忽略确认键: 打开它的那次按键, 抬手也可能落进这个窗口,
-    // 一落进来就把当前值"选"了, 看着就像窗口一闪而过、很难打开。
-    val openedAt = remember { SystemClock.uptimeMillis() }
-    LaunchedEffect(Unit) { shown = true }
-    LaunchedEffect(Unit) {
-        // 窗口的焦点要等它真正挂到窗口上才要得到, 多等几帧再落焦。
-        repeat(3) {
-            withFrameNanos { }
-            runCatching { requesters.getOrNull(selected)?.requestFocus() }
-        }
-    }
-    BackHandler { onClose() }
-
+private fun MenuWindowLayer(window: MenuWindow) {
+    if (!window.open) return
+    val tailH = MiniTailHeight
+    val gap = 10.dp
+    val edge = 8.dp
+    var originX by remember { mutableStateOf(0f) }
+    var originY by remember { mutableStateOf(0f) }
+    var winSize by remember { mutableStateOf(IntSize.Zero) }
+    val shown = remember { MutableTransitionState(false) }
+    shown.targetState = true
     val scale by animateFloatAsState(
-        if (shown) 1f else 0.9f,
+        if (shown.currentState) 1f else 0.92f,
         spring(dampingRatio = 0.72f, stiffness = 900f), label = "mini-scale",
     )
-    val alpha by animateFloatAsState(if (shown) 1f else 0f, tween(110, easing = Motion.EaseOut), label = "mini-alpha")
-    // 撞边音只在按下的那一下响, 长按连续重复不再响。
-    fun close() {
-        Sounds.step()
-        onClose()
-    }
-    fun bump(e: androidx.compose.ui.input.key.KeyEvent) {
-        if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0) Sounds.limit()
-    }
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.graphicsLayer {
-            scaleX = scale
-            scaleY = scale
-            this.alpha = alpha
-            transformOrigin = TransformOrigin(0.5f, 1f)
+    val alpha by animateFloatAsState(if (shown.currentState) 1f else 0f, tween(120, easing = Motion.EaseOut), label = "mini-alpha")
+
+    BoxWithConstraints(
+        Modifier.fillMaxSize().onGloballyPositioned {
+            val at = it.positionInRoot()
+            originX = at.x
+            originY = at.y
         },
     ) {
-        Row(
-            Modifier
-                .height(MiniMenuHeight)
-                .liquidGlass(20.dp)
-                .smoothBorder(1.dp, Color.White.copy(alpha = 0.24f), 20.dp)
-                .padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        val density = LocalDensity.current
+        val fullW = with(density) { maxWidth.toPx() }
+        val ax = window.anchorX - originX
+        val ay = window.anchorY - originY
+        val gapPx = with(density) { gap.toPx() }
+        val tailPx = with(density) { tailH.toPx() }
+        val edgePx = with(density) { edge.toPx() }
+        val x = if (winSize.width == 0) ax else
+            (ax - winSize.width / 2f).coerceIn(edgePx, (fullW - winSize.width - edgePx).coerceAtLeast(edgePx))
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .offset { IntOffset(x.roundToInt(), (ay - winSize.height - tailPx - gapPx).roundToInt()) }
+                .onGloballyPositioned { winSize = it.size }
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    this.alpha = alpha
+                    transformOrigin = TransformOrigin(0.5f, 1f)
+                },
         ) {
-            labels.forEachIndexed { i, text ->
-                Pressable(
-                    onClick = {
-                        if (SystemClock.uptimeMillis() - openedAt < 350) return@Pressable
-                        Sounds.select(); onPick(i)
-                    },
-                    focusRequester = requesters.getOrNull(i),
-                    focusedScale = 1f,
-                    onKey = { e ->
-                        val code = e.nativeKeyEvent.keyCode
-                        when (code) {
-                            NativeKeyEvent.KEYCODE_DPAD_LEFT -> {
-                                if (i == 0) { bump(e); true } else false
-                            }
-                            NativeKeyEvent.KEYCODE_DPAD_RIGHT -> {
-                                if (i == labels.lastIndex) { bump(e); true } else false
-                            }
-                            NativeKeyEvent.KEYCODE_DPAD_UP -> { bump(e); true }
-                            NativeKeyEvent.KEYCODE_DPAD_DOWN,
-                            NativeKeyEvent.KEYCODE_BACK -> {
-                                if (e.type == KeyEventType.KeyDown) close()
-                                true
-                            }
-                            else -> false
-                        }
-                    },
-                ) { st ->
-                    // Popup 里的焦点不经过全局音效, 这里自己放一声; 整窗共用一次标记,
-                    // 打开时落上去那一下不算移动。
-                    LaunchedEffect(st.focused) {
-                        if (st.focused) {
-                            if (firstSeen) Sounds.focusMoved() else firstSeen = true
-                        }
-                    }
-                    val bg by animateColorAsState(if (st.focused) Palette.Focus else Palette.Fill, tween(140, easing = Motion.EaseOut), label = "mini-bg")
-                    val fg = if (st.focused) Palette.OnFocus else Palette.Label
+            Row(
+                Modifier
+                    .height(MiniMenuHeight)
+                    .liquidGlass(20.dp)
+                    .smoothBorder(1.dp, Color.White.copy(alpha = 0.24f), 20.dp)
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                window.labels.forEachIndexed { i, text ->
+                    val lit = i == window.index
+                    val bg by animateColorAsState(if (lit) Palette.Focus else Palette.Fill, tween(120, easing = Motion.EaseOut), label = "mini-bg")
+                    val fg = if (lit) Palette.OnFocus else Palette.Label
                     Row(
                         Modifier
                             .clip(RoundedCornerShape(50))
@@ -1221,20 +1254,27 @@ private fun MiniMenu(
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
                     ) {
                         BasicText(text, style = Type.Body.copy(color = fg), maxLines = 1)
-                        if (i == selected) GlyphIcon(Glyph.Check, fg, 12.dp)
+                        if (i == window.selected) GlyphIcon(Glyph.Check, fg, 12.dp)
                     }
                 }
             }
-        }
-        // 指向入口按钮的小三角: 上沿和窗口同色, 往下收成一个尖。
-        Canvas(Modifier.size(18.dp, MiniTailHeight)) {
-            val path = Path().apply {
-                moveTo(size.width / 2 - size.height * 0.85f, 0f)
-                lineTo(size.width / 2 + size.height * 0.85f, 0f)
-                lineTo(size.width / 2, size.height)
-                close()
+            // 三角跟着窗口走: 窗口被屏幕边挡住多少, 就把它往回挪多少, 尖始终朝着按钮。
+            Box(
+                Modifier.offset {
+                    val tailDx = if (winSize.width == 0) 0f else ax - x - winSize.width / 2f
+                    IntOffset(tailDx.roundToInt(), 0)
+                },
+            ) {
+                Canvas(Modifier.size(18.dp, tailH)) {
+                    val path = Path().apply {
+                        moveTo(size.width / 2 - size.height * 0.85f, 0f)
+                        lineTo(size.width / 2 + size.height * 0.85f, 0f)
+                        lineTo(size.width / 2, size.height)
+                        close()
+                    }
+                    drawPath(path, Palette.Glass)
+                }
             }
-            drawPath(path, Palette.Glass)
         }
     }
 }
