@@ -27,12 +27,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -202,7 +206,7 @@ fun WallpaperSheet(
                 // Glass made from the wallpaper itself, opaque, as the Control Center's: what is
                 // left of Home beside it stays sharp while you choose.
                 .liquidGlass(SheetCorner)
-                .padding(start = 36.dp, end = 16.dp, top = 32.dp, bottom = 28.dp),
+                .padding(start = 28.dp, end = 8.dp, top = 28.dp, bottom = 24.dp),
         ) {
             val contentScroll = rememberScrollState()
             // 换分类时内容回到顶部。
@@ -242,11 +246,11 @@ fun WallpaperSheet(
                 }
                 Spacer(Modifier.height(24.dp))
             }
-            // 右缘导航: 平时只一条图标; 焦点停上来才展开成图标 + 名字的高亮胶囊。
+            // 右缘导航: 平时只一条图标(贴着屏幕右缘); 焦点停上来才向左展开成图标 + 名字的高亮胶囊。
             Column(
                 Modifier.width(RailWidth).fillMaxHeight(),
                 verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
+                horizontalAlignment = Alignment.End,
             ) {
                 RailItem(PerCategory.Wallpaper, Glyph.Photo, tab, railFirst)
                 RailItem(PerCategory.Home, Glyph.Home, tab)
@@ -313,23 +317,22 @@ private fun RailItem(
         onClick = { tab.value = category },
         focusRequester = focusRequester,
         focusedScale = 1.0f,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.wrapContentWidth(),
     ) { state ->
         LaunchedEffect(state.focused) { if (state.focused) tab.value = category }
         val bg by animateColorAsState(if (state.focused) Palette.Focus else Color.Transparent, tween(140, easing = Motion.EaseOut), label = "rail-bg")
         val fg = if (state.focused) Palette.OnFocus else Palette.SecondaryLabel
         Row(
             Modifier
-                .fillMaxWidth()
-                .height(44.dp)
-                .padding(horizontal = 4.dp)
+                .padding(end = 10.dp)
+                .height(48.dp)
                 .clip(RoundedCornerShape(50))
                 .drawBehind { drawRect(bg) }
-                .padding(horizontal = 14.dp),
+                .padding(horizontal = if (state.focused) 18.dp else 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = if (state.focused) Arrangement.spacedBy(10.dp) else Arrangement.Center,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            GlyphIcon(glyph, fg, 20.dp)
+            GlyphIcon(glyph, fg, if (state.focused) 24.dp else 30.dp)
             if (state.focused) {
                 BasicText(
                     stringResource(category.label),
@@ -821,12 +824,13 @@ private fun SettingRow(label: Int, hint: String?, note: (String?) -> Unit, first
         Row(
             Modifier
                 .fillMaxWidth()
-                .height(58.dp)
+                .defaultMinSize(minHeight = 58.dp)
                 .padding(start = 18.dp, end = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             BasicText(stringResource(label), style = Type.Body, modifier = Modifier.weight(1f), maxLines = 1)
-            control()
+            // 选项区拿六成宽, 胶囊在这里折行; 行高随折行后的胶囊自动变高。
+            Box(Modifier.weight(1.5f), contentAlignment = Alignment.CenterEnd) { control() }
         }
         if (focused && !hint.isNullOrBlank()) {
             BasicText(
@@ -840,6 +844,7 @@ private fun SettingRow(label: Int, hint: String?, note: (String?) -> Unit, first
 }
 
 /** A row of chips for one of a few values. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun <T> Choices(
     label: Int,
@@ -851,7 +856,11 @@ private fun <T> Choices(
     first: Boolean = false,
 ) {
     SettingRow(label, hint, note, first) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        // 面板只有半屏宽, 一排胶囊放不下就折到下一行, 而不是把字挤成两行。
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
             options.forEach { (value, text) ->
                 Chip(if (text is Int) stringResource(text) else text.toString(), on = current == value) { choose(value) }
             }
@@ -869,7 +878,7 @@ private fun KeyVolumeRow(note: (String?) -> Unit) {
         Pressable(
             onClick = {},
             focusedScale = 1.0f,
-            modifier = Modifier.width(250.dp),
+            modifier = Modifier.width(210.dp),
             onKey = { e ->
                 val code = e.nativeKeyEvent.keyCode
                 if (code != NativeKeyEvent.KEYCODE_DPAD_LEFT && code != NativeKeyEvent.KEYCODE_DPAD_RIGHT) return@Pressable false
@@ -931,7 +940,10 @@ private fun KeyVolumeRow(note: (String?) -> Unit) {
 /** Parental PIN on or off; either way goes through the PIN pad (issue #10). */
 @Composable
 private fun PinChoice(onPin: (on: Boolean) -> Unit, onFocused: (() -> Unit)? = null) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
         listOf(true to R.string.st_pin_on, false to R.string.st_pin_off).forEach { (on, label) ->
             Chip(stringResource(label), on = AerialSettings.pinSet == on, onFocused = onFocused) {
                 if (AerialSettings.pinSet != on) onPin(on)
@@ -1086,6 +1098,7 @@ private fun BiliLoginRow(note: (String?) -> Unit) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ScreensaverChoice(onStart: () -> Unit) {
     // The choice first, then the action that tries it.
@@ -1144,10 +1157,10 @@ private fun PhoneCard(url: String?, qr: ImageBitmap?) {
 }
 
 /** 设置面板占屏幕右侧这一段的宽度(照当贝的设置页: 左边内容, 右缘一条图标导航)。 */
-val SheetWidth = 620.dp
+val SheetWidth = 540.dp
 private val SheetCorner = 30.dp
-/** 右缘导航条的宽度: 只有图标时窄, 选中那项展开图标+文字也放得下。 */
-private val RailWidth = 132.dp
+/** 右缘导航条留出的宽度: 只放图标时很窄, 选中那项要展开成"图标+名字", 靠右对齐向左长出去。 */
+private val RailWidth = 150.dp
 
 /**
  * 面板稳定后盖住的那一段宽度。Home 不必在它下面整屏作画(好几层全屏和没人看见的卡片,
