@@ -55,6 +55,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Paint
@@ -379,7 +381,7 @@ private fun RailItem(
             Modifier
                 .padding(end = 8.dp)
                 .fillMaxWidth()
-                .height(if (labels) 52.dp else 56.dp)
+                .height(52.dp)
                 .clip(RoundedCornerShape(50))
                 .drawBehind { drawRect(bg) }
                 // 宽度固定: 名字长短只会影响文字本身, 不会把图标左右挪。
@@ -387,7 +389,7 @@ private fun RailItem(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = if (labels) Arrangement.Start else Arrangement.Center,
         ) {
-            GlyphIcon(glyph, fg, if (labels) 28.dp else 36.dp)
+            GlyphIcon(glyph, fg, 28.dp)
             if (labels) {
                 BasicText(
                     stringResource(category.label),
@@ -583,7 +585,7 @@ private fun LookSection() {
 private fun ScreensaverSection(onStartScreensaver: () -> Unit) {
     val context = LocalContext.current
     Group { note ->
-        SettingRow(
+        Choices(
             R.string.ss_kind,
             when {
                 Wallpapers.screensaver == ScreensaverMode.Videos -> stringResource(R.string.ss_videos_hint)
@@ -592,8 +594,18 @@ private fun ScreensaverSection(onStartScreensaver: () -> Unit) {
                 AerialSettings.backStartsScreensaver -> stringResource(R.string.ss_back_hint)
                 else -> null
             },
-            note, first = true,
-        ) { ScreensaverChoice(onStartScreensaver) }
+            note,
+            listOf(
+                ScreensaverMode.Aerial to R.string.ss_aerial,
+                ScreensaverMode.Photos to R.string.ss_photos,
+                ScreensaverMode.Clock to R.string.ss_clock,
+                ScreensaverMode.Videos to R.string.ss_videos,
+                ScreensaverMode.System to R.string.ss_system,
+            ),
+            Wallpapers.screensaver, Wallpapers::chooseScreensaver,
+            first = true,
+        )
+        ActionRow(R.string.ss_start, onStartScreensaver)
         // Only the qualities this TV can play; a 1080p-only TV has nothing to choose.
         val qualities = remember { AerialFormats.supported(context) }
         if (qualities.size > 1) {
@@ -868,58 +880,160 @@ private fun Group(note: String? = null, rows: @Composable ColumnScope.(note: (St
 }
 
 /** One row: the setting's name on the left, its control on the right, a hairline above all but the first. */
-private val RowGap = 40.dp
-private val RowCorner = 18.dp
+private val RowCorner = 14.dp
 private val ControlWidth = 210.dp
 
+/**
+ * 一行选项: 没有气泡, 常态就是一行字 + 右边的控件; 焦点落在这行时整行底色转白(tvOS 的焦点板)。
+ * 小字提示直接排在选项下面, 只在这一行有焦点时出现。
+ * [onClick] 有值时整行是一个可按的按钮(给上下文菜单和动作按钮用), 右侧显示 [value] 和一个">"。
+ */
 @Composable
-private fun SettingRow(label: Int, hint: String?, note: (String?) -> Unit, first: Boolean = false, control: @Composable () -> Unit) {
+private fun SettingRow(
+    label: Int,
+    hint: String?,
+    note: (String?) -> Unit,
+    first: Boolean = false,
+    onClick: (() -> Unit)? = null,
+    value: String? = null,
+    control: @Composable () -> Unit = {},
+) {
     var focused by remember { mutableStateOf(false) }
-    // 每个选项单独一个气泡, 气泡之间留固定空档; 小字提示就画在这个空档里,
-    // 出现和收起都不会改变行距(空档高度固定)。
     Column(Modifier.fillMaxWidth().onFocusChanged { focused = it.hasFocus; if (it.hasFocus) note(hint) }) {
+        val body: @Composable (highlight: Boolean) -> Unit = { on ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 52.dp)
+                    .clip(RoundedCornerShape(RowCorner))
+                    .drawBehind { if (on) drawRect(Palette.Focus) }
+                    .padding(start = 18.dp, end = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                BasicText(
+                    stringResource(label),
+                    style = Type.Body.copy(color = if (on) Palette.OnFocus else Palette.Label),
+                    modifier = Modifier.weight(1f), maxLines = 1,
+                )
+                if (onClick != null) {
+                    if (!value.isNullOrBlank()) {
+                        BasicText(
+                            value,
+                            style = Type.Body.copy(color = if (on) Palette.OnFocus.copy(alpha = 0.75f) else Palette.SecondaryLabel),
+                            maxLines = 1,
+                        )
+                    }
+                    GlyphIcon(Glyph.ChevronRight, if (on) Palette.OnFocus.copy(alpha = 0.75f) else Palette.SecondaryLabel, 14.dp)
+                } else {
+                    Box(Modifier.width(ControlWidth), contentAlignment = Alignment.CenterEnd) { control() }
+                }
+            }
+        }
+        if (onClick != null) {
+            Pressable(onClick = onClick, focusedScale = 1f) { st -> body(st.focused) }
+        } else {
+            body(focused)
+        }
+        if (focused && !hint.isNullOrBlank()) {
+            BasicText(
+                hint,
+                style = Type.Caption.copy(color = Palette.TertiaryLabel),
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp),
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+/** 一个只会"做一件事"的按钮行: 左边名字, 右边一个播放图标, 焦点时整行转白。 */
+@Composable
+private fun ActionRow(label: Int, onClick: () -> Unit) {
+    Pressable(onClick = onClick, focusedScale = 1f) { st ->
         Row(
             Modifier
                 .fillMaxWidth()
-                .defaultMinSize(minHeight = 60.dp)
+                .defaultMinSize(minHeight = 52.dp)
                 .clip(RoundedCornerShape(RowCorner))
-                .drawBehind {
-                    val r = CornerRadius(RowCorner.toPx())
-                    drawRoundRect(
-                        color = Color.White.copy(alpha = if (focused) 0.10f else 0.06f),
-                        cornerRadius = r,
-                    )
-                    if (focused) {
-                        drawRoundRect(
-                            color = Color.White.copy(alpha = 0.85f),
-                            cornerRadius = r,
-                            style = Stroke(width = 1.dp.toPx()),
-                        )
-                    }
-                }
-                .padding(start = 18.dp, end = 12.dp),
+                .drawBehind { if (st.focused) drawRect(Palette.Focus) }
+                .padding(start = 18.dp, end = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            BasicText(stringResource(label), style = Type.Body, modifier = Modifier.weight(1f), maxLines = 1)
-            // 选项按钮固定宽度(和音量条一样), 放不下的靠左右滑。
-            Box(Modifier.width(ControlWidth), contentAlignment = Alignment.CenterEnd) { control() }
+            BasicText(
+                stringResource(label),
+                style = Type.Body.copy(color = if (st.focused) Palette.OnFocus else Palette.Label),
+                modifier = Modifier.weight(1f),
+            )
+            GlyphIcon(Glyph.Play, if (st.focused) Palette.OnFocus.copy(alpha = 0.75f) else Palette.SecondaryLabel, 16.dp)
         }
-        Box(Modifier.fillMaxWidth().height(RowGap)) {
-            if (focused && !hint.isNullOrBlank()) {
-                BasicText(
-                    hint,
-                    style = Type.Caption.copy(color = Palette.TertiaryLabel),
-                    maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 6.dp),
-                )
+    }
+    Spacer(Modifier.height(8.dp))
+}
+
+/** 上下文菜单: 选项多的设置点开这一层, 当前值打勾, 选中即生效并收起。 */
+@Composable
+private fun ChoiceMenu(
+    title: String,
+    options: List<String>,
+    selected: Int,
+    onPick: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        withFrameNanos { }
+        runCatching { first.requestFocus() }
+    }
+    BackHandler { onDismiss() }
+    Popup(
+        alignment = Alignment.Center,
+        properties = PopupProperties(focusable = true, dismissOnBackPress = false, dismissOnClickOutside = false),
+    ) {
+        Column(
+            Modifier
+                .width(340.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .drawBehind { drawRect(Color(0xFF1E1E20)) }
+                .padding(horizontal = 12.dp, vertical = 14.dp),
+        ) {
+            BasicText(
+                title,
+                style = Type.Headline.copy(color = Palette.SecondaryLabel),
+                modifier = Modifier.padding(start = 12.dp, bottom = 8.dp),
+            )
+            options.forEachIndexed { i, text ->
+                Pressable(
+                    onClick = { onPick(i) },
+                    focusRequester = if (i == selected) first else null,
+                    focusedScale = 1f,
+                ) { st ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(46.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .drawBehind { if (st.focused) drawRect(Palette.Focus) }
+                            .padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        BasicText(
+                            text,
+                            style = Type.Body.copy(color = if (st.focused) Palette.OnFocus else Palette.Label),
+                            modifier = Modifier.weight(1f), maxLines = 1,
+                        )
+                        if (i == selected) {
+                            Spacer(Modifier.width(10.dp))
+                            GlyphIcon(Glyph.Check, if (st.focused) Palette.OnFocus else Palette.Label, 16.dp)
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 /**
- * 选项按钮: 固定 210dp 宽(和音量条同一个宽度), 放不下就左右滑。
- * 没聚焦时把当前打勾的那颗摆在正中间; 左右两端淡出, 看得出还能滑。
+ * 行内两颗胶囊时用的横排: 固定 210dp 宽, 放不下就左右滑, 两端淡出; 没聚焦时选中那颗居中。
  */
 @Composable
 private fun ChipTrack(
@@ -934,7 +1048,6 @@ private fun ChipTrack(
     LaunchedEffect(selectedIndex, focused) {
         if (!focused && selectedIndex in 0 until itemCount) {
             state.scrollToItem(selectedIndex)
-            // scrollToItem 把选中项放在左内边距上(40dp), 再挪一下让它落到正中。
             val w = state.layoutInfo.visibleItemsInfo.firstOrNull { it.index == selectedIndex }?.size ?: 0
             state.scrollBy(w / 2f - 65f)
         }
@@ -946,7 +1059,6 @@ private fun ChipTrack(
             .fadeEdges()
             .onFocusChanged { focused = it.hasFocus }
             .onPreviewKeyEvent { e ->
-                // 滑到最后一颗再按右键, 焦点回导航条, 不会卡在边上。
                 val last = focusedIndex == itemCount - 1
                 if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionRight && last && railExit != null) {
                     railExit(); true
@@ -995,11 +1107,30 @@ private fun <T> Choices(
     choose: (T) -> Unit,
     first: Boolean = false,
 ) {
-    SettingRow(label, hint, note, first) {
+    if (options.size > 2) {
+        // 切换式选项改走上下文菜单: 行上只显示当前值和一个">", 点开在选择层里选。
+        var open by remember { mutableStateOf(false) }
+        val labels = options.map { (_, text) -> if (text is Int) stringResource(text) else text.toString() }
         val index = options.indexOfFirst { it.first == current }.coerceAtLeast(0)
-        ChipTrack(selectedIndex = index, itemCount = options.size) { i ->
-            val (value, text) = options[i]
-            Chip(if (text is Int) stringResource(text) else text.toString(), on = current == value) { choose(value) }
+        SettingRow(
+            label, hint, note, first,
+            onClick = { open = true },
+            value = labels.getOrElse(index) { "" },
+        )
+        if (open) {
+            ChoiceMenu(
+                stringResource(label), labels, index,
+                onPick = { choose(options[it].first); open = false },
+                onDismiss = { open = false },
+            )
+        }
+    } else {
+        SettingRow(label, hint, note, first) {
+            val index = options.indexOfFirst { it.first == current }.coerceAtLeast(0)
+            ChipTrack(selectedIndex = index, itemCount = options.size) { i ->
+                val (value, text) = options[i]
+                Chip(if (text is Int) stringResource(text) else text.toString(), on = current == value) { choose(value) }
+            }
         }
     }
 }
@@ -1227,38 +1358,6 @@ private fun BiliLoginRow(note: (String?) -> Unit) {
                 },
                 style = Type.Caption.copy(color = Palette.TertiaryLabel),
             )
-        }
-    }
-}
-
-@Composable
-private fun ScreensaverChoice(onStart: () -> Unit) {
-    // 五个屏保类型 + 末尾一个"开始屏保", 一起横着滑; 没聚焦时把当前类型摆在中间。
-    val modes = listOf(
-        ScreensaverMode.Aerial to R.string.ss_aerial,
-        ScreensaverMode.Photos to R.string.ss_photos,
-        ScreensaverMode.Clock to R.string.ss_clock,
-        ScreensaverMode.Videos to R.string.ss_videos,
-        ScreensaverMode.System to R.string.ss_system,
-    )
-    val current = modes.indexOfFirst { it.first == Wallpapers.screensaver }.coerceAtLeast(0)
-    ChipTrack(selectedIndex = current, itemCount = modes.size + 1) { i ->
-        if (i < modes.size) {
-            val (mode, label) = modes[i]
-            Chip(stringResource(label), on = Wallpapers.screensaver == mode) { Wallpapers.chooseScreensaver(mode) }
-        } else {
-            Pressable(onClick = onStart, focusedScale = 1.06f) { state ->
-            val bg by animateColorAsState(if (state.focused) Palette.Focus else Palette.FillStrong, tween(140, easing = Motion.EaseOut), label = "ss-start")
-                val fg = if (state.focused) Palette.OnFocus else Palette.Label
-                Row(
-                    Modifier.clip(RoundedCornerShape(50)).drawBehind { drawRect(bg) }.height(40.dp).padding(horizontal = 20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    GlyphIcon(Glyph.Play, fg, 14.dp)
-                    BasicText(stringResource(R.string.ss_start), style = Type.Body.copy(color = fg))
-                }
-            }
         }
     }
 }
