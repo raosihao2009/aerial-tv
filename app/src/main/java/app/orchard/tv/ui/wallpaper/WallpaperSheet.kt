@@ -8,6 +8,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -71,9 +72,11 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -158,6 +161,8 @@ fun WallpaperSheet(
 ) {
     val context = LocalContext.current
     var phoneUrl by remember { mutableStateOf<String?>(null) }
+    // B 站扫码的状态提到面板这一层: 右侧那张卡要跟着它换内容。
+    val biliMirror = remember { BiliMirror() }
     var qr by remember { mutableStateOf<ImageBitmap?>(null) }
 
     BackHandler(enabled = visible, onBack = onDismiss)
@@ -220,7 +225,7 @@ fun WallpaperSheet(
                 HomeSection(hiddenCount, onHiddenApps, hiddenLiveCount, onHiddenLiveSources, onHomeLock)
                 Spacer(Modifier.height(18.dp))
                 CategoryTitle(Glyph.Play, R.string.per_live)
-                LiveSection()
+                LiveSection(biliMirror)
                 Spacer(Modifier.height(18.dp))
                 CategoryTitle(Glyph.Sun, R.string.per_look)
                 LookSection()
@@ -236,7 +241,7 @@ fun WallpaperSheet(
                 Spacer(Modifier.height(24.dp))
             }
             Spacer(Modifier.width(28.dp))
-            PhoneCard(phoneUrl, qr)
+            PhoneCard(phoneUrl, qr, biliMirror)
         }
     }
 
@@ -397,7 +402,7 @@ private fun HomeSection(
 
 /** 直播与卡片: 背景预览、卡顿灵敏度、B 站账号。 */
 @Composable
-private fun LiveSection() {
+private fun LiveSection(biliMirror: BiliMirror) {
     Group {
         // 二创：焦点选中 IPTV 应用时背景播放相关直播
         Row2(
@@ -408,7 +413,7 @@ private fun LiveSection() {
                     AerialSettings.livePreviewEnabled, AerialSettings::chooseLivePreview,
                 )
             },
-            { BiliCell() },
+            { BiliCell(biliMirror) },
         )
         Row2(
             {
@@ -532,12 +537,12 @@ private fun ScreensaverSection(onStartScreensaver: () -> Unit) {
                         delay == 0L -> stringResource(R.string.ss_delay_system_off)
                         else -> stringResource(R.string.ss_delay_system_minutes, ((delay + 30_000) / 60_000).coerceAtLeast(1).toInt())
                     }
-                    Cell(R.string.ss_delay, null) { onFocus ->
+                    Cell(R.string.ss_delay, stringResource(R.string.ss_delay_hint)) { onFocus ->
                         ChipButton(shown, on = true, check = false, onClick = {}, onFocus = onFocus)
                     }
                 } else {
                     MenuCell(
-                        R.string.ss_delay, null,
+                        R.string.ss_delay, stringResource(R.string.ss_delay_hint),
                         AerialSettings.screensaverChoices.map {
                             it to if (it == AerialSettings.NEVER) stringResource(R.string.ss_never) else stringResource(R.string.ss_minutes, it)
                         },
@@ -835,6 +840,14 @@ private fun Cell(
     hint: String?,
     modifier: Modifier = Modifier,
     content: @Composable RowScope.(onFocus: (Any, Boolean) -> Unit) -> Unit,
+) = Cell(stringResource(label), hint, modifier, content)
+
+@Composable
+private fun Cell(
+    labelText: String,
+    hint: String?,
+    modifier: Modifier = Modifier,
+    content: @Composable RowScope.(onFocus: (Any, Boolean) -> Unit) -> Unit,
 ) {
     // 记"哪颗按钮在聚焦"。布尔值会在同一格里换按钮时被后到的 false 抹掉, 描边就消失一下。
     var focusOwner by remember { mutableStateOf<Any?>(null) }
@@ -853,7 +866,7 @@ private fun Cell(
     ) {
         Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
             BasicText(
-                stringResource(label),
+                labelText,
                 style = Type.Body,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
@@ -947,8 +960,16 @@ private fun ActionCell(
     hint: String?,
     actions: List<CellAction>,
     modifier: Modifier = Modifier,
+) = ActionCell(stringResource(label), hint, actions, modifier)
+
+@Composable
+private fun ActionCell(
+    labelText: String,
+    hint: String?,
+    actions: List<CellAction>,
+    modifier: Modifier = Modifier,
 ) {
-    Cell(label, hint, modifier) { onFocus ->
+    Cell(labelText, hint, modifier) { onFocus ->
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             actions.forEach { a ->
                 ChipButton(
@@ -1010,8 +1031,9 @@ private fun <T> MenuCell(
         if (open) {
             Popup(
                 alignment = Alignment.TopCenter,
-                offset = IntOffset(0, -with(LocalDensity.current) { (MiniMenuHeight + 8.dp).roundToPx() }),
-                properties = PopupProperties(focusable = true, dismissOnBackPress = false, dismissOnClickOutside = false),
+                offset = IntOffset(0, -with(LocalDensity.current) { (MiniMenuHeight + MiniTailHeight + 12.dp).roundToPx() }),
+                onDismissRequest = { open = false },
+                properties = PopupProperties(focusable = true, dismissOnBackPress = true, dismissOnClickOutside = false),
             ) {
                 MiniMenu(
                     labels = labels,
@@ -1022,6 +1044,8 @@ private fun <T> MenuCell(
             }
         }
     }
+    // Popup 里的 BackHandler 拿不到分发器, 这里再兜一次底: 窗口开着时返回键就是收起它。
+    if (open) BackHandler { open = false }
     if (open) wasOpen = true
     LaunchedEffect(open) {
         if (!open && wasOpen) runCatching { entryRequester.requestFocus() }
@@ -1029,8 +1053,8 @@ private fun <T> MenuCell(
 }
 
 /**
- * 迷你窗口: 磨砂底 + 一圈亮边, 横向排开全部选项。当前值打勾; 焦点在窗口内左右走,
- * 到两端各响一声撞边音(一次按键只响一次); 上键响一声不关, 下键和返回键关上。
+ * 迷你窗口: 磨砂玻璃 + 一圈亮边, 下沿带一个小三角形指向入口按钮。打开时从按钮那一侧
+ * 由小放大淡入; 窗口内左右移动放移动音, 确认放确认音, 到两端各响一声撞边音。
  */
 @Composable
 private fun MiniMenu(
@@ -1040,62 +1064,96 @@ private fun MiniMenu(
     onClose: () -> Unit,
 ) {
     val requesters = remember(labels.size) { List(labels.size) { FocusRequester() } }
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { shown = true }
     LaunchedEffect(Unit) {
         withFrameNanos { }
         runCatching { requesters.getOrNull(selected)?.requestFocus() }
     }
     BackHandler { onClose() }
+
+    val scale by animateFloatAsState(
+        if (shown) 1f else 0.9f,
+        spring(dampingRatio = 0.72f, stiffness = 900f), label = "mini-scale",
+    )
+    val alpha by animateFloatAsState(if (shown) 1f else 0f, tween(110, easing = Motion.EaseOut), label = "mini-alpha")
     // 撞边音只在按下的那一下响, 长按连续重复不再响。
     fun bump(e: androidx.compose.ui.input.key.KeyEvent) {
         if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0) Sounds.limit()
     }
-    Row(
-        Modifier
-            .smoothBackground(Palette.Glass, 20.dp)
-            .smoothBorder(1.dp, Color.White.copy(alpha = 0.22f), 20.dp)
-            .height(MiniMenuHeight)
-            .padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+            this.alpha = alpha
+            transformOrigin = TransformOrigin(0.5f, 1f)
+        },
     ) {
-        labels.forEachIndexed { i, text ->
-            Pressable(
-                onClick = { onPick(i) },
-                focusRequester = requesters.getOrNull(i),
-                focusedScale = 1f,
-                onKey = { e ->
-                    val code = e.nativeKeyEvent.keyCode
-                    when (code) {
-                        NativeKeyEvent.KEYCODE_DPAD_LEFT -> {
-                            if (i == 0) { bump(e); true } else false
+        Row(
+            Modifier
+                .height(MiniMenuHeight)
+                .liquidGlass(20.dp)
+                .smoothBorder(1.dp, Color.White.copy(alpha = 0.24f), 20.dp)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            labels.forEachIndexed { i, text ->
+                Pressable(
+                    onClick = { Sounds.select(); onPick(i) },
+                    focusRequester = requesters.getOrNull(i),
+                    focusedScale = 1f,
+                    onKey = { e ->
+                        val code = e.nativeKeyEvent.keyCode
+                        when (code) {
+                            NativeKeyEvent.KEYCODE_DPAD_LEFT -> {
+                                if (i == 0) { bump(e); true } else false
+                            }
+                            NativeKeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                if (i == labels.lastIndex) { bump(e); true } else false
+                            }
+                            NativeKeyEvent.KEYCODE_DPAD_UP -> { bump(e); true }
+                            NativeKeyEvent.KEYCODE_DPAD_DOWN,
+                            NativeKeyEvent.KEYCODE_BACK -> {
+                                if (e.type == KeyEventType.KeyDown) onClose()
+                                true
+                            }
+                            else -> false
                         }
-                        NativeKeyEvent.KEYCODE_DPAD_RIGHT -> {
-                            if (i == labels.lastIndex) { bump(e); true } else false
-                        }
-                        NativeKeyEvent.KEYCODE_DPAD_UP -> { bump(e); true }
-                        NativeKeyEvent.KEYCODE_DPAD_DOWN -> {
-                            if (e.type == KeyEventType.KeyDown) onClose()
-                            true
-                        }
-                        else -> false
+                    },
+                ) { st ->
+                    // Popup 里的焦点不经过全局音效, 这里自己放一声, 打开时第一颗不算移动。
+                    var seen by remember { mutableStateOf(false) }
+                    LaunchedEffect(st.focused) {
+                        if (st.focused) { if (seen) Sounds.focusMoved() else seen = true }
                     }
-                },
-            ) { st ->
-                val bg by animateColorAsState(if (st.focused) Palette.Focus else Palette.Fill, tween(140, easing = Motion.EaseOut), label = "mini-bg")
-                val fg = if (st.focused) Palette.OnFocus else Palette.Label
-                Row(
-                    Modifier
-                        .clip(RoundedCornerShape(50))
-                        .drawBehind { drawRect(bg) }
-                        .height(30.dp)
-                        .padding(horizontal = 11.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                ) {
-                    BasicText(text, style = Type.Body.copy(color = fg), maxLines = 1)
-                    if (i == selected) GlyphIcon(Glyph.Check, fg, 12.dp)
+                    val bg by animateColorAsState(if (st.focused) Palette.Focus else Palette.Fill, tween(140, easing = Motion.EaseOut), label = "mini-bg")
+                    val fg = if (st.focused) Palette.OnFocus else Palette.Label
+                    Row(
+                        Modifier
+                            .clip(RoundedCornerShape(50))
+                            .drawBehind { drawRect(bg) }
+                            .height(30.dp)
+                            .padding(horizontal = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        BasicText(text, style = Type.Body.copy(color = fg), maxLines = 1)
+                        if (i == selected) GlyphIcon(Glyph.Check, fg, 12.dp)
+                    }
                 }
             }
+        }
+        // 指向入口按钮的小三角: 上沿和窗口同色, 往下收成一个尖。
+        Canvas(Modifier.size(18.dp, MiniTailHeight)) {
+            val path = Path().apply {
+                moveTo(size.width / 2 - size.height * 0.85f, 0f)
+                lineTo(size.width / 2 + size.height * 0.85f, 0f)
+                lineTo(size.width / 2, size.height)
+                close()
+            }
+            drawPath(path, Palette.Glass)
         }
     }
 }
@@ -1214,121 +1272,135 @@ private fun WeatherCell() {
     }
 }
 
-/** B 站扫码登录: 未登录出扫码入口并展开二维码与状态; 已登录显示账号与退出。 */
+/** B 站扫码要显示在右侧那张卡上, 所以状态提到这一层, 面板和卡片共用一份。 */
+private class BiliMirror {
+    var focused by mutableStateOf(false)
+    var loggedIn by mutableStateOf(BiliAccount.loggedIn)
+    var uid by mutableStateOf(BiliAccount.uid)
+    var state by mutableStateOf<BiliLoginState?>(null)
+    var qr by mutableStateOf<ImageBitmap?>(null)
+}
+
+/**
+ * B 站账号: 没登录时按钮是「扫码登录」, 按下去右侧那张卡就换成 B 站登录码;
+ * 登录后标题写成「B站账号（已登录 · UID）」, 按钮是「退出登录」。
+ */
 @Composable
-private fun BiliCell() {
-    var loggedIn by remember { mutableStateOf(BiliAccount.loggedIn) }
-    var uid by remember { mutableStateOf(BiliAccount.uid) }
-    var loginState by remember { mutableStateOf<BiliLoginState?>(null) }
-    var qrBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+private fun BiliCell(mirror: BiliMirror) {
     val scope = rememberCoroutineScope()
 
     fun startLogin() {
-        qrBitmap = null
-        loginState = null
+        mirror.qr = null
+        mirror.state = null
         scope.launch {
             BiliLogin.login { s ->
-                loginState = s
+                mirror.state = s
                 when (s) {
                     is BiliLoginState.QrReady -> {
                         // 回调本身就在 BiliLogin 的 IO 线程里, 直接同步编码二维码。
-                        qrBitmap = PhoneServer.qr(s.qrUrl).asImageBitmap()
+                        mirror.qr = PhoneServer.qr(s.qrUrl).asImageBitmap()
                     }
                     BiliLoginState.Success -> {
-                        loggedIn = BiliAccount.loggedIn
-                        uid = BiliAccount.uid
+                        mirror.loggedIn = BiliAccount.loggedIn
+                        mirror.uid = BiliAccount.uid
                     }
-                    BiliLoginState.Expired, is BiliLoginState.Failed -> qrBitmap = null
+                    BiliLoginState.Expired, is BiliLoginState.Failed -> mirror.qr = null
                     else -> {}
                 }
             }
         }
     }
 
-    val action = if (loggedIn) {
-        // 登录后按钮写明状态和出口: 已登录 UID · 退出登录
-        val text = uid?.takeIf { it.isNotBlank() }
-            ?.let { stringResource(R.string.st_bili_logged_in_uid, it) }
-            ?: (stringResource(R.string.st_bili_logged_in) + " · " + stringResource(R.string.st_bili_logout))
-        CellAction(text, chevron = false) {
+    val action = if (mirror.loggedIn) {
+        CellAction(stringResource(R.string.st_bili_logout), chevron = false) {
             BiliAccount.clear()
-            loggedIn = false
-            uid = null
-            loginState = null
-            qrBitmap = null
+            mirror.loggedIn = false
+            mirror.uid = null
+            mirror.state = null
+            mirror.qr = null
         }
     } else {
         CellAction(stringResource(R.string.st_bili_login), chevron = true) { startLogin() }
     }
-    ActionCell(R.string.st_bili_account, stringResource(R.string.st_bili_account_hint), listOf(action))
-
-    // 扫码用弹窗: 和右侧手机二维码一样, 白底圆角卡片里放码, 下面一行状态。弹窗不吃焦点,
-    // 遥控器仍在面板上; 按返回键收起。
-    if (!loggedIn && loginState != null) {
-        val status = when (loginState) {
-            is BiliLoginState.QrReady -> stringResource(R.string.st_bili_qr_ready)
-            BiliLoginState.WaitingScan -> stringResource(R.string.st_bili_waiting)
-            BiliLoginState.ScannedConfirm -> stringResource(R.string.st_bili_scanned)
-            BiliLoginState.Success -> stringResource(R.string.st_bili_success)
-            BiliLoginState.Expired -> stringResource(R.string.st_bili_expired)
-            is BiliLoginState.Failed -> stringResource(R.string.st_bili_failed)
-            else -> ""
-        }
-        BackHandler {
-            loginState = null
-            qrBitmap = null
-        }
-        Popup(alignment = Alignment.Center, properties = PopupProperties(focusable = false)) {
-            Column(
-                Modifier
-                    .smoothBackground(Palette.Glass, 24.dp)
-                    .smoothBorder(1.dp, Color.White.copy(alpha = 0.22f), 24.dp)
-                    .padding(22.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                Box(
-                    Modifier
-                        .size(190.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .drawBehind { drawRect(Color.White) }
-                        .padding(12.dp),
-                ) {
-                    qrBitmap?.let { Image(it, contentDescription = null, modifier = Modifier.fillMaxSize()) }
+    // 登录后标题自己带上状态: B站账号（已登录 · UID）
+    val currentUid = mirror.uid
+    val title = if (mirror.loggedIn && !currentUid.isNullOrBlank()) {
+        stringResource(R.string.st_bili_account_logged_in, currentUid)
+    } else {
+        stringResource(R.string.st_bili_account)
+    }
+    // 焦点在不在这一格, 决定右侧那张卡显示什么。
+    val focusOwner = remember { mutableStateOf<Any?>(null) }
+    Cell(title, stringResource(R.string.st_bili_account_hint)) { onFocus ->
+        ChipButton(
+            action.text,
+            on = false, chevron = action.chevron, check = false,
+            onClick = action.run,
+            onFocus = { owner, focused ->
+                onFocus(owner, focused)
+                if (focused) {
+                    focusOwner.value = owner
+                } else if (focusOwner.value === owner) {
+                    focusOwner.value = null
                 }
-                BasicText(status, style = Type.Body.copy(color = Palette.Label), maxLines = 1)
-            }
-        }
+                mirror.focused = focusOwner.value != null
+            },
+        )
     }
 }
 
+/** 登录状态的一句话说明, 给右侧那张卡用。 */
 @Composable
-private fun PhoneCard(url: String?, qr: ImageBitmap?) {
+private fun biliStatusText(state: BiliLoginState?): String? = when (state) {
+    is BiliLoginState.QrReady -> stringResource(R.string.st_bili_qr_ready)
+    BiliLoginState.WaitingScan -> stringResource(R.string.st_bili_waiting)
+    BiliLoginState.ScannedConfirm -> stringResource(R.string.st_bili_scanned)
+    BiliLoginState.Expired -> stringResource(R.string.st_bili_expired)
+    is BiliLoginState.Failed -> stringResource(R.string.st_bili_failed)
+    else -> null
+}
+
+/**
+ * 右侧那张卡: 平时是"用手机或电脑设置"的二维码; 正在扫码登录 B 站时整张卡换成
+ * B 站登录码和对应文字, 扫完或焦点离开就自动回到原来那张。
+ */
+@Composable
+private fun PhoneCard(url: String?, qr: ImageBitmap?, bili: BiliMirror? = null) {
+    val biliScan = bili != null && !bili.loggedIn && bili.focused && bili.qr != null
+    val picture = if (biliScan) bili.qr else qr
     Column(Modifier.width(220.dp).padding(top = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier.size(176.dp).smoothBackground(Color.White, 18.dp).padding(14.dp),
             contentAlignment = Alignment.Center,
         ) {
-            if (qr != null) {
-                Image(qr, contentDescription = null, contentScale = ContentScale.Fit, filterQuality = FilterQuality.None, modifier = Modifier.fillMaxSize())
+            if (picture != null) {
+                Image(picture, contentDescription = null, contentScale = ContentScale.Fit, filterQuality = FilterQuality.None, modifier = Modifier.fillMaxSize())
             } else {
                 GlyphIcon(Glyph.Offline, Color.Black.copy(alpha = 0.35f), 40.dp)
             }
         }
         Spacer(Modifier.height(14.dp))
-        BasicText(stringResource(R.string.wp_phone_title), style = Type.Headline)
-        Spacer(Modifier.height(4.dp))
         BasicText(
-            stringResource(if (url != null) R.string.wp_phone_body else R.string.wp_phone_offline),
+            if (biliScan) stringResource(R.string.st_bili_scan_title) else stringResource(R.string.wp_phone_title),
+            style = Type.Headline,
+        )
+        Spacer(Modifier.height(4.dp))
+        val body = when {
+            biliScan -> biliStatusText(bili?.state) ?: stringResource(R.string.st_bili_scan_hint)
+            else -> stringResource(if (url != null) R.string.wp_phone_body else R.string.wp_phone_offline)
+        }
+        BasicText(
+            body,
             style = Type.Caption.copy(textAlign = androidx.compose.ui.text.style.TextAlign.Center),
         )
-        if (url != null) {
+        if (!biliScan && url != null) {
             Spacer(Modifier.height(6.dp))
             // The whole address, token and all, to type into a computer's browser.
             BasicText(url.removePrefix("http://"), style = Type.Caption.copy(color = Palette.SecondaryLabel))
         }
     }
 }
+
 
 /** 两列网格的格间距。 */
 private val CellGap = 14.dp
@@ -1338,6 +1410,9 @@ private val HintRoom = 32.dp
 
 /** 迷你窗口的高度: 上下留白 + 一颗胶囊按钮。 */
 private val MiniMenuHeight = 46.dp
+
+/** 迷你窗口下方指向按钮的三角形高度。 */
+private val MiniTailHeight = 9.dp
 
 private val SheetHeight = 360.dp
 private val SheetCorner = 30.dp

@@ -364,4 +364,8 @@
     <string name="st_bili_account_hint">登录后直播可选更高画质；登录信息只存在本机。</string>
     <string name="st_bili_sign_state">已登录 %1$s · 退出登录</string>
     <string name="st_bili_logged_in_uid">已登录 %1$s · 退出登录</string>
+    <string name="st_bili_account_logged_in">B站账号（已登录 · %1$s）</string>
+    <string name="st_bili_scan_title">扫码登录 B 站</string>
+    <string name="st_bili_scan_hint">用 B 站 App 扫这个码，扫完在手机上确认。这一格失去焦点就换回原来的二维码。</string>
+    <string name="ss_delay_hint">桌面静止多久后开始屏保；不想自动开始就选「不自动」。</string>
 </resources>
