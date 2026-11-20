@@ -647,11 +647,17 @@ fun HomeScreen(
         }
         if (overlay != Overlay.None) {
             lastOverlay = overlay
-            if (savedOverlayKey == null) {
-                savedOverlayKey = focusedKey
-                savedOverlayIndex = lastFocusedIndex
-                overlayFromCard = focusedKey != null && !pillFocused
-            }
+            // 每次都重新快照, 不能拿"是不是 null"当门槛: 上一次浮层的收尾要是没跑到
+            // (面板关掉时是直接回控制中心、overlay 没经过 None, 收尾效果根本不跑),
+            // 旧快照会一直留在这儿。那时候从控制中心按钮打开控制中心, 也会把"上一次停留的
+            // 那张卡"当成是从卡片打开的: 一开面板它就按选中尺寸亮起来(看着"变大了"),
+            // 关面板焦点也回它而不是回按钮 —— 正是这次报的现象。
+            savedOverlayKey = focusedKey
+            savedOverlayIndex = lastFocusedIndex
+            overlayFromCard = focusedKey != null && !pillFocused
+            DiagLog.i(
+                "控制中心调试: 浮层打开 $overlay 快照 key=$savedOverlayKey pill=$pillFocused 从卡片=$overlayFromCard",
+            )
             // 从这一刻起进入"恢复窗口": 关掉浮层时网格只放目标卡可聚焦, 首卡抢不到焦点。
             restoringFocus = true
         }
