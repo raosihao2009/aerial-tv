@@ -361,6 +361,11 @@ fun HomeScreen(
     // 打开浮层前焦点是否真的在某张卡片上(而不是右上角的控制中心按钮): 从按钮打开控制中心时,
     // 不该让"上一次停留的卡片"突然亮起来。
     var overlayFromCard by remember { mutableStateOf(false) }
+    // 本次控制中心是从直播菜单里那颗胶囊(控制中心按钮)打开的。那一刻焦点在按钮上, 不在任何
+    // 卡片上, 但 focusedKey 还留着进菜单前停留的直播卡 —— 只按 focusedKey 判断"从卡片打开"的话,
+    // 面板一出来那张卡就按选中尺寸亮起来(看着"打开控制中心瞬间卡片变大"), 关面板焦点也回它。
+    // 所以这一路单独标出来: 面板期间、以及退回直播菜单那一帧, 都不许点亮卡片。
+    var ccFromMenu by remember { mutableStateOf(false) }
     // 浮层打开到"焦点确认落回某处"为止: 这段时间里原卡片继续按选中画、缩放跳变不演过渡,
     // 网格里也只让它可聚焦(见 restoreHold) —— 面板节点撤掉的那一帧, Compose 重新搜焦点时
     // 唯一的目标就是它, 不会先点亮首卡。
@@ -647,6 +652,7 @@ fun HomeScreen(
         }
         if (overlay != Overlay.None) {
             lastOverlay = overlay
+            if (overlay is Overlay.ControlCenter) ccFromMenu = vm.ccFromLiveMenu
             // 每次都重新快照, 不能拿"是不是 null"当门槛: 上一次浮层的收尾要是没跑到
             // (面板关掉时是直接回控制中心、overlay 没经过 None, 收尾效果根本不跑),
             // 旧快照会一直留在这儿。那时候从控制中心按钮打开控制中心, 也会把"上一次停留的
@@ -654,12 +660,17 @@ fun HomeScreen(
             // 关面板焦点也回它而不是回按钮 —— 正是这次报的现象。
             savedOverlayKey = focusedKey
             savedOverlayIndex = lastFocusedIndex
-            overlayFromCard = focusedKey != null && !pillFocused
+            // 从直播菜单那颗胶囊进来的不算"从卡片": 焦点明明在按钮上(focusedKey 只是旧值)。
+            overlayFromCard = focusedKey != null && !pillFocused &&
+                !(overlay is Overlay.ControlCenter && ccFromMenu)
             DiagLog.i(
-                "控制中心调试: 浮层打开 $overlay 快照 key=$savedOverlayKey pill=$pillFocused 从卡片=$overlayFromCard",
+                "控制中心调试: 浮层打开 $overlay 快照 key=$savedOverlayKey pill=$pillFocused " +
+                    "从卡片=$overlayFromCard 菜单胶囊=$ccFromMenu",
             )
             // 从这一刻起进入"恢复窗口": 关掉浮层时网格只放目标卡可聚焦, 首卡抢不到焦点。
             restoringFocus = true
+        } else {
+            ccFromMenu = false
         }
     }
 
@@ -1350,8 +1361,11 @@ fun HomeScreen(
                             // 它会先缩回, 关掉菜单再放大, 看到"短暂缩小一下"。缩放也不演过渡,
                             // 状态跳变直接到位。只在这种浮层是从卡片上打开时才算: 从右上角控制中心
                             // 按钮打开的情况下, 上一次停留的卡片不该突然亮起来。
-                            preFocus = (overlay != Overlay.None || restoringFocus || overlaySettling) && overlayFromCard &&
-                                app.key == savedOverlayKey,
+                            // 从直播菜单那颗胶囊打开控制中心时, 焦点同样不在卡片上(在按钮上), 连同
+                            // 从面板退回直播菜单那一帧一起按住, 不然那一下就是"卡片突然变大"。
+                            preFocus = (overlay != Overlay.None || restoringFocus || overlaySettling) &&
+                                overlayFromCard && app.key == savedOverlayKey &&
+                                !(ccFromMenu && (overlay is Overlay.ControlCenter || overlay is Overlay.LiveSourceMenu)),
                             snapScale = overlay != Overlay.None || restoringFocus || overlaySettling,
                             autoFocus = coldStart && index == 0,
                             bootStable = vm.bootStable,
