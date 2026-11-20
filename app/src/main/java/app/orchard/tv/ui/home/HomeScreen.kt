@@ -1632,30 +1632,6 @@ fun HomeScreen(
             onDismiss = { closeMenu() },
         )
 
-        KidsSetupSheet(
-            visible = overlay is Overlay.Kids,
-            candidates = vm.kidsCandidates,
-            onStart = {
-                if (!Restricted.enabled) Restricted.chooseEnabled(true)
-                Restricted.start()
-                vm.overlay = Overlay.None
-                vm.homeFocusTarget = 0
-                KidsWatch.poke()
-            },
-            onDismiss = { vm.overlay = Overlay.Wallpaper },
-        )
-
-        // Locked mid-panel (the day's time ran out with Control Center open): the lock is all there is.
-        LaunchedEffect(kidsLock != null) {
-            if (kidsLock != null && vm.overlay !is Overlay.Pin) vm.overlay = Overlay.None
-        }
-        KidsLockScreen(
-            lock = kidsLock,
-            pinOpen = overlay is Overlay.Pin,
-            onParent = { right -> vm.overlay = Overlay.Pin(PinMode.Verify) { vm.overlay = Overlay.None; right() } },
-            onLeave = { Restricted.suspend(); KidsWatch.poke() },
-        )
-
         // 收起来的卡片不再用整屏弹层: 入口按钮按下去在个性化面板上浮出一个小窗口
         // (WallpaperSheet 里的 ListWindowLayer), 和选项小窗口同一套气泡。
 
@@ -1692,12 +1668,43 @@ fun HomeScreen(
             },
         )
 
+        // 儿童/长辈模式设置和锁屏都画在个性化面板之上: 面板这时候留在下面不收,
+        // 但组合顺序必须在面板之后, 否则面板会把它们整片盖住(实测"打不开/看不见")。
+        KidsSetupSheet(
+            visible = overlay is Overlay.Kids,
+            candidates = vm.kidsCandidates,
+            onStart = {
+                if (!Restricted.enabled) Restricted.chooseEnabled(true)
+                Restricted.start()
+                vm.overlay = Overlay.None
+                vm.homeFocusTarget = 0
+                KidsWatch.poke()
+            },
+            onDismiss = { vm.overlay = Overlay.Wallpaper },
+        )
+
+        // Locked mid-panel (the day's time ran out with Control Center open): the lock is all there is.
+        LaunchedEffect(kidsLock != null) {
+            if (kidsLock != null && vm.overlay !is Overlay.Pin) vm.overlay = Overlay.None
+        }
+        KidsLockScreen(
+            lock = kidsLock,
+            pinOpen = overlay is Overlay.Pin,
+            onParent = { right -> vm.overlay = Overlay.Pin(PinMode.Verify) { vm.overlay = Overlay.None; right() } },
+            onLeave = { Restricted.suspend(); KidsWatch.poke() },
+        )
+
         val pin = overlay as? Overlay.Pin
         PinPad(
             visible = pin != null,
             mode = pin?.mode,
             onDone = { pin?.onDone?.invoke() },
-            onCancel = { vm.overlay = Overlay.None },
+            // 取消/返回只是退出密码框: 面板要是还垫在下面(用户是从个性化里点进来的),
+            // 就回到面板, 不跟着把面板一起关掉。
+            onCancel = {
+                // 儿童锁屏上的验证取消就回锁屏; 其余"面板垫在下面"的情形退回面板。
+                vm.overlay = if (sheetBehind && kidsLock == null) Overlay.Wallpaper else Overlay.None
+            },
         )
 
         NoticeBanner(vm.notice, Modifier.align(Alignment.TopCenter).padding(top = 24.dp), vm.noticeGlyph)
