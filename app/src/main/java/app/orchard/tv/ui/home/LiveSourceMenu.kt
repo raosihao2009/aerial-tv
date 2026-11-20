@@ -148,6 +148,8 @@ fun LiveSourceMenu(
     network: () -> app.orchard.tv.system.NetworkStatus = { app.orchard.tv.system.NetworkStatus() },
 ) {
     var focusedId by remember { mutableStateOf(currentId) }
+    // 按钮真的拿到焦点没有: 请求可能落在"canFocus 还没打开"的那一帧, 得能验到。
+    var pillHasFocus by remember { mutableStateOf(false) }
     var menuForId by remember { mutableStateOf<String?>(null) }
     var movingId by remember { mutableStateOf<String?>(null) }
     var menuPage by remember { mutableStateOf(LiveMenuPage.Main) }
@@ -261,21 +263,31 @@ fun LiveSourceMenu(
     LaunchedEffect(controlCenterOpen) { if (controlCenterOpen) ccWasOpen = true }
     LaunchedEffect(visible) {
         if (visible) {
-            // 一律落在当前直播卡片上。之前"从控制中心回来就落 pill"的那一支会失败:
-            // 打开瞬间 pill 还是 disabled(justOpened), requestFocus 落空, 结果完全没有焦点。
-            focusedId = currentId
-            justOpened = true
-            repeat(2) { androidx.compose.runtime.withFrameNanos { } }
-            runCatching { requester(currentId).requestFocus() }
-            // 卡片已按选中尺寸画好(preFocus), 不需要再等缩放, 立刻淡入
-            showing = true
-            snapshotFlow { alpha }.first { it >= 0.99f }
-            justOpened = false
-            // 淡入结束、pill 重新使能之后再把焦点交到按钮上: 早一帧请求会被 canFocus 挡掉,
-            // 表现就是"没有焦点"。卡片那段只是过渡, 用户看不到它亮着停留。
             if (ccWasOpen) {
+                // 从控制中心退回来: 焦点必须停在右上角那颗按钮上 —— 用户就是从那儿进去的。
+                // 不再走"先落当前直播卡"那一步(那会让卡片先亮一下), 也不等淡入:
+                // 直接把 justOpened 放开让 pill 立刻可聚焦, 然后逐帧重试到真的拿到焦点。
                 ccWasOpen = false
-                runCatching { pillFocus.requestFocus() }
+                focusedId = currentId
+                justOpened = false
+                showing = true
+                repeat(2) { androidx.compose.runtime.withFrameNanos { } }
+                var tries = 0
+                while (tries < 8 && !pillHasFocus) {
+                    runCatching { pillFocus.requestFocus() }
+                    repeat(2) { androidx.compose.runtime.withFrameNanos { } }
+                    tries++
+                }
+            } else {
+                // 一律落在当前直播卡片上。
+                focusedId = currentId
+                justOpened = true
+                repeat(2) { androidx.compose.runtime.withFrameNanos { } }
+                runCatching { requester(currentId).requestFocus() }
+                // 卡片已按选中尺寸画好(preFocus), 不需要再等缩放, 立刻淡入
+                showing = true
+                snapshotFlow { alpha }.first { it >= 0.99f }
+                justOpened = false
             }
         } else {
             // 立刻开始淡出(animateFloatAsState 自己会演 500ms)。这里不再 clearFocus:
@@ -401,7 +413,7 @@ fun LiveSourceMenu(
                 showTime = false,
                 enabled = menuForId == null && movingId == null && !controlCenterOpen && !justOpened,
                 focusRequester = pillFocus,
-                onFocused = {},
+                onFocused = { pillHasFocus = it },
                 onClick = { onOpenControlCenter() },
                 modifier = Modifier
                     .align(Alignment.TopEnd)

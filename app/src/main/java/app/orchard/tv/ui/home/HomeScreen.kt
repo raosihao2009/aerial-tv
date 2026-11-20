@@ -366,6 +366,9 @@ fun HomeScreen(
     // 面板一出来那张卡就按选中尺寸亮起来(看着"打开控制中心瞬间卡片变大"), 关面板焦点也回它。
     // 所以这一路单独标出来: 面板期间、以及退回直播菜单那一帧, 都不许点亮卡片。
     var ccFromMenu by remember { mutableStateOf(false) }
+    // 个性化面板是不是还"垫在"当前浮层下面。密码框这一层会把 lastOverlay 写成 Pin,
+    // 所以单独记一份: 只有面板真的被换成别的浮层时才算关掉。
+    var sheetBehind by remember { mutableStateOf(false) }
     // 浮层打开到"焦点确认落回某处"为止: 这段时间里原卡片继续按选中画、缩放跳变不演过渡,
     // 网格里也只让它可聚焦(见 restoreHold) —— 面板节点撤掉的那一帧, Compose 重新搜焦点时
     // 唯一的目标就是它, 不会先点亮首卡。
@@ -649,6 +652,11 @@ fun HomeScreen(
             }
         } else {
             overlaySettling = true
+        }
+        if (overlay is Overlay.Pin) {
+            // 密码框是临时层: 面板要不要留在下面, 按进入密码框之前的状态算。
+        } else {
+            sheetBehind = overlay is Overlay.Wallpaper
         }
         if (overlay != Overlay.None) {
             lastOverlay = overlay
@@ -1647,7 +1655,7 @@ fun HomeScreen(
         // (WallpaperSheet 里的 ListWindowLayer), 和选项小窗口同一套气泡。
 
         // 面板里弹出的家长密码框盖在面板上: 输密码时面板不收起来, 输对了原地继续。
-        val panelBehindPin = overlay is Overlay.Pin && lastOverlay is Overlay.Wallpaper
+        val panelBehindPin = overlay is Overlay.Pin && sheetBehind
         WallpaperSheet(
             visible = overlay is Overlay.Wallpaper || panelBehindPin,
             onSettled = { sheetIn = it },

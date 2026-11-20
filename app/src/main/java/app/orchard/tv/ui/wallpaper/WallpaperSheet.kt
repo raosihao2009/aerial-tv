@@ -1688,10 +1688,24 @@ private fun KeyVolumeCell() {
             Sounds.limit()
         }
     }
+    // 按 OK 静音 / 恢复, 和上面控制中心那条系统音量同一套手感;
+    // 恢复时回到静音之前那个数, 而不是固定跳某个值。
+    var restoreTo by remember { mutableStateOf(if (AerialSettings.keyVolume > 0) AerialSettings.keyVolume else 60) }
+    fun toggleMute() {
+        val now = AerialSettings.keyVolume
+        if (now > 0) {
+            restoreTo = now
+            Sounds.select()
+            AerialSettings.chooseKeyVolume(0)
+        } else {
+            Sounds.select()
+            AerialSettings.chooseKeyVolume(restoreTo.coerceIn(1, 100))
+        }
+    }
     Cell(R.string.st_key_volume, stringResource(R.string.st_key_volume_hint)) { onFocus ->
         val owner = remember { Any() }
         Pressable(
-            onClick = { step(1) },
+            onClick = { toggleMute() },
             focusedScale = 1f,
             onKey = { e ->
                 val code = e.nativeKeyEvent.keyCode
@@ -1733,7 +1747,11 @@ private fun KeyVolumeCell() {
                     drawRoundRect(track, cornerRadius = r)
                     drawRoundRect(fg, size = GeometrySize(size.width * fraction, size.height), cornerRadius = r)
                 }
-                BasicText(volume.toString(), style = Type.Body.copy(color = fg), modifier = Modifier.widthIn(min = 24.dp), maxLines = 1)
+                BasicText(
+                    if (volume == 0) stringResource(R.string.cc_muted) else volume.toString(),
+                    style = Type.Body.copy(color = fg),
+                    modifier = Modifier.widthIn(min = 24.dp), maxLines = 1,
+                )
             }
         }
     }
