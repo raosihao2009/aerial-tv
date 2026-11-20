@@ -207,6 +207,13 @@ fun AppTile(
      * 冻结打开前的状态, 打开和关闭那一帧都不会有尺寸跳变。
      */
     holdLook: Boolean = false,
+    /**
+     * 个性化面板、家长密码、儿童与长辈模式盖上来时按"没选中"画。
+     * 这些浮层不是从某张卡上打开的: 焦点一走, 底下那张卡就该回到原尺寸 ——
+     * 面板背景是半透明的, 停在选中尺寸的那张卡一眼就看得到("打开个性化时卡片放大了")。
+     * 和 preFocus/holdLook 不同, 这个不看焦点状态, 一律不亮, 免得焦点掉得比浮层晚一帧。
+     */
+    forcedIdle: Boolean = false,
 ) {
     val reduced = LocalReducedMotion.current
     val scope = rememberCoroutineScope()
@@ -248,7 +255,7 @@ fun AppTile(
     // 不管浮层里发生什么, 这张卡的尺寸和亮度都不再变。
     var heldActive by remember { mutableStateOf(wantedActive) }
     if (!holdLook) heldActive = wantedActive
-    val active = if (holdLook) heldActive else wantedActive
+    val active = if (forcedIdle) false else if (holdLook) heldActive else wantedActive
     // 只写日志: 浮层打开/关闭那一刻冻结的是什么状态, 下次再报"卡片变大"时能直接对照。
     LaunchedEffect(holdLook) {
         if (holdLook && app.key in AerialSettings.liveAppPackages) {

@@ -1393,6 +1393,9 @@ fun HomeScreen(
                             // 就算上面的 preFocus 或者别的什么在打开那一帧算错, 也不会瞬间跳到
                             // 选中尺寸 —— 那一下就是"打开控制中心瞬间直播卡变大, 白框和名字一起亮"。
                             holdLook = cardOverlay && overlay != Overlay.None,
+                            // 面板/密码框/儿童长辈界面盖着: 底下卡片一律按"没选中"画, 不再停在放大态。
+                            forcedIdle = overlay is Overlay.Wallpaper || overlay is Overlay.Kids ||
+                                overlay is Overlay.Pin,
                             snapScale = overlay != Overlay.None || restoringFocus || overlaySettling,
                             autoFocus = coldStart && index == 0,
                             bootStable = vm.bootStable,
