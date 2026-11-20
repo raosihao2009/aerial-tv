@@ -1690,7 +1690,9 @@ private fun ListWindowLayer(
                                 // 图标要在: 应用用首页那块切好的图标, 直播源给一颗播放图标。
                                 val iconBox = Modifier.size(44.dp, 25.dp)
                                 when {
-                                    item.app != null -> MiniTile(item.app, lit, iconBox, focusT = t)
+                                    // 这一行只留白底, 图标不描边: 焦点时图标外圈那一道白线去掉,
+                                    // 白底(行高亮)和文字变白照旧。
+                                    item.app != null -> MiniTile(item.app, lit, iconBox, focusT = 0f)
                                     item.live != null -> LiveRowIcon(item.live, iconBox)
                                     else -> Box(
                                         iconBox.clip(RoundedCornerShape(6.dp)).drawBehind { drawRect(Palette.FillStrong) },
