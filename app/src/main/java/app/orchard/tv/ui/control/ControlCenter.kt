@@ -466,7 +466,10 @@ private fun UpdatePage(vm: HomeViewModel, takeFocus: Boolean) {
             MenuRow(
                 Glyph.Download,
                 when (state) {
-                    is Updates.Install.Downloading -> stringResource(R.string.cc_update_downloading, (state.fraction * 100).toInt())
+                    is Updates.Install.Downloading ->
+                        // 还没收到第一个字节时不写 "0%": 那几秒看起来像卡住了, 其实是在等源。
+                        if (state.fraction <= 0f) stringResource(R.string.cc_update_connecting)
+                        else stringResource(R.string.cc_update_downloading, (state.fraction * 100).toInt())
                     Updates.Install.Waiting -> stringResource(R.string.cc_update_waiting)
                     else -> stringResource(R.string.cc_update_install)
                 },

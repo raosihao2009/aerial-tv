@@ -156,6 +156,9 @@ object Updates {
                 if (available != latest) mirrorUrls = null
                 available = latest.takeIf { newer(it, current) }
                 loadNotes()
+                // 查到有新版就把镜像清单先查好: 用户点「下载并安装」时不必再等 GitHub 那几秒超时,
+                // 之前正是这一段让进度条在 0% 上挂了十几二十秒。
+                if (available != null) warmMirror()
             },
             log = { Log.i(TAG, it); DiagLog.i("更新检查: $it") },
             onStart = { checking = true },
@@ -166,6 +169,7 @@ object Updates {
             },
         )
         loadNotes()
+        if (available != null) warmMirror()
         // A download left from an install that has since finished or been given up.
         scope.launch(Dispatchers.IO) {
             apkFile(context).takeIf { System.currentTimeMillis() - it.lastModified() > 60 * 60 * 1000L }?.delete()
@@ -758,6 +762,15 @@ object Updates {
     /** 缓存住的镜像清单; 换版本时清掉, 免得一直用上一版的地址。 */
     @Volatile private var mirrorUrls: Map<String, String>? = null
 
+    /** 后台把镜像地址查好, 只查一次(版本变了会清空缓存再查)。 */
+    private fun warmMirror() {
+        if (mirrorUrls != null) return
+        scope.launch(Dispatchers.IO) {
+            runCatching { mirrorFor(BuildConfig.FLAVOR) }
+            DiagLog.i("更新: 镜像清单已预取 ${if (mirrorUrls == null) "无" else "有"}")
+        }
+    }
+
     private fun mirrorFor(flavor: String): String? {
         val cached = mirrorUrls ?: runCatching {
             readMirror().lineSequence()
@@ -831,7 +844,8 @@ object Updates {
                 launch(Dispatchers.IO) {
                     DiagLog.i("更新下载: 试$label 源")
                     val started = SystemClock.elapsedRealtime()
-                    val ok = runCatching { download(url, target, report) }
+                    // GitHub 在国内多半连不上, 连接超时按 6 秒算, 不陪它等满 10 秒。
+                    val ok = runCatching { download(url, target, report, if (label == "GitHub") 6_000 else 10_000) }
                         .onFailure {
                             Log.w(TAG, "could not download $url", it)
                             DiagLog.i("更新下载: $label 源失败 ${it.message ?: it.javaClass.simpleName}")
@@ -888,14 +902,19 @@ object Updates {
         }
     }
 
-    private suspend fun download(url: String, file: File, onPercent: (suspend (Int) -> Unit)? = null) {
+    private suspend fun download(
+        url: String,
+        file: File,
+        onPercent: (suspend (Int) -> Unit)? = null,
+        connectMs: Int = 10_000,
+    ) {
         val directory = checkNotNull(file.parentFile)
         check(directory.isDirectory || directory.mkdirs()) { "Cannot create update directory: $directory" }
         check(directory.canWrite()) { "Cannot write update directory: $directory" }
         val part = File(directory, file.name + ".part")
         val c = URL(url).openConnection() as HttpURLConnection
         LegacyUpdateTls.configure(appContext, c)
-        c.connectTimeout = 10_000
+        c.connectTimeout = connectMs
         c.readTimeout = 20_000
         // A throttled route can keep the TLS handshake up and deliver a byte now and then, so no
         // read() ever blocks long enough to time out and the progress bar sits at 0% for good

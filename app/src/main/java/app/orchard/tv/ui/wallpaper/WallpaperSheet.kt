@@ -136,6 +136,7 @@ import app.orchard.tv.wallpaper.WallpaperKind
 import app.orchard.tv.wallpaper.Wallpapers
 import app.orchard.tv.weather.Weather
 import app.orchard.tv.weather.WeatherKind
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -1189,7 +1190,6 @@ private fun <T> MenuCell(
 /** 迷你窗口那一层: 画在面板最上层, 位置对着入口按钮的顶边, 下沿带一个指向它的小三角。 */
 @Composable
 private fun MenuWindowLayer(window: MenuWindow) {
-    if (!window.open) return
     val tailH = MiniTailHeight
     val gap = 10.dp
     val edge = 8.dp
@@ -1203,7 +1203,20 @@ private fun MenuWindowLayer(window: MenuWindow) {
     // 那一帧窗口会出现在按钮的正上方, 随即跳到该在的位置, 看上去就是"从别处飞过来"。
     // 所以量到宽高之前一律不显示, 量到了才开始淡入放大。
     var placed by remember { mutableStateOf(false) }
-    LaunchedEffect(placed) { if (placed) shown = true }
+    // 退出也要有动画: 直接 if (!window.open) return 的话窗口是一帧消失的, 只有进场有动画。
+    // 关掉后先把它留在合成树里播完淡出+缩小, 再撤走。
+    var alive by remember { mutableStateOf(window.open) }
+    // 进场: 量到尺寸并且窗口是开着的才淡入放大(关掉期间不要偷偷把它亮回来)。
+    LaunchedEffect(placed, window.open) { if (placed && window.open) shown = true }
+    // 退场: 关掉后留住 150ms 播淡出+缩小, 再撤走; 中途又打开就取消。
+    LaunchedEffect(window.open) {
+        if (!window.open && alive) {
+            shown = false
+            delay(MiniExitMs)
+            alive = false
+        }
+    }
+    if (!alive) return
     val scale by animateFloatAsState(
         if (shown) 1f else 0.92f,
         spring(dampingRatio = 0.72f, stiffness = 900f), label = "mini-scale",
@@ -1547,6 +1560,9 @@ private val MiniMenuHeight = 46.dp
 
 /** 迷你窗口下方指向按钮的三角形高度。 */
 private val MiniTailHeight = 9.dp
+
+/** 迷你窗口关掉后留在屏上播完淡出+缩小的时间。 */
+private const val MiniExitMs = 150L
 
 private val SheetHeight = 360.dp
 private val SheetCorner = 30.dp
