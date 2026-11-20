@@ -114,6 +114,7 @@ import app.orchard.tv.system.Sounds
 import app.orchard.tv.ui.components.Pressable
 import app.orchard.tv.ui.components.consumeTaps
 import app.orchard.tv.ui.components.dismissOnTap
+import app.orchard.tv.ui.components.bubbleGlass
 import app.orchard.tv.ui.components.liquidGlass
 import app.orchard.tv.ui.components.smoothBackground
 import app.orchard.tv.ui.components.smoothBorder
@@ -1217,15 +1218,22 @@ private fun MenuWindowLayer(window: MenuWindow) {
         val ax = window.anchorX - originX
         val ay = window.anchorY - originY
         val gapPx = with(density) { gap.toPx() }
-        val tailPx = with(density) { tailH.toPx() }
         val edgePx = with(density) { edge.toPx() }
         val x = if (winSize.width == 0) ax else
             (ax - winSize.width / 2f).coerceIn(edgePx, (fullW - winSize.width - edgePx).coerceAtLeast(edgePx))
+        // 窗口本体和下面的三角是同一块玻璃、同一圈光边: 整块交给 bubbleGlass 画。
+        // 三角的中点落在入口按钮的中心 (ax - x 就是按钮中心离窗口左边多远)。
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
-                .offset { IntOffset(x.roundToInt(), (ay - winSize.height - tailPx - gapPx).roundToInt()) }
+                .offset { IntOffset(x.roundToInt(), (ay - winSize.height - gapPx).roundToInt()) }
                 .onGloballyPositioned { winSize = it.size }
+                .bubbleGlass(
+                    corner = 20.dp,
+                    tailHalf = 9.dp,
+                    tailHeight = tailH,
+                    tailX = { with(density) { (ax - x).toDp() } },
+                )
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
@@ -1236,8 +1244,6 @@ private fun MenuWindowLayer(window: MenuWindow) {
             Row(
                 Modifier
                     .height(MiniMenuHeight)
-                    .liquidGlass(20.dp)
-                    .smoothBorder(1.dp, Color.White.copy(alpha = 0.24f), 20.dp)
                     .padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1260,23 +1266,8 @@ private fun MenuWindowLayer(window: MenuWindow) {
                     }
                 }
             }
-            // 三角跟着窗口走: 窗口被屏幕边挡住多少, 就把它往回挪多少, 尖始终朝着按钮。
-            Box(
-                Modifier.offset {
-                    val tailDx = if (winSize.width == 0) 0f else ax - x - winSize.width / 2f
-                    IntOffset(tailDx.roundToInt(), 0)
-                },
-            ) {
-                Canvas(Modifier.size(18.dp, tailH)) {
-                    val path = Path().apply {
-                        moveTo(size.width / 2 - size.height * 0.85f, 0f)
-                        lineTo(size.width / 2 + size.height * 0.85f, 0f)
-                        lineTo(size.width / 2, size.height)
-                        close()
-                    }
-                    drawPath(path, Palette.Glass)
-                }
-            }
+            // 三角那一截的高度: 玻璃自己画, 这里只负责把窗口量到"行 + 三角"。
+            Spacer(Modifier.height(tailH))
         }
     }
 }

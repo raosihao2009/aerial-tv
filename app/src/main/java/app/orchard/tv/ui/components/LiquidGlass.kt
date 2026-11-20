@@ -23,6 +23,9 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.FilterQuality
@@ -171,6 +174,69 @@ fun Modifier.liquidGlass(
                     }
                     drawLayer(glass)
                 }
+            }
+        }
+}
+
+/**
+ * 一块"气泡"玻璃: 上面是圆角矩形, 下面挂一个指向按钮的小三角, 两者是**同一块玻璃**,
+ * 描一圈**同一条**光边(三角两侧的斜边也在这条光边里)。迷你窗口用它, 原来三角是单独
+ * 画的一块纯色、没有磨砂也没有光边, 看着像贴上去的。
+ */
+fun Modifier.bubbleGlass(
+    corner: Dp,
+    tailHalf: Dp,
+    tailHeight: Dp,
+    tailX: () -> Dp,
+    rim: Dp = 1.2.dp,
+): Modifier = composed {
+    val solid = Wallpapers.moves() && Wallpapers.filmGlassless && Wallpapers.frosted == null
+    val latest = (if (Wallpapers.moves() && Wallpapers.filmGlassless) Wallpapers.filmFrost ?: Wallpapers.frosted else Wallpapers.frosted)
+        .takeIf { Wallpapers.backdrop != null }
+    val held = remember(Wallpapers.selectedId, latest) { latest }
+    val (frost, _, _) = rememberFrostSwap(held)
+    var at by remember { mutableStateOf(Offset.Zero) }
+    var root by remember { mutableStateOf(IntSize.Zero) }
+    this
+        .onGloballyPositioned { c ->
+            val newAt = c.positionInRoot()
+            if (newAt != at) at = newAt
+            var r = c
+            while (true) r = r.parentLayoutCoordinates ?: break
+            if (r.size != root) root = r.size
+        }
+        .drawWithCache {
+            val shader = frost?.let { BitmapShader(it.asAndroidBitmap(), Shader.TileMode.CLAMP, Shader.TileMode.CLAMP) }
+            val brush = shader?.let { ShaderBrush(it) }
+            val radius = corner.toPx()
+            val rimPx = rim.toPx()
+            val tailPx = tailHeight.toPx()
+            val halfPx = tailHalf.toPx()
+            onDrawBehind {
+                val w = size.width
+                val h = size.height
+                val bodyH = (h - tailPx).coerceAtLeast(1f)
+                val tx = tailX().toPx().coerceIn(halfPx, (w - halfPx).coerceAtLeast(halfPx))
+                val outline = Path().apply {
+                    addSmoothRect(Rect(0f, 0f, w, bodyH), radius)
+                    moveTo(tx - halfPx, bodyH)
+                    lineTo(tx + halfPx, bodyH)
+                    lineTo(tx, h)
+                    close()
+                }
+                clipPath(outline) {
+                    if (solid || shader == null || brush == null || root == IntSize.Zero) {
+                        drawRect(FilmPanel)
+                    } else {
+                        shader.setLocalMatrix(Matrix().apply {
+                            setScale(root.width.toFloat() / frost!!.width, root.height.toFloat() / frost.height)
+                            postTranslate(-at.x, -at.y)
+                        })
+                        drawRect(brush, colorFilter = PanelTint)
+                    }
+                }
+                // 一整个形状描一圈: 圆角矩形的四边 + 三角两侧的斜边, 是同一条线。
+                drawPath(outline, Color.White.copy(alpha = 0.24f), style = Stroke(width = rimPx))
             }
         }
 }
