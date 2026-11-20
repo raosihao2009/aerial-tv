@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asAndroidPath
@@ -235,8 +236,29 @@ fun Modifier.bubbleGlass(
                         drawRect(brush, colorFilter = PanelTint)
                     }
                 }
-                // 一整个形状描一圈: 圆角矩形的四边 + 三角两侧的斜边, 是同一条线。
-                drawPath(outline, Color.White.copy(alpha = 0.24f), style = Stroke(width = rimPx))
+                // 光边: 矩形的四边 + 三角两侧的斜边, 是同一圈线的两段。
+                // 三角"底边"那一段不描: 它正好贴在窗口底边上, 画出来就是窗口里多一条横线。
+                val rim = Color.White.copy(alpha = 0.24f)
+                val rectOutline = Path().apply { addSmoothRect(Rect(0f, 0f, w, bodyH), radius) }
+                val band = Path().apply {
+                    addRect(Rect(tx - halfPx, bodyH - rimPx * 2f, tx + halfPx, bodyH + rimPx * 2f))
+                }
+                val keep = Path().apply {
+                    addRect(Rect(0f, 0f, w, h))
+                    op(this, band, PathOperation.Difference)
+                }
+                clipPath(keep) { drawPath(rectOutline, rim, style = Stroke(width = rimPx)) }
+                // 三角的两条斜边, 从底边那两个点一直收到尖端。
+                drawPath(
+                    Path().apply {
+                        moveTo(tx - halfPx, bodyH)
+                        lineTo(tx, h)
+                        moveTo(tx + halfPx, bodyH)
+                        lineTo(tx, h)
+                    },
+                    rim,
+                    style = Stroke(width = rimPx),
+                )
             }
         }
 }
