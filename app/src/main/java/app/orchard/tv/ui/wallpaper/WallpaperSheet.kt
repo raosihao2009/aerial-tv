@@ -1210,7 +1210,11 @@ private fun MenuWindowLayer(window: MenuWindow) {
     LaunchedEffect(placed, window.open) { if (placed && window.open) shown = true }
     // 退场: 关掉后留住 150ms 播淡出+缩小, 再撤走; 中途又打开就取消。
     LaunchedEffect(window.open) {
-        if (!window.open && alive) {
+        if (window.open) {
+            // 3.44 就是漏了这一句: 图层一直挂在合成树里, alive 一开始是 false,
+            // 打开时没人把它置回 true, 于是永远走 if (!alive) return —— 窗口彻底打不开。
+            alive = true
+        } else if (alive) {
             shown = false
             delay(MiniExitMs)
             alive = false
