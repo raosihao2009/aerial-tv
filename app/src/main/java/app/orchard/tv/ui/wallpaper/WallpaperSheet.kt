@@ -178,8 +178,32 @@ fun WallpaperSheet(
     warm: Boolean = false,
     /** One line at the top of Home, as the rest of the settings do. */
     onToast: (String) -> Unit = {},
+    /**
+     * 面板被家长密码框盖住(密码框画在面板上层, 面板不收起来)。这段时间面板交出焦点,
+     * 密码框关掉后再把焦点还给进来之前那颗按钮 —— 否则 Compose 会重新搜一遍,
+     * 一路滚到「屏保」分类, 焦点还落在「类型」上。
+     */
+    holdFocus: Boolean = false,
 ) {
     val context = LocalContext.current
+    // 记"面板里最后一颗拿到焦点的按钮": 被密码框打断再回来, 按它原路还回去。
+    val focusMemory = remember { SheetFocusMemory() }
+    var wasHolding by remember { mutableStateOf(holdFocus) }
+    LaunchedEffect(holdFocus, visible) {
+        val holding = holdFocus
+        focusMemory.holding = holding
+        val released = wasHolding && !holding
+        wasHolding = holding
+        if (!visible) {
+            focusMemory.last = null
+            return@LaunchedEffect
+        }
+        if (released) {
+            // 密码框撤掉之后再还焦点: 早一帧还, 密码框的节点还在, 请求会被吞。
+            repeat(2) { androidx.compose.runtime.withFrameNanos { } }
+            focusMemory.last?.let { runCatching { it.requestFocus() } }
+        }
+    }
     var phoneUrl by remember { mutableStateOf<String?>(null) }
     // B 站扫码的状态提到面板这一层: 右侧那张卡要跟着它换内容。
     val biliMirror = remember { BiliMirror() }
@@ -236,6 +260,7 @@ fun WallpaperSheet(
         CompositionLocalProvider(
             LocalMenuWindow provides menuWindow,
             LocalPopupHost provides popupHost,
+            LocalSheetFocus provides focusMemory,
         ) {
         Column(
             Modifier
@@ -996,10 +1021,17 @@ private fun ChipButton(
     onKey: ((androidx.compose.ui.input.key.KeyEvent) -> Boolean)? = null,
 ) {
     val owner = remember { Any() }
+    val memory = LocalSheetFocus.current
+    val ownRequester = remember { FocusRequester() }
+    val holding = memory?.holding == true
     Pressable(
-        onClick = onClick, focusRequester = focusRequester, focusedScale = 1f, onKey = onKey,
+        onClick = onClick, focusRequester = focusRequester ?: ownRequester, focusedScale = 1f, onKey = onKey,
+        enabled = !holding,
         // 同步回调: 气泡描边和按钮自己的白底必须同一帧开始变, 走 LaunchedEffect 会晚一帧
-        onFocusState = { onFocus(owner, it) },
+        onFocusState = { got ->
+            onFocus(owner, got)
+            if (got) memory?.last = focusRequester ?: ownRequester
+        },
     ) { state ->
         val bg by animateColorAsState(
             when {
@@ -1204,6 +1236,15 @@ private class MenuWindow {
 
     fun hide() { open = false }
 }
+
+/** 面板里最后一颗拿到焦点的按钮: 密码框这类临时层关掉后按它回位。 */
+private class SheetFocusMemory {
+    var last: FocusRequester? = null
+    /** 密码框盖着面板这段时间为 true: 面板里的按钮一律不可聚焦, 不跟密码框抢。 */
+    var holding by mutableStateOf(false)
+}
+
+private val LocalSheetFocus = compositionLocalOf<SheetFocusMemory?> { null }
 
 private val LocalMenuWindow = compositionLocalOf<MenuWindow?> { null }
 
@@ -1747,10 +1788,19 @@ private fun KeyVolumeCell() {
                     drawRoundRect(track, cornerRadius = r)
                     drawRoundRect(fg, size = GeometrySize(size.width * fraction, size.height), cornerRadius = r)
                 }
+                // 数字位置宽度固定: 按「100」和「已静音」里更宽的那个留够, 切换时不拉长也不缩。
+                val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+                val mutedLabel = stringResource(R.string.cc_muted)
+                val density = androidx.compose.ui.platform.LocalDensity.current
+                val labelW = remember(mutedLabel, density) {
+                    val a = measurer.measure("100", Type.Body).size.width
+                    val b = measurer.measure(mutedLabel, Type.Body).size.width
+                    with(density) { maxOf(a, b).toDp() }
+                }
                 BasicText(
-                    if (volume == 0) stringResource(R.string.cc_muted) else volume.toString(),
+                    if (volume == 0) mutedLabel else volume.toString(),
                     style = Type.Body.copy(color = fg),
-                    modifier = Modifier.widthIn(min = 24.dp), maxLines = 1,
+                    modifier = Modifier.width(labelW), maxLines = 1,
                 )
             }
         }

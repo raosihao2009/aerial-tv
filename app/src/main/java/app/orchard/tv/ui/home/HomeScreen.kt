@@ -1658,6 +1658,8 @@ fun HomeScreen(
         val panelBehindPin = overlay is Overlay.Pin && sheetBehind
         WallpaperSheet(
             visible = overlay is Overlay.Wallpaper || panelBehindPin,
+            // 密码框盖在面板上时, 面板交出焦点、按钮全部不可聚焦, 关掉后按原路还回去。
+            holdFocus = panelBehindPin,
             onSettled = { sheetIn = it },
             warm = sheetWarm,
             onDismiss = { vm.overlay = Overlay.ControlCenter() },

@@ -260,24 +260,30 @@ fun LiveSourceMenu(
     // 只要菜单被控制中心盖过一次, 回来时焦点就该停在右上角那颗按钮上: 用户就是从那儿
     // 按进控制中心的, 退回来却落回某张卡片, 一路往回都得重走方向键。
     var ccWasOpen by remember { mutableStateOf(false) }
+    // "刚从控制中心回来"这一小段: 卡片全部不可聚焦, 整个菜单里只有胶囊能拿焦点。
+    // 不用循环去 requestFocus —— 那是在和卡片抢焦点, 会看到两边来回闪。
+    var returnToPill by remember { mutableStateOf(false) }
     LaunchedEffect(controlCenterOpen) { if (controlCenterOpen) ccWasOpen = true }
     LaunchedEffect(visible) {
         if (visible) {
             if (ccWasOpen) {
-                // 从控制中心退回来: 焦点必须停在右上角那颗按钮上 —— 用户就是从那儿进去的。
-                // 不再走"先落当前直播卡"那一步(那会让卡片先亮一下), 也不等淡入:
-                // 直接把 justOpened 放开让 pill 立刻可聚焦, 然后逐帧重试到真的拿到焦点。
+                // 从控制中心退回来: 焦点本来就该在右上角那颗按钮上(用户就是从那儿进去的)。
+                // 做法是"只留一个能聚焦的节点", 而不是反复请求: 卡片这一帧起全部 disabled,
+                // Compose 的焦点搜索只会落到胶囊上, 再补一次请求确认, 之后就不再碰焦点。
                 ccWasOpen = false
+                returnToPill = true
                 focusedId = currentId
                 justOpened = false
                 showing = true
                 repeat(2) { androidx.compose.runtime.withFrameNanos { } }
-                var tries = 0
-                while (tries < 8 && !pillHasFocus) {
-                    runCatching { pillFocus.requestFocus() }
-                    repeat(2) { androidx.compose.runtime.withFrameNanos { } }
-                    tries++
+                runCatching { pillFocus.requestFocus() }
+                // 等胶囊自己确认拿到焦点(最多 400ms), 确认后立刻放开卡片; 没确认也不硬抢。
+                if (!pillHasFocus) {
+                    kotlinx.coroutines.withTimeoutOrNull(400) {
+                        snapshotFlow { pillHasFocus }.first { it }
+                    }
                 }
+                returnToPill = false
             } else {
                 // 一律落在当前直播卡片上。
                 focusedId = currentId
@@ -612,7 +618,7 @@ fun LiveSourceMenu(
                         // 淡出期间(visible 已经变 false 但还看得见)必须保持可聚焦,
                         // 否则焦点在这一刻被放掉, 淡出的同时也看得见卡片缩小
                         enabled = menuForId == null && (visible || alpha > 0.02f) && !controlCenterOpen &&
-                            (!justOpened || source.id == currentId),
+                            !returnToPill && (!justOpened || source.id == currentId),
                         moving = movingId == source.id,
                         onFocused = { focusedId = source.id; Sounds.focusMoved() },
                         // 和一级菜单一样: 当前选中的卡片从第一帧就是选中尺寸, 焦点落上去不演缩放。
@@ -626,7 +632,8 @@ fun LiveSourceMenu(
                         // 胶囊上, 再把最后停留的那张卡按选中尺寸画, 就是"打开控制中心瞬间
                         // 二级菜单里那张直播卡变大(白框和名字一起亮)"。而且 snapScale 让这一下
                         // 是瞬间跳到位, 更显眼。
-                        preFocus = !controlCenterOpen &&
+                        // 回胶囊那一小段也不点亮任何卡: 那正是"回来视线先落在放大的直播卡上"的来源。
+                        preFocus = !controlCenterOpen && !returnToPill &&
                             source.id == focusedId && (alpha < 0.99f || !visible || menuForId == source.id),
                         // 控制中心盖住期间, 卡片外观冻结在打开前那一帧: 不再有任何尺寸跳变。
                         holdLook = controlCenterOpen,
