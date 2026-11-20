@@ -1602,26 +1602,8 @@ fun HomeScreen(
             onLeave = { Restricted.suspend(); KidsWatch.poke() },
         )
 
-        HiddenAppsSheet(
-            visible = overlay is Overlay.HiddenApps,
-            apps = vm.hiddenApps,
-            onUnhide = { key ->
-                vm.unhide(key)
-                if (vm.hiddenApps.isEmpty()) vm.overlay = Overlay.Wallpaper
-            },
-            // Hidden apps are reached from Personalization, and Back returns there.
-            onDismiss = { vm.overlay = Overlay.Wallpaper },
-        )
-
-        HiddenLiveSourcesSheet(
-            visible = overlay is Overlay.HiddenLiveSources,
-            sources = vm.hiddenLiveSources,
-            onUnhide = { id ->
-                vm.unhideLiveSource(id)
-                if (vm.hiddenLiveSources.isEmpty()) vm.overlay = Overlay.Wallpaper
-            },
-            onDismiss = { vm.overlay = Overlay.Wallpaper },
-        )
+        // 收起来的卡片不再用整屏弹层: 入口按钮按下去在个性化面板上浮出一个小窗口
+        // (WallpaperSheet 里的 ListWindowLayer), 和选项小窗口同一套气泡。
 
         WallpaperSheet(
             visible = overlay is Overlay.Wallpaper,
@@ -1629,9 +1611,14 @@ fun HomeScreen(
             warm = sheetWarm,
             onDismiss = { vm.overlay = Overlay.ControlCenter() },
             hiddenCount = vm.hiddenApps.size,
-            onHiddenApps = { vm.whenUnlocked { vm.overlay = Overlay.HiddenApps } },
+            onHiddenApps = {},
             hiddenLiveCount = vm.hiddenLiveSources.size,
-            onHiddenLiveSources = { vm.whenUnlocked { vm.overlay = Overlay.HiddenLiveSources } },
+            onHiddenLiveSources = {},
+            hiddenApps = vm.hiddenApps.map { it.key to it.label },
+            hiddenLiveSources = vm.hiddenLiveSources.map { it.id to it.name },
+            // 放回卡片和以前一样要走家长密码(设了密码时)。
+            onUnhideApp = { key -> vm.whenUnlocked { vm.unhide(key) } },
+            onUnhideLiveSource = { id -> vm.whenUnlocked { vm.unhideLiveSource(id) } },
             // 上锁不需要验证; 解锁在设了家长密码时要先输密码(否则等于绕过密码)
             onHomeLock = { on ->
                 if (on == AerialSettings.homeLocked) Unit

@@ -41,6 +41,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -156,6 +157,11 @@ fun WallpaperSheet(
     onHiddenApps: () -> Unit,
     hiddenLiveCount: Int = 0,
     onHiddenLiveSources: () -> Unit = {},
+    /** 收起来的卡片: (键, 名字)。面板里那颗入口按钮按下去浮出一个小窗口列出它们。 */
+    hiddenApps: List<Pair<String, String>> = emptyList(),
+    hiddenLiveSources: List<Pair<String, String>> = emptyList(),
+    onUnhideApp: (String) -> Unit = {},
+    onUnhideLiveSource: (String) -> Unit = {},
     onStartScreensaver: () -> Unit,
     onPin: (on: Boolean) -> Unit,
     /**
@@ -223,8 +229,13 @@ fun WallpaperSheet(
     // The sheet as it opens, or (takeFocus false) drawn once nearly clear for the warm-up.
     val sheet: @Composable (takeFocus: Boolean) -> Unit = { takeFocus ->
         val menuWindow = remember { MenuWindow() }
+        // 「隐藏的卡片」的两颗入口各自一个小窗口, 和选项窗口同一套气泡。
+        val popupHost = remember { PopupHost() }
         Box(Modifier.fillMaxSize()) {
-        CompositionLocalProvider(LocalMenuWindow provides menuWindow) {
+        CompositionLocalProvider(
+            LocalMenuWindow provides menuWindow,
+            LocalPopupHost provides popupHost,
+        ) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -261,7 +272,10 @@ fun WallpaperSheet(
                 WallpaperSection(takeFocus)
                 Spacer(Modifier.height(18.dp))
                 CategoryTitle(Glyph.Home, R.string.per_home)
-                HomeSection(hiddenCount, onHiddenApps, hiddenLiveCount, onHiddenLiveSources, onHomeLock)
+                HomeSection(
+                    hiddenCount, hiddenLiveCount, hiddenApps, hiddenLiveSources,
+                    onUnhideApp, onUnhideLiveSource, onHomeLock,
+                )
                 Spacer(Modifier.height(18.dp))
                 CategoryTitle(Glyph.Play, R.string.per_live)
                 LiveSection(biliMirror)
@@ -289,6 +303,14 @@ fun WallpaperSheet(
         }
         // 迷你窗口画在最上层: 不用独立窗口, 焦点始终在入口按钮上。
         MenuWindowLayer(menuWindow)
+        ListWindowLayer(
+            popupHost.apps, stringResource(R.string.st_hidden_apps_title),
+            stringResource(R.string.hidden_empty), hiddenApps,
+        )
+        ListWindowLayer(
+            popupHost.live, stringResource(R.string.st_hidden_live_title),
+            stringResource(R.string.st_hidden_none), hiddenLiveSources,
+        )
         }
     }
 
@@ -368,11 +390,18 @@ private fun WallpaperSection(takeFocus: Boolean) {
 @Composable
 private fun HomeSection(
     hiddenCount: Int,
-    onHiddenApps: () -> Unit,
     hiddenLiveCount: Int,
-    onHiddenLiveSources: () -> Unit,
+    hiddenApps: List<Pair<String, String>>,
+    hiddenLiveSources: List<Pair<String, String>>,
+    onUnhideApp: (String) -> Unit,
+    onUnhideLiveSource: (String) -> Unit,
     onHomeLock: (on: Boolean) -> Unit,
 ) {
+    val popup = LocalPopupHost.current
+    val appsChip = if (hiddenCount == 0) stringResource(R.string.st_hidden_app_none)
+    else stringResource(R.string.st_hidden_app_count, hiddenCount)
+    val liveChip = if (hiddenLiveCount == 0) stringResource(R.string.st_hidden_live_none)
+    else stringResource(R.string.st_hidden_live_count, hiddenLiveCount)
     Group {
         Row2(
             {
@@ -426,20 +455,15 @@ private fun HomeSection(
         )
         Row2(
             {
-                ActionCell(
-                    R.string.st_hidden, stringResource(R.string.st_hidden_hint),
-                    listOf(
-                        CellAction(
-                            if (hiddenCount == 0) stringResource(R.string.st_hidden_app_none)
-                            else stringResource(R.string.st_hidden_app_count, hiddenCount),
-                            chevron = true,
-                        ) { onHiddenApps() },
-                        CellAction(
-                            if (hiddenLiveCount == 0) stringResource(R.string.st_hidden_live_none)
-                            else stringResource(R.string.st_hidden_live_count, hiddenLiveCount),
-                            chevron = true,
-                        ) { onHiddenLiveSources() },
-                    ),
+                HiddenChipCell(
+                    R.string.st_hidden, stringResource(R.string.st_hidden_hint), appsChip,
+                    popup?.apps, hiddenApps, onUnhideApp,
+                )
+            },
+            {
+                HiddenChipCell(
+                    R.string.st_hidden_live, stringResource(R.string.st_hidden_live_hint), liveChip,
+                    popup?.live, hiddenLiveSources, onUnhideLiveSource,
                 )
             },
         )
@@ -1021,6 +1045,89 @@ private fun <T> ChoiceCell(
     }
 }
 
+/**
+ * 「隐藏的卡片」的入口格子: 一颗"数量 + >"的按钮, 按下去在它上面浮出小窗口列出收起来的卡片。
+ * 窗口开着的时候按键全在这颗按钮里处理(焦点从没离开过它), 上下键换一张, OK 放回桌面,
+ * 左右或返回收起 —— 和横向的选项窗口刚好对齐(那边是左右换、下键收)。
+ */
+@Composable
+private fun HiddenChipCell(
+    label: Int,
+    hint: String?,
+    chipText: String,
+    window: ListWindow?,
+    items: List<Pair<String, String>>,
+    onPick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var chipTop by remember { mutableStateOf(0f) }
+    var chipCenterX by remember { mutableStateOf(0f) }
+
+    fun bump(e: androidx.compose.ui.input.key.KeyEvent) {
+        if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0) Sounds.limit()
+    }
+
+    Box {
+        Cell(label, hint, modifier) { onFocus ->
+            Box(
+                Modifier.onGloballyPositioned { c ->
+                    val b = c.boundsInRoot()
+                    chipTop = b.top
+                    chipCenterX = b.center.x
+                },
+            ) {
+                ChipButton(
+                    chipText,
+                    on = false, chevron = true, check = false,
+                    onClick = { window?.show(chipCenterX, chipTop, onPick) },
+                    onFocus = onFocus,
+                    onKey = { e ->
+                        if (window == null || !window.open) {
+                            false
+                        } else {
+                            val down = e.type == KeyEventType.KeyDown
+                            val last = items.lastIndex
+                            when (e.nativeKeyEvent.keyCode) {
+                                NativeKeyEvent.KEYCODE_DPAD_UP -> {
+                                    if (down) {
+                                        if (window.index > 0) { window.index--; Sounds.focusMoved() } else bump(e)
+                                    }
+                                    true
+                                }
+                                NativeKeyEvent.KEYCODE_DPAD_DOWN -> {
+                                    if (down) {
+                                        if (window.index < last) { window.index++; Sounds.focusMoved() } else bump(e)
+                                    }
+                                    true
+                                }
+                                NativeKeyEvent.KEYCODE_DPAD_LEFT,
+                                NativeKeyEvent.KEYCODE_DPAD_RIGHT,
+                                NativeKeyEvent.KEYCODE_BACK -> {
+                                    if (down) window.hide()
+                                    true
+                                }
+                                NativeKeyEvent.KEYCODE_DPAD_CENTER,
+                                NativeKeyEvent.KEYCODE_ENTER,
+                                NativeKeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                                    // 打开它的那一下, 抬手也可能落在这里, 别顺手就把卡片放回去了。
+                                    if (down && SystemClock.uptimeMillis() - window.openedAt > 350) {
+                                        items.getOrNull(window.index)?.let {
+                                            Sounds.select()
+                                            window.pick(it.first)
+                                        }
+                                    }
+                                    true
+                                }
+                                else -> false
+                            }
+                        }
+                    },
+                )
+            }
+        }
+    }
+}
+
 /** 只做事不选值的格子: 一颗或几颗按钮, 左右键换着走。 */
 @Composable
 private fun ActionCell(
@@ -1087,6 +1194,43 @@ private class MenuWindow {
 }
 
 private val LocalMenuWindow = compositionLocalOf<MenuWindow?> { null }
+
+/**
+ * 「隐藏的卡片」那颗入口按钮按下后浮出来的小窗口。
+ *
+ * 一个窗口只管"开着没有、亮第几行、贴着哪颗按钮", 内容(卡片列表)由外面每次合成时传进来,
+ * 所以放回一张卡片后窗口自己就短一截, 不用去同步一份副本。
+ *
+ * 和选项窗口同一个气泡: 同一块磨砂、同一圈光边、底下一个对准按钮的三角。这两个入口以前
+ * 打开的是整屏弹层(盖住整个面板、居中一张大卡片), 跟面板里的小窗口完全不是一套。
+ */
+private class ListWindow {
+    var open by mutableStateOf(false)
+    var index by mutableStateOf(0)
+    var anchorX = 0f
+    var anchorY = 0f
+    var openedAt = 0L
+    var pick: (String) -> Unit = {}
+
+    fun show(anchorX: Float, anchorY: Float, pick: (String) -> Unit) {
+        this.anchorX = anchorX
+        this.anchorY = anchorY
+        this.index = 0
+        this.pick = pick
+        this.openedAt = SystemClock.uptimeMillis()
+        open = true
+    }
+
+    fun hide() { open = false }
+}
+
+/** 面板里两颗入口各自一个小窗口, 一块提供下去。 */
+private class PopupHost {
+    val apps = ListWindow()
+    val live = ListWindow()
+}
+
+private val LocalPopupHost = compositionLocalOf<PopupHost?> { null }
 
 /**
  * 选项多的格子: 入口是"当前值 + >"那颗按钮(和「隐藏的卡片」同一套)。按下 OK,
@@ -1306,6 +1450,143 @@ private fun MenuWindowLayer(window: MenuWindow) {
                 }
             }
             // 三角那一截的高度: 玻璃自己画, 这里只负责把窗口量到"行 + 三角"。
+            Spacer(Modifier.height(tailH))
+        }
+    }
+}
+
+/**
+ * 收起卡片的小窗口: 和选项窗口同一个气泡(磨砂 + 一圈光边 + 对准按钮的三角), 内容是一列卡片。
+ * 上下键换一张、OK 放回桌面、左右或返回收起。
+ */
+@Composable
+private fun ListWindowLayer(
+    window: ListWindow,
+    title: String,
+    empty: String,
+    items: List<Pair<String, String>>,
+) {
+    val tailH = MiniTailHeight
+    val gap = 10.dp
+    val edge = 8.dp
+    var originX by remember { mutableStateOf(0f) }
+    var originY by remember { mutableStateOf(0f) }
+    var winSize by remember { mutableStateOf(IntSize.Zero) }
+    var shown by remember { mutableStateOf(false) }
+    var placed by remember { mutableStateOf(false) }
+    var alive by remember { mutableStateOf(window.open) }
+    LaunchedEffect(window.openedAt) {
+        winSize = IntSize.Zero
+        placed = false
+        shown = false
+    }
+    LaunchedEffect(placed, window.open) { if (placed && window.open) shown = true }
+    LaunchedEffect(window.open) {
+        if (window.open) {
+            alive = true
+        } else if (alive) {
+            shown = false
+            delay(MiniExitMs)
+            alive = false
+        }
+    }
+    // 放回一张卡片后列表短一截: 停在末尾的那一行要跟着回到最后一张, 不能指向不存在的位置。
+    LaunchedEffect(items.size) {
+        if (window.index > items.lastIndex) window.index = items.lastIndex.coerceAtLeast(0)
+    }
+    if (!alive) return
+    val scale by animateFloatAsState(
+        if (shown) 1f else 0.92f,
+        spring(dampingRatio = 1f, stiffness = 800f), label = "list-scale",
+    )
+    val alpha by animateFloatAsState(if (shown) 1f else 0f, tween(120, easing = Motion.EaseOut), label = "list-alpha")
+
+    BoxWithConstraints(
+        Modifier.fillMaxSize().onGloballyPositioned {
+            val at = it.positionInRoot()
+            originX = at.x
+            originY = at.y
+        },
+    ) {
+        val density = LocalDensity.current
+        val fullW = with(density) { maxWidth.toPx() }
+        val ax = window.anchorX - originX
+        val ay = window.anchorY - originY
+        val gapPx = with(density) { gap.toPx() }
+        val edgePx = with(density) { edge.toPx() }
+        val x = if (winSize.width == 0) ax else
+            (ax - winSize.width / 2f).coerceIn(edgePx, (fullW - winSize.width - edgePx).coerceAtLeast(edgePx))
+        val rowH = 36.dp
+        val scroll = rememberScrollState()
+        val rowPx = with(density) { rowH.toPx() }
+        LaunchedEffect(window.index) {
+            runCatching { scroll.animateScrollTo((window.index * (rowPx + with(density) { 4.dp.toPx() })).roundToInt()) }
+        }
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .offset { IntOffset(x.roundToInt(), (ay - winSize.height - gapPx).roundToInt()) }
+                .onGloballyPositioned {
+                    winSize = it.size
+                    if (it.size.width > 0 && it.size.height > 0) placed = true
+                }
+                .drawWithContent { if (placed) drawContent() }
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    this.alpha = alpha
+                    transformOrigin = TransformOrigin(0.5f, 1f)
+                }
+                .bubbleGlass(
+                    corner = 20.dp,
+                    tailHalf = 9.dp,
+                    tailHeight = tailH,
+                    tailX = { with(density) { (ax - x).toDp() } },
+                ),
+        ) {
+            Column(Modifier.width(300.dp).padding(start = 12.dp, end = 12.dp, top = 12.dp)) {
+                BasicText(
+                    title, style = Type.Caption.copy(color = Palette.SecondaryLabel),
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(8.dp))
+                if (items.isEmpty()) {
+                    BasicText(
+                        empty, style = Type.Body.copy(color = Palette.TertiaryLabel),
+                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
+                    )
+                } else {
+                    Column(
+                        Modifier.heightIn(max = 220.dp).verticalScroll(scroll),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        items.forEachIndexed { i, item ->
+                            val lit = i == window.index
+                            val bg by animateColorAsState(
+                                if (lit) Palette.Focus else Palette.Fill,
+                                tween(120, easing = Motion.EaseOut), label = "list-row",
+                            )
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(50))
+                                    .drawBehind { drawRect(bg) }
+                                    .height(rowH)
+                                    .padding(horizontal = 11.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                BasicText(
+                                    item.second,
+                                    style = Type.Body.copy(color = if (lit) Palette.OnFocus else Palette.Label),
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
             Spacer(Modifier.height(tailH))
         }
     }
