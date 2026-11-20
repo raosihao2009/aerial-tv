@@ -653,8 +653,8 @@ fun HomeScreen(
         } else {
             overlaySettling = true
         }
-        if (overlay is Overlay.Pin) {
-            // 密码框是临时层: 面板要不要留在下面, 按进入密码框之前的状态算。
+        if (overlay is Overlay.Pin || overlay is Overlay.Kids) {
+            // 密码框、儿童/长辈模式设置都是临时层: 面板要不要留在下面, 按它们出现之前的状态算。
         } else {
             sheetBehind = overlay is Overlay.Wallpaper
         }
@@ -1044,7 +1044,11 @@ fun HomeScreen(
         // 上下文菜单(长按卡片)只是压在 Home 上的一个小面板, 壁纸照旧播
         // 一级菜单卡片"移动"模式和直播菜单(含菜单里移动卡片)都只是压在 Home 上的浮层, 壁纸照旧播:
         // 以前这里挡了 moving==null 且不认 LiveSourceMenu, 一进"移动"整块壁纸就冻住, 移动完才继续。
+        // 家长密码框只是个临时层: 它盖着的时候不要让视频壁纸停下 —— 停一次之后, 从密码框
+        // 回到面板/桌面经常接不上, 表现就是"用过设置密码/输入密码之后壁纸不动了"。
+        // (个性化面板本身开着时仍然照旧暂停, 那是为了看清选项; 这种情况由下面 personalizeOpen 管。)
         val filmMoves = vm.filmFront && (overlay == Overlay.None || overlay is Overlay.ControlCenter ||
+            (overlay is Overlay.Pin && !personalizeOpen) ||
             // 个性化面板和它下面的子页(隐藏的卡片、隐藏的直播源)打开时, 视频壁纸停下来:
             // 一整页选项要看清楚, 后面一帧帧在动太扰。关上就自己接着播。
             (!personalizeOpen && (overlay is Overlay.AppMenu || overlay is Overlay.Folder ||
@@ -1056,6 +1060,7 @@ fun HomeScreen(
         // Nothing over Home blurs it: a paused film stays.
         // 个性化/子页打开时影片停下来, 也要让停下的那一帧留在原处, 不能露出底下的静态层。
         val filmStandsIn = overlay == Overlay.None || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper ||
+            overlay is Overlay.Pin ||
             (overlay is Overlay.AppMenu && overlay.inFolder == null)
         when {
             Wallpapers.selectedId == Wallpapers.LIVE -> LiveWallpaper(
@@ -1654,8 +1659,8 @@ fun HomeScreen(
         // 收起来的卡片不再用整屏弹层: 入口按钮按下去在个性化面板上浮出一个小窗口
         // (WallpaperSheet 里的 ListWindowLayer), 和选项小窗口同一套气泡。
 
-        // 面板里弹出的家长密码框盖在面板上: 输密码时面板不收起来, 输对了原地继续。
-        val panelBehindPin = overlay is Overlay.Pin && sheetBehind
+        // 面板里弹出的家长密码框、儿童/长辈模式设置都盖在面板上: 这时候面板不收起来。
+        val panelBehindPin = (overlay is Overlay.Pin || overlay is Overlay.Kids) && sheetBehind
         WallpaperSheet(
             visible = overlay is Overlay.Wallpaper || panelBehindPin,
             // 密码框盖在面板上时, 面板交出焦点、按钮全部不可聚焦, 关掉后按原路还回去。

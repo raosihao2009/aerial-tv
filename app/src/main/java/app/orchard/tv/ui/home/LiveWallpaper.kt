@@ -465,6 +465,7 @@ fun LiveWallpaper(
 
     LaunchedEffect(play, stops) {
         live.stopped = false
+        DiagLog.i("壁纸影片 开关 play=$play 播放器=${player != null}")
         if (play) {
             // Let go past its picture (into an app, or a screensaver of its own), it goes on from
             // where it was let go: the same film, not the one the picture came from, which could be
@@ -593,6 +594,20 @@ fun LiveWallpaper(
     }
     // A stopped player still holds its decoder, and some TVs have only one video path: on Xiaomi
     // MiTV-MFTR0 the screensaver's decoder lost its resources and its films failed while it was held.
+    // 兜底: 输过家长密码、进过儿童/长辈模式之后, 偶尔出现"该动了却一直停着"的影片
+    // (play 已经是 true, 播放器却不在播)。等两秒还在停就把它推起来, 并留一行日志。
+    LaunchedEffect(play, stops) {
+        if (!play) return@LaunchedEffect
+        kotlinx.coroutines.delay(2000)
+        val p = player ?: return@LaunchedEffect
+        if (!p.isPlaying) {
+            DiagLog.i("壁纸影片 停着不动(状态 ${p.playbackState}) 已重新继续")
+            if (p.playbackState == androidx.media3.common.Player.STATE_IDLE) p.prepare()
+            p.playWhenReady = true
+            runCatching { p.play() }
+        }
+    }
+
     LaunchedEffect(keep) {
         if (!keep && !play && player != null && cover.value == 0f) release()
         if (!keep && otherFormatNow) {
