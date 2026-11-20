@@ -1206,6 +1206,13 @@ private fun MenuWindowLayer(window: MenuWindow) {
     // 退出也要有动画: 直接 if (!window.open) return 的话窗口是一帧消失的, 只有进场有动画。
     // 关掉后先把它留在合成树里播完淡出+缩小, 再撤走。
     var alive by remember { mutableStateOf(window.open) }
+    // 换一个入口按钮重开(openedAt 变了)时, 窗口内容、宽度都不一样了: 旧状态要清掉重新量,
+    // 否则会先按上一个窗口的宽度摆一次位置再跳过来 —— 就是"打开 B 时抖一下"。
+    LaunchedEffect(window.openedAt) {
+        winSize = IntSize.Zero
+        placed = false
+        shown = false
+    }
     // 进场: 量到尺寸并且窗口是开着的才淡入放大(关掉期间不要偷偷把它亮回来)。
     LaunchedEffect(placed, window.open) { if (placed && window.open) shown = true }
     // 退场: 关掉后留住 150ms 播淡出+缩小, 再撤走; 中途又打开就取消。
@@ -1223,7 +1230,8 @@ private fun MenuWindowLayer(window: MenuWindow) {
     if (!alive) return
     val scale by animateFloatAsState(
         if (shown) 1f else 0.92f,
-        spring(dampingRatio = 0.72f, stiffness = 900f), label = "mini-scale",
+        // 不要回弹: 回弹本身看着就像抖一下。
+        spring(dampingRatio = 1f, stiffness = 800f), label = "mini-scale",
     )
     val alpha by animateFloatAsState(if (shown) 1f else 0f, tween(120, easing = Motion.EaseOut), label = "mini-alpha")
 

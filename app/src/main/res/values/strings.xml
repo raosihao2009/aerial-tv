@@ -387,5 +387,5 @@
     <string name="st_bili_account_logged_in">Bili account (signed in · %1$s)</string>
     <string name="st_bili_scan_title">Sign in to Bilibili</string>
     <string name="st_bili_scan_hint">Open the Bilibili app and scan this code, then confirm on the phone.</string>
-    <string name="ss_delay_hint">How long Home stays still before the screensaver starts.</string>
+    <string name="ss_delay_hint">How long Home stays still before the screensaver starts; pick “Never” for none.</string>
 </resources>
