@@ -137,6 +137,13 @@ fun LiveSourceMenu(
     onMovingChange: (Boolean) -> Unit = {},
     onOpenControlCenter: () -> Unit = {},
     controlCenterOpen: Boolean = false,
+    /**
+     * 这次打开是从控制中心退回来的(用户是点这颗胶囊进去的)。组合期就读到, 所以回到菜单的
+     * 第一帧卡片就已经不可聚焦 —— 不留"先让卡片抢到焦点、再挪给胶囊"的窗口。
+     */
+    startOnPill: Boolean = false,
+    /** 胶囊拿到焦点(或已放弃)之后回调, 用来清掉上面那个标记。 */
+    onStartOnPillDone: () -> Unit = {},
     // 全局磨砂胶囊轻提示(4 秒自动消失), 和直播切换提示同款
     onGlobalToast: (String) -> Unit = {},
     /**
@@ -259,42 +266,35 @@ fun LiveSourceMenu(
     // - 关闭: 淡出全程保持焦点和选中尺寸不变, 菜单完全看不见之后才把焦点挪走 —— 看不到缩小。
     // 只要菜单被控制中心盖过一次, 回来时焦点就该停在右上角那颗按钮上: 用户就是从那儿
     // 按进控制中心的, 退回来却落回某张卡片, 一路往回都得重走方向键。
-    var ccWasOpen by remember { mutableStateOf(false) }
-    // "刚从控制中心回来"这一小段: 卡片全部不可聚焦, 整个菜单里只有胶囊能拿焦点。
-    // 不用循环去 requestFocus —— 那是在和卡片抢焦点, 会看到两边来回闪。
-    var returnToPill by remember { mutableStateOf(false) }
-    LaunchedEffect(controlCenterOpen) { if (controlCenterOpen) ccWasOpen = true }
-    LaunchedEffect(visible) {
-        if (visible) {
-            if (ccWasOpen) {
-                // 从控制中心退回来: 焦点本来就该在右上角那颗按钮上(用户就是从那儿进去的)。
-                // 做法是"只留一个能聚焦的节点", 而不是反复请求: 卡片这一帧起全部 disabled,
-                // Compose 的焦点搜索只会落到胶囊上, 再补一次请求确认, 之后就不再碰焦点。
-                ccWasOpen = false
-                returnToPill = true
-                focusedId = currentId
-                justOpened = false
-                showing = true
-                repeat(2) { androidx.compose.runtime.withFrameNanos { } }
-                runCatching { pillFocus.requestFocus() }
-                // 等胶囊自己确认拿到焦点(最多 400ms), 确认后立刻放开卡片; 没确认也不硬抢。
-                if (!pillHasFocus) {
-                    kotlinx.coroutines.withTimeoutOrNull(400) {
-                        snapshotFlow { pillHasFocus }.first { it }
-                    }
-                }
-                returnToPill = false
-            } else {
-                // 一律落在当前直播卡片上。
-                focusedId = currentId
-                justOpened = true
-                repeat(2) { androidx.compose.runtime.withFrameNanos { } }
-                runCatching { requester(currentId).requestFocus() }
-                // 卡片已按选中尺寸画好(preFocus), 不需要再等缩放, 立刻淡入
-                showing = true
-                snapshotFlow { alpha }.first { it >= 0.99f }
-                justOpened = false
+    var returnToPill by remember { mutableStateOf(startOnPill) }
+    if (startOnPill) returnToPill = true
+    // 这一小段卡片全部不可聚焦, 整个菜单里只有胶囊能拿焦点:
+    // 不做循环 requestFocus, 那等于在和卡片抢。
+    LaunchedEffect(visible, startOnPill) {
+        if (visible && startOnPill) {
+            // 从控制中心回来: 卡片已在组合期关掉了, 这里只把焦点交给胶囊, 一次, 不循环。
+            justOpened = false
+            focusedId = currentId
+            showing = true
+            repeat(2) { androidx.compose.runtime.withFrameNanos { } }
+            runCatching { pillFocus.requestFocus() }
+            if (!pillHasFocus) {
+                kotlinx.coroutines.withTimeoutOrNull(300) { snapshotFlow { pillHasFocus }.first { it } }
             }
+            app.orchard.tv.system.DiagLog.i("控制中心调试: 回菜单焦点->胶囊 成功=$pillHasFocus")
+            returnToPill = false
+            onStartOnPillDone()
+        } else if (visible) {
+            // 一律落在当前直播卡片上。
+            focusedId = currentId
+            justOpened = true
+            repeat(2) { androidx.compose.runtime.withFrameNanos { } }
+            runCatching { requester(currentId).requestFocus() }
+            // 卡片已按选中尺寸画好(preFocus), 不需要再等缩放, 立刻淡入
+            showing = true
+            snapshotFlow { alpha }.first { it >= 0.99f }
+            justOpened = false
+            returnToPill = false
         } else {
             // 立刻开始淡出(animateFloatAsState 自己会演 500ms)。这里不再 clearFocus:
             // 焦点在关闭那一刻已经由 HomeScreen 恢复到原卡/胶囊; 淡出结束再强制清焦点,

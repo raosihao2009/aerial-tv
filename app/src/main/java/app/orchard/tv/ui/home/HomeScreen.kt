@@ -1730,6 +1730,9 @@ fun HomeScreen(
             onMovingChange = { liveMoving = it },
             onOpenControlCenter = { vm.ccFromLiveMenu = true; vm.overlay = Overlay.ControlCenter() },
             controlCenterOpen = overlay is Overlay.ControlCenter,
+            // 从控制中心退回来的那一帧就要让卡片不可聚焦, 焦点直接归胶囊。
+            startOnPill = vm.pillOnMenuReturn,
+            onStartOnPillDone = { vm.pillOnMenuReturn = false },
             onGlobalToast = { msg -> vm.showToast(msg) },
             onHomeLocked = { vm.noteHomeLocked() },
             network = { vm.network },
@@ -1741,7 +1744,13 @@ fun HomeScreen(
             vm = vm,
             now = now,
             onOpen = { vm.overlay = Overlay.None; onOpen(it) },
-            onClose = { vm.overlay = if (vm.ccFromLiveMenu) { vm.ccFromLiveMenu = false; Overlay.LiveSourceMenu } else Overlay.None },
+            onClose = {
+                vm.overlay = if (vm.ccFromLiveMenu) {
+                    vm.ccFromLiveMenu = false
+                    vm.pillOnMenuReturn = true
+                    Overlay.LiveSourceMenu
+                } else Overlay.None
+            },
             warm = ccWarm,
         )
 

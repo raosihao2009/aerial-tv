@@ -223,6 +223,11 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     var liveActuallyPlaying by mutableStateOf(false)
     /** 控制中心是否从直播二级菜单打开(决定HOME关闭路径) */
     var ccFromLiveMenu by mutableStateOf(false)
+    /**
+     * 控制中心是从直播菜单那颗胶囊进去的, 退回来时焦点要直接落在胶囊上。
+     * 用状态从组合期就传进菜单, 卡片在第一帧就不可聚焦, 不和胶囊抢。
+     */
+    var pillOnMenuReturn by mutableStateOf(false)
 
     /** 全局轻提示(玻璃胶囊), 自动4s消失 */
     var globalToast by mutableStateOf<String?>(null)

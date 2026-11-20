@@ -209,7 +209,8 @@ fun WallpaperSheet(
     val biliMirror = remember { BiliMirror() }
     var qr by remember { mutableStateOf<ImageBitmap?>(null) }
 
-    BackHandler(enabled = visible, onBack = onDismiss)
+    // 密码框盖在面板上时, 面板不能接返回键: 否则在密码框里按一下返回, 面板跟着一起关掉。
+    BackHandler(enabled = visible && !holdFocus, onBack = onDismiss)
 
     // The phone page listens all along (PhoneServer.listen); the address is read again each time,
     // as the TV's may have changed.
@@ -1769,6 +1770,7 @@ private fun KeyVolumeCell() {
             )
             Row(
                 Modifier
+                    .fillMaxWidth()
                     .clip(RoundedCornerShape(50))
                     .drawBehind { drawRect(bg) }
                     .height(30.dp)
@@ -1783,7 +1785,8 @@ private fun KeyVolumeCell() {
                     16.dp,
                     level = fraction,
                 )
-                Canvas(Modifier.width(132.dp).height(5.dp)) {
+                // 滑块条自己撑满数字左边的空位: 数字靠右, 条随宽度伸缩, 不再是一个固定长度的条。
+                Canvas(Modifier.weight(1f).height(5.dp)) {
                     val r = CornerRadius(size.height / 2)
                     drawRoundRect(track, cornerRadius = r)
                     drawRoundRect(fg, size = GeometrySize(size.width * fraction, size.height), cornerRadius = r)
@@ -1799,7 +1802,7 @@ private fun KeyVolumeCell() {
                 }
                 BasicText(
                     if (volume == 0) mutedLabel else volume.toString(),
-                    style = Type.Body.copy(color = fg),
+                    style = Type.Body.copy(color = fg, textAlign = androidx.compose.ui.text.style.TextAlign.End),
                     modifier = Modifier.width(labelW), maxLines = 1,
                 )
             }
