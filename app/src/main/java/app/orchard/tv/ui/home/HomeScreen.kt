@@ -1366,6 +1366,10 @@ fun HomeScreen(
                             preFocus = (overlay != Overlay.None || restoringFocus || overlaySettling) &&
                                 overlayFromCard && app.key == savedOverlayKey &&
                                 !(ccFromMenu && (overlay is Overlay.ControlCenter || overlay is Overlay.LiveSourceMenu)),
+                            // 浮层打开期间这张卡的外观冻结在打开前那一帧(见 AppTile.holdLook):
+                            // 就算上面的 preFocus 或者别的什么在打开那一帧算错, 也不会瞬间跳到
+                            // 选中尺寸 —— 那一下就是"打开控制中心瞬间直播卡变大, 白框和名字一起亮"。
+                            holdLook = overlay != Overlay.None,
                             snapScale = overlay != Overlay.None || restoringFocus || overlaySettling,
                             autoFocus = coldStart && index == 0,
                             bootStable = vm.bootStable,

@@ -600,7 +600,14 @@ fun LiveSourceMenu(
                         // 这里继续把它算作选中, 否则菜单一弹出卡片就缩回(和一级 AppMenu 对齐)。
                         // 淡出期间也一直按选中尺寸画: 关菜单时焦点先离开卡片, 这一帧要是放手,
                         // 卡片就会边淡出边缩一下(和一级菜单对齐)。
-                        preFocus = source.id == focusedId && (alpha < 0.99f || !visible || menuForId == source.id),
+                        // 但被控制中心盖住不算"关菜单": 那时候菜单只是淡出, 焦点已经在上面的
+                        // 胶囊上, 再把最后停留的那张卡按选中尺寸画, 就是"打开控制中心瞬间
+                        // 二级菜单里那张直播卡变大(白框和名字一起亮)"。而且 snapScale 让这一下
+                        // 是瞬间跳到位, 更显眼。
+                        preFocus = !controlCenterOpen &&
+                            source.id == focusedId && (alpha < 0.99f || !visible || menuForId == source.id),
+                        // 控制中心盖住期间, 卡片外观冻结在打开前那一帧: 不再有任何尺寸跳变。
+                        holdLook = controlCenterOpen,
                         // 上下文菜单打开/收起期间缩放直接跳到位, 不演缩小弹簧。
                         snapScale = menuForId == source.id || !visible,
                         // 淡出走卡片自己的 opacity(和一级菜单 saverFade 同一处), 不用外层 alpha:

@@ -200,6 +200,13 @@ fun AppTile(
     autoFocus: Boolean = false,
     /** 冷启动首屏是否稳定: 稳定前方向键只认首按, 丢弃积压的连发帧, 避免主线程忙完后连着跳格。 */
     bootStable: Boolean = true,
+    /**
+     * 浮层(控制中心/个性化/二级菜单)打开期间, 这张卡的外观停在"打开前那一帧": 选中尺寸、白框、
+     * 名字亮度全都不再变。焦点被浮层拿走以后, 各种快照/预选标记都可能在打开那一帧算错,
+     * 卡片就会跳一下 —— 用户看到的就是"打开控制中心瞬间当前直播的卡片变大了"。
+     * 冻结打开前的状态, 打开和关闭那一帧都不会有尺寸跳变。
+     */
+    holdLook: Boolean = false,
 ) {
     val reduced = LocalReducedMotion.current
     val scope = rememberCoroutineScope()
@@ -235,7 +242,19 @@ fun AppTile(
     // 二级菜单淡入淡出期间为 true: 选中态直接跳到终值, 不演放大/缩小过渡,
     // 这样菜单显示和收回时看不到卡片在缩放。
     // 视觉上的选中: 真实焦点 / 正在移动 / 调用方预先指定的选中(preFocus, 二级菜单用)
-    val active = focused || moving || preFocus
+    val wantedActive = focused || moving || preFocus
+    // 浮层期间冻结成"打开前那一帧"的选中态: 打开那一帧 preFocus/快照可能算错, 卡片会瞬间
+    // 跳到选中尺寸(白框和名字一起亮), 看着就是"打开控制中心瞬间直播卡变大"。冻结之后
+    // 不管浮层里发生什么, 这张卡的尺寸和亮度都不再变。
+    var heldActive by remember { mutableStateOf(wantedActive) }
+    if (!holdLook) heldActive = wantedActive
+    val active = if (holdLook) heldActive else wantedActive
+    // 只写日志: 浮层打开/关闭那一刻冻结的是什么状态, 下次再报"卡片变大"时能直接对照。
+    LaunchedEffect(holdLook) {
+        if (holdLook && app.key in AerialSettings.liveAppPackages) {
+            DiagLog.i("卡片调试: ${app.key} 浮层保持 冻结=${heldActive} 焦点=$focused 预选=$preFocus 移动=${moving != null}")
+        }
+    }
     val scaleTarget = when {
         reduced -> 1f
         pressed -> PRESSED_SCALE
