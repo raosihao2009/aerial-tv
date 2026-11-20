@@ -560,8 +560,12 @@ object Updates {
     private const val SESSION_KICK_MS = 6_000L
     /** From the commit to the system's answer; it comes within a second on the TVs at hand. */
     private const val ANSWER_TIMEOUT_MS = 8_000L
-    /** Android 12+ may compile and replace the app without any intermediate answer or page. */
-    private const val SILENT_INSTALL_TIMEOUT_MS = 120_000L
+    /**
+     * Android 12+ may compile and replace the app without any intermediate answer or page.
+     * 6.5 MB 的 APK 复制 + 提交, 30 秒足够; 以前给到 120 秒, 固件其实在等人按的时候,
+     * 界面就干等两分钟"正在等待系统安装…", 看着就是"不会自动装"。
+     */
+    private const val SILENT_INSTALL_TIMEOUT_MS = 30_000L
     /**
      * Whether Android may install the update without asking: from 12, and only for the app that
      * installed Aerial last (USER_ACTION_NOT_REQUIRED). Installed by adb (#1162's Hisense: none) or
@@ -584,12 +588,19 @@ object Updates {
         a.check = Runnable {
             if (awaiting !== a || (a.confirmation && a.homeLeft)) return@Runnable
             a.timedOut = true
-            // Do not open an installer over another app or while the TV is asleep.
-            if (homeInFront) giveUpOnSession(app, id, why)
+            // Do not open an installer over another app or while the TV is asleep —— 但也不能就这么
+            // 把它忘了: 以前这一下直接 return, 定时器不再重排, 界面就永远停在"正在等待系统安装…"。
+            if (!homeInFront) {
+                main.postDelayed(a.check, 3_000)
+                return@Runnable
+            }
+            DiagLog.i("更新: 会话 $id ${ms / 1000}s 无应答($why), 交回安装器")
+            giveUpOnSession(app, id, why)
         }
         awaiting = a
         install = Install.Waiting
         cancelSessionKick()
+        DiagLog.i("更新: 会话 $id 已提交, 等系统应答最多 ${ms / 1000}s${if (confirmation) " (确认页)" else ""}")
         // A confirmation requested while away is opened on resume; its timer starts then.
         if (showConfirmation == null) main.postDelayed(a.check, ms)
     }
@@ -621,6 +632,7 @@ object Updates {
             Log.i(TAG, "session $id answered ($status) after it was given up")
             return
         }
+        DiagLog.i("更新: 会话 $id 应答 status=$status")
         stopAwaiting(id)
         cancelSessionKick()
         sessionKicks = 0

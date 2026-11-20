@@ -364,7 +364,8 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
         }
         // How Home looks (wallpaper, screensaver, focus style, hidden apps, weather) lives in one place.
         MenuRow(
-            Glyph.Pencil,
+            // 铅笔太细, 远看就是一根小棍; 换成"外观"的太阳, 轮廓粗、和上面的系统设置齿轮也不撞。
+            Glyph.Sun,
             stringResource(R.string.cc_personalize),
             onClick = { vm.overlay = Overlay.Wallpaper },
         )
