@@ -1048,6 +1048,9 @@ fun HomeScreen(
         // 回到面板/桌面经常接不上, 表现就是"用过设置密码/输入密码之后壁纸不动了"。
         // (个性化面板本身开着时仍然照旧暂停, 那是为了看清选项; 这种情况由下面 personalizeOpen 管。)
         val filmMoves = vm.filmFront && (overlay == Overlay.None || overlay is Overlay.ControlCenter ||
+            // 儿童与长辈模式的设置页和锁屏都是叠在面板上的临时层, 和密码框一样不让壁纸停:
+            // 停一次再回来经常接不上, 表现就是"退出面板以后壁纸不动了"。
+            overlay is Overlay.Kids ||
             (overlay is Overlay.Pin && !personalizeOpen) ||
             // 个性化面板和它下面的子页(隐藏的卡片、隐藏的直播源)打开时, 视频壁纸停下来:
             // 一整页选项要看清楚, 后面一帧帧在动太扰。关上就自己接着播。
@@ -1060,7 +1063,7 @@ fun HomeScreen(
         // Nothing over Home blurs it: a paused film stays.
         // 个性化/子页打开时影片停下来, 也要让停下的那一帧留在原处, 不能露出底下的静态层。
         val filmStandsIn = overlay == Overlay.None || overlay is Overlay.ControlCenter || overlay is Overlay.Wallpaper ||
-            overlay is Overlay.Pin ||
+            overlay is Overlay.Pin || overlay is Overlay.Kids ||
             (overlay is Overlay.AppMenu && overlay.inFolder == null)
         when {
             Wallpapers.selectedId == Wallpapers.LIVE -> LiveWallpaper(
