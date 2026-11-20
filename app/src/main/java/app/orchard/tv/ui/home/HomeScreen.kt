@@ -1712,7 +1712,10 @@ fun HomeScreen(
 
         // ===== 新增：直播源选择菜单组件 =====
         LiveSourceMenu(
-            visible = overlay is Overlay.LiveSourceMenu,
+            // 从直播菜单点开的控制中心, 菜单不再淡出退场: 一直画在控制中心底下。
+            // 这样关掉控制中心回到菜单时没有 500ms 淡入, 也没有"重排 + 重搜焦点"那一帧。
+            visible = overlay is Overlay.LiveSourceMenu ||
+                (overlay is Overlay.ControlCenter && vm.ccFromLiveMenu),
             sources = vm.getAllLiveSources(),
             currentId = vm.currentLiveSourceId,
             onSelect = { s ->

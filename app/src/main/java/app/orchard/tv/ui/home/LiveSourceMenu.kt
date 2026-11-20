@@ -267,21 +267,29 @@ fun LiveSourceMenu(
     // 只要菜单被控制中心盖过一次, 回来时焦点就该停在右上角那颗按钮上: 用户就是从那儿
     // 按进控制中心的, 退回来却落回某张卡片, 一路往回都得重走方向键。
     var returnToPill by remember { mutableStateOf(startOnPill) }
-    if (startOnPill) returnToPill = true
+    // 这两句必须写在组合期, 不能等 LaunchedEffect 跑起来再写: 从控制中心回来的那一帧,
+    // 卡片要已经是不可聚焦、按钮要已经可以拿焦点。否则先有两三帧"整个菜单谁都不能聚焦",
+    // Compose 自己那一遍焦点搜索无处可落, 松手之后就被排在最前的卡片接住 —— 就是"抢焦点"。
+    if (startOnPill) {
+        returnToPill = true
+        justOpened = false
+    }
     // 这一小段卡片全部不可聚焦, 整个菜单里只有胶囊能拿焦点:
     // 不做循环 requestFocus, 那等于在和卡片抢。
     LaunchedEffect(visible, startOnPill) {
         if (visible && startOnPill) {
             // 从控制中心回来: 卡片已在组合期关掉了, 这里只把焦点交给胶囊, 一次, 不循环。
-            justOpened = false
             focusedId = currentId
             showing = true
-            repeat(2) { androidx.compose.runtime.withFrameNanos { } }
+            androidx.compose.runtime.withFrameNanos { }
+            // 这一帧卡片全都不可聚焦, 按钮是菜单里唯一能拿焦点的节点: 请求一次就够, 不循环。
             runCatching { pillFocus.requestFocus() }
-            if (!pillHasFocus) {
-                kotlinx.coroutines.withTimeoutOrNull(300) { snapshotFlow { pillHasFocus }.first { it } }
-            }
-            app.orchard.tv.system.DiagLog.i("控制中心调试: 回菜单焦点->胶囊 成功=$pillHasFocus")
+            val got = pillHasFocus ||
+                kotlinx.coroutines.withTimeoutOrNull(600) { snapshotFlow { pillHasFocus }.first { it } } != null
+            app.orchard.tv.system.DiagLog.i(
+                "控制中心调试: 回菜单焦点->胶囊 成功=$got 卡片可聚焦=${!returnToPill}",
+            )
+            // 按钮真的拿到焦点之后才放开卡片; 万一没拿到也放开, 但日志里留了失败记录。
             returnToPill = false
             onStartOnPillDone()
         } else if (visible) {
