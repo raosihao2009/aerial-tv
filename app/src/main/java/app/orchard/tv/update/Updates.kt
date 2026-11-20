@@ -778,22 +778,43 @@ object Updates {
     private fun warmMirror() {
         if (mirrorUrls != null) return
         scope.launch(Dispatchers.IO) {
-            runCatching { mirrorFor(BuildConfig.FLAVOR) }
-            DiagLog.i("更新: 镜像清单已预取 ${if (mirrorUrls == null) "无" else "有"}")
+            val got = runCatching { mirrorFor(BuildConfig.FLAVOR) }
+                .onFailure { Log.i(TAG, "mirror: ${it.javaClass.simpleName}") }
+                .getOrNull()
+            val list = mirrorUrls
+            // 这里只能报"真的解析出了几条": 之前用 mirrorUrls == null 判断, 清单格式不对时会得到一张
+            // 空表(非 null), 日志照样写"有", 于是每次下载都退化成只走 GitHub 却没人发现。
+            DiagLog.i("更新: 镜像清单已预取 ${if (got == null) "无(${list?.size ?: 0} 条)" else "有(${list?.keys?.joinToString("/") ?: "?"})"}")
         }
     }
 
+    /** 清单里两边都用的键: standard / guard。 */
+    private val mirrorFlavors = listOf("standard", "guard")
+
+    /**
+     * 解析镜像清单。历史发布里既有 `standard <url>` 这种"键 空格 地址"的写法, 也有只写地址的
+     * 两行版本; 只写地址时按 standard、guard 的顺序认。之前只认第一种, 清单若是纯地址就会被
+     * 解析成空表 —— 下载于是永远只会走国内的 GitHub, 看起来就是"下载特别慢/根本下不下来"。
+     */
+    private fun parseMirror(text: String): Map<String, String> {
+        val result = LinkedHashMap<String, String>()
+        for (raw in text.lineSequence()) {
+            val line = raw.trim().trimStart('-', '*').trim()
+            if (line.isEmpty() || line.startsWith("#")) continue
+            val url = Regex("""https?://\S+""").find(line)?.value ?: continue
+            val head = line.substring(0, line.indexOf(url)).trim().trim('=', ':', ' ', '\t', '-', '"').lowercase()
+            when {
+                head in mirrorFlavors -> result[head] = url
+                head.isEmpty() -> mirrorFlavors.firstOrNull { it !in result }?.let { result[it] = url }
+                else -> Log.i(TAG, "mirror: 不认识的行 $head")
+            }
+        }
+        return result
+    }
+
     private fun mirrorFor(flavor: String): String? {
-        val cached = mirrorUrls ?: runCatching {
-            readMirror().lineSequence()
-                .map { it.trim() }
-                .filter { it.isNotEmpty() && !it.startsWith("#") }
-                .mapNotNull { line ->
-                    val parts = line.split(' ', limit = 2)
-                    if (parts.size == 2) parts[0] to parts[1] else null
-                }
-                .toMap()
-        }.onFailure { Log.i(TAG, "mirror: ${it.javaClass.simpleName}") }.getOrNull()
+        val cached = mirrorUrls ?: runCatching { parseMirror(readMirror()) }
+            .onFailure { Log.i(TAG, "mirror: ${it.javaClass.simpleName}") }.getOrNull()
             ?.also { mirrorUrls = it }
             ?: return null
         return cached[flavor]
@@ -850,8 +871,17 @@ object Updates {
             .onFailure { Log.i(TAG, "mirror lookup: ${it.javaClass.simpleName}") }
             .getOrNull()
             ?.takeIf { it != github }
-        if (mirror == null) DiagLog.i("更新下载: 没有镜像清单, 只走 GitHub")
-        val order = if (mirror != null) listOf("镜像" to mirror, "GitHub" to github) else listOf("GitHub" to github)
+        if (mirror == null) {
+            DiagLog.i("更新下载: 没有镜像地址(清单为空), 只走 GitHub")
+        } else {
+            DiagLog.i("更新下载: 镜像地址 ${mirror.take(48)}")
+        }
+        val order = if (mirror != null) {
+            // CDN 边界对象是发版时才上传的, 第一次拉可能慢到被判卡死, 给它一次重试再退 GitHub。
+            listOf("镜像" to mirror, "镜像重试" to mirror, "GitHub" to github)
+        } else {
+            listOf("GitHub" to github)
+        }
         for ((label, url) in order) {
             DiagLog.i("更新下载: 试$label 源")
             val started = SystemClock.elapsedRealtime()
