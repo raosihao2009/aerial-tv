@@ -33,7 +33,7 @@ import kotlin.math.roundToInt
  * closest to SF Symbols among icons an Android app may ship (SF Symbols are licensed for Apple
  * platforms only). Vector paths, rasterized at each UI size, in a square box.
  */
-enum class Glyph { Folder, Pencil, Wifi, Ethernet, Offline, Gear, Input, Speaker, SpeakerMuted, Switches, EyeSlash, Move, Info, Trash, ChevronRight, ChevronLeft, Check, Hdmi, Antenna, Av, Sun, Photo, Play, Bag, CloudSun, Calendar, Cast, Shield, Globe, Moon, Cloud, CloudRain, CloudLightRain, CloudHeavyRain, CloudStorm, CloudSnow, CloudFog, CloudBolt, Download, Power, Usb, Home, Kids }
+enum class Glyph { Folder, Pencil, Wifi, Ethernet, Offline, Gear, Input, Speaker, SpeakerMuted, Switches, EyeSlash, Move, Info, Trash, ChevronRight, ChevronLeft, Check, Hdmi, Antenna, Av, Sun, Photo, Play, Bag, CloudSun, Calendar, Cast, Shield, Globe, Moon, Cloud, CloudRain, CloudLightRain, CloudHeavyRain, CloudStorm, CloudSnow, CloudFog, CloudBolt, Download, Power, Usb, Home, Kids, Person }
 
 @Composable
 fun GlyphIcon(glyph: Glyph, color: Color, size: Dp, modifier: Modifier = Modifier, level: Float = 1f) {
@@ -67,7 +67,8 @@ private fun glyphPath(glyph: Glyph, level: Float): String? {
             else -> GlyphPaths.VOLUME_UP
         }
         Glyph.SpeakerMuted -> GlyphPaths.VOLUME_OFF
-        Glyph.Switches -> null
+        Glyph.Switches -> SPECIAL_SWITCHES
+        Glyph.Person -> SPECIAL_PERSON
         Glyph.EyeSlash -> GlyphPaths.VISIBILITY_OFF
         Glyph.Move -> GlyphPaths.OPEN_WITH
         Glyph.Folder -> GlyphPaths.FOLDER
@@ -106,11 +107,22 @@ private fun glyphPath(glyph: Glyph, level: Float): String? {
     }
 }
 
+/** Drawn geometry, not a Material path: these are laid out at the final pixel size. */
+private const val SPECIAL_SWITCHES = "@switches"
+private const val SPECIAL_PERSON = "@person"
+
 private fun DrawScope.drawGlyph(data: String?, color: Color) {
     val s = size.minDimension
-    if (data == null) {
-        drawPath(switches.getOrPut(s) { switchesPath(s) }, color)
-        return
+    when (data) {
+        SPECIAL_SWITCHES -> {
+            drawPath(switches.getOrPut(s) { switchesPath(s) }, color)
+            return
+        }
+        SPECIAL_PERSON -> {
+            drawPath(persons.getOrPut(s) { personPath(s) }, color)
+            return
+        }
+        null -> return
     }
     val path = parsed.getOrPut(data) { PathParser().parsePathString(data).toPath() }
     // The symbols' box runs from y = -960 to 0.
@@ -144,6 +156,7 @@ private val glyphImages = object : LruCache<Triple<String?, Int, Int>, ImageBitm
 // Tiles are drawn off the main thread while the UI draws glyphs on it.
 private val parsed = java.util.concurrent.ConcurrentHashMap<String, Path>()
 private val switches = java.util.concurrent.ConcurrentHashMap<Float, Path>()
+private val persons = java.util.concurrent.ConcurrentHashMap<Float, Path>()
 
 /**
  * Two toggles, the Control Center glyph, as SF Symbols' switch.2 draws it (Material has no close
@@ -175,4 +188,28 @@ private fun switchesPath(s: Float): Path {
     val upper = Path.combine(PathOperation.Union, outline, disc(left + r, top + r, r))
     val lower = Path.combine(PathOperation.Difference, pill(left, bottom, right - left, h), disc(right - r, bottom + r, r - line))
     return Path.combine(PathOperation.Union, upper, lower)
+}
+
+/**
+ * 个性化的图标: 一个人像(肩胸 + 头), 和 Material 的 person 一样是实心的, 边缘按最终尺寸对齐整像素。
+ * 换掉铅笔是因为铅笔在电视上远看就是一根细棍; 齿轮和"设置"那颗按钮撞, 太阳和面板里"外观与声音"
+ * 撞, 图片和"壁纸"撞 —— 人像在这两处都不冲突。
+ */
+private fun personPath(s: Float): Path {
+    val headR = kotlin.math.round(s * 0.21f)
+    val cx = kotlin.math.round(s * 0.5f)
+    val cy = kotlin.math.round(s * 0.30f)
+    val head = Path().apply {
+        addOval(androidx.compose.ui.geometry.Rect(cx - headR, cy - headR, cx + headR, cy + headR))
+    }
+    val shoulders = Path().apply {
+        addRoundRect(
+            androidx.compose.ui.geometry.RoundRect(
+                kotlin.math.round(s * 0.17f), kotlin.math.round(s * 0.58f),
+                kotlin.math.round(s * 0.83f), s,
+                CornerRadius(kotlin.math.round(s * 0.20f)),
+            ),
+        )
+    }
+    return Path.combine(PathOperation.Union, head, shoulders)
 }
