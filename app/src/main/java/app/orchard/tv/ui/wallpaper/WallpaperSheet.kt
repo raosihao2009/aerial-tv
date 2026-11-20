@@ -1768,41 +1768,55 @@ private fun KeyVolumeCell() {
                 animationSpec = tween(160, easing = LinearEasing),
                 label = "keyvol-level",
             )
+            // 数字位置的宽度按「100」和「已静音」里更宽的那个一次算定, 切换时不拉长也不缩。
+            val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+            val mutedLabel = stringResource(R.string.cc_muted)
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val widestW = remember(mutedLabel, density) {
+                val a = measurer.measure("100", Type.Body).size.width
+                val b = measurer.measure(mutedLabel, Type.Body).size.width
+                with(density) { maxOf(a, b).toDp() }
+            }
+            val labelText = if (volume == 0) mutedLabel else volume.toString()
+            val labelW = remember(labelText, density) {
+                with(density) { measurer.measure(labelText, Type.Body).size.width.toDp() }
+            }
+            // 胶囊总宽固定 = 「最宽的数字」时的样子。数字靠右, 和条之间只留一个正常间距;
+            // 数字短的时候空出来的那一点, 直接加长条 —— 不是把条拉到整格那么长。
+            val padH = 11.dp
+            val iconW = 16.dp
+            val gap = 9.dp
+            val barBase = 132.dp
+            val chipW = padH * 2 + iconW + gap * 2 + barBase + widestW
             Row(
                 Modifier
-                    .fillMaxWidth()
+                    .width(chipW)
                     .clip(RoundedCornerShape(50))
                     .drawBehind { drawRect(bg) }
                     .height(30.dp)
-                    .padding(horizontal = 11.dp),
+                    .padding(horizontal = padH),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(9.dp),
+                horizontalArrangement = Arrangement.spacedBy(gap),
             ) {
                 // 喇叭图标放在滑块条的左边, 音量格数用 level 表现, 不额外写字。
                 GlyphIcon(
                     if (volume == 0) Glyph.SpeakerMuted else Glyph.Speaker,
                     fg,
-                    16.dp,
+                    iconW,
                     level = fraction,
                 )
-                // 滑块条自己撑满数字左边的空位: 数字靠右, 条随宽度伸缩, 不再是一个固定长度的条。
+                // 条撑满"图标右边到数字左边"这段, 数字多宽就少一点: 右端永远贴着数字。
                 Canvas(Modifier.weight(1f).height(5.dp)) {
                     val r = CornerRadius(size.height / 2)
                     drawRoundRect(track, cornerRadius = r)
                     drawRoundRect(fg, size = GeometrySize(size.width * fraction, size.height), cornerRadius = r)
                 }
-                // 数字位置宽度固定: 按「100」和「已静音」里更宽的那个留够, 切换时不拉长也不缩。
-                val measurer = androidx.compose.ui.text.rememberTextMeasurer()
-                val mutedLabel = stringResource(R.string.cc_muted)
-                val density = androidx.compose.ui.platform.LocalDensity.current
-                val labelW = remember(mutedLabel, density) {
-                    val a = measurer.measure("100", Type.Body).size.width
-                    val b = measurer.measure(mutedLabel, Type.Body).size.width
-                    with(density) { maxOf(a, b).toDp() }
-                }
                 BasicText(
-                    if (volume == 0) mutedLabel else volume.toString(),
-                    style = Type.Body.copy(color = fg, textAlign = androidx.compose.ui.text.style.TextAlign.End),
+                    labelText,
+                    style = Type.Body.copy(
+                        color = fg,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                    ),
                     modifier = Modifier.width(labelW), maxLines = 1,
                 )
             }
