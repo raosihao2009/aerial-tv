@@ -130,7 +130,8 @@ object Sounds {
                 }
                 // 自带按键音只认「按键音量」这一档: 0 真的静、100 真的响, 和普通音量滑块无关。
                 // 以前乘的是媒体音量 —— TCL 那路跟着媒体走、当贝那路电平固定, 两台机器的表现对不上。
-                val gain = (AerialSettings.keyVolume / 100f).coerceIn(0f, 1f)
+                // 静音是一档独立状态: 静音时彻底不出声, 音量 0 时也按 0 算。
+                val gain = AerialSettings.keyVolumeGain.coerceIn(0f, 1f)
                 if (id != 0 && gain > 0f) p.play(id, volume * gain, volume * gain, 1, 0, 1f)
             }
         }

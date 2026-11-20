@@ -1723,6 +1723,8 @@ private fun KeyVolumeCell() {
         if (next != now) {
             bumpedEdge = 0
             Sounds.step()
+            // 用方向键调音量就是明确要出声: 顺手解除静音。
+            if (AerialSettings.keyVolumeMuted) AerialSettings.chooseKeyVolumeMuted(false)
             AerialSettings.chooseKeyVolume(next)
         } else if (bumpedEdge != delta) {
             // 到头的"撞边"声只响一下: 停在端点继续按不再重复, 离开再回来才算新的一次。
@@ -1733,15 +1735,16 @@ private fun KeyVolumeCell() {
     // 按 OK 静音 / 恢复, 和上面控制中心那条系统音量同一套手感;
     // 恢复时回到静音之前那个数, 而不是固定跳某个值。
     var restoreTo by remember { mutableStateOf(if (AerialSettings.keyVolume > 0) AerialSettings.keyVolume else 60) }
+    // 静音是独立的一档, 不是"音量 0": 静音时只是不出声, 音量那个数留着,
+    // 界面换成静音图标 + 「静音」; 音量 0 照样是喇叭图标 + 数字 0。
     fun toggleMute() {
-        val now = AerialSettings.keyVolume
-        if (now > 0) {
-            restoreTo = now
-            Sounds.select()
-            AerialSettings.chooseKeyVolume(0)
+        Sounds.select()
+        if (AerialSettings.keyVolumeMuted) {
+            AerialSettings.chooseKeyVolumeMuted(false)
+            if (AerialSettings.keyVolume == 0) AerialSettings.chooseKeyVolume(restoreTo.coerceIn(1, 100))
         } else {
-            Sounds.select()
-            AerialSettings.chooseKeyVolume(restoreTo.coerceIn(1, 100))
+            if (AerialSettings.keyVolume > 0) restoreTo = AerialSettings.keyVolume
+            AerialSettings.chooseKeyVolumeMuted(true)
         }
     }
     Cell(R.string.st_key_volume, stringResource(R.string.st_key_volume_hint)) { onFocus ->
@@ -1762,9 +1765,10 @@ private fun KeyVolumeCell() {
             val fg = if (state.focused) Palette.OnFocus else Palette.Label
             val track = if (state.focused) Palette.OnFocus.copy(alpha = 0.22f) else Palette.Label.copy(alpha = 0.2f)
             val volume = AerialSettings.keyVolume
-            // 条形跟着数值走一段动画, 不再瞬时跳变。
+            val muted = AerialSettings.keyVolumeMuted
+            // 条形跟着数值走一段动画, 不再瞬时跳变; 静音时条走到 0。
             val fraction by animateFloatAsState(
-                targetValue = volume / 100f,
+                targetValue = if (muted) 0f else volume / 100f,
                 animationSpec = tween(160, easing = LinearEasing),
                 label = "keyvol-level",
             )
@@ -1777,7 +1781,7 @@ private fun KeyVolumeCell() {
                 val b = measurer.measure(mutedLabel, Type.Body).size.width
                 with(density) { maxOf(a, b).toDp() }
             }
-            val labelText = if (volume == 0) mutedLabel else volume.toString()
+            val labelText = if (muted) mutedLabel else volume.toString()
             val labelW = remember(labelText, density) {
                 with(density) { measurer.measure(labelText, Type.Body).size.width.toDp() }
             }
@@ -1800,7 +1804,7 @@ private fun KeyVolumeCell() {
             ) {
                 // 喇叭图标放在滑块条的左边, 音量格数用 level 表现, 不额外写字。
                 GlyphIcon(
-                    if (volume == 0) Glyph.SpeakerMuted else Glyph.Speaker,
+                    if (muted) Glyph.SpeakerMuted else Glyph.Speaker,
                     fg,
                     iconW,
                     level = fraction,

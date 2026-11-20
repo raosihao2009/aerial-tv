@@ -155,6 +155,15 @@ object AerialSettings {
      */
     var keyVolume by mutableIntStateOf(70); private set
 
+    /**
+     * 按键音是不是被"静音"了(按 OK 那一下)。和音量 0 不是一回事: 音量 0 只是拨到最小,
+     * 界面照样显示 0 和喇叭图标; 静音才换成静音图标、数字写成「静音」。
+     */
+    var keyVolumeMuted by mutableStateOf(false); private set
+
+    /** 实际按键音的增益: 静音时是 0, 否则跟着音量走。 */
+    val keyVolumeGain: Float get() = if (keyVolumeMuted) 0f else keyVolume / 100f
+
     const val DAY_MINUTES = 1440
     /** The choices for [photoMinutes]: a day, an hour, 15, 5 and 1 minutes. */
     val PHOTO_MINUTES = listOf(DAY_MINUTES, 60, 15, 5, 1)
@@ -292,6 +301,7 @@ object AerialSettings {
             else -> UiSounds.Aerial
         }
         keyVolume = prefs.getInt("key_volume", 70).coerceIn(0, 100)
+        keyVolumeMuted = prefs.getBoolean("key_volume_muted", false)
         backStartsScreensaver = prefs.getBoolean("back_starts_screensaver", true)
         screensaverMinutes = prefs.getInt("screensaver_minutes", DEFAULT_SCREENSAVER_MINUTES)
         aerialQuality = AerialQuality.of(prefs.getString("aerial_quality", null))
@@ -374,6 +384,12 @@ object AerialSettings {
         val level = volume.coerceIn(0, 100)
         keyVolume = level
         app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putInt("key_volume", level) }
+    }
+
+    /** 按键音的静音开关: 只改"静音"这个状态, 音量那个数原样保留。 */
+    fun chooseKeyVolumeMuted(muted: Boolean) {
+        keyVolumeMuted = muted
+        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean("key_volume_muted", muted) }
     }
 
     fun chooseHomePlate(on: Boolean) {
