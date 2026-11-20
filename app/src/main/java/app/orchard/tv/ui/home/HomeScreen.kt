@@ -1361,6 +1361,9 @@ fun HomeScreen(
                             label = "slot",
                         )
                         val saverFade = { ((saverLike - 0.05f * (index % columns)) / 0.6f).coerceIn(0f, 1f) }
+                        // 只有卡片自己的浮层(应用菜单/文件夹/直播二级菜单)才算"这张卡打开的浮层"。
+                        val cardOverlay = overlay is Overlay.AppMenu || overlay is Overlay.Folder ||
+                            overlay is Overlay.LiveSourceMenu
                         AppTile(
                             app = app,
                             width = metrics.tileW,
@@ -1376,13 +1379,17 @@ fun HomeScreen(
                             // 按钮打开的情况下, 上一次停留的卡片不该突然亮起来。
                             // 从直播菜单那颗胶囊打开控制中心时, 焦点同样不在卡片上(在按钮上), 连同
                             // 从面板退回直播菜单那一帧一起按住, 不然那一下就是"卡片突然变大"。
-                            preFocus = (overlay != Overlay.None || restoringFocus || overlaySettling) &&
+                            // 个性化面板、家长密码、儿童与长辈模式都不是"从某张卡片上打开"的浮层:
+                            // 它们盖上来的时候, 上一次停留的那张卡不能继续按选中尺寸画 ——
+                            // 面板背景是半透明的, 底下那张突然变大的卡看得一清二楚。
+                            preFocus = cardOverlay &&
+                                (overlay != Overlay.None || restoringFocus || overlaySettling) &&
                                 overlayFromCard && app.key == savedOverlayKey &&
                                 !(ccFromMenu && (overlay is Overlay.ControlCenter || overlay is Overlay.LiveSourceMenu)),
                             // 浮层打开期间这张卡的外观冻结在打开前那一帧(见 AppTile.holdLook):
                             // 就算上面的 preFocus 或者别的什么在打开那一帧算错, 也不会瞬间跳到
                             // 选中尺寸 —— 那一下就是"打开控制中心瞬间直播卡变大, 白框和名字一起亮"。
-                            holdLook = overlay != Overlay.None,
+                            holdLook = cardOverlay && overlay != Overlay.None,
                             snapScale = overlay != Overlay.None || restoringFocus || overlaySettling,
                             autoFocus = coldStart && index == 0,
                             bootStable = vm.bootStable,
