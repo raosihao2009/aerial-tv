@@ -1758,6 +1758,8 @@ fun HomeScreen(
             onMovingChange = { liveMoving = it },
             onOpenControlCenter = { vm.ccFromLiveMenu = true; vm.overlay = Overlay.ControlCenter() },
             controlCenterOpen = overlay is Overlay.ControlCenter,
+            // 个性化面板、家长密码、儿童与长辈模式盖在菜单上: 菜单里的卡片不能趁机亮起来。
+            aboveOpen = overlay is Overlay.Wallpaper || overlay is Overlay.Pin || overlay is Overlay.Kids,
             // 从控制中心退回来的那一帧就要让卡片不可聚焦, 焦点直接归胶囊。
             startOnPill = vm.pillOnMenuReturn,
             onStartOnPillDone = { vm.pillOnMenuReturn = false },

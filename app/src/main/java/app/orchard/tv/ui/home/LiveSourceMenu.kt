@@ -138,6 +138,12 @@ fun LiveSourceMenu(
     onOpenControlCenter: () -> Unit = {},
     controlCenterOpen: Boolean = false,
     /**
+     * 上面盖着个性化面板、家长密码或儿童/长辈模式: 菜单只是被盖住, 不是在"关菜单"。
+     * 这些浮层盖上来的时候不能点亮任何一张卡 —— 它们和"从卡片打开"的浮层不是一回事,
+     * 最后停留的那张直播卡一直被按选中尺寸画, 半透明面板后面就是"卡片放大了"。
+     */
+    aboveOpen: Boolean = false,
+    /**
      * 这次打开是从控制中心退回来的(用户是点这颗胶囊进去的)。组合期就读到, 所以回到菜单的
      * 第一帧卡片就已经不可聚焦 —— 不留"先让卡片抢到焦点、再挪给胶囊"的窗口。
      */
@@ -659,12 +665,15 @@ fun LiveSourceMenu(
                         // 二级菜单里那张直播卡变大(白框和名字一起亮)"。而且 snapScale 让这一下
                         // 是瞬间跳到位, 更显眼。
                         // 回胶囊那一小段也不点亮任何卡: 那正是"回来视线先落在放大的直播卡上"的来源。
-                        preFocus = !controlCenterOpen && !returnToPill &&
+                        preFocus = !aboveOpen && !controlCenterOpen && !returnToPill &&
                             source.id == focusedId && (alpha < 0.99f || !visible || menuForId == source.id),
-                        // 控制中心盖住期间, 卡片外观冻结在打开前那一帧: 不再有任何尺寸跳变。
-                        holdLook = controlCenterOpen,
-                        // 上下文菜单打开/收起期间缩放直接跳到位, 不演缩小弹簧。
-                        snapScale = menuForId == source.id || !visible,
+                        // 控制中心/面板盖住期间, 卡片外观冻结在打开前那一帧: 不再有任何尺寸跳变。
+                        holdLook = controlCenterOpen || aboveOpen,
+                        // 上下文菜单打开/收起期间缩放直接跳到位, 不演缩小弹簧;
+                        // 被面板之类盖住不算"关菜单", 不能借这一下跳到选中尺寸。
+                        snapScale = menuForId == source.id || (!visible && !aboveOpen),
+                        // 面板/密码框/儿童长辈界面盖着: 一律按"没选中"画, 不看焦点状态。
+                        forcedIdle = aboveOpen,
                         // 淡出走卡片自己的 opacity(和一级菜单 saverFade 同一处), 不用外层 alpha:
                         // 外层 alpha 会让卡片走离屏合成, 32dp 圆角在这段时间里会丢掉, 只剩方角
                         opacity = { (if (shifted in -1..1) 1f else 0f) * (1f - cardFade) },
