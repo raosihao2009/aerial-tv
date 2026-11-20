@@ -80,7 +80,7 @@ import androidx.compose.ui.unit.IntSize
 
 /** 焦点缩放的演出时长: 菜单在这之后才开始淡入 */
 
-private val liveColors = listOf(
+internal val liveColors = listOf(
     Pair(0xFFD32F2F.toInt(), 0xFF8E0000.toInt()),
     Pair(0xFF1976D2.toInt(), 0xFF0D47A1.toInt()),
     Pair(0xFF388E3C.toInt(), 0xFF1B5E20.toInt()),
@@ -89,7 +89,7 @@ private val liveColors = listOf(
     Pair(0xFF00796B.toInt(), 0xFF004D40.toInt()),
 )
 
-private fun liveSourceIconResId(source: LiveSource): Int? = when (source.id) {
+internal fun liveSourceIconResId(source: LiveSource): Int? = when (source.id) {
     "preset_0" -> app.orchard.tv.R.drawable.live_cctv
     "preset_1" -> app.orchard.tv.R.drawable.live_yangshipin
     "preset_2" -> app.orchard.tv.R.drawable.live_cctvkuikan

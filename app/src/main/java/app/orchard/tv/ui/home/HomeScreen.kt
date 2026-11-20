@@ -1611,7 +1611,7 @@ fun HomeScreen(
             warm = sheetWarm,
             onDismiss = { vm.overlay = Overlay.ControlCenter() },
             hiddenApps = vm.hiddenApps,
-            hiddenLiveSources = vm.hiddenLiveSources.map { it.id to it.name },
+            hiddenLiveSources = vm.hiddenLiveSources,
             // 放回卡片和以前一样要走家长密码(设了密码时)。
             onUnhideApp = { key -> vm.whenUnlocked { vm.unhide(key) } },
             onUnhideLiveSource = { id -> vm.whenUnlocked { vm.unhideLiveSource(id) } },

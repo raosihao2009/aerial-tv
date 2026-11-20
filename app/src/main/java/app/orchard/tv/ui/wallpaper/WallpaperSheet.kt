@@ -145,6 +145,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 import androidx.compose.ui.geometry.Size
+import app.orchard.tv.LiveSource
+import app.orchard.tv.ui.home.liveSourceIconResId
+import app.orchard.tv.ui.home.liveColors
 
 /**
  * Wallpaper and screensaver, chosen on the TV. A sheet rises from the bottom and leaves the top of
@@ -157,7 +160,7 @@ fun WallpaperSheet(
     onDismiss: () -> Unit,
     /** 收起来的卡片。入口按钮按下去浮出一个列出它们的小窗口, 和首页一样带应用图标。 */
     hiddenApps: List<AppEntry> = emptyList(),
-    hiddenLiveSources: List<Pair<String, String>> = emptyList(),
+    hiddenLiveSources: List<LiveSource> = emptyList(),
     onUnhideApp: (String) -> Unit = {},
     onUnhideLiveSource: (String) -> Unit = {},
     onStartScreensaver: () -> Unit,
@@ -306,7 +309,7 @@ fun WallpaperSheet(
         )
         ListWindowLayer(
             popupHost.live, stringResource(R.string.st_hidden_live_title),
-            stringResource(R.string.st_hidden_none), hiddenLiveSources.map { HiddenRow(it.first, it.second) },
+            stringResource(R.string.st_hidden_none), hiddenLiveSources.map { HiddenRow(it.id, it.name, live = it) },
         )
         }
     }
@@ -387,7 +390,7 @@ private fun WallpaperSection(takeFocus: Boolean) {
 @Composable
 private fun HomeSection(
     hiddenApps: List<AppEntry>,
-    hiddenLiveSources: List<Pair<String, String>>,
+    hiddenLiveSources: List<LiveSource>,
     onUnhideApp: (String) -> Unit,
     onUnhideLiveSource: (String) -> Unit,
     onHomeLock: (on: Boolean) -> Unit,
@@ -460,7 +463,7 @@ private fun HomeSection(
                         ),
                         HiddenEntry(
                             popup?.live, liveChip,
-                            hiddenLiveSources.map { HiddenRow(it.first, it.second) }, onUnhideLiveSource,
+                            hiddenLiveSources.map { HiddenRow(it.id, it.name, live = it) }, onUnhideLiveSource,
                         ),
                     ),
                 )
@@ -1228,7 +1231,12 @@ private class ListWindow {
 }
 
 /** 小窗口里的一行: 应用带首页那块图标, 直播源只有名字(前面一颗播放图标)。 */
-private class HiddenRow(val key: String, val label: String, val app: AppEntry? = null)
+private class HiddenRow(
+    val key: String,
+    val label: String,
+    val app: AppEntry? = null,
+    val live: LiveSource? = null,
+)
 
 /** 一颗格子里的一个入口按钮: 它自己那颗窗口、里面列的行、放回去要调用谁。 */
 private class HiddenEntry(
@@ -1470,6 +1478,44 @@ private fun MenuWindowLayer(window: MenuWindow) {
 }
 
 /**
+ * 直播源的图标: 手机上传的自定义图先, 没有就用预设源那张(央视/央视频/东方明珠…), 都没有
+ * 才退回纯色 + 播放图标。和首页直播卡、直播菜单里那张是同一张图。
+ */
+@Composable
+private fun LiveRowIcon(source: LiveSource, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val icon by produceState<ImageBitmap?>(null, source.id, source.iconTs) {
+        value = withContext(Dispatchers.IO) {
+            val upload = java.io.File(context.filesDir, "live_icon_${source.id}.jpg")
+            val bmp = if (upload.exists()) {
+                runCatching { android.graphics.BitmapFactory.decodeFile(upload.absolutePath) }.getOrNull()
+            } else {
+                liveSourceIconResId(source)?.let { id ->
+                    val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 2 }
+                    runCatching { android.graphics.BitmapFactory.decodeResource(context.resources, id, opts) }.getOrNull()
+                }
+            }
+            bmp?.asImageBitmap()
+        }
+    }
+    val face = icon
+    if (face != null) {
+        androidx.compose.foundation.Image(
+            bitmap = face, contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = modifier.clip(RoundedCornerShape(6.dp)),
+        )
+    } else {
+        val (top, bottom) = liveColors[source.colorIndex % liveColors.size]
+        Box(
+            modifier.clip(RoundedCornerShape(6.dp))
+                .background(Brush.verticalGradient(listOf(Color(top), Color(bottom)))),
+            contentAlignment = Alignment.Center,
+        ) { GlyphIcon(Glyph.Play, Palette.Label, 13.dp) }
+    }
+}
+
+/**
  * 收起卡片的小窗口: 和选项窗口同一个气泡(磨砂 + 一圈光边 + 对准按钮的三角), 内容是一列卡片。
  * 上下键换一张、OK 放回桌面、左右或返回收起。
  */
@@ -1592,14 +1638,13 @@ private fun ListWindowLayer(
                             ) {
                                 // 图标要在: 应用用首页那块切好的图标, 直播源给一颗播放图标。
                                 val iconBox = Modifier.size(44.dp, 25.dp)
-                                val app = item.app
-                                if (app != null) {
-                                    MiniTile(app, lit, iconBox)
-                                } else {
-                                    Box(
+                                when {
+                                    item.app != null -> MiniTile(item.app, lit, iconBox)
+                                    item.live != null -> LiveRowIcon(item.live, iconBox)
+                                    else -> Box(
                                         iconBox.clip(RoundedCornerShape(6.dp)).drawBehind { drawRect(Palette.FillStrong) },
                                         contentAlignment = Alignment.Center,
-                                    ) { GlyphIcon(Glyph.Play, if (lit) Palette.OnFocus else Palette.Label, 13.dp) }
+                                    ) { GlyphIcon(Glyph.Play, Palette.Label, 13.dp) }
                                 }
                                 BasicText(
                                     item.label,
