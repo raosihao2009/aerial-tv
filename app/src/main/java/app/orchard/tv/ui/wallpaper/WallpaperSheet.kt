@@ -1235,18 +1235,25 @@ private fun MenuWindowLayer(window: MenuWindow) {
                     winSize = it.size
                     if (it.size.width > 0 && it.size.height > 0) placed = true
                 }
-                .bubbleGlass(
-                    corner = 20.dp,
-                    tailHalf = 9.dp,
-                    tailHeight = tailH,
-                    tailX = { with(density) { (ax - x).toDp() } },
-                )
+                // 顺序要紧: graphicsLayer 必须在 bubbleGlass 外面。bubbleGlass 是 drawWithCache
+                // 画的, 排在后面前它就落在图层之外, 图层 alpha/scale 管不到它 —— 上一版正是这样,
+                // 磨砂和光边在"还没量到尺寸"的那一帧按错位的 offset 先画了出来, 看着还是从按钮处飞来。
+                .drawWithContent {
+                    // 尺寸未知的那一帧整块不画(offset 这时还退化成贴着按钮的位置)。
+                    if (placed) drawContent()
+                }
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
                     this.alpha = alpha
                     transformOrigin = TransformOrigin(0.5f, 1f)
-                },
+                }
+                .bubbleGlass(
+                    corner = 20.dp,
+                    tailHalf = 9.dp,
+                    tailHeight = tailH,
+                    tailX = { with(density) { (ax - x).toDp() } },
+                ),
         ) {
             Row(
                 Modifier
