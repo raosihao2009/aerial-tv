@@ -1199,7 +1199,11 @@ private fun MenuWindowLayer(window: MenuWindow) {
     // 这里只用普通状态: MutableTransitionState 没有 transition 在跑, currentState 永远是 false,
     // 窗口就一直停在 alpha=0(看不见), 表现正是"按了看似打开、其实屏幕上什么都没有"。
     var shown by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { shown = true }
+    // 第一次合成时还没量到窗口大小, offset 只能先用(按钮位置, 0 高)顶上:
+    // 那一帧窗口会出现在按钮的正上方, 随即跳到该在的位置, 看上去就是"从别处飞过来"。
+    // 所以量到宽高之前一律不显示, 量到了才开始淡入放大。
+    var placed by remember { mutableStateOf(false) }
+    LaunchedEffect(placed) { if (placed) shown = true }
     val scale by animateFloatAsState(
         if (shown) 1f else 0.92f,
         spring(dampingRatio = 0.72f, stiffness = 900f), label = "mini-scale",
@@ -1227,7 +1231,10 @@ private fun MenuWindowLayer(window: MenuWindow) {
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .offset { IntOffset(x.roundToInt(), (ay - winSize.height - gapPx).roundToInt()) }
-                .onGloballyPositioned { winSize = it.size }
+                .onGloballyPositioned {
+                    winSize = it.size
+                    if (it.size.width > 0 && it.size.height > 0) placed = true
+                }
                 .bubbleGlass(
                     corner = 20.dp,
                     tailHalf = 9.dp,

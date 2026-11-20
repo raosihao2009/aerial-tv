@@ -336,6 +336,7 @@ object Updates {
         // A second press while the first session's confirmation is awaited (#1004: two sessions).
         if (awaiting != null) return
         val app = context.applicationContext
+        lastApp = app
         if (!canInstall(app)) { install = Install.Failed(Failure.NotOfficial); return }
         if (LegacyUpdateStorage.needsPermission(app)) {
             install = Install.NeedsStoragePermission
@@ -388,6 +389,11 @@ object Updates {
             stopWatchdog()
             // Downloading 只代表"在下载"; 下载一结束就换成等待, 不再停在 100%。
             if (install is Install.Downloading) install = Install.Waiting
+            DiagLog.i("更新: 下载完成, 准备交给安装会话")
+            // 有些固件(当贝这台就是)会话提交后既不静默装完, 也不马上回"需要确认",
+            // 界面就一直停在"正在等待系统安装…", 非要再按一次按钮才动。
+            // 这里自己补一次: 6 秒没有任何会话在等, 就重新交一次, 最多两次。
+            scheduleSessionKick()
             if (ready == null) {
                 DiagLog.i("更新: 没有可用的 APK, 放弃")
                 install = Install.Failed(Failure.Download)
@@ -546,6 +552,8 @@ object Updates {
     /** Sessions given up on: their answers, should they still come, are ignored. */
     private val abandoned = mutableSetOf<Int>()
 
+    /** 没有应答时多久补交一次会话。 */
+    private const val SESSION_KICK_MS = 6_000L
     /** From the commit to the system's answer; it comes within a second on the TVs at hand. */
     private const val ANSWER_TIMEOUT_MS = 8_000L
     /** Android 12+ may compile and replace the app without any intermediate answer or page. */
@@ -577,6 +585,7 @@ object Updates {
         }
         awaiting = a
         install = Install.Waiting
+        cancelSessionKick()
         // A confirmation requested while away is opened on resume; its timer starts then.
         if (showConfirmation == null) main.postDelayed(a.check, ms)
     }
@@ -609,6 +618,8 @@ object Updates {
             return
         }
         stopAwaiting(id)
+        cancelSessionKick()
+        sessionKicks = 0
         when (status) {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                 @Suppress("DEPRECATION")
@@ -698,7 +709,38 @@ object Updates {
 
     /** Back to the button, when the update page is left. */
     fun resetInstall() {
+        main.removeCallbacks(sessionKick)
+        sessionKicks = 0
         if (awaiting == null && install !is Install.Downloading) install = Install.Idle
+    }
+
+    /**
+     * 会话提交后没人应答时, 自己再交一次(不再下载, 直接用已经下好并校验过的那个 APK)。
+     * 以前这里没有任何兜底: 固件不回话, 界面就永远停在"正在等待系统安装…", 只能靠再按一次。
+     */
+    private var lastApp: Context? = null
+    private var sessionKicks = 0
+    private val sessionKick = Runnable {
+        val context = lastApp ?: return@Runnable
+        if (install != Install.Waiting) return@Runnable
+        if (awaiting != null) return@Runnable
+        if (sessionKicks >= 2) {
+            DiagLog.i("更新: 重新交会话两次都没应答, 不再重试")
+            return@Runnable
+        }
+        sessionKicks++
+        DiagLog.i("更新: 等待安装没有应答, 重新交一次会话 (#$sessionKicks)")
+        install(context)
+    }
+
+    private fun scheduleSessionKick() {
+        main.removeCallbacks(sessionKick)
+        main.postDelayed(sessionKick, SESSION_KICK_MS)
+    }
+
+    /** 有会话真的在等了(或已经有结果), 就不必再补。 */
+    private fun cancelSessionKick() {
+        main.removeCallbacks(sessionKick)
     }
 
     private fun apkFile(context: Context): File {
