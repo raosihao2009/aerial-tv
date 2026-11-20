@@ -255,6 +255,10 @@ fun LiveSourceMenu(
     // - 打开: 先把焦点放到当前直播卡片上, 等它的缩放演完(showing 之前菜单还没淡入, 全不可见),
     //   再淡入 —— 看不到卡片放大。justOpened 让除当前卡片外的节点(含右上角控制中心)不可聚焦。
     // - 关闭: 淡出全程保持焦点和选中尺寸不变, 菜单完全看不见之后才把焦点挪走 —— 看不到缩小。
+    // 只要菜单被控制中心盖过一次, 回来时焦点就该停在右上角那颗按钮上: 用户就是从那儿
+    // 按进控制中心的, 退回来却落回某张卡片, 一路往回都得重走方向键。
+    var ccWasOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(controlCenterOpen) { if (controlCenterOpen) ccWasOpen = true }
     LaunchedEffect(visible) {
         if (visible) {
             // 一律落在当前直播卡片上。之前"从控制中心回来就落 pill"的那一支会失败:
@@ -267,6 +271,12 @@ fun LiveSourceMenu(
             showing = true
             snapshotFlow { alpha }.first { it >= 0.99f }
             justOpened = false
+            // 淡入结束、pill 重新使能之后再把焦点交到按钮上: 早一帧请求会被 canFocus 挡掉,
+            // 表现就是"没有焦点"。卡片那段只是过渡, 用户看不到它亮着停留。
+            if (ccWasOpen) {
+                ccWasOpen = false
+                runCatching { pillFocus.requestFocus() }
+            }
         } else {
             // 立刻开始淡出(animateFloatAsState 自己会演 500ms)。这里不再 clearFocus:
             // 焦点在关闭那一刻已经由 HomeScreen 恢复到原卡/胶囊; 淡出结束再强制清焦点,

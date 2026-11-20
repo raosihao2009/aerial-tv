@@ -1646,8 +1646,10 @@ fun HomeScreen(
         // 收起来的卡片不再用整屏弹层: 入口按钮按下去在个性化面板上浮出一个小窗口
         // (WallpaperSheet 里的 ListWindowLayer), 和选项小窗口同一套气泡。
 
+        // 面板里弹出的家长密码框盖在面板上: 输密码时面板不收起来, 输对了原地继续。
+        val panelBehindPin = overlay is Overlay.Pin && lastOverlay is Overlay.Wallpaper
         WallpaperSheet(
-            visible = overlay is Overlay.Wallpaper,
+            visible = overlay is Overlay.Wallpaper || panelBehindPin,
             onSettled = { sheetIn = it },
             warm = sheetWarm,
             onDismiss = { vm.overlay = Overlay.ControlCenter() },

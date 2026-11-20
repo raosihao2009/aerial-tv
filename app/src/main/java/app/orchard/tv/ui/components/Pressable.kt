@@ -72,6 +72,12 @@ fun Pressable(
     focusRequester: FocusRequester? = null,
     focusedScale: Float = 1.06f,
     onKey: ((KeyEvent) -> Boolean)? = null,
+    /**
+     * 焦点变化的同步回调: 在 onFocusChanged 里当场调, 和 state.focused 同一帧生效。
+     * 调用方如果靠 LaunchedEffect 拿这个信号, 外框/描边之类的联动会晚一帧以上,
+     * 看起来就是"按钮先亮, 描边后到"。
+     */
+    onFocusState: ((Boolean) -> Unit)? = null,
     content: @Composable BoxScope.(PressState) -> Unit,
 ) {
     val state = remember { PressState() }
@@ -95,6 +101,7 @@ fun Pressable(
             .onFocusChanged {
                 if (it.isFocused && !state.focused) Sounds.focusMoved()
                 state.focused = it.isFocused
+                onFocusState?.invoke(it.isFocused)
                 if (!it.isFocused) {
                     state.pressed = false
                     state.byKey = false

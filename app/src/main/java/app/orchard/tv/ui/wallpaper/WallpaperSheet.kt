@@ -303,12 +303,13 @@ fun WallpaperSheet(
         }
         // 迷你窗口画在最上层: 不用独立窗口, 焦点始终在入口按钮上。
         MenuWindowLayer(menuWindow)
+        // 小窗口里不再带标题行: 「隐藏的卡片·应用 / ·直播」那两行字去掉, 直接从第一张卡片开始。
         ListWindowLayer(
-            popupHost.apps, stringResource(R.string.st_hidden_apps_title),
+            popupHost.apps,
             stringResource(R.string.hidden_empty), hiddenApps.map { HiddenRow(it.key, it.label, it) },
         )
         ListWindowLayer(
-            popupHost.live, stringResource(R.string.st_hidden_live_title),
+            popupHost.live,
             stringResource(R.string.st_hidden_none), hiddenLiveSources.map { HiddenRow(it.id, it.name, live = it) },
         )
         }
@@ -945,10 +946,10 @@ private fun Cell(
     // 记"哪颗按钮在聚焦"。布尔值会在同一格里换按钮时被后到的 false 抹掉, 描边就消失一下。
     var focusOwner by remember { mutableStateOf<Any?>(null) }
     val focused = focusOwner != null
-    val borderWidth by animateFloatAsState(if (focused) 3f else 1f, tween(120, easing = Motion.EaseOut), label = "cell-border-width")
+    val borderWidth by animateFloatAsState(if (focused) 3f else 1f, tween(140, easing = Motion.EaseOut), label = "cell-border-width")
     val borderColor by animateColorAsState(
         if (focused) Palette.Focus else Palette.Hairline,
-        tween(120, easing = Motion.EaseOut), label = "cell-border-color",
+        tween(140, easing = Motion.EaseOut), label = "cell-border-color",
     )
     Column(
         modifier
@@ -995,8 +996,11 @@ private fun ChipButton(
     onKey: ((androidx.compose.ui.input.key.KeyEvent) -> Boolean)? = null,
 ) {
     val owner = remember { Any() }
-    Pressable(onClick = onClick, focusRequester = focusRequester, focusedScale = 1f, onKey = onKey) { state ->
-        LaunchedEffect(state.focused) { onFocus(owner, state.focused) }
+    Pressable(
+        onClick = onClick, focusRequester = focusRequester, focusedScale = 1f, onKey = onKey,
+        // 同步回调: 气泡描边和按钮自己的白底必须同一帧开始变, 走 LaunchedEffect 会晚一帧
+        onFocusState = { onFocus(owner, it) },
+    ) { state ->
         val bg by animateColorAsState(
             when {
                 state.focused -> Palette.Focus
@@ -1108,8 +1112,10 @@ private fun HiddenChip(entry: HiddenEntry, onFocus: (Any, Boolean) -> Unit) {
                             }
                             true
                         }
+                        // 左右键也不再顺手收起窗口(以前按一下就没了), 只响撞边音;
+                        // 收窗口统一用返回键。
                         NativeKeyEvent.KEYCODE_DPAD_LEFT,
-                        NativeKeyEvent.KEYCODE_DPAD_RIGHT,
+                        NativeKeyEvent.KEYCODE_DPAD_RIGHT -> { bump(e); true }
                         NativeKeyEvent.KEYCODE_BACK -> {
                             if (down) window.hide()
                             true
@@ -1325,8 +1331,11 @@ private fun <T> MenuCell(
                                         }
                                         true
                                     }
-                                    NativeKeyEvent.KEYCODE_DPAD_UP -> { bump(e); true }
-                                    NativeKeyEvent.KEYCODE_DPAD_DOWN,
+                                    // 方向键只用来在窗口里换选项, 不再顺手关窗口:
+                                    // 上下都一样是撞边提示音(以前下键会直接收起, 往上按一格
+                                    // 就没了, 想看完所有选项只能重开)。
+                                    NativeKeyEvent.KEYCODE_DPAD_UP,
+                                    NativeKeyEvent.KEYCODE_DPAD_DOWN -> { bump(e); true }
                                     NativeKeyEvent.KEYCODE_BACK -> {
                                         if (down) window.hide()
                                         true
@@ -1522,7 +1531,6 @@ private fun LiveRowIcon(source: LiveSource, modifier: Modifier = Modifier) {
 @Composable
 private fun ListWindowLayer(
     window: ListWindow,
-    title: String,
     empty: String,
     items: List<HiddenRow>,
 ) {
@@ -1604,12 +1612,9 @@ private fun ListWindowLayer(
                     tailX = { with(density) { (ax - x).toDp() } },
                 ),
         ) {
-            Column(Modifier.width(300.dp).padding(start = 12.dp, end = 12.dp, top = 12.dp)) {
-                BasicText(
-                    title, style = Type.Caption.copy(color = Palette.SecondaryLabel),
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.height(8.dp))
+            Column(Modifier.width(300.dp).padding(start = 12.dp, end = 12.dp, top = 10.dp)) {
+                // 标题行去掉了, 顶部留一点内边距就够。
+                Spacer(Modifier.height(2.dp))
                 if (items.isEmpty()) {
                     BasicText(
                         empty, style = Type.Body.copy(color = Palette.TertiaryLabel),
@@ -1622,10 +1627,14 @@ private fun ListWindowLayer(
                     ) {
                         items.forEachIndexed { i, item ->
                             val lit = i == window.index
-                            val bg by animateColorAsState(
-                                if (lit) Palette.Focus else Palette.Fill,
+                            // 一个进度同时驱动"行高亮""图标描边""文字颜色": 以前行底色是 120ms
+                            // 渐变的, 而图标那圈描边是布尔值直接跳, 看起来就是描边先亮、底色后到。
+                            val t by animateFloatAsState(
+                                if (lit) 1f else 0f,
                                 tween(120, easing = Motion.EaseOut), label = "list-row",
                             )
+                            val bg = androidx.compose.ui.graphics.lerp(Palette.Fill, Palette.Focus, t)
+                            val fg = androidx.compose.ui.graphics.lerp(Palette.Label, Palette.OnFocus, t)
                             Row(
                                 Modifier
                                     .fillMaxWidth()
@@ -1639,7 +1648,7 @@ private fun ListWindowLayer(
                                 // 图标要在: 应用用首页那块切好的图标, 直播源给一颗播放图标。
                                 val iconBox = Modifier.size(44.dp, 25.dp)
                                 when {
-                                    item.app != null -> MiniTile(item.app, lit, iconBox)
+                                    item.app != null -> MiniTile(item.app, lit, iconBox, focusT = t)
                                     item.live != null -> LiveRowIcon(item.live, iconBox)
                                     else -> Box(
                                         iconBox.clip(RoundedCornerShape(6.dp)).drawBehind { drawRect(Palette.FillStrong) },
@@ -1648,7 +1657,7 @@ private fun ListWindowLayer(
                                 }
                                 BasicText(
                                     item.label,
-                                    style = Type.Body.copy(color = if (lit) Palette.OnFocus else Palette.Label),
+                                    style = Type.Body.copy(color = fg),
                                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 )
                             }

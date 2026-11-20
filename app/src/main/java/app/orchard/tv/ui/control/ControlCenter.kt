@@ -367,7 +367,9 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
             // 铅笔太细, 远看就是一根小棍; 人像粗、和上面的系统设置齿轮也不撞。
             Glyph.Person,
             stringResource(R.string.cc_personalize),
-            onClick = { vm.overlay = Overlay.Wallpaper },
+            // 设了家长密码就得先输密码: 这里面能关儿童模式的限制、也能把卡片放回来,
+            // 以前是直接进的, 等于密码形同虚设。
+            onClick = { vm.whenUnlocked { vm.overlay = Overlay.Wallpaper } },
         )
         // 手动查一次: 不跳页, 结论落在底部那行状态("Aerial x · 已是最新 / 检查更新失败")。
         // 查到新版后这一行自己变成"有新版本 3.xx", 按下去直接进更新页下载, 不再多出一条入口。

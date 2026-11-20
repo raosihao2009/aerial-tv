@@ -335,7 +335,14 @@ private val MiniCorner = 10.dp
 
 /** A small, flat copy of a tile for lists. */
 @Composable
-fun MiniTile(app: AppEntry, focused: Boolean, modifier: Modifier = Modifier) {
+fun MiniTile(
+    app: AppEntry,
+    focused: Boolean,
+    modifier: Modifier = Modifier,
+    // 描边跟着调用方的焦点进度走: 列表行是 120ms 渐变的, 这里要是直接按布尔跳,
+    // 描边会比行高亮早一步出现。
+    focusT: Float = if (focused) 1f else 0f,
+) {
     // As AppTile: the artwork cut to the continuous outline once, in the background, and until then
     // drawn as it is inside the layer's plain rounded clip, which holds the outline.
     var px by remember { mutableStateOf(IntSize.Zero) }
@@ -349,7 +356,11 @@ fun MiniTile(app: AppEntry, focused: Boolean, modifier: Modifier = Modifier) {
         modifier
             .onSizeChanged { px = it }
             .clip(RoundedCornerShape(MiniCorner))
-            .smoothBorder(if (focused) 2.dp else 1.dp, if (focused) Palette.Focus else Palette.Hairline, MiniCorner),
+            .smoothBorder(
+                androidx.compose.ui.unit.lerp(1.dp, 2.dp, focusT),
+                androidx.compose.ui.graphics.lerp(Palette.Hairline, Palette.Focus, focusT),
+                MiniCorner,
+            ),
     ) {
         drawImage(face ?: app.art.back, dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()), filterQuality = FilterQuality.Medium)
         app.art.fore?.let {
