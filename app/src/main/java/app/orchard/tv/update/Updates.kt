@@ -818,9 +818,12 @@ object Updates {
     }
 
     /**
-     * GitHub 立刻开始下, 镜像清单同时去查: 查到就再开一路, 谁先下完且校验通过就用谁。
-     * 以前是先等镜像清单(两条源各试两次, 最长几十秒), 这段时间界面一直停在 0%, 看起来像卡住。
-     * 进度取两路里最大的那个, 所以不管走哪条都会动。
+     * 有镜像就只走镜像一条路, 没有才走 GitHub。
+     *
+     * 3.22 起是 GitHub 先开跑、查到镜像清单再开第二路竞速, 谁先下完用谁。在这台低端的
+     * Allwinner 上, 两路 TLS 会把带宽对半分、各自写一个 6.5MB 临时文件, 胜出的那一路还要再
+     * copy 一份到正式文件 —— 等于同一份数据写两遍盘, 比单路慢出一截。镜像清单本来就是国内
+     * CDN, 单路就能吃满带宽, 所以现在先等清单: 查到就只下镜像, 失败/卡死再回落 GitHub。
      */
     private suspend fun downloadFrom(context: Context, file: File): PackageInfo? {
         testApk?.takeIf { it.isFile }?.let { test ->
@@ -830,88 +833,43 @@ object Updates {
             return verify(context, file)
         }
         val name = "AerialTV-${BuildConfig.FLAVOR}.apk"
-        val directory = checkNotNull(file.parentFile)
-        val progressLock = Any()
-        var bestPercent = -1
+        var best = -1
         val report: suspend (Int) -> Unit = { pct ->
-            val shown = synchronized(progressLock) {
-                if (pct > bestPercent) { bestPercent = pct; pct } else null
-            }
-            if (shown != null) {
-                progressAt = SystemClock.elapsedRealtime()
+            if (pct > best) {
+                best = pct
                 withContext(Dispatchers.Main) {
                     if (install is Install.Downloading) {
                         // 100% 时立刻转成"等待", 后面还有校验和安装, 不再把 100% 挂在那儿。
-                        install = if (shown >= 100) Install.Waiting else Install.Downloading(shown / 100f)
+                        install = if (pct >= 100) Install.Waiting else Install.Downloading(pct / 100f)
                     }
                 }
             }
         }
-        return coroutineScope {
-            val results = Channel<Pair<String, File?>>(Channel.UNLIMITED)
-            val targets = mutableListOf<File>()
-            fun start(label: String, url: String) {
-                val target = File(directory, "${file.nameWithoutExtension}-${targets.size}.apk")
-                targets += target
-                launch(Dispatchers.IO) {
-                    DiagLog.i("更新下载: 试$label 源")
-                    val started = SystemClock.elapsedRealtime()
-                    // GitHub 在国内多半连不上, 连接超时按 6 秒算, 不陪它等满 10 秒。
-                    val ok = runCatching { download(url, target, report, if (label == "GitHub") 6_000 else 10_000) }
-                        .onFailure {
-                            Log.w(TAG, "could not download $url", it)
-                            DiagLog.i("更新下载: $label 源失败 ${it.message ?: it.javaClass.simpleName}")
-                        }
-                        .isSuccess
-                    if (ok) DiagLog.i("更新下载: $label 源下完, 用时 ${(SystemClock.elapsedRealtime() - started) / 1000}s")
-                    results.send(label to if (ok) target else null)
+        val github = "$BASE/$name"
+        val mirror = runCatching { mirrorFor(BuildConfig.FLAVOR) }
+            .onFailure { Log.i(TAG, "mirror lookup: ${it.javaClass.simpleName}") }
+            .getOrNull()
+            ?.takeIf { it != github }
+        if (mirror == null) DiagLog.i("更新下载: 没有镜像清单, 只走 GitHub")
+        val order = if (mirror != null) listOf("镜像" to mirror, "GitHub" to github) else listOf("GitHub" to github)
+        for ((label, url) in order) {
+            DiagLog.i("更新下载: 试$label 源")
+            val started = SystemClock.elapsedRealtime()
+            // GitHub 在国内多半连不上, 连接超时按 6 秒算, 不陪它等满 10 秒。
+            val ok = runCatching { download(url, file, report, if (label == "GitHub") 6_000 else 10_000) }
+                .onFailure {
+                    Log.w(TAG, "could not download $url", it)
+                    DiagLog.i("更新下载: $label 源失败 ${it.message ?: it.javaClass.simpleName}")
                 }
-            }
-            // GitHub 先开跑, 不等镜像清单。
-            start("GitHub", "$BASE/$name")
-            // 镜像那一行: 查到就再开一路, 查不到就回一个空结果让循环照样结束。
-            launch(Dispatchers.IO) {
-                val mirror = runCatching { mirrorFor(BuildConfig.FLAVOR) }
-                    .onFailure { Log.i(TAG, "mirror lookup: ${it.javaClass.simpleName}") }
-                    .getOrNull()
-                if (mirror == null) {
-                    DiagLog.i("更新下载: 没有镜像清单, 只走 GitHub")
-                    results.send("镜像" to null)
-                } else if (mirror == "$BASE/$name") {
-                    results.send("镜像" to null)
-                } else {
-                    start("镜像", mirror)
-                }
-            }
-            var winner: Pair<String, File>? = null
-            var received = 0
-            while (received < 2 && winner == null) {
-                val (label, target) = results.receive()
-                received++
-                if (target == null) continue
-                if (verify(context, target) == null) {
-                    DiagLog.i("更新下载: $label 源下完但校验不过")
-                    target.delete()
-                    continue
-                }
-                winner = label to target
-            }
-            // 全部子任务都结束(胜出的那一路除外), 别让另一条慢慢写完。
-            coroutineContext.cancelChildren()
-            val kept = winner
-            if (kept == null) {
-                targets.forEach { it.delete() }
-                DiagLog.i("更新下载: 所有源都失败")
-                null
-            } else {
-                kept.second.copyTo(file, overwrite = true)
-                if (Build.VERSION.SDK_INT < 24) file.setReadable(true, false)
-                targets.forEach { if (it != kept.second) it.delete() }
-                kept.second.delete()
-                DiagLog.i("更新下载: ${kept.first} 源完成")
-                verify(context, file)
+                .isSuccess
+            if (ok) {
+                DiagLog.i("更新下载: $label 源下完, 用时 ${(SystemClock.elapsedRealtime() - started) / 1000}s")
+                return verify(context, file)
             }
         }
+        DiagLog.i("更新下载: 所有源都失败")
+        file.delete()
+        return null
     }
 
     private suspend fun download(

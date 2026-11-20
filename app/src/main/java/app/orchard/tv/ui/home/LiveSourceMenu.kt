@@ -598,9 +598,11 @@ fun LiveSourceMenu(
                         // 否则焦点跑到控制中心按钮上时这张卡片还一直保持放大。
                         // 上下文菜单(menuForId)打开期间, 被点开的那张卡被禁用、真实焦点丢失,
                         // 这里继续把它算作选中, 否则菜单一弹出卡片就缩回(和一级 AppMenu 对齐)。
-                        preFocus = source.id == focusedId && (alpha < 0.99f || menuForId == source.id),
+                        // 淡出期间也一直按选中尺寸画: 关菜单时焦点先离开卡片, 这一帧要是放手,
+                        // 卡片就会边淡出边缩一下(和一级菜单对齐)。
+                        preFocus = source.id == focusedId && (alpha < 0.99f || !visible || menuForId == source.id),
                         // 上下文菜单打开/收起期间缩放直接跳到位, 不演缩小弹簧。
-                        snapScale = menuForId == source.id,
+                        snapScale = menuForId == source.id || !visible,
                         // 淡出走卡片自己的 opacity(和一级菜单 saverFade 同一处), 不用外层 alpha:
                         // 外层 alpha 会让卡片走离屏合成, 32dp 圆角在这段时间里会丢掉, 只剩方角
                         opacity = { (if (shifted in -1..1) 1f else 0f) * (1f - cardFade) },

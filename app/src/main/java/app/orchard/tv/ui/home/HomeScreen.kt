@@ -365,6 +365,10 @@ fun HomeScreen(
     // 网格里也只让它可聚焦(见 restoreHold) —— 面板节点撤掉的那一帧, Compose 重新搜焦点时
     // 唯一的目标就是它, 不会先点亮首卡。
     var restoringFocus by remember { mutableStateOf(false) }
+    // 浮层刚关掉的那 260ms 仍然算"过渡期": 恢复效果跑完到 focusedKey 稳定之间可能还差一两帧,
+    // 这一段里如果 snapScale 已经撤掉, 卡片就会按弹簧缩一下再弹回来 —— 用户看到的就是
+    // "二级菜单关闭时焦点卡片短暂缩小"。留着这段静置, 任何迟到的状态变化都直接跳到位。
+    var overlaySettling by remember { mutableStateOf(false) }
     // 组合第一次进入时记下是不是冷启动: 冷启动才让首卡自己抢焦点, 热启动保留原焦点。
     val coldStart = remember { !BootVeil.desktopShown }
     val columns = AerialSettings.homeColumns
@@ -633,6 +637,14 @@ fun HomeScreen(
     // 快照不能在 overlay 回 None 的同帧清掉 —— 恢复效果也在这一帧跑, 先清就读不到了;
     // 等恢复效果用完再清。
     LaunchedEffect(overlay) {
+        if (overlay == Overlay.None) {
+            if (overlaySettling) {
+                kotlinx.coroutines.delay(260)
+                overlaySettling = false
+            }
+        } else {
+            overlaySettling = true
+        }
         if (overlay != Overlay.None) {
             lastOverlay = overlay
             if (savedOverlayKey == null) {
@@ -702,6 +714,11 @@ fun HomeScreen(
                 tries++
             }
         }
+        // 焦点已经到位, 但卡片自己的 focused 状态要到下一帧才被 onFocusChanged 写进来:
+        // 这一帧就撤掉过渡的话, 卡片会按"没选中"算一次弹簧缩小。多等一帧再收工。
+        withFrameNanos { }
+        withFrameNanos { }
+        DiagLog.i("控制中心调试: 浮层恢复完成 focused=$focusedKey")
         restoringFocus = false
         savedOverlayKey = null
         savedOverlayIndex = 0
@@ -1327,9 +1344,9 @@ fun HomeScreen(
                             // 它会先缩回, 关掉菜单再放大, 看到"短暂缩小一下"。缩放也不演过渡,
                             // 状态跳变直接到位。只在这种浮层是从卡片上打开时才算: 从右上角控制中心
                             // 按钮打开的情况下, 上一次停留的卡片不该突然亮起来。
-                            preFocus = (overlay != Overlay.None || restoringFocus) && overlayFromCard &&
+                            preFocus = (overlay != Overlay.None || restoringFocus || overlaySettling) && overlayFromCard &&
                                 app.key == savedOverlayKey,
-                            snapScale = overlay != Overlay.None || restoringFocus,
+                            snapScale = overlay != Overlay.None || restoringFocus || overlaySettling,
                             autoFocus = coldStart && index == 0,
                             bootStable = vm.bootStable,
                             opacity = { 1f - saverFade() },
