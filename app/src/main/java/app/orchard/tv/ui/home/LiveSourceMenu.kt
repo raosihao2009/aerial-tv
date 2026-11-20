@@ -299,7 +299,9 @@ fun LiveSourceMenu(
                 snapshotFlow { alpha }.first { it <= 0.01f }
                 justOpened = true
                 returnToPill = false
-                ccWasOpen = false
+                // 因为控制中心盖上来而退场的, 要记住"这次被它盖过", 关掉之后焦点才回按钮;
+                // 真正关菜单回桌面才清掉这个记忆。
+                if (!controlCenterOpen) ccWasOpen = false
                 openDone = false
             }
             controlCenterOpen -> {
