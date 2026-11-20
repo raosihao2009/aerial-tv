@@ -1,6 +1,7 @@
 package app.orchard.tv.ui.wallpaper
 
 import android.os.Build
+import app.orchard.tv.apps.AppEntry
 import android.os.SystemClock
 import android.view.KeyEvent as NativeKeyEvent
 import androidx.activity.compose.BackHandler
@@ -137,6 +138,7 @@ import app.orchard.tv.wallpaper.WallpaperKind
 import app.orchard.tv.wallpaper.Wallpapers
 import app.orchard.tv.weather.Weather
 import app.orchard.tv.weather.WeatherKind
+import app.orchard.tv.ui.home.MiniTile
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -153,12 +155,8 @@ import androidx.compose.ui.geometry.Size
 fun WallpaperSheet(
     visible: Boolean,
     onDismiss: () -> Unit,
-    hiddenCount: Int,
-    onHiddenApps: () -> Unit,
-    hiddenLiveCount: Int = 0,
-    onHiddenLiveSources: () -> Unit = {},
-    /** 收起来的卡片: (键, 名字)。面板里那颗入口按钮按下去浮出一个小窗口列出它们。 */
-    hiddenApps: List<Pair<String, String>> = emptyList(),
+    /** 收起来的卡片。入口按钮按下去浮出一个列出它们的小窗口, 和首页一样带应用图标。 */
+    hiddenApps: List<AppEntry> = emptyList(),
     hiddenLiveSources: List<Pair<String, String>> = emptyList(),
     onUnhideApp: (String) -> Unit = {},
     onUnhideLiveSource: (String) -> Unit = {},
@@ -273,8 +271,7 @@ fun WallpaperSheet(
                 Spacer(Modifier.height(18.dp))
                 CategoryTitle(Glyph.Home, R.string.per_home)
                 HomeSection(
-                    hiddenCount, hiddenLiveCount, hiddenApps, hiddenLiveSources,
-                    onUnhideApp, onUnhideLiveSource, onHomeLock,
+                    hiddenApps, hiddenLiveSources, onUnhideApp, onUnhideLiveSource, onHomeLock,
                 )
                 Spacer(Modifier.height(18.dp))
                 CategoryTitle(Glyph.Play, R.string.per_live)
@@ -305,11 +302,11 @@ fun WallpaperSheet(
         MenuWindowLayer(menuWindow)
         ListWindowLayer(
             popupHost.apps, stringResource(R.string.st_hidden_apps_title),
-            stringResource(R.string.hidden_empty), hiddenApps,
+            stringResource(R.string.hidden_empty), hiddenApps.map { HiddenRow(it.key, it.label, it) },
         )
         ListWindowLayer(
             popupHost.live, stringResource(R.string.st_hidden_live_title),
-            stringResource(R.string.st_hidden_none), hiddenLiveSources,
+            stringResource(R.string.st_hidden_none), hiddenLiveSources.map { HiddenRow(it.first, it.second) },
         )
         }
     }
@@ -389,19 +386,17 @@ private fun WallpaperSection(takeFocus: Boolean) {
 /** 主屏幕: 怎么摆、叫什么、露多少、哪些卡片收起来了。 */
 @Composable
 private fun HomeSection(
-    hiddenCount: Int,
-    hiddenLiveCount: Int,
-    hiddenApps: List<Pair<String, String>>,
+    hiddenApps: List<AppEntry>,
     hiddenLiveSources: List<Pair<String, String>>,
     onUnhideApp: (String) -> Unit,
     onUnhideLiveSource: (String) -> Unit,
     onHomeLock: (on: Boolean) -> Unit,
 ) {
     val popup = LocalPopupHost.current
-    val appsChip = if (hiddenCount == 0) stringResource(R.string.st_hidden_app_none)
-    else stringResource(R.string.st_hidden_app_count, hiddenCount)
-    val liveChip = if (hiddenLiveCount == 0) stringResource(R.string.st_hidden_live_none)
-    else stringResource(R.string.st_hidden_live_count, hiddenLiveCount)
+    val appsChip = if (hiddenApps.isEmpty()) stringResource(R.string.st_hidden_app_none)
+    else stringResource(R.string.st_hidden_app_count, hiddenApps.size)
+    val liveChip = if (hiddenLiveSources.isEmpty()) stringResource(R.string.st_hidden_live_none)
+    else stringResource(R.string.st_hidden_live_count, hiddenLiveSources.size)
     Group {
         Row2(
             {
@@ -455,15 +450,19 @@ private fun HomeSection(
         )
         Row2(
             {
-                HiddenChipCell(
-                    R.string.st_hidden, stringResource(R.string.st_hidden_hint), appsChip,
-                    popup?.apps, hiddenApps, onUnhideApp,
-                )
-            },
-            {
-                HiddenChipCell(
-                    R.string.st_hidden_live, stringResource(R.string.st_hidden_live_hint), liveChip,
-                    popup?.live, hiddenLiveSources, onUnhideLiveSource,
+                // 一颗格子两颗按钮(应用 / 直播), 各自开自己的小窗口, 不拆成两格。
+                HiddenCell(
+                    R.string.st_hidden, stringResource(R.string.st_hidden_hint),
+                    listOf(
+                        HiddenEntry(
+                            popup?.apps, appsChip,
+                            hiddenApps.map { HiddenRow(it.key, it.label, it) }, onUnhideApp,
+                        ),
+                        HiddenEntry(
+                            popup?.live, liveChip,
+                            hiddenLiveSources.map { HiddenRow(it.first, it.second) }, onUnhideLiveSource,
+                        ),
+                    ),
                 )
             },
         )
@@ -1046,20 +1045,28 @@ private fun <T> ChoiceCell(
 }
 
 /**
- * 「隐藏的卡片」的入口格子: 一颗"数量 + >"的按钮, 按下去在它上面浮出小窗口列出收起来的卡片。
- * 窗口开着的时候按键全在这颗按钮里处理(焦点从没离开过它), 上下键换一张, OK 放回桌面,
- * 左右或返回收起 —— 和横向的选项窗口刚好对齐(那边是左右换、下键收)。
+ * 「隐藏的卡片」的入口格子: 一颗格子两颗"数量 + >"的按钮(应用和直播), 按下去各自在自己上面
+ * 浮出一个小窗口列出收起来的卡片。窗口开着的时候按键全在那颗按钮里处理(焦点从没离开过它),
+ * 上下键换一张, OK 放回桌面, 左右或返回收起 —— 和横向的选项窗口刚好对齐(那边是左右换、下键收)。
  */
 @Composable
-private fun HiddenChipCell(
+private fun HiddenCell(
     label: Int,
     hint: String?,
-    chipText: String,
-    window: ListWindow?,
-    items: List<Pair<String, String>>,
-    onPick: (String) -> Unit,
+    entries: List<HiddenEntry>,
     modifier: Modifier = Modifier,
 ) {
+    Cell(label, hint, modifier) { onFocus ->
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            entries.forEach { entry -> HiddenChip(entry, onFocus) }
+        }
+    }
+}
+
+/** 一颗入口按钮: 它开自己那个窗口, 按键也归它管, 三角对准的就是它自己。 */
+@Composable
+private fun HiddenChip(entry: HiddenEntry, onFocus: (Any, Boolean) -> Unit) {
+    val window = entry.window
     var chipTop by remember { mutableStateOf(0f) }
     var chipCenterX by remember { mutableStateOf(0f) }
 
@@ -1067,64 +1074,60 @@ private fun HiddenChipCell(
         if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0) Sounds.limit()
     }
 
-    Box {
-        Cell(label, hint, modifier) { onFocus ->
-            Box(
-                Modifier.onGloballyPositioned { c ->
-                    val b = c.boundsInRoot()
-                    chipTop = b.top
-                    chipCenterX = b.center.x
-                },
-            ) {
-                ChipButton(
-                    chipText,
-                    on = false, chevron = true, check = false,
-                    onClick = { window?.show(chipCenterX, chipTop, onPick) },
-                    onFocus = onFocus,
-                    onKey = { e ->
-                        if (window == null || !window.open) {
-                            false
-                        } else {
-                            val down = e.type == KeyEventType.KeyDown
-                            val last = items.lastIndex
-                            when (e.nativeKeyEvent.keyCode) {
-                                NativeKeyEvent.KEYCODE_DPAD_UP -> {
-                                    if (down) {
-                                        if (window.index > 0) { window.index--; Sounds.focusMoved() } else bump(e)
-                                    }
-                                    true
-                                }
-                                NativeKeyEvent.KEYCODE_DPAD_DOWN -> {
-                                    if (down) {
-                                        if (window.index < last) { window.index++; Sounds.focusMoved() } else bump(e)
-                                    }
-                                    true
-                                }
-                                NativeKeyEvent.KEYCODE_DPAD_LEFT,
-                                NativeKeyEvent.KEYCODE_DPAD_RIGHT,
-                                NativeKeyEvent.KEYCODE_BACK -> {
-                                    if (down) window.hide()
-                                    true
-                                }
-                                NativeKeyEvent.KEYCODE_DPAD_CENTER,
-                                NativeKeyEvent.KEYCODE_ENTER,
-                                NativeKeyEvent.KEYCODE_NUMPAD_ENTER -> {
-                                    // 打开它的那一下, 抬手也可能落在这里, 别顺手就把卡片放回去了。
-                                    if (down && SystemClock.uptimeMillis() - window.openedAt > 350) {
-                                        items.getOrNull(window.index)?.let {
-                                            Sounds.select()
-                                            window.pick(it.first)
-                                        }
-                                    }
-                                    true
-                                }
-                                else -> false
+    Box(
+        Modifier.onGloballyPositioned { c ->
+            val b = c.boundsInRoot()
+            chipTop = b.top
+            chipCenterX = b.center.x
+        },
+    ) {
+        ChipButton(
+            entry.chipText,
+            on = false, chevron = true, check = false,
+            onClick = { window?.show(chipCenterX, chipTop, entry.onPick) },
+            onFocus = onFocus,
+            onKey = { e ->
+                if (window == null || !window.open) {
+                    false
+                } else {
+                    val down = e.type == KeyEventType.KeyDown
+                    val last = entry.rows.lastIndex
+                    when (e.nativeKeyEvent.keyCode) {
+                        NativeKeyEvent.KEYCODE_DPAD_UP -> {
+                            if (down) {
+                                if (window.index > 0) { window.index--; Sounds.focusMoved() } else bump(e)
                             }
+                            true
                         }
-                    },
-                )
-            }
-        }
+                        NativeKeyEvent.KEYCODE_DPAD_DOWN -> {
+                            if (down) {
+                                if (window.index < last) { window.index++; Sounds.focusMoved() } else bump(e)
+                            }
+                            true
+                        }
+                        NativeKeyEvent.KEYCODE_DPAD_LEFT,
+                        NativeKeyEvent.KEYCODE_DPAD_RIGHT,
+                        NativeKeyEvent.KEYCODE_BACK -> {
+                            if (down) window.hide()
+                            true
+                        }
+                        NativeKeyEvent.KEYCODE_DPAD_CENTER,
+                        NativeKeyEvent.KEYCODE_ENTER,
+                        NativeKeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                            // 打开它的那一下, 抬手也可能落在这里, 别顺手就把卡片放回去了。
+                            if (down && SystemClock.uptimeMillis() - window.openedAt > 350) {
+                                entry.rows.getOrNull(window.index)?.let {
+                                    Sounds.select()
+                                    window.pick(it.key)
+                                }
+                            }
+                            true
+                        }
+                        else -> false
+                    }
+                }
+            },
+        )
     }
 }
 
@@ -1223,6 +1226,17 @@ private class ListWindow {
 
     fun hide() { open = false }
 }
+
+/** 小窗口里的一行: 应用带首页那块图标, 直播源只有名字(前面一颗播放图标)。 */
+private class HiddenRow(val key: String, val label: String, val app: AppEntry? = null)
+
+/** 一颗格子里的一个入口按钮: 它自己那颗窗口、里面列的行、放回去要调用谁。 */
+private class HiddenEntry(
+    val window: ListWindow?,
+    val chipText: String,
+    val rows: List<HiddenRow>,
+    val onPick: (String) -> Unit,
+)
 
 /** 面板里两颗入口各自一个小窗口, 一块提供下去。 */
 private class PopupHost {
@@ -1464,7 +1478,7 @@ private fun ListWindowLayer(
     window: ListWindow,
     title: String,
     empty: String,
-    items: List<Pair<String, String>>,
+    items: List<HiddenRow>,
 ) {
     val tailH = MiniTailHeight
     val gap = 10.dp
@@ -1572,12 +1586,23 @@ private fun ListWindowLayer(
                                     .clip(RoundedCornerShape(50))
                                     .drawBehind { drawRect(bg) }
                                     .height(rowH)
-                                    .padding(horizontal = 11.dp),
+                                    .padding(horizontal = 9.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(9.dp),
                             ) {
+                                // 图标要在: 应用用首页那块切好的图标, 直播源给一颗播放图标。
+                                val iconBox = Modifier.size(44.dp, 25.dp)
+                                val app = item.app
+                                if (app != null) {
+                                    MiniTile(app, lit, iconBox)
+                                } else {
+                                    Box(
+                                        iconBox.clip(RoundedCornerShape(6.dp)).drawBehind { drawRect(Palette.FillStrong) },
+                                        contentAlignment = Alignment.Center,
+                                    ) { GlyphIcon(Glyph.Play, if (lit) Palette.OnFocus else Palette.Label, 13.dp) }
+                                }
                                 BasicText(
-                                    item.second,
+                                    item.label,
                                     style = Type.Body.copy(color = if (lit) Palette.OnFocus else Palette.Label),
                                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 )
