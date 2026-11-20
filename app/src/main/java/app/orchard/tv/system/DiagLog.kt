@@ -33,8 +33,10 @@ object DiagLog {
     /** 内存里最多留这么多行; 只在日志暴涨时才会先到这条线, 正常一天差得远。 */
     private const val MAX_LINES = 20_000
 
-    /** 单日文件上限: 超过就不再写, 不让某一天把存储写满。 */
-    private const val DAY_FILE_LIMIT = 64L * 1024 * 1024
+    /** 单日文件上限: 到了就滚一份 .1 出来, 不让某一天把存储写满。 */
+    private const val DAY_FILE_LIMIT = 32L * 1024 * 1024
+    /** 直播事件日志上限: 只记关键事件, 一天差得远。 */
+    private const val EVENT_FILE_LIMIT = 512L * 1024
 
     private class Entry(val at: Long, val text: String)
 
@@ -46,6 +48,8 @@ object DiagLog {
     private val stamp = SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US)
     private val dayStamp = SimpleDateFormat("yyyyMMdd", Locale.US)
     @Volatile private var fileOn = false
+    /** 本进程今天已经往日文件写过: 文件忽然不见就知道是被删了, 而不是刚创建。 */
+    @Volatile private var wroteToday = false
     @Volatile private var dayKey: String? = null
     @Volatile private var dayFile: File? = null
     // 日期字符串 30 秒才重算一次: 每行都格式化一次太贵, 而 SimpleDateFormat 又不能跨线程用。
@@ -81,18 +85,32 @@ object DiagLog {
     fun setOption(context: Context, key: String, on: Boolean) = prefs(context).edit().putBoolean(key, on).apply()
     private fun prefs(context: Context) = context.getSharedPreferences("system", Context.MODE_PRIVATE)
 
-    /** Directory of the logs; set on the first [init] even when the log file itself is off. */
+    /**
+     * Directory of the logs; set on the first [init] even when the log file itself is off.
+     *
+     * 放在应用私有目录(filesDir/diag), 不再放 Android/data: 那是"外部存储", 盒子上装着的
+     * 清理工具(当贝助手之类)和系统存储管理可以直接把 Android/data/<包名>/files 里的文件删掉。
+     * 2026-11-20 就是这个: 上午几个小时的日志连同启动行一起没了, 盘上那份文件从 12:38:27 才开始,
+     * 而同一个进程 12:38:04 就起来了 —— 中间被清空过, 我们的 24 小时轮换管不了别人删文件。
+     * filesDir 是应用私有目录, 没有别的应用能碰。
+     */
     @Volatile private var dir: File? = null
 
+    /** 旧版日志所在的 Android/data 目录: 导出时一并带上, 免得升级当天丢掉还在里面的那半天。 */
+    @Volatile private var legacyDir: File? = null
+
     fun init(context: Context) {
-        if (dir == null) dir = context.getExternalFilesDir(null) ?: context.filesDir
+        if (dir == null) {
+            dir = File(context.filesDir, "diag").also { runCatching { it.mkdirs() } }
+            legacyDir = context.getExternalFilesDir(null)
+        }
         fileOn = enabled(context)
         i("log file ${dailyFile(System.currentTimeMillis())?.absolutePath}")
     }
 
     /** 诊断日志所在目录; 别的模块(备份导入)往这里写独立记录, 导出日志时一并带出。 */
     fun dirOf(context: Context): File =
-        dir ?: (context.getExternalFilesDir(null) ?: context.filesDir).also { dir = it }
+        dir ?: File(context.filesDir, "diag").also { dir = it; runCatching { it.mkdirs() } }
 
     fun i(message: String) {
         Log.i(TAG, message)
@@ -109,8 +127,22 @@ object DiagLog {
         val f = dailyFile(now) ?: return
         writer.execute {
             runCatching {
-                if (f.length() > DAY_FILE_LIMIT) return@runCatching
+                // 超过上限就滚一份旧的出来(.1), 而不是干脆不写: 停在半路比写满更难查。
+                if (f.length() > DAY_FILE_LIMIT) {
+                    val old = File(f.path + ".1")
+                    runCatching { old.delete() }
+                    runCatching { f.renameTo(old) }
+                }
                 val fresh = !f.exists()
+                if (fresh) {
+                    // 当天的文件本该一直在: 它忽然不存在, 就是被外部删掉了, 写一行说明, 免得
+                    // 下次又对着一份"从半路开始"的日志猜。
+                    if (wroteToday) {
+                        f.appendText("${stamp.format(Date(now))} +${SystemClock.uptimeMillis()} " +
+                            "---- 日志文件曾被外部删除, 已重建; 之前的内容已丢失 ----\n")
+                    }
+                    wroteToday = true
+                }
                 f.appendText(line + "\n")
                 // Created 0600 on Xiaomi MiTV-MFTR0 (Android 14), which adb pull could not read.
                 if (fresh) f.setReadable(true, false)
@@ -152,6 +184,43 @@ object DiagLog {
 
     /** The last [n] lines of this process, oldest first. */
     fun recent(n: Int): List<String> = synchronized(lines) { lines.map { it.text }.takeLast(n) }
+
+    /**
+     * 只记"看直播时会关心的事": 重载、重连、换源、播放器出错、网络不通。
+     * 一天几十行, 单独一个文件, 和每分钟好几条的诊断日志分开 —— 出门一趟回来问
+     * "几点重载过", 翻这份就够了, 也不会被大日志的上限或轮换吃掉。
+     */
+    fun event(message: String) {
+        i(message)
+        val now = System.currentTimeMillis()
+        val d = dir ?: return
+        writer.execute {
+            runCatching {
+                val key = currentDay(now)
+                val f = File(d, "live-events-$key.log")
+                if (f.length() > EVENT_FILE_LIMIT) runCatching { f.delete() }
+                val fresh = !f.exists()
+                f.appendText("${stamp.format(Date(now))} $message\n")
+                if (fresh) f.setReadable(true, false)
+                d.listFiles { x -> x.name.startsWith("live-events-") }?.forEach { x ->
+                    val day = Regex("live-events-(\\d{8}).log").find(x.name)?.groupValues?.get(1)
+                    if (day != null && day != key && day != olderKey(key)) x.delete()
+                }
+            }
+        }
+    }
+
+    /** 直播事件日志的内容, 给"显示日志文件"用。 */
+    fun eventsText(): String {
+        val d = dir ?: return ""
+        val files = d.listFiles { f -> f.name.startsWith("live-events-") }?.sortedBy { it.name }.orEmpty()
+        return buildString {
+            files.forEach { each ->
+                appendLine("---- ${each.name} (${each.length()} bytes) ----")
+                runCatching { append(each.readText()) }
+            }
+        }
+    }
 
     fun dump(writer: PrintWriter) {
         writer.println("Aerial log (${device()}):")
@@ -207,7 +276,12 @@ object DiagLog {
         if (!fileOn) appendLine("(诊断日志文件未开启, 下面只含本进程内存里最近 24 小时的日志; 崩溃记录另见 crash 段)")
         appendLine()
         val dirNow = dir
-        val disk = if (fileOn && dirNow != null) dayFiles(dirNow) else emptyList()
+        val disk = if (fileOn) {
+            val own = dirNow?.let { dayFiles(it) }.orEmpty()
+            val legacy = legacyDir?.let { dayFiles(it) }.orEmpty()
+            // 旧目录里的排在前面(更早), 同名的以私有目录那份为准。
+            (legacy + own).distinctBy { it.name }.sortedBy { it.name }
+        } else emptyList()
         if (disk.isEmpty()) {
             synchronized(lines) { lines.forEach { appendLine("  ${it.text}") } }
         } else {
@@ -216,6 +290,11 @@ object DiagLog {
                 runCatching { append(each.readText()) }
             }
         }
+        // 直播事件单列一段: 出门一趟回来问"几点重载过", 看这段就够。
+        runCatching { eventsText() }.getOrDefault("").takeIf { it.isNotBlank() }?.let {
+            appendLine()
+            append("$it")
+        }
         val crashes = dirNow?.let { crashLines(it) }.orEmpty()
         if (crashes.isNotEmpty()) {
             appendLine()
@@ -223,7 +302,7 @@ object DiagLog {
             crashes.forEach { appendLine(it) }
         }
         // 备份导入/导出自己落盘的记录: 导入会重启进程, 内存日志正好断在那里。
-        val trace = dirNow?.let { File(it, "restore-trace.log").takeIf { t -> t.exists() } }
+        val trace = listOfNotNull(dirNow, legacyDir).map { File(it, "restore-trace.log") }.firstOrNull { it.exists() }
         if (trace != null) {
             appendLine()
             appendLine("---- restore-trace.log (${trace.length()} bytes) ----")

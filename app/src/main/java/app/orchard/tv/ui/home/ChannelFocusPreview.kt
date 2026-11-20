@@ -308,7 +308,7 @@ fun ChannelFocusPreview(
                             kotlinx.coroutines.delay(2000)
                         }
                         if (fresh.isEmpty()) {
-                            DiagLog.i("直播预览: ${stalled.id} 原地重载取流失败, 第 $rounds 轮")
+                            DiagLog.event("直播预览: ${stalled.id} 原地重载取流失败, 第 $rounds 轮")
                             // 取不到流先真探一次连通性: 路由器拉黑时系统 VALIDATED 位照样是连着的,
                             // 只看那一位会把断网说成"地址失效"。断网就挂着转圈等恢复, 不耗恢复时限。
                             if (!withContext(Dispatchers.IO) { SystemProbe.online(context) }) {
@@ -325,7 +325,7 @@ fun ChannelFocusPreview(
                                 }
                                 netHint.set(false)
                                 if (st.disposed) break
-                                DiagLog.i("直播预览: ${stalled.id} 网络已恢复, 继续换流")
+                                DiagLog.event("直播预览: ${stalled.id} 网络已恢复, 继续换流")
                                 // 等网络这段时间不计入恢复时限, 否则拉黑久了会被 60s 直接判死
                                 startAt = startAt + android.os.SystemClock.elapsedRealtime() - waitStartAt
                             }
@@ -336,7 +336,7 @@ fun ChannelFocusPreview(
                         streamCache[key] = cands
                         url = cands.pollNext()!!
                     }
-                    DiagLog.i("直播预览: ${stalled.id} 原地重载, 第 $rounds 轮 ${cands?.index ?: 0}/${cands?.urls?.size ?: 0} 路候选")
+                    DiagLog.event("直播预览: ${stalled.id} 原地重载, 第 $rounds 轮 ${cands?.index ?: 0}/${cands?.urls?.size ?: 0} 路候选")
                     val hls = buildHlsMediaSource(url, stalled.isBilibiliStream, context)
                     // 不 release、不暂停: 上一轮最后一帧留在转圈图下面, 新流就绪后直接续播
                     p.setMediaSource(hls)
@@ -368,13 +368,13 @@ fun ChannelFocusPreview(
                         startWatchdog(p, stalled.id, RELOAD_WARMUP_MS)
                     } else {
                         StreamHealth.markBad(url)
-                        DiagLog.i("直播预览: ${stalled.id} 第 $rounds 轮未就绪, 换下一路")
+                        DiagLog.event("直播预览: ${stalled.id} 第 $rounds 轮未就绪, 换下一路")
                         kotlinx.coroutines.delay(RECOVER_GAP_MS)
                     }
                 }
                 if (!loaded && !st.disposed) {
                     // 全部候选轮完还没起来: 撤转圈, 只弹一次真正的失败, 再交回救场流程
-                    DiagLog.i("直播预览: ${stalled.id} 恢复 ${RECOVER_MAX_MS / 1000}s 未成功, 交回救场流程")
+                    DiagLog.event("直播预览: ${stalled.id} 恢复 ${RECOVER_MAX_MS / 1000}s 未成功, 交回救场流程")
                     st.loading = false
                     showToast("「${stalled.name}」暂时无法播放，请稍后再试")
                     // 交给救场流程前先把看门狗挂回去: 否则之后又断网时没人盯着, 不会有任何反应
@@ -382,7 +382,7 @@ fun ChannelFocusPreview(
                     handBack = true
                 }
             } catch (t: Throwable) {
-                DiagLog.i("直播预览: 原地重载异常: ${t.message}")
+                DiagLog.event("直播预览: 原地重载异常: ${t.message}")
                 st.loading = false
             } finally {
                 if (loaded) st.loading = false
@@ -407,7 +407,7 @@ fun ChannelFocusPreview(
                 // 并把 30 秒窗口的救场次数用掉, 提前耗尽升级切源的机会。等网络回来再换流。
                 // 用可达性而不是 transport: 断路由器外网时 WiFi 仍连着, kind 还是 Wifi。
                 if (!withContext(Dispatchers.IO) { SystemProbe.online(context) }) {
-                    DiagLog.i("直播预览: ${stalled.id} 卡住且网络不可达, 等待网络恢复后重载")
+                    DiagLog.event("直播预览: ${stalled.id} 卡住且网络不可达, 等待网络恢复后重载")
                     showToast("网络已断开，正在等待恢复")
                     var waited = 0L
                     var lastHint = 0L
@@ -425,7 +425,7 @@ fun ChannelFocusPreview(
                         }
                     }
                     if (st.disposed) return@launch
-                    DiagLog.i("直播预览: ${stalled.id} 网络已恢复, 重新加载")
+                    DiagLog.event("直播预览: ${stalled.id} 网络已恢复, 重新加载")
                     reloadInPlace(stalled)
                     return@launch
                 }
@@ -442,7 +442,7 @@ fun ChannelFocusPreview(
                     offline && stalled.id != CCTV_ID && cctv != null && cctv.liveStatus != 2 -> {
                         onPickSource(CCTV_ID)
                         showToast("「${stalled.name}」已下播，请观看「$cctvName」")
-                        DiagLog.i("直播预览: ${stalled.id} 已下播, 已切到 $CCTV_ID")
+                        DiagLog.event("直播预览: ${stalled.id} 已下播, 已切到 $CCTV_ID")
                     }
                     // 下播且本场就是央视网快看, 或它也已下播: 换最近一个开播的源
                     offline -> {
@@ -453,13 +453,13 @@ fun ChannelFocusPreview(
                             // 列表里根本没有央视网快看时, 说本场自己下播更准确。
                             val offName = if (stalled.id != CCTV_ID && cctv == null) stalled.name else cctvName
                             showToast("「$offName」已下播，请观看「${next.name}」")
-                            DiagLog.i("直播预览: $CCTV_ID 已下播, 已切到 ${next.id}")
+                            DiagLog.event("直播预览: $CCTV_ID 已下播, 已切到 ${next.id}")
                         } else {
                             // 焦点一移出直播卡, 预览就 dispose, 挂在预览里的提示会立刻消失:
                             // 这条必须走全局胶囊。
                             onMoveOffLiveCard()
                             onGlobalToast("所有直播卡片均未开播，请欣赏桌面壁纸")
-                            DiagLog.i("直播预览: 没有剩余开播源, 焦点已离开直播卡片")
+                            DiagLog.event("直播预览: 没有剩余开播源, 焦点已离开直播卡片")
                         }
                     }
                     // 还在开播: 先重载; 看门狗开着且 30 秒内救场超过 3 次(第 4 次起),
@@ -472,17 +472,17 @@ fun ChannelFocusPreview(
                         } else null
                         if (target != null) {
                             showToast("「${stalled.name}」卡顿严重，已切换至「$target」")
-                            DiagLog.i("直播预览: ${stalled.id} 30 秒内卡住 $times 次, 看门狗已切到 $target")
+                            DiagLog.event("直播预览: ${stalled.id} 30 秒内卡住 $times 次, 看门狗已切到 $target")
                         } else {
                             // 还在开播: 原地换流重载, 不重建播放器; 30 秒窗口次数由 noteRecover 统计,
                             // 到阈值才升级成 onFallback 切源。提示由 reloadInPlace 按耗时决定(快恢复不弹)。
                             reloadInPlace(stalled)
-                            DiagLog.i("直播预览: ${stalled.id} 仍在开播, 原地重载(30 秒内第 $times 次)")
+                            DiagLog.event("直播预览: ${stalled.id} 仍在开播, 原地重载(30 秒内第 $times 次)")
                         }
                     }
                 }
             } catch (t: Throwable) {
-                DiagLog.i("直播预览: 卡顿处理失败: ${t.message}")
+                DiagLog.event("直播预览: 卡顿处理失败: ${t.message}")
             } finally {
                 stallBusy.set(false)
             }
@@ -572,7 +572,7 @@ fun ChannelFocusPreview(
                 onRevertFail()
             } else {
                 // 首次加载失败: 切换到备用源
-                DiagLog.i("直播预览: 首次加载失败, 切换到备用源")
+                DiagLog.event("直播预览: 首次加载失败, 切换到备用源")
                 val target = onFallback()
                 showToast(failureToast(offline = offline, hasOld = false, fallbackLabel = target))
             }
@@ -623,7 +623,7 @@ fun ChannelFocusPreview(
             kotlinx.coroutines.delay(loadTimeoutMs)
             if (st.disposed) return@launch
             if (!ready) {
-                DiagLog.i("直播预览: 加载超时 ${loadTimeoutMs / 1000}s (${if (firstRun) "首次" else "切换"}), 切换到备用源")
+                DiagLog.event("直播预览: 加载超时 ${loadTimeoutMs / 1000}s (${if (firstRun) "首次" else "切换"}), 切换到备用源")
                 st.loading = false
                 val offline = withContext(Dispatchers.IO) { checkIfOffline(source, context) }
                 val target = onFallback()
@@ -807,7 +807,7 @@ fun ChannelFocusPreview(
             startWatchdog(exo, source.id, null)
         } else {
             // 新流超时未就绪
-            DiagLog.i("直播预览: 新流未就绪")
+            DiagLog.event("直播预览: 新流未就绪")
             exo.removeListener(readyListener!!)
             exo.release()
             if (player != null) {
