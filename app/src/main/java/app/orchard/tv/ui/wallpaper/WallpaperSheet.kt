@@ -752,12 +752,13 @@ private fun AboutSection(homeStatus: HomeStatus) {
     val install = Updates.install
     val canInstall = remember { Updates.canInstall(context) }
     // 更新就做在选项里: 一颗按钮(有新版按下去直接下载/安装, 没新版按下去重新查), 状态写在说明行。
-    val buttonText = when (install) {
-        is Updates.Install.Downloading ->
-            if (install.fraction <= 0f) stringResource(R.string.cc_update_connecting)
-            else stringResource(R.string.cc_update_downloading, (install.fraction * 100).toInt())
-        Updates.Install.Waiting -> stringResource(R.string.cc_update_waiting)
-        else -> if (latest != null) stringResource(R.string.cc_update_to, latest) else stringResource(R.string.cc_about_check)
+    // 按钮只说"要做什么", 进度和结果写在下面那行说明里, 一颗按钮不再兼任进度条。
+    val buttonText = when {
+        install is Updates.Install.Downloading || install is Updates.Install.Waiting ->
+            stringResource(R.string.cc_update_busy)
+        latest != null -> stringResource(R.string.cc_update_now, latest)
+        Updates.checking -> stringResource(R.string.cc_update_checking)
+        else -> stringResource(R.string.cc_about_check)
     }
     val status = when (install) {
         is Updates.Install.Downloading ->
@@ -775,7 +776,12 @@ private fun AboutSection(homeStatus: HomeStatus) {
         Updates.Install.NeedsPermission -> stringResource(R.string.cc_update_permission)
         Updates.Install.NeedsStoragePermission -> stringResource(R.string.cc_update_storage_permission)
         Updates.Install.Waiting -> stringResource(R.string.cc_update_waiting)
-        else -> stringResource(R.string.cc_about_version, Updates.current)
+        else -> when {
+            Updates.checking -> stringResource(R.string.cc_update_checking)
+            Updates.checkFailed -> stringResource(R.string.cc_update_failed_check)
+            Updates.upToDate -> stringResource(R.string.cc_about_latest, Updates.current)
+            else -> stringResource(R.string.cc_about_current, Updates.current)
+        }
     }
     Group {
         // 说明行只写状态: "版本 3.85", 下载中写"正在下载… 40%", 出错写原因。
@@ -1180,6 +1186,8 @@ internal fun <T> ChoiceCell(
     current: T,
     choose: (T) -> Unit,
     modifier: Modifier = Modifier,
+    // 儿童/长辈页只要求封左边(用户口径): 那边最右那颗按右键要保留原来的去向。
+    blockRightAtEnd: Boolean = true,
 ) {
     Cell(label, hint, modifier) { onFocus ->
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1190,7 +1198,7 @@ internal fun <T> ChoiceCell(
                     onClick = { choose(value) },
                     onFocus = onFocus,
                     blockLeft = i == 0,
-                    blockRight = i == options.lastIndex,
+                    blockRight = blockRightAtEnd && i == options.lastIndex,
                 )
             }
         }

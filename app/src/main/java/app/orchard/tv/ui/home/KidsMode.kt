@@ -218,7 +218,7 @@ private fun SetupSettings(hasApps: Boolean, onStart: () -> Unit, first: FocusReq
                         }, onFocus = onFocus, blockLeft = true)
                         ChipButton(stringResource(R.string.kids_kind_elders), !kids, onClick = {
                             if (kids) { Restricted.chooseKind(RestrictedKind.Elders); Restricted.chooseBlockOthers(false) }
-                        }, onFocus = onFocus, blockRight = true)
+                        }, onFocus = onFocus)
                     }
                 }
             }
@@ -229,7 +229,7 @@ private fun SetupSettings(hasApps: Boolean, onStart: () -> Unit, first: FocusReq
                 ) { onFocus ->
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         ChipButton(stringResource(R.string.kids_block_on), Restricted.blockOthers, onClick = { Restricted.chooseBlockOthers(true) }, onFocus = onFocus, blockLeft = true)
-                        ChipButton(stringResource(R.string.kids_block_off), !Restricted.blockOthers, onClick = { Restricted.chooseBlockOthers(false) }, onFocus = onFocus, blockRight = true)
+                        ChipButton(stringResource(R.string.kids_block_off), !Restricted.blockOthers, onClick = { Restricted.chooseBlockOthers(false) }, onFocus = onFocus)
                     }
                 }
             }
@@ -240,6 +240,7 @@ private fun SetupSettings(hasApps: Boolean, onStart: () -> Unit, first: FocusReq
                     withCustom(DAY_MINUTES, rules.weekdayMinutes).map { m -> m to (if (m == 0) R.string.kids_no_limit else m.toString()) },
                     rules.weekdayMinutes,
                     choose = { m -> Restricted.chooseRules(rules.copy(weekdayMinutes = m)); KidsWatch.poke() },
+                    blockRightAtEnd = false,
                 )
             }
             Box(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -248,6 +249,7 @@ private fun SetupSettings(hasApps: Boolean, onStart: () -> Unit, first: FocusReq
                     withCustom(DAY_MINUTES, rules.weekendMinutes).map { m -> m to (if (m == 0) R.string.kids_no_limit else m.toString()) },
                     rules.weekendMinutes,
                     choose = { m -> Restricted.chooseRules(rules.copy(weekendMinutes = m)); KidsWatch.poke() },
+                    blockRightAtEnd = false,
                 )
             }
             Box(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -260,6 +262,7 @@ private fun SetupSettings(hasApps: Boolean, onStart: () -> Unit, first: FocusReq
                         val next = rules.copy(endMinute = m)
                         Restricted.chooseRules(if (next.valid) next else next.copy(startMinute = KidsTime.DEFAULT_START)); KidsWatch.poke()
                     },
+                    blockRightAtEnd = false,
                 )
             }
             Box(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -268,6 +271,7 @@ private fun SetupSettings(hasApps: Boolean, onStart: () -> Unit, first: FocusReq
                     withCustom(BREAKS, rules.breakEvery).map { m -> m to (if (m == 0) R.string.st_off else m.toString()) },
                     rules.breakEvery,
                     choose = { m -> Restricted.chooseRules(rules.copy(breakEvery = m)); KidsWatch.poke() },
+                    blockRightAtEnd = false,
                 )
             }
         }
