@@ -2254,19 +2254,14 @@ private fun UpdateWindowContent(close: () -> Unit) {
     val context = LocalContext.current
     val first = remember { FocusRequester() }
     val canInstall = remember { Updates.canInstall(context) }
-    var qr by remember { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(Unit) {
         repeat(20) {
             if (runCatching { first.requestFocus() }.isSuccess) return@LaunchedEffect
             withFrameNanos { }
         }
     }
-    LaunchedEffect(Unit) {
-        val ip = PhoneServer.lanAddress(context)
-        val url = "https://aerial.qust.me/update/#v=${Updates.current}&f=${BuildConfig.FLAVOR}" + (ip?.let { "&tv=$it" } ?: "")
-        qr = withContext(Dispatchers.Default) { PhoneServer.qr(url).asImageBitmap() }
-    }
-    Column(Modifier.width(560.dp).padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 14.dp)) {
+    // 小窗口只留"下载/安装 + 状态行", 二维码、扫码说明和关闭按钮都去掉: 窗口本身按返回键就能收。
+    Column(Modifier.width(560.dp).padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 16.dp)) {
         BasicText(
             stringResource(R.string.cc_update_title, Updates.available ?: Updates.current),
             style = Type.Headline,
@@ -2323,41 +2318,5 @@ private fun UpdateWindowContent(close: () -> Unit) {
             style = Type.Caption.copy(color = Palette.SecondaryLabel),
             modifier = Modifier.padding(top = 10.dp),
         )
-        Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(96.dp).smoothBackground(Color.White, 12.dp).padding(8.dp)) {
-                qr?.let {
-                    Image(
-                        it, contentDescription = null, contentScale = ContentScale.Fit,
-                        filterQuality = FilterQuality.None, modifier = Modifier.fillMaxSize(),
-                    )
-                }
-            }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                BasicText(
-                    stringResource(if (canInstall) R.string.cc_update_scan_else else R.string.cc_update_scan),
-                    style = Type.Body,
-                )
-                Spacer(Modifier.height(4.dp))
-                BasicText(stringResource(R.string.cc_update_keeps), style = Type.Caption.copy(color = Palette.SecondaryLabel))
-            }
-            Spacer(Modifier.width(10.dp))
-            Pressable(onClick = close) { s ->
-                Row(
-                    Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(if (s.focused) Palette.Focus else Palette.Fill)
-                        .height(34.dp)
-                        .padding(horizontal = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    BasicText(
-                        stringResource(R.string.st_off),
-                        style = Type.Callout.copy(color = if (s.focused) Palette.OnFocus else Palette.Label),
-                    )
-                }
-            }
-        }
     }
 }
-

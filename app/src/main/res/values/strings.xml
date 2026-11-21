@@ -281,6 +281,7 @@
     <string name="wp_window_close">Close</string>
     <string name="kw_tab_settings">Options</string>
     <string name="kw_tab_live">Live Cards</string>
+    <string name="kw_live_none">This TV reports no live inputs, so there are no live cards to pick.</string>
     <string name="kw_tab_apps">Apps</string>
 
     <!-- Kids and Elders mode (settings/Restricted) -->

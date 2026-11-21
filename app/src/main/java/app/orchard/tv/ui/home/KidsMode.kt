@@ -273,7 +273,7 @@ private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier) {
     val live = candidates.filter { it.source != null }
     val appsOnly = candidates.filter { it.source == null }
     // 一个"切换式"分段键: 左右键切页, 高亮始终绑在当前页, 不是两颗各自独立的按钮。
-    var tab by remember { mutableStateOf(0) }
+    var tab by remember { mutableStateOf(if (live.isEmpty()) 1 else 0) }
     val inputPicked = live.any { it.key in allowed }
     Column(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -343,7 +343,14 @@ private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier) {
         }
         // 直播卡片这一页的说明只在"确实选了信号源"时出现: 选了以后别的信号源也能被切过去,
         // 它们共用一个播放器, Aerial 分不出来。
-        if (tab == 0 && inputPicked) {
+        if (tab == 0 && live.isEmpty()) {
+            BasicText(
+                stringResource(R.string.kw_live_none),
+                style = Type.Caption.copy(color = Palette.SecondaryLabel),
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        } else if (tab == 0 && inputPicked) {
             BasicText(
                 stringResource(R.string.kids_sources_note),
                 style = Type.Caption.copy(color = Palette.Orange),
@@ -367,7 +374,7 @@ private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier) {
                 // Room for the focused tile's scale.
                 .padding(horizontal = 6.dp, vertical = 6.dp),
         ) {
-            if (items.isEmpty()) {
+            if (items.isEmpty() && !(tab == 0 && live.isEmpty())) {
                 BasicText(
                     stringResource(R.string.kids_loading),
                     style = Type.Caption.copy(color = Palette.SecondaryLabel),

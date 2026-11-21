@@ -237,6 +237,7 @@
     <string name="wp_window_close">Закрыть</string>
     <string name="kw_tab_settings">Настройки</string>
     <string name="kw_tab_live">Прямые эфиры</string>
+    <string name="kw_live_none">Телевизор не сообщает о живых входах, выбирать нечего.</string>
     <string name="kw_tab_apps">Карточки приложений</string>
 
     <!-- Kids and Elders mode (settings/Restricted) -->

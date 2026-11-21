@@ -237,6 +237,7 @@
     <string name="wp_window_close">Жабу</string>
     <string name="kw_tab_settings">Параметрлер</string>
     <string name="kw_tab_live">Тікелей эфир</string>
+    <string name="kw_live_none">Теледидар тікелей кірістерді хабарламайды, таңдайтын карточка жоқ.</string>
     <string name="kw_tab_apps">Қолданба карточкалары</string>
 
     <!-- Kids and Elders mode (settings/Restricted) -->

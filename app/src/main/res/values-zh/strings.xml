@@ -267,6 +267,7 @@
     <string name="wp_window_close">关闭</string>
     <string name="kw_tab_settings">选项</string>
     <string name="kw_tab_live">直播卡片</string>
+    <string name="kw_live_none">这台电视没有上报直播输入，所以没有可选的直播卡片。</string>
     <string name="kw_tab_apps">应用卡片</string>
 
     <!-- Kids and Elders mode (settings/Restricted) -->
