@@ -1003,7 +1003,7 @@ private fun WallpaperCard(wp: Wallpaper, focusRequester: FocusRequester?, onFocu
  * sheet does not shift as focus moves.
  */
 @Composable
-private fun Group(rows: @Composable ColumnScope.() -> Unit) {
+internal fun Group(rows: @Composable ColumnScope.() -> Unit) {
     var height by remember { mutableStateOf(0f) }
     // A focused row asks the sheet to show it from its top down to the group's note: the
     // screensaver's group sits at the sheet's bottom, and showing the row alone (on TV, Compose
@@ -1033,7 +1033,7 @@ private fun Group(rows: @Composable ColumnScope.() -> Unit) {
  * 左右两格的宽度和它们小字提示的左边总在同一条线上。
  */
 @Composable
-private fun Row2(left: @Composable () -> Unit, right: (@Composable () -> Unit)? = null) {
+internal fun Row2(left: @Composable () -> Unit, right: (@Composable () -> Unit)? = null) {
     Row(
         Modifier.fillMaxWidth().padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(CellGap),
@@ -1044,7 +1044,7 @@ private fun Row2(left: @Composable () -> Unit, right: (@Composable () -> Unit)? 
 }
 
 /** 一颗按钮: 一段文字, 需要时带一个 ">"。 */
-private class CellAction(
+internal class CellAction(
     val text: String,
     val chevron: Boolean,
     val icon: Glyph? = null,
@@ -1057,7 +1057,7 @@ private class CellAction(
  * 任何一颗按钮上时, 气泡整体描一圈白边 —— 宽度和壁纸卡片的选中框一致。
  */
 @Composable
-private fun Cell(
+internal fun Cell(
     label: Int,
     hint: String?,
     modifier: Modifier = Modifier,
@@ -1065,7 +1065,7 @@ private fun Cell(
 ) = Cell(stringResource(label), hint, modifier, content)
 
 @Composable
-private fun Cell(
+internal fun Cell(
     labelText: String,
     hint: String?,
     modifier: Modifier = Modifier,
@@ -1112,7 +1112,7 @@ private fun Cell(
 
 /** 气泡里的一颗胶囊按钮: 聚焦时白底(和以前一样), 选中的打勾。 */
 @Composable
-private fun ChipButton(
+internal fun ChipButton(
     label: String,
     on: Boolean,
     chevron: Boolean = false,
@@ -1162,7 +1162,7 @@ private fun ChipButton(
 
 /** 二选一或几选一: 每颗按钮都能用左右键走到, OK 选中。 */
 @Composable
-private fun <T> ChoiceCell(
+internal fun <T> ChoiceCell(
     label: Int,
     hint: String?,
     options: List<Pair<T, Any>>,
@@ -1314,7 +1314,7 @@ private fun ActionCell(
  * 按键仍然由入口按钮那颗按钮自己处理, 焦点一直没离开过它, 打开/移动/确认/关上
  * 都不会再丢事件。
  */
-private class MenuWindow {
+internal class MenuWindow {
     var open by mutableStateOf(false)
     var labels by mutableStateOf<List<String>>(emptyList())
     var selected = 0
@@ -1347,7 +1347,7 @@ private class SheetFocusMemory {
 
 private val LocalSheetFocus = compositionLocalOf<SheetFocusMemory?> { null }
 
-private val LocalMenuWindow = compositionLocalOf<MenuWindow?> { null }
+internal val LocalMenuWindow = compositionLocalOf<MenuWindow?> { null }
 
 /**
  * 「隐藏的卡片」那颗入口按钮按下后浮出来的小窗口。
@@ -1408,7 +1408,7 @@ private val LocalPopupHost = compositionLocalOf<PopupHost?> { null }
  * 窗口里换, 到头响一声撞边音, 上键也响一声; 下键或返回键收起来。入口按钮本身不打勾。
  */
 @Composable
-private fun <T> MenuCell(
+internal fun <T> MenuCell(
     label: Int,
     hint: String?,
     options: List<Pair<T, Any>>,
@@ -1506,7 +1506,7 @@ private fun <T> MenuCell(
 
 /** 迷你窗口那一层: 画在面板最上层, 位置对着入口按钮的顶边, 下沿带一个指向它的小三角。 */
 @Composable
-private fun MenuWindowLayer(window: MenuWindow) {
+internal fun MenuWindowLayer(window: MenuWindow) {
     val tailH = MiniTailHeight
     val gap = 10.dp
     val edge = 8.dp

@@ -70,6 +70,13 @@ import app.orchard.tv.ui.theme.GlyphIcon
 import app.orchard.tv.ui.theme.Motion
 import app.orchard.tv.ui.theme.Palette
 import app.orchard.tv.ui.theme.Type
+import app.orchard.tv.ui.wallpaper.Cell
+import app.orchard.tv.ui.wallpaper.ChipButton
+import app.orchard.tv.ui.wallpaper.ChoiceCell
+import app.orchard.tv.ui.wallpaper.Group
+import app.orchard.tv.ui.wallpaper.LocalMenuWindow
+import app.orchard.tv.ui.wallpaper.MenuWindow
+import app.orchard.tv.ui.wallpaper.MenuWindowLayer
 import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.ZoneId
@@ -99,14 +106,52 @@ fun durationText(ms: Long): String {
 private fun clockText(ms: Long): String =
     Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).toLocalTime().let { "%d:%02d".format(it.hour, it.minute) }
 
+/** 必选的直播卡片: 央视网快看(内置 preset_2)。 */
+private const val REQUIRED_LIVE_KEY = "live:preset_2"
+
+/**
+ * 模式里两张不能取消的卡片:
+ * 1. 央视网快看是必选卡片, 一直在模式里;
+ * 2. 只要选了别的直播卡片, 就必须有一张能放直播预览的应用卡片(被标成「直播预览」的应用),
+ *    有它模式桌面才有直播画面。
+ */
+private fun modeLocks(candidates: List<AppEntry>): Set<String> {
+    val live = candidates.filter { it.key.startsWith(LIVE_KEY_PREFIX) }
+    val previewApps = candidates.filter { !it.key.startsWith(LIVE_KEY_PREFIX) && it.key in AerialSettings.liveAppPackages }
+    val required = live.filter { it.key == REQUIRED_LIVE_KEY }.map { it.key }
+    val extraLive = live.any { it.key != REQUIRED_LIVE_KEY && it.key in Restricted.allowed }
+    val previewAllowed = previewApps.filter { it.key in Restricted.allowed }.map { it.key }
+    val previewLock = when {
+        !extraLive -> emptyList()
+        previewAllowed.isNotEmpty() -> previewAllowed
+        else -> previewApps.take(1).map { it.key }
+    }
+    return (required + previewLock).toSet()
+}
+
+/** 把上面两条规矩落进选中的卡片里: 缺的补上, 必选的排在最前。 */
+private fun enforceModeRules(candidates: List<AppEntry>) {
+    val locks = modeLocks(candidates)
+    if (locks.isEmpty()) return
+    val missing = locks.filter { it !in Restricted.allowed }
+    if (missing.isEmpty()) return
+    val head = listOf(REQUIRED_LIVE_KEY).filter { it in missing }
+    val rest = missing.filter { it != REQUIRED_LIVE_KEY }
+    Restricted.chooseAllowed(head + rest + Restricted.allowed.filter { it !in missing })
+}
+
 /**
  * Setting up Kids and Elders mode, reached from Personalize behind the PIN: who it is for, the
  * tiles it shows (on the right, in the order picked) and, for children, the time limits. Each
  * choice is kept at once; "Start" goes into the mode.
+ *
+ * 左边选项和个性化面板同一套: 一格一个选项、下面一行小字提示, 选项多的时候在按钮上面浮一个
+ * 迷你窗口(ChoiceCell), 面板里怎么点这里就怎么点。
  */
 @Composable
 fun KidsSetupSheet(visible: Boolean, candidates: List<AppEntry>, onStart: () -> Unit, onDismiss: () -> Unit) {
     val leftFirst = remember { FocusRequester() }
+    val menuWindow = remember { MenuWindow() }
     BackHandler(enabled = visible, onBack = onDismiss)
     AnimatedVisibility(
         visible = visible,
@@ -115,18 +160,22 @@ fun KidsSetupSheet(visible: Boolean, candidates: List<AppEntry>, onStart: () -> 
         modifier = Modifier.fillMaxSize(),
     ) {
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
-            Row(
-                Modifier
-                    .width(912.dp)
-                    .height(500.dp)
-                    .consumeTaps()
-                    .liquidGlass(28.dp)
-                    .padding(start = 28.dp, end = 20.dp, top = 24.dp, bottom = 16.dp),
-            ) {
-                SetupSettings(candidates.isNotEmpty(), onStart, leftFirst, Modifier.width(480.dp).fillMaxHeight())
-                Spacer(Modifier.width(24.dp))
-                AllowedApps(candidates, Modifier.weight(1f).fillMaxHeight(), leftFirst)
+            // 迷你窗口和面板里那颗是同一块玻璃, 位置对准入口按钮。
+            androidx.compose.runtime.CompositionLocalProvider(LocalMenuWindow provides menuWindow) {
+                Row(
+                    Modifier
+                        .width(912.dp)
+                        .height(500.dp)
+                        .consumeTaps()
+                        .liquidGlass(28.dp)
+                        .padding(start = 28.dp, end = 20.dp, top = 24.dp, bottom = 16.dp),
+                ) {
+                    SetupSettings(candidates.isNotEmpty(), onStart, leftFirst, Modifier.width(480.dp).fillMaxHeight())
+                    Spacer(Modifier.width(24.dp))
+                    AllowedApps(candidates, Modifier.weight(1f).fillMaxHeight(), leftFirst)
+                }
             }
+            MenuWindowLayer(menuWindow)
         }
     }
 }
@@ -137,64 +186,84 @@ private fun SetupSettings(hasApps: Boolean, onStart: () -> Unit, first: FocusReq
         withFrameNanos { }
         runCatching { first.requestFocus() }
     }
-    var note by remember { mutableStateOf<String?>(null) }
     val kids = Restricted.kind == RestrictedKind.Kids
     val rules = Restricted.rules
     val guard = HomeGuardService.isRunning
     Column(modifier.verticalScroll(rememberScrollState())) {
         BasicText(stringResource(R.string.kids_title), style = Type.LargeTitle)
-        BasicText(stringResource(R.string.kids_hint), style = Type.Callout, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
-        Column(Modifier.fillMaxWidth().smoothBackground(Color.White.copy(alpha = 0.05f), 16.dp)) {
-            val kindHint = stringResource(if (kids) R.string.kids_kind_kids_hint else R.string.kids_kind_elders_hint)
-            SetupRow(R.string.kids_kind, kindHint, { note = it }, first = true) {
-                // Each starts from what suits it: children have other apps kept away, older people
-                // are let through (a firmware app opened by its own key is not a mistake there).
-                SmallChip(stringResource(R.string.kids_kind_kids), kids, first) {
-                    if (!kids) { Restricted.chooseKind(RestrictedKind.Kids); Restricted.chooseBlockOthers(true) }
-                }
-                SmallChip(stringResource(R.string.kids_kind_elders), !kids) {
-                    if (kids) { Restricted.chooseKind(RestrictedKind.Elders); Restricted.chooseBlockOthers(false) }
+        BasicText(
+            stringResource(R.string.kids_hint),
+            style = Type.Callout,
+            modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
+        )
+        Group {
+            Box(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Cell(
+                    R.string.kids_kind,
+                    stringResource(if (kids) R.string.kids_kind_kids_hint else R.string.kids_kind_elders_hint),
+                ) { onFocus ->
+                    // Each starts from what suits it: children have other apps kept away, older people
+                    // are let through (a firmware app opened by its own key is not a mistake there).
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ChipButton(stringResource(R.string.kids_kind_kids), kids, focusRequester = first, onClick = {
+                            if (!kids) { Restricted.chooseKind(RestrictedKind.Kids); Restricted.chooseBlockOthers(true) }
+                        }, onFocus = onFocus)
+                        ChipButton(stringResource(R.string.kids_kind_elders), !kids, onClick = {
+                            if (kids) { Restricted.chooseKind(RestrictedKind.Elders); Restricted.chooseBlockOthers(false) }
+                        }, onFocus = onFocus)
+                    }
                 }
             }
-            SetupRow(R.string.kids_block, stringResource(if (guard) R.string.kids_block_hint else R.string.kids_block_no_guard), { note = it }) {
-                SmallChip(stringResource(R.string.kids_block_on), Restricted.blockOthers) { Restricted.chooseBlockOthers(true) }
-                SmallChip(stringResource(R.string.kids_block_off), !Restricted.blockOthers) { Restricted.chooseBlockOthers(false) }
+            Box(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Cell(
+                    R.string.kids_block,
+                    stringResource(if (guard) R.string.kids_block_hint else R.string.kids_block_no_guard),
+                ) { onFocus ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ChipButton(stringResource(R.string.kids_block_on), Restricted.blockOthers, onClick = { Restricted.chooseBlockOthers(true) }, onFocus = onFocus)
+                        ChipButton(stringResource(R.string.kids_block_off), !Restricted.blockOthers, onClick = { Restricted.chooseBlockOthers(false) }, onFocus = onFocus)
+                    }
+                }
             }
             val minutesHint = stringResource(R.string.kids_minutes_hint)
-            SetupRow(R.string.kids_weekday, minutesHint, { note = it }) {
-                withCustom(DAY_MINUTES, rules.weekdayMinutes).forEach { m ->
-                    SmallChip(if (m == 0) stringResource(R.string.kids_no_limit) else m.toString(), rules.weekdayMinutes == m) {
-                        Restricted.chooseRules(rules.copy(weekdayMinutes = m)); KidsWatch.poke()
-                    }
-                }
+            Box(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                ChoiceCell(
+                    R.string.kids_weekday, minutesHint,
+                    withCustom(DAY_MINUTES, rules.weekdayMinutes).map { m -> m to (if (m == 0) R.string.kids_no_limit else m.toString()) },
+                    rules.weekdayMinutes,
+                    choose = { m -> Restricted.chooseRules(rules.copy(weekdayMinutes = m)); KidsWatch.poke() },
+                )
             }
-            SetupRow(R.string.kids_weekend, minutesHint, { note = it }) {
-                withCustom(DAY_MINUTES, rules.weekendMinutes).forEach { m ->
-                    SmallChip(if (m == 0) stringResource(R.string.kids_no_limit) else m.toString(), rules.weekendMinutes == m) {
-                        Restricted.chooseRules(rules.copy(weekendMinutes = m)); KidsWatch.poke()
-                    }
-                }
+            Box(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                ChoiceCell(
+                    R.string.kids_weekend, minutesHint,
+                    withCustom(DAY_MINUTES, rules.weekendMinutes).map { m -> m to (if (m == 0) R.string.kids_no_limit else m.toString()) },
+                    rules.weekendMinutes,
+                    choose = { m -> Restricted.chooseRules(rules.copy(weekendMinutes = m)); KidsWatch.poke() },
+                )
             }
-            SetupRow(R.string.kids_latest, stringResource(R.string.kids_latest_hint, KidsTime.clock(rules.startMinute)), { note = it }) {
-                // An end before the start the phone page set leaves the window all day.
-                withCustom(END_MINUTES, rules.endMinute).forEach { m ->
-                    SmallChip(if (m == 0) stringResource(R.string.kids_no_limit) else KidsTime.clock(m), rules.endMinute == m) {
+            Box(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                ChoiceCell(
+                    R.string.kids_latest, stringResource(R.string.kids_latest_hint, KidsTime.clock(rules.startMinute)),
+                    // An end before the start the phone page set leaves the window all day.
+                    withCustom(END_MINUTES, rules.endMinute).map { m -> m to (if (m == 0) R.string.kids_no_limit else KidsTime.clock(m)) },
+                    rules.endMinute,
+                    choose = { m ->
                         val next = rules.copy(endMinute = m)
                         Restricted.chooseRules(if (next.valid) next else next.copy(startMinute = KidsTime.DEFAULT_START)); KidsWatch.poke()
-                    }
-                }
+                    },
+                )
             }
-            SetupRow(R.string.kids_break, stringResource(R.string.kids_break_hint, rules.breakMinutes), { note = it }) {
-                withCustom(BREAKS, rules.breakEvery).forEach { m ->
-                    SmallChip(if (m == 0) stringResource(R.string.st_off) else m.toString(), rules.breakEvery == m) {
-                        Restricted.chooseRules(rules.copy(breakEvery = m)); KidsWatch.poke()
-                    }
-                }
+            Box(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                ChoiceCell(
+                    R.string.kids_break, stringResource(R.string.kids_break_hint, rules.breakMinutes),
+                    withCustom(BREAKS, rules.breakEvery).map { m -> m to (if (m == 0) R.string.st_off else m.toString()) },
+                    rules.breakEvery,
+                    choose = { m -> Restricted.chooseRules(rules.copy(breakEvery = m)); KidsWatch.poke() },
+                )
             }
         }
-        Box(Modifier.height(38.dp).padding(start = 16.dp, top = 7.dp)) {
-            note?.let { BasicText(it, style = Type.Caption.copy(color = Palette.TertiaryLabel), maxLines = 2, overflow = TextOverflow.Ellipsis) }
-        }
+        Spacer(Modifier.height(10.dp))
         val start = stringResource(if (kids) R.string.kids_start_kids else R.string.kids_start_elders)
         val startFocus = remember { FocusRequester() }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -217,46 +286,6 @@ private fun SetupSettings(hasApps: Boolean, onStart: () -> Unit, first: FocusReq
     }
 }
 
-/** A setting's row: its name, then its chips. */
-@Composable
-private fun SetupRow(label: Int, hint: String?, note: (String?) -> Unit, first: Boolean = false, chips: @Composable () -> Unit) {
-    if (!first) Box(Modifier.padding(start = 16.dp).fillMaxWidth().height(1.dp).background(Palette.Hairline))
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .height(52.dp)
-            .padding(start = 16.dp, end = 8.dp)
-            .onFocusChanged { if (it.hasFocus) note(hint) },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        BasicText(stringResource(label), style = Type.Body, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { chips() }
-    }
-}
-
-@Composable
-private fun SmallChip(label: String, on: Boolean, focusRequester: FocusRequester? = null, onClick: () -> Unit) {
-    Pressable(onClick = onClick, focusRequester = focusRequester, focusedScale = 1.06f) { state ->
-        val bg by animateColorAsState(
-            when {
-                state.focused -> Palette.Focus
-                on -> Palette.FillStrong
-                else -> Palette.Fill
-            },
-            tween(140, easing = Motion.EaseOut), label = "kids-chip",
-        )
-        val fg = if (state.focused) Palette.OnFocus else Palette.Label
-        Row(
-            Modifier.clip(RoundedCornerShape(50)).drawBehind { drawRect(bg) }.height(36.dp).padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
-        ) {
-            if (on) GlyphIcon(Glyph.Check, fg, 12.dp)
-            BasicText(label, style = Type.Callout.copy(color = fg), maxLines = 1)
-        }
-    }
-}
-
 @Composable
 private fun WideButton(label: String, glyph: Glyph?, focusRequester: FocusRequester? = null, onClick: () -> Unit) {
     Pressable(onClick = onClick, focusRequester = focusRequester, focusedScale = 1.05f) { state ->
@@ -276,12 +305,14 @@ private fun WideButton(label: String, glyph: Glyph?, focusRequester: FocusReques
 /** Every tile the mode can show; picking one puts it at the end of the mode's Home. */
 @Composable
 private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier, leftTarget: FocusRequester? = null) {
+    // 两张必选卡片每次进来先校准一遍(央视网快看; 选了别的直播卡片时那张直播预览应用)。
+    LaunchedEffect(candidates, Restricted.allowed) { enforceModeRules(candidates) }
     val allowed = Restricted.allowed
     val live = candidates.filter { it.key.startsWith(LIVE_KEY_PREFIX) }
     val appsOnly = candidates.filterNot { it.key.startsWith(LIVE_KEY_PREFIX) }
+    val locks = modeLocks(candidates)
     // 一个"切换式"分段键: 左右键切页, 高亮始终绑在当前页, 不是两颗各自独立的按钮。
     var tab by remember { mutableStateOf(if (live.isEmpty()) 1 else 0) }
-    val inputPicked = live.any { it.key in allowed }
     Column(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Pressable(
@@ -359,7 +390,6 @@ private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier, leftTarg
         val items = if (tab == 0) live else appsOnly
         // 编号只看本组里的勾选顺序: 直播卡片和应用卡片各自从 1 开始, 不串号。
         val allowedInGroup = allowed.filter { k -> items.any { it.key == k } }
-        val perRow = if (tab == 0) 2 else 3
         Column(
             Modifier
                 .weight(1f)
@@ -374,38 +404,51 @@ private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier, leftTarg
                     modifier = Modifier.padding(top = 6.dp),
                 )
             }
-            items.chunked(perRow).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(bottom = 12.dp)) {
-                    row.forEachIndexed { colIdx, app ->
-                        val index = allowedInGroup.indexOf(app.key)
-                        val w = if (tab == 0) 150.dp else 112.dp
-                        val h = if (tab == 0) 84.dp else 63.dp
-                        Pressable(
-                            onClick = { Restricted.toggleAllowed(app.key) },
-                            modifier = if (colIdx == 0) Modifier.focusProperties { leftTarget?.let { left = it } } else Modifier,
-                            focusedScale = 1.08f,
-                        ) { state ->
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Box {
-                                    MiniTile(app, state.focused, Modifier.size(w, h))
-                                    if (index >= 0) {
-                                        // The place it takes on the mode's Home.
-                                        Box(
-                                            Modifier.align(Alignment.TopEnd).padding(4.dp).size(20.dp).clip(CircleShape).background(Palette.Green),
-                                            contentAlignment = Alignment.Center,
-                                        ) {
-                                            BasicText("${index + 1}", style = Type.Caption.copy(color = Color.White, textAlign = TextAlign.Center))
-                                        }
-                                    } else {
-                                        Box(Modifier.matchParentSize().clip(RoundedCornerShape(10.dp)).background(Color.Black.copy(alpha = 0.35f)))
+            // 两页都是一排三张(用户口径), 宽度按网格算, 换面板宽度也不会挤出右边。
+            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val gap = 14.dp
+                val w = (maxWidth - gap * 2) / 3
+                val h = w / 1.78f
+                items.chunked(3).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(gap), modifier = Modifier.padding(bottom = 12.dp)) {
+                        row.forEachIndexed { colIdx, app ->
+                            val index = allowedInGroup.indexOf(app.key)
+                            // 只有每排第一张按左才回到左侧选项, 别的都留在卡片之间。
+                            val locked = app.key in locks
+                            Pressable(
+                                onClick = {
+                                    // 必选/被锁的卡片按下去不给取消, 只响一声撞边音。
+                                    if (locked) Sounds.limit() else {
+                                        Restricted.toggleAllowed(app.key)
+                                        enforceModeRules(candidates)
                                     }
+                                },
+                                modifier = if (colIdx == 0) Modifier.focusProperties { leftTarget?.let { left = it } } else Modifier,
+                                focusedScale = 1.08f,
+                            ) { state ->
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Box {
+                                        MiniTile(app, state.focused, Modifier.size(w, h))
+                                        if (index >= 0) {
+                                            // The place it takes on the mode's Home.
+                                            Box(
+                                                Modifier.align(Alignment.TopEnd).padding(4.dp).size(20.dp).clip(CircleShape).background(Palette.Green),
+                                                contentAlignment = Alignment.Center,
+                                            ) {
+                                                BasicText("${index + 1}", style = Type.Caption.copy(color = Color.White, textAlign = TextAlign.Center))
+                                            }
+                                        } else {
+                                            Box(Modifier.matchParentSize().clip(RoundedCornerShape(10.dp)).background(Color.Black.copy(alpha = 0.35f)))
+                                        }
+                                    }
+                                    Spacer(Modifier.height(5.dp))
+                                    BasicText(
+                                        if (locked) app.label + " · " + stringResource(R.string.kids_required) else app.label,
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                        style = Type.Caption.copy(color = if (state.focused || index >= 0) Palette.Label else Palette.SecondaryLabel),
+                                        modifier = Modifier.width(w),
+                                    )
                                 }
-                                Spacer(Modifier.height(5.dp))
-                                BasicText(
-                                    app.label, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                    style = Type.Caption.copy(color = if (state.focused || index >= 0) Palette.Label else Palette.SecondaryLabel),
-                                    modifier = Modifier.width(w),
-                                )
                             }
                         }
                     }

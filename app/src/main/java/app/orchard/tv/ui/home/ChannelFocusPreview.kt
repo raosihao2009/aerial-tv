@@ -92,6 +92,8 @@ fun ChannelFocusPreview(
     var surface by remember { mutableStateOf<TextureView?>(null) }
 
     var restartSignal by remember { mutableStateOf(0) }
+    // 每次真正离开前台(ON_STOP)自增: 正在取流/加载的那条协程跟着取消, 免得在后台悄悄起播。
+    var stopTick by remember { mutableStateOf(0) }
     // 上一次消费的画质重载信号; 信号变化时旧流地址缓存是别的档位, 要清掉重新解析
     var lastReload by remember { mutableStateOf(externalReload) }
     // 看门狗自动切走时, 不弹"已经从X切换至Y", 只留"卡顿严重"那条
@@ -492,20 +494,37 @@ fun ChannelFocusPreview(
     retryStall = { id -> handleStall(id) }
     onJankHandler = { id -> handleStall(id) }
 
-    LaunchedEffect(source?.url, restartSignal, externalReload) {
+    LaunchedEffect(source?.url, restartSignal, externalReload, stopTick) {
         if (source == null) {
             player?.release(); player = null
             DiagLog.i("预览 effect 跳过: 源为空")
             return@LaunchedEffect
         }
+        // 已经不在前台(去了别的应用/桌面退到后台): 不取流、不建播放器, 等回来重来一遍。
+        if (st.paused || !lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            DiagLog.i("预览 effect 跳过: 不在前台 id=${source.id}")
+            return@LaunchedEffect
+        }
         // 切回当前正在播放的源(onRevert): 不重新加载, 继续用现有player, 避免画面声音回溯;
         // externalReload > 0 表示画质等偏好刚改过, 同样要重新取流。卡住的原地重载不走这个 effect。
         if (externalReload == 0 && source.id == playingSourceId && player != null) {
+            // 换源时旧的一路先停过声(见下), 回到它身上就接着放。
+            if (player?.playWhenReady == false && !st.paused &&
+                lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+            ) player?.playWhenReady = true
             DiagLog.i("预览 effect 跳过: 已在播放 ${source.id}")
             return@LaunchedEffect
         }
 
         DiagLog.i("预览 effect 进入 id=${source.id} url=${source.url} player=${if (player != null) "已绑定" else "无"}")
+
+        // 换到另一路: 旧的一路先停下声音。以前是让它一直播到新流就绪才 release, 那段时间
+        // 旧台的声还在响(用户报的"进了模式还在放旧直播"); 画面靠解码器留在纹理上, 不黑。
+        val switchingFrom = player?.takeIf { source.id != playingSourceId }
+        if (switchingFrom != null && switchingFrom.playWhenReady) {
+            switchingFrom.playWhenReady = false
+            DiagLog.i("预览: 换源, 先停旧源 id=$playingSourceId")
+        }
 
         // 冷启动: 直播预览也是个硬件解码器, 别和开屏动画同时起播(实测首列直播预览+视频壁纸
         // 时过渡一卡一卡; 把预览挪到第≥2列就顺, 就是因为起播时机错开了)。等揭开后再走下面。
@@ -566,7 +585,8 @@ fun ChannelFocusPreview(
             st.loading = false
             val offline = withContext(Dispatchers.IO) { checkIfOffline(source, context) }
             if (player != null) {
-                // 切换源失败：回退到旧源(本来就在播)
+                // 切换源失败：回退到旧源(本来就在播), 把刚才停下的声音放回来
+                player?.playWhenReady = true
                 playingSourceId?.let { onRevert(it) }
                 showToast(failureToast(offline = offline, hasOld = true, oldLabel = currentPlayingName))
                 onRevertFail()
@@ -773,6 +793,15 @@ fun ChannelFocusPreview(
                 "直播预览: 就绪 id=${source.id} 耗时=${System.currentTimeMillis() - waitStart}ms " +
                     "state=${exo.playbackState}",
             )
+            // 加载完了人却已经不在前台(去了别的应用): 不开播, 直接丢弃。以前这里照常
+            // playWhenReady=true, 后果就是"直播从零加载时进了别的 app, 声音还在响"。
+            if (st.paused || !lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                DiagLog.i("预览: 加载完成时已不在前台, 丢弃 id=${source.id}")
+                st.loading = false
+                exo.removeListener(readyListener!!)
+                exo.release()
+                return@LaunchedEffect
+            }
             // 新流已对齐：释放旧player，绑定新player后开播
             val old = player
             val oldName = currentPlayingName
@@ -811,7 +840,8 @@ fun ChannelFocusPreview(
             exo.removeListener(readyListener!!)
             exo.release()
             if (player != null) {
-                // 切换源失败: 回退到旧源(本来就在播)
+                // 切换源失败: 回退到旧源(本来就在播), 把刚才停下的声音放回来
+                player?.playWhenReady = true
                 st.loading = false
                 val offline = withContext(Dispatchers.IO) { checkIfOffline(source, context) }
                 playingSourceId?.let { onRevert(it) }
@@ -876,8 +906,9 @@ fun ChannelFocusPreview(
                     }
                 }
                 Lifecycle.Event.ON_STOP -> {
-                    // 真正进入其他app: 立即销毁
+                    // 真正进入其他app: 立即销毁, 连同还在加载的那条协程(它一取消就会释放手里的 player)
                     DiagLog.i("预览 ON_STOP id=${playingSourceId ?: source?.id}")
+                    stopTick++
                     pauseJob?.cancel()
                     watchdogRef.value?.stop()
                     playerListenerRef.value?.let { player?.removeListener(it) }
