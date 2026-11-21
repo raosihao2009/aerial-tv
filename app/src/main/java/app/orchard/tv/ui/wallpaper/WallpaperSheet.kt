@@ -674,7 +674,7 @@ private fun ScreensaverSection(onStartScreensaver: () -> Unit) {
                         else -> stringResource(R.string.ss_delay_system_minutes, ((delay + 30_000) / 60_000).coerceAtLeast(1).toInt())
                     }
                     Cell(R.string.ss_delay, stringResource(R.string.ss_delay_hint)) { onFocus ->
-                        ChipButton(shown, on = true, check = false, onClick = {}, onFocus = onFocus)
+                        ChipButton(shown, on = true, check = false, onClick = {}, onFocus = onFocus, blockLeft = true, blockRight = true)
                     }
                 } else {
                     MenuCell(
@@ -790,6 +790,7 @@ private fun AboutSection(homeStatus: HomeStatus) {
                     if (latest != null && canInstall) Updates.install(context) else Updates.checkIfStale(force = true)
                 },
                 onFocus = onFocus,
+                blockLeft = true, blockRight = true,
             )
         }
     }
@@ -1124,11 +1125,19 @@ internal fun ChipButton(
     onClick: () -> Unit,
     onFocus: (Any, Boolean) -> Unit,
     onKey: ((androidx.compose.ui.input.key.KeyEvent) -> Boolean)? = null,
+    // 一排选项的最左/最右那颗: 到头再按左/右键直接没反应(用户口径)。
+    // 不封的话, 默认的方向搜索会飘到别处那一排的选项上去, 看着像"按左键跳到了另一项"。
+    blockLeft: Boolean = false,
+    blockRight: Boolean = false,
 ) {
     val owner = remember { Any() }
     val memory = LocalSheetFocus.current
     val ownRequester = remember { FocusRequester() }
     Pressable(
+        modifier = Modifier.focusProperties {
+            if (blockLeft) left = FocusRequester.Cancel
+            if (blockRight) right = FocusRequester.Cancel
+        },
         onClick = onClick, focusRequester = focusRequester ?: ownRequester, focusedScale = 1f, onKey = onKey,
         // 同步回调: 气泡描边和按钮自己的白底必须同一帧开始变, 走 LaunchedEffect 会晚一帧
         onFocusState = { got ->
@@ -1174,12 +1183,14 @@ internal fun <T> ChoiceCell(
 ) {
     Cell(label, hint, modifier) { onFocus ->
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            options.forEach { (value, text) ->
+            options.forEachIndexed { i, (value, text) ->
                 ChipButton(
                     if (text is Int) stringResource(text) else text.toString(),
                     on = current == value,
                     onClick = { choose(value) },
                     onFocus = onFocus,
+                    blockLeft = i == 0,
+                    blockRight = i == options.lastIndex,
                 )
             }
         }
@@ -1228,6 +1239,7 @@ private fun HiddenChip(entry: HiddenEntry, onFocus: (Any, Boolean) -> Unit) {
             on = false, chevron = true, check = false,
             onClick = { window?.show(chipCenterX, chipTop, entry.onPick) },
             onFocus = onFocus,
+            blockLeft = true, blockRight = true,
             onKey = { e ->
                 if (window == null || !window.open) {
                     false
@@ -1293,7 +1305,7 @@ private fun ActionCell(
 ) {
     Cell(labelText, hint, modifier) { onFocus ->
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            actions.forEach { a ->
+            actions.forEachIndexed { i, a ->
                 ChipButton(
                     a.text,
                     on = false,
@@ -1302,6 +1314,8 @@ private fun ActionCell(
                     icon = a.icon,
                     onClick = a.run,
                     onFocus = onFocus,
+                    blockLeft = i == 0,
+                    blockRight = i == actions.lastIndex,
                 )
             }
         }
@@ -1434,7 +1448,7 @@ internal fun <T> MenuCell(
         Cell(label, hint, modifier) { onFocus ->
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 leading?.let {
-                    ChipButton(it.text, on = false, chevron = it.chevron, check = false, icon = it.icon, onClick = it.run, onFocus = onFocus)
+                    ChipButton(it.text, on = false, chevron = it.chevron, check = false, icon = it.icon, onClick = it.run, onFocus = onFocus, blockLeft = true)
                 }
                 Box(
                     Modifier.onGloballyPositioned { c ->
@@ -1450,6 +1464,8 @@ internal fun <T> MenuCell(
                             window?.show(labels, index, chipCenterX, chipTop) { choose(options[it].first) }
                         },
                         onFocus = onFocus,
+                        blockLeft = leading == null,
+                        blockRight = true,
                         // 窗口开着的时候, 按键全在这颗按钮里处理: 焦点从没离开过它。
                         onKey = { e ->
                             if (window == null || !window.open) {
@@ -2048,6 +2064,7 @@ private fun BiliCell(mirror: BiliMirror) {
             action.text,
             on = false, chevron = action.chevron, check = false,
             onClick = action.run,
+            blockLeft = true, blockRight = true,
             onFocus = { owner, focused ->
                 onFocus(owner, focused)
                 if (focused) {
