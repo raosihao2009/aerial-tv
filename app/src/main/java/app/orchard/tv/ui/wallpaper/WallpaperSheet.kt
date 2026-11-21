@@ -63,6 +63,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -107,6 +108,8 @@ import app.orchard.tv.apps.BiliLogin
 import app.orchard.tv.apps.BiliLoginState
 import app.orchard.tv.settings.AerialSettings
 import app.orchard.tv.settings.Restricted
+import app.orchard.tv.settings.KidsTime
+import app.orchard.tv.guard.KidsWatch
 import app.orchard.tv.settings.RestrictedKind
 import app.orchard.tv.settings.FocusStyle
 import app.orchard.tv.settings.UiSounds
@@ -138,8 +141,10 @@ import app.orchard.tv.wallpaper.WallpaperKind
 import app.orchard.tv.wallpaper.Wallpapers
 import app.orchard.tv.weather.Weather
 import app.orchard.tv.weather.WeatherKind
+import app.orchard.tv.guard.HomeGuardService
 import app.orchard.tv.ui.home.MiniTile
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -173,12 +178,12 @@ fun WallpaperSheet(
      * 所以这里拿到的是回调而不是直接写设置。
      */
     onHomeLock: (on: Boolean) -> Unit = { AerialSettings.chooseHomeLocked(it) },
-    /** Kids and Elders mode's setup (behind the PIN). */
-    onKids: () -> Unit,
+    /** 儿童与长辈模式的候选卡片(应用 + 直播源), 在面板里的小窗口里挑。 */
+    kidsCandidates: List<AppEntry> = emptyList(),
+    /** 小窗口里按下"开始"时进这个模式(调用方负责关掉面板)。 */
+    onStartKids: () -> Unit = {},
     /** Whether Aerial is the home screen or guarded, for the About group. */
     homeStatus: HomeStatus,
-    /** Control Center's update page, for a new version. */
-    onUpdate: () -> Unit,
     /** The sheet is all the way in (true) or not: Home need not draw under it then ([SheetCovers]). */
     onSettled: (Boolean) -> Unit = {},
     /** Draw the closed sheet once, nearly clear, so that its first opening is not its first draw (HomeScreen). */
@@ -264,6 +269,10 @@ fun WallpaperSheet(
         val menuWindow = remember { MenuWindow() }
         // 「隐藏的卡片」的两颗入口各自一个小窗口, 和选项窗口同一套气泡。
         val popupHost = remember { PopupHost() }
+        // 关于里的"更新到 x.y"和家庭守护里的"儿童与长辈模式": 都在面板里浮一个小窗口,
+        // 不再整屏跳控制中心的更新页 / 也不再盖一张整屏的设置卡片。
+        val updateWindow = remember { CardWindow() }
+        val kidsWindow = remember { CardWindow() }
         Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(
             LocalMenuWindow provides menuWindow,
@@ -298,6 +307,21 @@ fun WallpaperSheet(
             }
             Row(Modifier.weight(1f).fillMaxWidth().padding(start = 32.dp, end = 32.dp)) {
             val leftScroll = rememberScrollState()
+            // 密码框盖上来时面板交出焦点, 焦点一丢, 那套 bringIntoView 应答会把整页滚下去
+            // (看上去像"自己跳到天气与时钟")。持焦这段把滚动位置钉住, 松手再放开,
+            // 密码框关掉后还焦点, 位置还是原来那一屏。
+            var heldScroll by remember { mutableStateOf(-1) }
+            LaunchedEffect(holdFocus) {
+                if (!holdFocus) {
+                    heldScroll = -1
+                    return@LaunchedEffect
+                }
+                val at = leftScroll.value
+                heldScroll = at.toInt()
+                snapshotFlow { leftScroll.value }.collect { v ->
+                    if (v != at) leftScroll.scrollTo(at)
+                }
+            }
             // 一页往下走: 每个分类是"图标 + 分类名"的标题, 标题下就是那一组选项, 不再做左栏
             // 焦点切换。分类图标保留, 是为了在这一长页里一眼认出走到哪一组。
             Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(leftScroll).latestBringIntoView(leftScroll)) {
@@ -323,12 +347,12 @@ fun WallpaperSheet(
                 WeatherSection()
                 Spacer(Modifier.height(18.dp))
                 CategoryTitle(Glyph.Shield, R.string.per_family)
-                FamilySection(onPin, onKids)
+                FamilySection(onPin, kidsWindow)
                 // 关于放在最后(上游 2.13 起: 版本、更新、桌面接管状态都在这里,
                 // 控制中心只在有新版时留一个入口)。以前的"检查更新"按钮搬到这里。
                 Spacer(Modifier.height(18.dp))
                 CategoryTitle(Glyph.Info, R.string.cc_about)
-                AboutSection(homeStatus, onUpdate)
+                AboutSection(homeStatus, updateWindow)
                 Spacer(Modifier.height(24.dp))
             }
             Spacer(Modifier.width(18.dp))
@@ -341,6 +365,8 @@ fun WallpaperSheet(
         }
         // 迷你窗口画在最上层: 不用独立窗口, 焦点始终在入口按钮上。
         MenuWindowLayer(menuWindow)
+        CardWindowLayer(updateWindow, focusMemory) { close -> UpdateWindowContent(close) }
+        CardWindowLayer(kidsWindow, focusMemory) { close -> KidsWindowContent(kidsCandidates, close, onStartKids) }
         // 小窗口里不再带标题行: 「隐藏的卡片·应用 / ·直播」那两行字去掉, 直接从第一张卡片开始。
         ListWindowLayer(
             popupHost.apps,
@@ -670,15 +696,24 @@ private fun ScreensaverSection(onStartScreensaver: () -> Unit) {
                 )
             },
         )
-        // The clock screensaver is its clock, and the others show none.
+        // 时间和地点并排一行: 航拍和照片屏保上这两样都能单独开关(时钟屏保只有它自己的钟)。
         if (Wallpapers.screensaver == ScreensaverMode.Aerial || Wallpapers.screensaver == ScreensaverMode.Photos) {
-            Row2({
-                ChoiceCell(
-                    R.string.ss_show_time, stringResource(R.string.ss_show_time_hint),
-                    listOf(true to R.string.st_on, false to R.string.st_off),
-                    AerialSettings.screensaverClock, AerialSettings::chooseScreensaverClock,
-                )
-            })
+            Row2(
+                {
+                    ChoiceCell(
+                        R.string.ss_show_time, stringResource(R.string.ss_show_time_hint),
+                        listOf(true to R.string.st_on, false to R.string.st_off),
+                        AerialSettings.screensaverClock, AerialSettings::chooseScreensaverClock,
+                    )
+                },
+                {
+                    ChoiceCell(
+                        R.string.ss_show_caption, stringResource(R.string.ss_show_caption_hint),
+                        listOf(true to R.string.st_on, false to R.string.st_off),
+                        AerialSettings.screensaverCaption, AerialSettings::chooseScreensaverCaption,
+                    )
+                },
+            )
         }
     }
     Spacer(Modifier.height(12.dp))
@@ -713,21 +748,30 @@ private fun WeatherSection() {
 
 /** 关于: 版本号、更新入口和桌面接管状态。 */
 @Composable
-private fun AboutSection(homeStatus: HomeStatus, onUpdate: () -> Unit) {
+private fun AboutSection(homeStatus: HomeStatus, window: CardWindow) {
     val latest = Updates.available
+    var chipX by remember { mutableStateOf(0f) }
+    var chipY by remember { mutableStateOf(0f) }
     Group {
         Cell(
             R.string.cc_about_update,
             stringResource(R.string.cc_about_version, Updates.current) + " · " + BuildConfig.FLAVOR,
         ) { onFocus ->
-            ChipButton(
-                if (latest != null) stringResource(R.string.cc_update_to, latest) else stringResource(R.string.cc_about_latest),
-                on = false,
-                chevron = true,
-                check = false,
-                onClick = { if (latest != null) onUpdate() else Updates.checkIfStale(force = true) },
-                onFocus = onFocus,
-            )
+            Box(Modifier.onGloballyPositioned { c ->
+                val b = c.boundsInRoot()
+                chipX = b.center.x
+                chipY = b.top
+            }) {
+                ChipButton(
+                    if (latest != null) stringResource(R.string.cc_update_to, latest) else stringResource(R.string.cc_about_latest),
+                    on = false,
+                    chevron = true,
+                    check = false,
+                    // 有新版就在面板里浮出下载小窗口; 没有就当场再查一次。
+                    onClick = { if (latest != null) window.show(chipX, chipY, 560) else Updates.checkIfStale(force = true) },
+                    onFocus = onFocus,
+                )
+            }
         }
     }
     // 桌面接管状态只说明事实, 不是控件: 画成一行不带焦点的字。
@@ -748,7 +792,9 @@ private fun AboutSection(homeStatus: HomeStatus, onUpdate: () -> Unit) {
 
 /** 亲子守护: 密码与儿童/长辈模式的入口。 */
 @Composable
-private fun FamilySection(onPin: (on: Boolean) -> Unit, onKids: () -> Unit) {
+private fun FamilySection(onPin: (on: Boolean) -> Unit, window: CardWindow) {
+    var chipX by remember { mutableStateOf(0f) }
+    var chipY by remember { mutableStateOf(0f) }
     Group {
         Row2(
             {
@@ -760,19 +806,25 @@ private fun FamilySection(onPin: (on: Boolean) -> Unit, onKids: () -> Unit) {
                 )
             },
             {
-                ActionCell(
-                    R.string.st_kids, stringResource(R.string.st_kids_hint),
-                    listOf(
-                        CellAction(
-                            when {
-                                !Restricted.enabled -> stringResource(R.string.st_off)
-                                Restricted.kind == RestrictedKind.Kids -> stringResource(R.string.kids_kind_kids)
-                                else -> stringResource(R.string.kids_kind_elders)
-                            },
-                            chevron = true,
-                        ) { onKids() },
-                    ),
-                )
+                Box(Modifier.onGloballyPositioned { c ->
+                    val b = c.boundsInRoot()
+                    chipX = b.center.x
+                    chipY = b.top
+                }) {
+                    ActionCell(
+                        R.string.st_kids, stringResource(R.string.st_kids_hint),
+                        listOf(
+                            CellAction(
+                                when {
+                                    !Restricted.enabled -> stringResource(R.string.st_off)
+                                    Restricted.kind == RestrictedKind.Kids -> stringResource(R.string.kids_kind_kids)
+                                    else -> stringResource(R.string.kids_kind_elders)
+                                },
+                                chevron = true,
+                            ) { window.show(chipX, chipY, 1180) },
+                        ),
+                    )
+                }
             },
         )
     }
@@ -1287,6 +1339,28 @@ private class SheetFocusMemory {
 }
 
 private val LocalSheetFocus = compositionLocalOf<SheetFocusMemory?> { null }
+
+/**
+ * 面板里"内容型"的迷你窗口(更新下载、儿童与长辈模式): 和选项窗口同一套气泡,
+ * 但里面放的不是一行选项, 而是一整块自己的内容(按钮、开关、卡片), 也拿自己的焦点。
+ */
+private class CardWindow {
+    var open by mutableStateOf(false)
+    var anchorX = 0f
+    var anchorY = 0f
+    var widthDp = 560
+    var openedAt = 0L
+
+    fun show(anchorX: Float, anchorY: Float, widthDp: Int) {
+        this.anchorX = anchorX
+        this.anchorY = anchorY
+        this.widthDp = widthDp
+        this.openedAt = SystemClock.uptimeMillis()
+        open = true
+    }
+
+    fun hide() { open = false }
+}
 
 private val LocalMenuWindow = compositionLocalOf<MenuWindow?> { null }
 
@@ -2077,3 +2151,464 @@ private val SheetCorner = 30.dp
  * three full-screen layers and the tiles that nobody sees (Xiaomi MiTV-MFTR0).
  */
 val SheetCovers = SheetHeight - SheetCorner
+
+/**
+ * 内容小窗口的壳子: 和选项窗口同一块气泡、同一颗三角, 锚在入口按钮上; 只是里面装的是内容,
+ * 不是一列选项。开着的时候面板里的按钮整片不可聚焦(不跟窗口抢), 窗口自己拿一套焦点;
+ * 关掉时焦点回到入口那颗按钮。
+ */
+@Composable
+private fun CardWindowLayer(
+    window: CardWindow,
+    memory: SheetFocusMemory,
+    content: @Composable (close: () -> Unit) -> Unit,
+) {
+    val gap = 10.dp
+    val edge = 8.dp
+    var originX by remember { mutableStateOf(0f) }
+    var originY by remember { mutableStateOf(0f) }
+    var winSize by remember { mutableStateOf(IntSize.Zero) }
+    var shown by remember { mutableStateOf(false) }
+    var placed by remember { mutableStateOf(false) }
+    var alive by remember { mutableStateOf(window.open) }
+    val windowMemory = remember { SheetFocusMemory() }
+    LaunchedEffect(window.openedAt) {
+        winSize = IntSize.Zero
+        placed = false
+        shown = false
+    }
+    LaunchedEffect(placed, window.open) { if (placed && window.open) shown = true }
+    LaunchedEffect(window.open) {
+        if (window.open) {
+            alive = true
+            memory.holding = true
+        } else if (alive) {
+            shown = false
+            windowMemory.holding = true
+            delay(MiniExitMs)
+            alive = false
+            windowMemory.holding = false
+            memory.holding = false
+            memory.last?.let { runCatching { it.requestFocus() } }
+        }
+    }
+    if (!alive) return
+    val scale by animateFloatAsState(
+        if (shown) 1f else 0.92f,
+        spring(dampingRatio = 1f, stiffness = 800f), label = "card-window-scale",
+    )
+    val alpha by animateFloatAsState(if (shown) 1f else 0f, tween(120, easing = Motion.EaseOut), label = "card-window-alpha")
+
+    BoxWithConstraints(
+        Modifier.fillMaxSize().onGloballyPositioned {
+            val at = it.positionInRoot()
+            originX = at.x
+            originY = at.y
+        },
+    ) {
+        val density = LocalDensity.current
+        val fullW = with(density) { maxWidth.toPx() }
+        val fullH = with(density) { maxHeight.toPx() }
+        val ax = window.anchorX - originX
+        val ay = window.anchorY - originY
+        val gapPx = with(density) { gap.toPx() }
+        val edgePx = with(density) { edge.toPx() }
+        val x = if (winSize.width == 0) ax else
+            (ax - winSize.width / 2f).coerceIn(edgePx, (fullW - winSize.width - edgePx).coerceAtLeast(edgePx))
+        // 入口多在面板下半截: 窗口往上长, 顶到屏幕上边就当场收一收。
+        val top = (ay - winSize.height - gapPx).coerceAtLeast(edgePx)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .offset { IntOffset(x.roundToInt(), top.roundToInt()) }
+                .onGloballyPositioned {
+                    winSize = it.size
+                    if (it.size.width > 0 && it.size.height > 0) placed = true
+                }
+                .drawWithContent { if (placed) drawContent() }
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    this.alpha = alpha
+                    transformOrigin = TransformOrigin(0.5f, 1f)
+                }
+                .bubbleGlass(
+                    corner = 22.dp,
+                    tailHalf = 9.dp,
+                    tailHeight = MiniTailHeight,
+                    tailX = { with(density) { (ax - x).toDp() } },
+                )
+                .onPreviewKeyEvent { e ->
+                    // 返回键只管收这个窗口, 不传下去把整块面板关掉。
+                    if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_BACK && e.type == KeyEventType.KeyDown) {
+                        window.hide()
+                        true
+                    } else {
+                        false
+                    }
+                },
+        ) {
+            CompositionLocalProvider(LocalSheetFocus provides windowMemory) {
+                content { window.hide() }
+            }
+        }
+    }
+}
+
+private val KIDS_DAY_MINUTES = listOf(0, 30, 60, 90, 120)
+private val KIDS_END_MINUTES = listOf(0, 20 * 60, 21 * 60, 22 * 60)
+private val KIDS_BREAKS = listOf(0, 30, 45, 60)
+
+/** 预设之外, 手机网页里设过的那个值也要留在选项里, 否则一点就看不出来当前是什么。 */
+private fun withCustomMinutes(presets: List<Int>, current: Int): List<Int> =
+    (presets + current).distinct().sorted()
+
+/** 「更新到 x.yy」按下后浮出来的下载小窗口: 下载、进度、装好后的提示, 都在这块气泡里。 */
+@Composable
+private fun UpdateWindowContent(close: () -> Unit) {
+    val context = LocalContext.current
+    val first = remember { FocusRequester() }
+    val canInstall = remember { Updates.canInstall(context) }
+    var qr by remember { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(Unit) {
+        repeat(20) {
+            if (runCatching { first.requestFocus() }.isSuccess) return@LaunchedEffect
+            withFrameNanos { }
+        }
+    }
+    LaunchedEffect(Unit) {
+        val ip = PhoneServer.lanAddress(context)
+        val url = "https://aerial.qust.me/update/#v=${Updates.current}&f=${BuildConfig.FLAVOR}" + (ip?.let { "&tv=$it" } ?: "")
+        qr = withContext(Dispatchers.Default) { PhoneServer.qr(url).asImageBitmap() }
+    }
+    Column(Modifier.width(560.dp).padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 14.dp)) {
+        BasicText(
+            stringResource(R.string.cc_update_title, Updates.available ?: Updates.current),
+            style = Type.Headline,
+        )
+        Spacer(Modifier.height(4.dp))
+        val state = Updates.install
+        if (canInstall) {
+            Row(Modifier.padding(top = 10.dp)) {
+                Pressable(
+                    onClick = { Updates.install(context) },
+                    focusRequester = first,
+                ) { s ->
+                    Row(
+                        Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(if (s.focused) Palette.Focus else Palette.Fill)
+                            .height(34.dp)
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        GlyphIcon(Glyph.Download, if (s.focused) Palette.OnFocus else Palette.Label, 15.dp)
+                        BasicText(
+                            when (state) {
+                                is Updates.Install.Downloading ->
+                                    if (state.fraction <= 0f) stringResource(R.string.cc_update_connecting)
+                                    else stringResource(R.string.cc_update_downloading, (state.fraction * 100).toInt())
+                                Updates.Install.Waiting -> stringResource(R.string.cc_update_waiting)
+                                else -> stringResource(R.string.cc_update_install)
+                            },
+                            style = Type.Callout.copy(color = if (s.focused) Palette.OnFocus else Palette.Label),
+                        )
+                    }
+                }
+            }
+        }
+        val status = when (state) {
+            Updates.Install.Waiting -> stringResource(R.string.cc_update_waiting)
+            Updates.Install.Opened -> stringResource(R.string.cc_update_opened)
+            Updates.Install.NeedsPermission -> stringResource(R.string.cc_update_permission)
+            Updates.Install.NeedsStoragePermission -> stringResource(R.string.cc_update_storage_permission)
+            is Updates.Install.Failed -> stringResource(
+                when (state.reason) {
+                    Updates.Failure.Download -> R.string.cc_update_failed_download
+                    Updates.Failure.Blocked -> R.string.cc_update_failed_blocked
+                    Updates.Failure.NotOfficial -> R.string.cc_update_failed_signature
+                    Updates.Failure.NotNewer -> R.string.cc_update_failed_older
+                },
+            )
+            else -> stringResource(R.string.cc_update_current, Updates.current)
+        }
+        BasicText(
+            status,
+            style = Type.Caption.copy(color = Palette.SecondaryLabel),
+            modifier = Modifier.padding(top = 10.dp),
+        )
+        Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(96.dp).smoothBackground(Color.White, 12.dp).padding(8.dp)) {
+                qr?.let {
+                    Image(
+                        it, contentDescription = null, contentScale = ContentScale.Fit,
+                        filterQuality = FilterQuality.None, modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                BasicText(
+                    stringResource(if (canInstall) R.string.cc_update_scan_else else R.string.cc_update_scan),
+                    style = Type.Body,
+                )
+                Spacer(Modifier.height(4.dp))
+                BasicText(stringResource(R.string.cc_update_keeps), style = Type.Caption.copy(color = Palette.SecondaryLabel))
+            }
+            Spacer(Modifier.width(10.dp))
+            Pressable(onClick = close) { s ->
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(if (s.focused) Palette.Focus else Palette.Fill)
+                        .height(34.dp)
+                        .padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    BasicText(
+                        stringResource(R.string.st_off),
+                        style = Type.Callout.copy(color = if (s.focused) Palette.OnFocus else Palette.Label),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 「儿童与长辈模式」的设置: 面板样式的选项(格子 + 胶囊) + 直播卡片与应用的候选, 全在一块小窗口里。 */
+@Composable
+private fun KidsWindowContent(candidates: List<AppEntry>, close: () -> Unit, onStart: () -> Unit) {
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        repeat(20) {
+            if (runCatching { first.requestFocus() }.isSuccess) return@LaunchedEffect
+            withFrameNanos { }
+        }
+    }
+    val kids = Restricted.kind == RestrictedKind.Kids
+    val rules = Restricted.rules
+    val guard = HomeGuardService.isRunning
+    val allowed = Restricted.allowed
+    val sources = candidates.filter { it.source != null }
+    val appsOnly = candidates.filter { it.source == null }
+    val hasAny = candidates.isNotEmpty()
+    Column(Modifier.width(1180.dp).padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            GlyphIcon(Glyph.Kids, Palette.Label, 22.dp)
+            Spacer(Modifier.width(10.dp))
+            BasicText(stringResource(R.string.st_kids), style = Type.Headline)
+            Spacer(Modifier.width(12.dp))
+            BasicText(
+                stringResource(R.string.kids_hint),
+                style = Type.Caption.copy(color = Palette.SecondaryLabel),
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Column(
+            Modifier
+                .padding(top = 10.dp)
+                .heightIn(max = 470.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            Group {
+                Row2(
+                    {
+                        ChoiceCell(
+                            R.string.kids_kind,
+                            stringResource(if (kids) R.string.kids_kind_kids_hint else R.string.kids_kind_elders_hint),
+                            listOf(RestrictedKind.Kids to R.string.kids_kind_kids, RestrictedKind.Elders to R.string.kids_kind_elders),
+                            if (kids) RestrictedKind.Kids else RestrictedKind.Elders,
+                            { kind ->
+                                // 各自从一个合适的起点开始: 儿童拦别的 App, 长辈放行。
+                                Restricted.chooseKind(kind)
+                                Restricted.chooseBlockOthers(kind == RestrictedKind.Kids)
+                                KidsWatch.poke()
+                            },
+                        )
+                    },
+                    {
+                        ChoiceCell(
+                            R.string.kids_block,
+                            stringResource(if (guard) R.string.kids_block_hint else R.string.kids_block_no_guard),
+                            listOf(true to R.string.kids_block_on, false to R.string.kids_block_off),
+                            Restricted.blockOthers,
+                            { on -> Restricted.chooseBlockOthers(on); KidsWatch.poke() },
+                        )
+                    },
+                )
+                val minutesHint = stringResource(R.string.kids_minutes_hint)
+                Row2(
+                    {
+                        ChoiceCell(
+                            R.string.kids_weekday, minutesHint,
+                            withCustomMinutes(KIDS_DAY_MINUTES, rules.weekdayMinutes)
+                                .map { m -> m to (if (m == 0) stringResource(R.string.kids_no_limit) else m.toString()) as Any },
+                            rules.weekdayMinutes,
+                            { m -> Restricted.chooseRules(rules.copy(weekdayMinutes = m)); KidsWatch.poke() },
+                        )
+                    },
+                    {
+                        ChoiceCell(
+                            R.string.kids_weekend, minutesHint,
+                            withCustomMinutes(KIDS_DAY_MINUTES, rules.weekendMinutes)
+                                .map { m -> m to (if (m == 0) stringResource(R.string.kids_no_limit) else m.toString()) as Any },
+                            rules.weekendMinutes,
+                            { m -> Restricted.chooseRules(rules.copy(weekendMinutes = m)); KidsWatch.poke() },
+                        )
+                    },
+                )
+                Row2(
+                    {
+                        ChoiceCell(
+                            R.string.kids_latest, stringResource(R.string.kids_latest_hint, KidsTime.clock(rules.startMinute)),
+                            withCustomMinutes(KIDS_END_MINUTES, rules.endMinute)
+                                .map { m -> m to (if (m == 0) stringResource(R.string.kids_no_limit) else KidsTime.clock(m)) as Any },
+                            rules.endMinute,
+                            { m ->
+                                val next = rules.copy(endMinute = m)
+                                Restricted.chooseRules(if (next.valid) next else next.copy(startMinute = KidsTime.DEFAULT_START))
+                                KidsWatch.poke()
+                            },
+                        )
+                    },
+                    {
+                        ChoiceCell(
+                            R.string.kids_break, stringResource(R.string.kids_break_hint, rules.breakMinutes),
+                            withCustomMinutes(KIDS_BREAKS, rules.breakEvery)
+                                .map { m -> m to (if (m == 0) stringResource(R.string.st_off) else m.toString()) as Any },
+                            rules.breakEvery,
+                            { m -> Restricted.chooseRules(rules.copy(breakEvery = m)); KidsWatch.poke() },
+                        )
+                    },
+                )
+            }
+            // 直播卡片与应用分开摆: 直播源在这块模式里当一张卡用, 选一张就等于放行一个可以看台的口子。
+            if (!hasAny) {
+                BasicText(
+                    stringResource(R.string.kids_loading),
+                    style = Type.Caption.copy(color = Palette.Orange),
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            } else {
+                if (sources.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    BasicText(stringResource(R.string.kids_sources_note), style = Type.Caption.copy(color = Palette.SecondaryLabel))
+                    Spacer(Modifier.height(6.dp))
+                    KidsCards(sources, allowed, tileW = 150.dp, tileH = 84.dp, perRow = 6)
+                }
+                if (appsOnly.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    BasicText(stringResource(R.string.kids_apps, allowed.size), style = Type.Caption.copy(color = Palette.SecondaryLabel))
+                    Spacer(Modifier.height(6.dp))
+                    KidsCards(appsOnly, allowed, tileW = 118.dp, tileH = 66.dp, perRow = 8)
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Pressable(
+                onClick = { if (allowed.isNotEmpty()) { onStart(); close() } },
+                focusRequester = first,
+            ) { s ->
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(if (s.focused) Palette.Focus else Palette.Fill)
+                        .height(36.dp)
+                        .padding(horizontal = 18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                ) {
+                    GlyphIcon(Glyph.Kids, if (s.focused) Palette.OnFocus else Palette.Label, 16.dp)
+                    BasicText(
+                        stringResource(if (kids) R.string.kids_start_kids else R.string.kids_start_elders),
+                        style = Type.Callout.copy(color = if (s.focused) Palette.OnFocus else Palette.Label),
+                    )
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            if (allowed.isEmpty()) {
+                BasicText(
+                    stringResource(R.string.kids_pick_first),
+                    style = Type.Caption.copy(color = Palette.Orange),
+                )
+            } else if (Restricted.enabled) {
+                Pressable(onClick = { Restricted.chooseEnabled(false); KidsWatch.poke() }) { s ->
+                    Row(
+                        Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(if (s.focused) Palette.Focus else Palette.Fill)
+                            .height(36.dp)
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        BasicText(
+                            stringResource(R.string.kids_turn_off),
+                            style = Type.Callout.copy(color = if (s.focused) Palette.OnFocus else Palette.Label),
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            Pressable(onClick = close) { s ->
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(if (s.focused) Palette.Focus else Palette.Fill)
+                        .height(36.dp)
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    BasicText(
+                        stringResource(R.string.wp_window_close),
+                        style = Type.Callout.copy(color = if (s.focused) Palette.OnFocus else Palette.Label),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 模式里可选的卡片: 选中按顺序编号, 没选中的压一层暗罩。 */
+@Composable
+private fun KidsCards(
+    items: List<AppEntry>,
+    allowed: List<String>,
+    tileW: androidx.compose.ui.unit.Dp,
+    tileH: androidx.compose.ui.unit.Dp,
+    perRow: Int,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        items.chunked(perRow).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                row.forEach { app ->
+                    val index = allowed.indexOf(app.key)
+                    Pressable(onClick = { Restricted.toggleAllowed(app.key); KidsWatch.poke() }, focusedScale = 1.06f) { state ->
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box {
+                                MiniTile(app, state.focused, Modifier.size(tileW, tileH))
+                                if (index >= 0) {
+                                    Box(
+                                        Modifier.align(Alignment.TopEnd).padding(4.dp).size(20.dp).clip(CircleShape).background(Palette.Green),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        BasicText("${index + 1}", style = Type.Caption.copy(color = Color.White, textAlign = androidx.compose.ui.text.style.TextAlign.Center))
+                                    }
+                                } else {
+                                    Box(Modifier.matchParentSize().clip(RoundedCornerShape(10.dp)).background(Color.Black.copy(alpha = 0.35f)))
+                                }
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            BasicText(
+                                app.label, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                style = Type.Caption.copy(color = if (state.focused || index >= 0) Palette.Label else Palette.SecondaryLabel),
+                                modifier = Modifier.width(tileW),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

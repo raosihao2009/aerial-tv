@@ -276,6 +276,9 @@
     <string name="st_play_hint">Still: plays 10 seconds after you reach the top row; a key stops it. Always: keys never stop it, and the picture dims a little.</string>
     <string name="ss_show_time">Time</string>
     <string name="ss_show_time_hint">Time on the aerial and photo screensavers; it shifts now and then to avoid burn-in.</string>
+    <string name="ss_show_caption">Place</string>
+    <string name="ss_show_caption_hint">The place name bottom left on the aerial screensaver, and the picture\'s title on the photo screensaver.</string>
+    <string name="wp_window_close">Close</string>
 
     <!-- Kids and Elders mode (settings/Restricted) -->
     <string name="kids_title">Kids and Elders</string>
