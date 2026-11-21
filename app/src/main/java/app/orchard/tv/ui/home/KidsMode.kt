@@ -51,6 +51,7 @@ import app.orchard.tv.apps.AppEntry
 import app.orchard.tv.guard.HomeGuardService
 import app.orchard.tv.guard.KidsWatch
 import app.orchard.tv.settings.KidsLock
+import app.orchard.tv.settings.AerialSettings
 import app.orchard.tv.settings.KidsTime
 import app.orchard.tv.settings.Restricted
 import app.orchard.tv.settings.RestrictedKind
@@ -369,7 +370,12 @@ fun KidsLockScreen(lock: KidsLock?, pinOpen: Boolean, onParent: (onRight: () -> 
                 Spacer(Modifier.height(8.dp))
                 BasicText(sub, style = Type.Body.copy(color = Palette.SecondaryLabel, textAlign = TextAlign.Center))
                 Spacer(Modifier.height(30.dp))
-                if (!granting) {
+                if (!granting && !AerialSettings.pinSet) {
+                    // 没设家长密码: 别先把人关在"验证密码"里, 直接给一条退出的路。
+                    WideButton(stringResource(if (Restricted.kind == RestrictedKind.Kids) R.string.cc_kids_leave else R.string.cc_elders_leave), null, focusRequester = first) {
+                        onLeave()
+                    }
+                } else if (!granting) {
                     WideButton(stringResource(R.string.kids_parent), Glyph.Shield, focusRequester = first) {
                         onParent { granting = true }
                     }
