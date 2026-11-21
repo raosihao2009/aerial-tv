@@ -65,6 +65,7 @@ TCL 手机 App 有一个「把手机里的 APK 推到电视」的功能。电视
 - 放行条件是两个 TCL 自定义的 AppOps：`APP_AUTO_START`（op 100，系统拉起）和 `APP_ASSOC_START`（op 101，其他 App 关联拉起）。默认分别是 `ignore` 和 `default`。`install.sh` 用 `appops set app.orchard.tv APP_AUTO_START allow`（以及 `APP_ASSOC_START`）放行，`restore.sh` 会改回 `default`。
 - 2026-10-20 实测：放行后 `adb reboot`，开机约 0.5 秒通知监听就被绑定，Aerial 被拉起，守护服务接管桌面。
 - `system boot_app_mode boot_launcher` 加 `boot_app_componentname app.orchard.tv/.MainActivity`（TCL「开机进入」，`com.tcl.ttvs` 的 MMMService 管）：2026-10-20 试时重启后还是进 TCL 桌面；2026-11-03 在 1.81 测试包、当前固件上重测有效：两次 `adb reboot` 都是 13.7–14.1 秒第一个起来的就是 Aerial（在开机画面结束前），TCL 桌面没到过前台；守护在 20.8 秒还以为原桌面在前、多拉了一次（onPause 到 onResume 7 ms）。不设时对照两次：一次 13.8 秒 TCL 桌面、24 秒守护拉回（TCL 桌面露 10 秒），一次一直停在 TCL 桌面直到 5 分钟后屏保（那次开机日志被冲掉，原因没查到）。测完两项改回空值，户主自己再试也满意，1.81 起 `install.sh` 在装有 `com.tcl.ttvs` 或这项已有值的电视上设它，原值记在 `settings global aerial_boot_app_*`，`restore.sh` 改回。#1185 雷鸟鹤 6 2027（T966D5）也是这个设置。
+- 雷鸟鹤 6（tcl_m7642，安卓 9，#1234）上同样的两项设了没用：开机仍先出 TCL 桌面约 5 秒，等用户解锁、守护绑定后才切到 Aerial。这台 `adb reboot` 等于关机，要手动开机。
 - TCL 开机时有可能把 `screensaver_components` 写回「艺术画报」（实测出现过一次）。所以 `install.sh` 接管屏保时，会通过 ConfigReceiver 发送 `own_screensaver=true`，之后 Aerial 每次启动都会检查，被改回去就再改成 Aerial（`GuardSetup.keepScreensaver`）。
 
 ## HOME 与守护
@@ -112,7 +113,7 @@ TCL 手机 App 有一个「把手机里的 APK 推到电视」的功能。电视
 - 1.42：遥控器信号源键在有 TCL 信号源面板的固件上交给固件（PR #334），实测只弹 TCL 自己的面板。
 - 屏保里按主页键没反应（2026-10-29 修，未发版）：Android 11 守护一直过滤按键，主页键在系统之前被接住，守护「拉回 Aerial」，可 Aerial 本来就在屏保下面，系统又没收到这次按键，屏保就一直开着。现在守护接住主页键时，Aerial 的屏保（`AerialDream`）开着就直接 `finish()`，回到主页；这次按键不算进「连按两下」，免得红外遥控器一次按键到两次时打开最近任务。uinput 实测：单按关屏保回到主页；屏保里间隔 120ms 按两下只关屏保；没有屏保时按两下照旧打开最近任务。「系统内置」屏保（艺术画报）不是 Aerial 的，关不了，仍然没反应。
 - 主屏幕的航拍壁纸（4K SDR，SurfaceView）PixelCopy 能读到，`screencap` 也截得到（2026-10-23）。
-- 但 PixelCopy 复制一帧 4K 要 0.6–1.7 秒（渲染线程被占住，按键积压）；用 MediaMetadataRetriever 从 Apple 的 1080p 文件解帧，会卡死在 TCL 的 `TclMPEG4Extractor` 里，占住 mediaserver 的取帧锁，后面的请求全部排队。请求一多，`MediaCodecList` 也会卡，任何 App 查解码器都会挂住，只能重启（2026-10-30，bugreport 里 mediaserver 有 17 个 binder 线程卡在 `MetadataRetrieverClient::getFrameAtTime`）。所以这台电视不让 mediaserver 从文件取影片的帧（见 ARCHITECTURE「航拍壁纸取不到帧的电视」）。2026-11-04 起改在 Aerial 进程里自己解关键帧（`FilmKeyFrame`，`OMX.google.h264.decoder`，这台没有 c2 解码器）：回桌面是离开时的画面，从杜比视界屏保回来也不黑屏，玻璃每 15 秒跟上影片（#1238，见 ARCHITECTURE「进程内解关键帧」）。实测媒体服务一直正常。
+- 但 PixelCopy 复制一帧 4K 要 0.6–1.7 秒（渲染线程被占住，按键积压）；用 MediaMetadataRetriever 从 Apple 的 1080p 文件解帧，会卡死在 TCL 的 `TclMPEG4Extractor` 里，占住 mediaserver 的取帧锁，后面的请求全部排队。请求一多，`MediaCodecList` 也会卡，任何 App 查解码器都会挂住，只能重启（2026-10-30，bugreport 里 mediaserver 有 17 个 binder 线程卡在 `MetadataRetrieverClient::getFrameAtTime`）。所以这台电视不让 mediaserver 从文件取影片的帧（见 ARCHITECTURE「航拍壁纸取不到帧的电视」）。2026-11-04 起改在 Aerial 进程里自己解关键帧（`FilmKeyFrame`，`OMX.google.h264.decoder`，这台没有 c2 解码器）：回桌面是离开时的画面，从杜比视界屏保回来也不黑屏，玻璃每 15 秒跟上影片（#1238，见 ARCHITECTURE「进程内解关键帧」）。实测媒体服务一直正常。 「我的视频」的海报（首页底层图）原来走 retriever，这台上直接跳过，于是底层图固定成第一张内置渐变；2026-11-18 起也用 `FilmKeyFrame` 读（H.264 片子 414 ms，测试包 149），AV1 片子不行：这台只有硬件 AV1 解码器 `OMX.MS.AV1.Decoder`，没有软件的（#1622）。
 - **截图截不到视频画面**（视频走独立的硬件图层，截出来是黑的），但字幕和时钟能截到。地名字幕出现，说明视频已经在渲染。
 
 ## 视频解码器
@@ -134,3 +135,5 @@ TCL 手机 App 有一个「把手机里的 APK 推到电视」的功能。电视
 ## 手机遥控的虚拟输入设备（#1234，雷鸟鹤6 tcl_m7642）
 
 tcl_m7642（安卓 9）上即使什么都没接，也有 `sim-kb`（classes 0x63）和 `sim-mouse`（0x6b）两个设备，带 GAMEPAD 位（0x40）和字母键位（0x2），像是 TCL 手机遥控用的；另有 `sim-TP`（0x115，带 JOYSTICK）和名字里带 virtual 的 `TCL-virtual`。1.63–1.82 把 `sim-kb` / `sim-mouse` 算成手柄，别的 App 里不过滤按键，主页键先到 TCL 桌面、5 秒后才回 Aerial。现在字母键盘不算手柄。MT5879（本机）没有这些设备，只有 MTK 键盘、IR 接收器、`gIrTouch_Mouse` 和蓝牙遥控 `FF_RC902N_C1`（都没有 GAMEPAD 位）。
+
+- 设置键（`KEYCODE_TCL_SET` 短按，没有 QsPanel 功能时）发 `com.tcl.settings.SHOW_WINDOW` 带 `Type=Settings`、`flag="1"`；背光键带 `ITEM=picture_backlight`、`MOTION=UP/DOWN`（`TclShortCutKeyManager`）。Aerial 2.1 之后也带 `Type` / `flag` 发（#1625，TCL r34a0 安卓 5.1 上不带参数会卡住设置服务），这台实测仍开图像页。

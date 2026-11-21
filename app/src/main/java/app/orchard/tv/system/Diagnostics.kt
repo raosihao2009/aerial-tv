@@ -87,6 +87,7 @@ object Diagnostics {
             .forEach { key -> prop(key)?.takeIf { it.isNotEmpty() }?.let { appendLine("  $key = $it") } }
         appendLine("Screen      ${screen(context)}")
         appendLine("Memory      ${memory(context)}")
+        appendLine("Output      ${OutputDevice.describe(context)}")
         appendLine("Network     ${SystemProbe.network(context).kind}")
         appendLine("```")
 
@@ -127,8 +128,9 @@ object Diagnostics {
         runCatching { app.orchard.tv.wallpaper.AerialStream.usage(context) }.getOrNull()?.let { (used, limit) ->
             appendLine("Aerials     quality=${AerialSettings.aerialQuality.key} films=${app.orchard.tv.wallpaper.AerialSet.films(context).joinToString(",") { it.id.take(8) }} cache=${used / 1_048_576}/${limit / 1_048_576} MB")
         }
-        appendLine("            wallpaper=${app.orchard.tv.wallpaper.Wallpapers.selectedId.substringBefore('/')} always_moves=${AerialSettings.wallpaperAlwaysMoves} quality=${AerialSettings.aerialQuality.key} weather=${AerialSettings.showWeather} saver_clock=${AerialSettings.screensaverClock}")
+        appendLine("            wallpaper=${app.orchard.tv.wallpaper.Wallpapers.selectedId.substringBefore('/')} always_moves=${AerialSettings.wallpaperAlwaysMoves} quality=${AerialSettings.aerialQuality.key} weather=${AerialSettings.showWeather} saver_clock=${AerialSettings.screensaverClock} saver_caption=${AerialSettings.screensaverCaption}")
         runCatching { app.orchard.tv.ui.home.filmGlassReport(context) }.getOrNull()?.let { appendLine("            film glass $it") }
+        runCatching { app.orchard.tv.weather.Weather.diagnostics() }.getOrNull()?.let { appendLine("Weather     $it") }
         appendLine("```")
 
         appendLine()

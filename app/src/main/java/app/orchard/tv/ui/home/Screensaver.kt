@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import app.orchard.tv.MainActivity
@@ -137,7 +138,7 @@ fun Screensaver(visible: Boolean, apps: List<AppEntry>, now: LocalDateTime, skip
                     },
                 )
                 ScreensaverMode.Photos -> PhotoSaver(now, skips.steps, remember { Wallpapers.screensaverPicture() })
-                ScreensaverMode.Clock, ScreensaverMode.System -> ClockSaver(apps, now)
+                ScreensaverMode.Clock, ScreensaverMode.System, ScreensaverMode.Sleep -> ClockSaver(apps, now)
                 ScreensaverMode.Videos -> if (videosFailed) PhotoSaver(now, skips.steps) else VideoSaver(skips.steps, leaving = !visible, onUnavailable = { videosFailed = true })
             }
         }
@@ -317,7 +318,7 @@ private fun labelShade(): ImageBitmap {
     return out.asImageBitmap()
 }
 
-/** Place name bottom-left, time top-right: how tvOS labels its screensaver. */
+/** Place name bottom-left, time top-right: how tvOS labels its screensaver. Each can be turned off in Personalize. */
 @Composable
 private fun Labels(
     caption: String?,
@@ -329,7 +330,8 @@ private fun Labels(
     // Fades in where Home's own clock has moved to, as the photos cover it.
     val time by animateFloatAsState(if (showTime) 1f else 0f, tween(2000), label = "time")
     Box(Modifier.fillMaxSize()) {
-        if (shade) Canvas(Modifier.fillMaxSize().diagLayer("shade")) {
+        // Both words turned off in Personalize: nothing to read, so no shade either.
+        if (shade && (AerialSettings.screensaverClock || AerialSettings.screensaverCaption)) Canvas(Modifier.fillMaxSize().diagLayer("shade")) {
             val shade = labelShadeImage
             // Just enough shade under the text to read it over bright sky or snow. Only its two
             // bands: the clear middle would cost the GPU as much to fill (Lite's SaverView.Shade).
@@ -345,19 +347,28 @@ private fun Labels(
             )
         }
         val drift = saverDrift(now)
+        // Laid out at Home's size and scaled up, as Home's own clock is when it is carried here
+        // (HomeChrome's toSaverClock): laid out at the large size, the digits' advances came out
+        // wider than in the carried one, and the spacing grew when this clock took over with the
+        // first photo (Google TV, Android 14, issue #1646).
         if (time > 0f && AerialSettings.screensaverClock) BasicText(
             timeText(now),
-            style = SaverClockStyle,
+            style = SaverClockStyle.copy(fontSize = Type.Title.fontSize),
             modifier = Modifier
                 .align(if (AerialSettings.clockRight) Alignment.TopEnd else Alignment.TopStart)
                 .padding(top = SaverClockTop, start = SaverClockSide, end = SaverClockSide)
                 .graphicsLayer {
+                    val s = SaverClockStyle.fontSize.toPx() / Type.Title.fontSize.toPx()
+                    transformOrigin = TransformOrigin(if (AerialSettings.clockRight) 1f else 0f, 0f)
+                    scaleX = s
+                    scaleY = s
                     alpha = time
                     translationX = drift.x.toPx()
                     translationY = drift.y.toPx()
                 },
         )
-        AnimatedContent(
+        // Turned off in Personalize: the place name goes at once, mid-film too.
+        if (AerialSettings.screensaverCaption) AnimatedContent(
             targetState = caption.orEmpty(),
             // One after the other: two names fading across each other in the same place smeared.
             transitionSpec = { fadeIn(tween(600, delayMillis = 400, easing = Motion.EaseOut)) togetherWith fadeOut(tween(400, easing = Motion.EaseOut)) },

@@ -8,6 +8,9 @@ import android.text.format.DateFormat
 import android.graphics.PorterDuff
 import android.graphics.Matrix
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.animation.AnimatedVisibility
@@ -806,10 +809,12 @@ fun ShelfClock(
                 .toSaverClock(toSaver, Type.Clock.fontSize, 0.dp, drift)
                 .capBox(Type.Clock.fontSize),
         )
-        Weather.now?.takeIf { AerialSettings.showWeather }?.let { w ->
+        val atMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        Weather.shown(atMs)?.takeIf { AerialSettings.showWeather }?.let { w ->
             val place = Weather.place?.takeIf { it.length <= 12 }
-            val range = if (w.high != null && w.low != null) "${w.low}° ~ ${w.high}°" else null
-            val detail = listOfNotNull(place, stringResource(conditionName(w.kind)), range).joinToString(" · ")
+            val range = if (w.high != null && w.low != null) stringResource(R.string.weather_high_low, w.high, w.low) else null
+            val age = Weather.hoursOld(w, atMs)?.let { stringResource(R.string.weather_hours_ago, it) }
+            val detail = listOfNotNull(place, stringResource(conditionName(w.kind)), range, age).joinToString(" · ")
             Row(aside.padding(top = 18.dp).capBox(Type.ClockDetail.fontSize), verticalAlignment = Alignment.CenterVertically) {
                 GlyphIcon(glyphFor(w), Color.White, 18.dp, Modifier.padding(end = 7.dp))
                 BasicText(
@@ -1548,6 +1553,7 @@ fun StatusPill(
         focusRequester = focusRequester,
         focusedScale = 1.08f,
         modifier = modifier,
+        label = stringResource(R.string.cc_title),
     ) { state ->
         LaunchedEffect(state.focused) { onFocused(state.focused) }
         val net = network()
@@ -1576,6 +1582,60 @@ fun StatusPill(
                 BasicText(timeText(now), style = Type.Headline.copy(color = fg))
             }
             GlyphIcon(Glyph.Switches, fg, 17.dp)
+        }
+    }
+}
+
+/** The battery, where the device runs on one (issue #1426: GOOVIS D4 headset). */
+data class Battery(val percent: Int, val charging: Boolean)
+
+/**
+ * The battery's level while Home shows, from the system's battery broadcast (sent on each change
+ * of a percent or of the plug), or null: no battery, or plugged in and full. A TV with no battery
+ * still answers "level 100, plugged in, charging" (Xiaomi MiTV-MFTR0), with present=false; a
+ * firmware that also claimed present=true would read as plugged in at 100% and show nothing.
+ */
+@Composable
+private fun rememberBattery(): Battery? {
+    val context = LocalContext.current
+    var battery by remember { mutableStateOf<Battery?>(null) }
+    DisposableEffect(Unit) {
+        fun read(i: android.content.Intent?) {
+            if (i == null || !i.getBooleanExtra(android.os.BatteryManager.EXTRA_PRESENT, false)) { battery = null; return }
+            val scale = i.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100).coerceAtLeast(1)
+            val percent = (i.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) * 100 / scale)
+            val plugged = i.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) != 0
+            battery = if (percent < 0 || (plugged && percent >= 100)) null else Battery(percent, plugged)
+        }
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: android.content.Context, i: android.content.Intent) = read(i)
+        }
+        read(runCatching { context.registerReceiver(receiver, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED)) }.getOrNull())
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
+    }
+    return battery
+}
+
+/** A battery outline filled to its level, and the percent; red at 20% and under unless charging. */
+@Composable
+private fun BatteryBadge(battery: Battery, fg: Color) {
+    val fill = if (battery.percent <= 20 && !battery.charging) Palette.Red else fg
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        BasicText("${battery.percent}%", style = Type.Callout.copy(color = fg))
+        Canvas(Modifier.size(22.dp, 11.dp)) {
+            val stroke = 1.2.dp.toPx()
+            val body = Size(size.width - 2.5.dp.toPx(), size.height)
+            drawRoundRect(fg.copy(alpha = 0.55f), size = body, cornerRadius = CornerRadius(3.dp.toPx()), style = Stroke(stroke))
+            drawRoundRect(
+                fg.copy(alpha = 0.55f), topLeft = Offset(body.width + 0.8.dp.toPx(), size.height * 0.32f),
+                size = Size(1.7.dp.toPx(), size.height * 0.36f), cornerRadius = CornerRadius(1.dp.toPx()),
+            )
+            val inset = stroke + 1.dp.toPx()
+            drawRoundRect(
+                fill, topLeft = Offset(inset, inset),
+                size = Size((body.width - 2 * inset) * battery.percent.coerceIn(0, 100) / 100f, body.height - 2 * inset),
+                cornerRadius = CornerRadius(1.5.dp.toPx()),
+            )
         }
     }
 }

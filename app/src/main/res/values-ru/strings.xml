@@ -11,6 +11,7 @@
     <string name="cc_settings">Настройки</string>
     <string name="cc_volume">Громкость</string>
     <string name="cc_muted">Звук выключен</string>
+    <string name="cc_volume_external">На аудиосистеме</string>
     <string name="cc_home_default">Aerial — ваш главный экран</string>
     <string name="cc_home_guarded">Home Guard включён</string>
     <string name="cc_home_not_default">Не главный экран по умолчанию</string>
@@ -232,6 +233,7 @@
     <string name="weather_thunder">Грозы</string>
     <string name="weather_temperature">%1$d°</string>
     <string name="weather_high_low">Макс.: %1$d°  Мин.: %2$d°</string>
+    <string name="weather_hours_ago">%d ч назад</string>
     <string name="st_columns">Приложений в ряду</string>
     <string name="st_columns_hint">Сколько приложений помещается в ряд на главном экране и в папках. Шесть — больше видно сразу; четыре — крупнее, их лучше видно издалека.</string>
     <string name="st_peek">Второй ряд</string>
@@ -261,6 +263,8 @@
     <string name="st_play_hint">В покое: через 10 секунд на верхнем ряду (в двухрядном виде — на любом из двух); любая кнопка останавливает. Всегда: кнопки не останавливают, фон чуть затемнён; останавливается, когда вы переходите к приложениям ниже.</string>
     <string name="ss_show_time">Время</string>
     <string name="ss_show_time_hint">Время на заставках с аэросъёмкой и фото. Время и название места время от времени слегка сдвигаются, чтобы не выгорал экран.</string>
+    <string name="ss_show_caption">Место</string>
+    <string name="ss_show_caption_hint">Название места слева внизу на заставке с аэросъёмкой и название снимка на заставке с фото.</string>
 
     <!-- Kids and Elders mode (settings/Restricted) -->
     <string name="kids_title">Дети и пожилые</string>
@@ -317,4 +321,12 @@
     <string name="kids_warn">Осталось %d мин</string>
     <string name="kids_warn_break">Перерыв через %d мин</string>
 
-</resources>
+
+    <string name="a11y_delete">Удалить</string>
+    <string name="cc_about">Об Aerial</string>
+    <string name="cc_about_update">Обновление</string>
+    <string name="cc_about_latest">Последняя версия</string>
+    <string name="cc_about_version">Версия %1$s</string>
+    <string name="ss_sleep">Сон</string>
+    <string name="ss_sleep_hint">Без заставки: по истечении времени телевизор уходит в режим ожидания, как от кнопки питания. Многие телевизоры потом включаются только кнопкой питания.</string>
+    <string name="cc_update_to">Обновить до %1$s</string></resources>

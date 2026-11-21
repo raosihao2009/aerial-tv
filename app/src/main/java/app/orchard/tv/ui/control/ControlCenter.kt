@@ -264,9 +264,11 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
     // Firmwares that list their inputs late (see HomeViewModel.refreshSources): look again while
     // the page is open and still empty. One provider or TvInputManager query every 3 s.
     LaunchedEffect(Unit) {
+        // Once as it opens: what is plugged in may have changed since the list was read.
+        vm.refreshSources(again = true)
         while (vm.sources.isEmpty()) {
-            vm.refreshSources()
             delay(3000)
+            vm.refreshSources()
         }
     }
     var focusRequested by remember { mutableStateOf(false) }
@@ -371,19 +373,6 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
             // 以前是直接进的, 等于密码形同虚设。
             onClick = { vm.whenUnlocked { vm.overlay = Overlay.Wallpaper } },
         )
-        // 手动查一次: 不跳页, 结论落在底部那行状态("Aerial x · 已是最新 / 检查更新失败")。
-        // 查到新版后这一行自己变成"有新版本 3.xx", 按下去直接进更新页下载, 不再多出一条入口。
-        val latestVersion = Updates.available
-        MenuRow(
-            if (latestVersion == null) Glyph.Download else Glyph.Info,
-            if (latestVersion == null) stringResource(R.string.cc_check_update)
-            else stringResource(R.string.cc_update_available, latestVersion),
-            onClick = {
-                if (latestVersion == null) Updates.checkIfStale(force = true, maxAgeMs = Updates.CONTROL_CENTER_MAX_AGE_MS)
-                else vm.overlay = Overlay.ControlCenter(CcPage.Update)
-            },
-            trailing = if (latestVersion == null && Updates.checking) stringResource(R.string.cc_checking) else null,
-        )
         // What the TV opens when switched on: easy to forget, and puzzling when it happens.
         vm.bootTargetLabel()?.let { name ->
             MenuRow(
@@ -406,27 +395,15 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
             MenuRow(Glyph.Shield, stringResource(R.string.cc_setup_title), onClick = { vm.overlay = Overlay.ControlCenter(CcPage.Setup) }, trailing = "›")
         }
 
-        Spacer(Modifier.height(8.dp))
-        val (dot, text) = when (vm.homeStatus) {
-            HomeStatus.Default -> Palette.Green to stringResource(R.string.cc_home_default)
-            HomeStatus.Guarded -> Palette.Green to stringResource(R.string.cc_home_guarded)
-            HomeStatus.NotDefault -> Palette.Orange to stringResource(R.string.cc_home_not_default)
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 14.dp)) {
-            Box(Modifier.size(7.dp).clip(CircleShape).background(dot))
-            Spacer(Modifier.width(8.dp))
-            BasicText(text, style = Type.Caption, modifier = Modifier.weight(1f))
-            // 没有新版时也要说一句: 否则"确实是最新"和"连不上更新源"在面板上长得一样。
-            val status = when {
-                Updates.checkFailed -> stringResource(R.string.cc_update_failed)
-                Updates.upToDate -> stringResource(R.string.cc_update_uptodate)
-                else -> null
-            }
-            val caption = if (status != null) "Aerial ${Updates.current} · $status" else "Aerial ${Updates.current}"
-            BasicText(
-                caption,
-                style = Type.Caption.copy(color = if (Updates.checkFailed) Palette.Orange else Palette.TertiaryLabel),
-                modifier = Modifier.padding(end = 14.dp),
+        // 有新版本时才有这一行(上游 2.13 的做法): 版本号、桌面接管状态、检查更新都搬到
+        // 个性化的「关于」里, 控制中心只留控件。
+        Updates.available?.let { latest ->
+            MenuRow(
+                Glyph.Download,
+                stringResource(R.string.cc_update_to, latest),
+                onClick = { vm.overlay = Overlay.ControlCenter(CcPage.Update) },
+                dot = Palette.Blue,
+                trailing = "›",
             )
         }
     }
@@ -667,6 +644,8 @@ private fun RoundButton(
 @Composable
 private fun SliderRow(
     glyph: Glyph,
+    /** For a screen reader, which shows no glyph: "Volume", "Brightness". */
+    label: String,
     level: Float,
     value: String,
     steps: Int,
@@ -699,6 +678,7 @@ private fun SliderRow(
         onClick = onClick,
         focusedScale = 1.03f,
         modifier = modifier.fillMaxWidth(),
+        label = label,
         onKey = { e ->
             val code = e.nativeKeyEvent.keyCode
             if (code != NativeKeyEvent.KEYCODE_DPAD_LEFT && code != NativeKeyEvent.KEYCODE_DPAD_RIGHT) return@Pressable false
@@ -746,10 +726,17 @@ private fun SliderRow(
 @Composable
 private fun VolumeRow(vm: HomeViewModel, returnTo: FocusRequester) {
     val volume = vm.volume
+    // A sound system over HDMI-CEC holds the volume; the TV's own level stands still, so neither
+    // it nor its mute is shown, and the steps still go to the sound system (issue #1562).
     SliderRow(
-        glyph = if (volume.muted) Glyph.SpeakerMuted else Glyph.Speaker,
-        level = if (volume.muted) 0f else volume.fraction,
-        value = if (volume.muted) stringResource(R.string.cc_muted) else volume.level.toString(),
+        label = stringResource(R.string.cc_volume),
+        glyph = if (volume.muted && !volume.external) Glyph.SpeakerMuted else Glyph.Speaker,
+        level = if (volume.muted || volume.external) 0f else volume.fraction,
+        value = when {
+            volume.external -> stringResource(R.string.cc_volume_external)
+            volume.muted -> stringResource(R.string.cc_muted)
+            else -> volume.level.toString()
+        },
         steps = volume.max,
         onStep = vm::adjustVolume,
         modifier = Modifier.focusProperties { up = returnTo },

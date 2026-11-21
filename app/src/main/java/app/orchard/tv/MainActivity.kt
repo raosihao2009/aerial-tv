@@ -89,6 +89,7 @@ import app.orchard.tv.system.FrameStats
 import app.orchard.tv.wallpaper.AerialFormats
 import app.orchard.tv.wallpaper.ScreensaverMode
 import app.orchard.tv.system.SystemScreensaver
+import app.orchard.tv.system.WhaleyBoot
 import app.orchard.tv.system.Diagnostics
 import app.orchard.tv.system.MissingClipboard
 import app.orchard.tv.system.Sounds
@@ -261,6 +262,7 @@ class MainActivity : ComponentActivity() {
             DiagLog.i("启动调试: reopenAsHome 返回 true, 提前结束")
             return
         }
+        WhaleyBoot.turnOffPowerLight(this)
         startReal(savedInstanceState)
     }
 
@@ -843,6 +845,12 @@ class MainActivity : ComponentActivity() {
             if (asked && !SystemScreensaver.startFirmware(this)) DiagLog.i("没有可启动的系统屏保")
             return
         }
+        // Standby instead of a screensaver (issue #1436), on the timer only: Back must not put the
+        // TV to sleep. Where the guard cannot do it (it went off since), the clock shows instead.
+        if (Wallpapers.screensaver == ScreensaverMode.Sleep && !asked) {
+            if (HomeGuardService.sleep("screensaver")) return
+            DiagLog.i("standby chosen, but the guard cannot put the TV to sleep; the clock instead")
+        }
         // Aerials over the aerial wallpaper, or the owner's videos over their video wallpaper: Home
         // carries the wallpaper's film on, the same player in the same format, so there is no black
         // between them; the dream would be a new player in a new window, and showed black even in
@@ -862,6 +870,7 @@ class MainActivity : ComponentActivity() {
         }
         DiagLog.i("屏保启动(${Wallpapers.screensaver})")
         vm.screensaverVisible = true
+        SelfCompile.onScreensaver { vm.screensaverVisible }
         // Holding the screen on keeps the firmware's screensaver from starting over ours. After a
         // long stretch, let go so the TV's own power policy can still turn the panel off. Not
         // where the screen never goes off: letting go only handed it to the firmware's
@@ -919,20 +928,23 @@ class MainActivity : ComponentActivity() {
         // taking focus (TCL MT5879: a press 18 ms after onPause, focus gone 400 ms later), and a
         // timer set then would start the screensaver over the app's video (issue #974).
         if (!vm.resumed) return
-        if (AerialSettings.screensaverMinutes != AerialSettings.NEVER) {
+        val never = AerialSettings.screensaverMinutes == AerialSettings.NEVER
+        if (!never) {
             val idle = idleBeforeScreensaver()
             idleHandler.postDelayed(showScreensaver, idle)
             if (idle > SAVER_AHEAD_MS) idleHandler.postDelayed(prepareScreensaver, idle - SAVER_AHEAD_MS)
-            if (holdsOffTheDream() && window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON == 0) {
-                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            }
         }
         // Not with "System": the firmware's screensaver is wanted then, and holding the screen on
         // held it off (Xiaomi's starts on its own timer, screen_saver_timeout).
-        else if (Wallpapers.screensaver != ScreensaverMode.System &&
-            window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON == 0 && screenNeverOff()) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        }
+        val keepOn = Wallpapers.screensaver != ScreensaverMode.System &&
+            if (never) screenNeverOff() else holdsOffTheDream()
+        val held = window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0
+        if (keepOn && !held) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // Let go once it is no longer wanted, as when "System" is chosen after a delay that held
+        // off the dream: the flag stayed until Aerial restarted, and neither the screen nor the
+        // firmware's screensaver went off (issue #1609, read from the code). Not while Aerial's
+        // own screensaver shows, which holds the screen itself until releaseScreen.
+        else if (!keepOn && held && !vm.screensaverVisible) window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     /**
@@ -1056,11 +1068,15 @@ class MainActivity : ComponentActivity() {
             idleHandler.post { startScreensaver(asked = true) }
             return
         }
-        if (intent.hasCategory(Intent.CATEGORY_HOME) || intent.action == Intent.ACTION_MAIN) {
+        // Some Skyworth/Coocaa firmwares answer Home by starting persist.service.homepage.pkg/cls
+        // themselves, with no action and no category: Home on Home never reset the focus
+        // (7S77_M2, MStar M7221, Android 8.0, issue #1508; the reporter patched 1.95 with this
+        // and checked it). Aerial's own starts of this activity all carry ACTION_MAIN.
+        val homeByComponent = intent.action == null && intent.component?.packageName == packageName
+        if (intent.hasCategory(Intent.CATEGORY_HOME) || intent.action == Intent.ACTION_MAIN || homeByComponent) {
             // openedAppSinceHome=true: 从其他App回来(规则1, 不调焦点)
             // openedAppSinceHome=false: 在桌面按HOME(规则2/3, 焦点回首排)
-            val comingFromApp = openedAppSinceHome
-            vm.onHomePressed(fromOtherApp = comingFromApp)
+            vm.onHomePressed(fromOtherApp = openedAppSinceHome)
             openedAppSinceHome = false
         }
     }
@@ -1146,6 +1162,7 @@ class MainActivity : ComponentActivity() {
             minuteReceiverOn = true
         }
         KidsWatch.homeInFront = true
+        Weather.whileShown(true)
         idleHandler.removeCallbacks(endHomeBounce)
         vm.homeBounce = false
         DiagLog.i("onResume; 屏保等待 ${idleBeforeScreensaver() / 1000} 秒")
@@ -1155,7 +1172,7 @@ class MainActivity : ComponentActivity() {
         }
         restartIdleTimer()
         GuardSetup.setHomeInFront(this, true)
-        HomeGuardService.onAerialResumed()
+        HomeGuardService.onAerialResumed(this)
         onHomeInFrontReset = {
             vm.onHomePressed()
         }
@@ -1201,6 +1218,7 @@ class MainActivity : ComponentActivity() {
         vm.resumed = false
         if (minuteReceiverOn) { runCatching { unregisterReceiver(minuteReceiver) }; minuteReceiverOn = false }
         KidsWatch.homeInFront = false
+        Weather.whileShown(false)
         Updates.onHomePaused()
         DiagLog.i("启动调试: onPause 于 +${SystemClock.elapsedRealtime()}ms")
         leftForAnApp = openedAppSinceHome
@@ -1282,19 +1300,20 @@ class MainActivity : ComponentActivity() {
         }
         try {
             FilmAfterInput.noteOpened(this, app.launchIntent())
+            if (app.source != null) allowInputThroughHome(app.launchIntent())
             if (HisenseSources.open(this, app.launchIntent())) return
             startActivity(settingsLaunchIntent(this, app.launchIntent()), options)
         } catch (e: Exception) {
             // XGIMI (GMUI): nothing answers the passthrough intent a source tile carries, so the tile
             // opens the source page of its settings service instead (issue #241).
-            if (app.source != null && SystemProbe.openInputPicker(this)) return
+            if (app.source != null && (SystemProbe.openXgimiInput(this, app.launchIntent()) || SystemProbe.openInputPicker(this))) return
             // PatchWall's entry needs its permission whether or not the guard runs, and with the
             // guard switched off its tile did nothing (MiTV-ANSP0, Android 9, issue #971).
             if (e is SecurityException && startStockLauncher(app)) {
                 // Opened on purpose all the same. In a process the firmware had just killed the
                 // guard had not bound yet, so isStockHome said no above, and once bound it took
                 // PatchWall for one the TV raised (MiTV-ANSP0, Android 9, issue #971, PR #1216).
-                if (isHomeApp(app.packageName)) HomeGuardService.allowStockLauncher()
+                if (isHomeApp(app.packageName)) HomeGuardService.allowStockLauncher(this)
                 return
             }
             Toast.makeText(this, getString(R.string.launch_failed, app.label), Toast.LENGTH_SHORT).show()
@@ -1349,8 +1368,19 @@ class MainActivity : ComponentActivity() {
         }.isSuccess
     }
 
+    /**
+     * An input opened through an activity that is also one of the TV's Homes, which the guard
+     * would take for the stock launcher and close: JMGO H931's com.jmgo.tv/.MainActivity tunes the
+     * input and is a Home candidate as well (issue #1481). Opened on purpose, like its tile.
+     */
+    private fun allowInputThroughHome(intent: Intent) {
+        val pkg = intent.component?.packageName ?: return
+        if (pkg != packageName && isHomeApp(pkg)) HomeGuardService.allowStockLauncher(this)
+    }
+
     private fun open(intent: Intent) {
         FilmAfterInput.noteOpened(this, intent)
+        if (intent.hasExtra("inputSrc")) allowInputThroughHome(intent)
         // Older Konka: the input first, then its page, which only shows what is on (issue #710).
         if (KonkaSources.needsSwitch(intent)) {
             val app = applicationContext
@@ -1369,7 +1399,9 @@ class MainActivity : ComponentActivity() {
         } catch (e: Exception) {
             // XGIMI (GMUI): its inputs carry a passthrough intent that nothing answers, so switching
             // goes through the source page of its settings service (issue #241).
-            if (intent.data?.host == "android.media.tv" && SystemProbe.openInputPicker(this)) return
+            if (intent.data?.host == "android.media.tv" &&
+                (SystemProbe.openXgimiInput(this, intent) || SystemProbe.openInputPicker(this))
+            ) return
             LaunchFallback.next()?.let { return open(it) }
             Toast.makeText(this, R.string.unavailable, Toast.LENGTH_SHORT).show()
         }

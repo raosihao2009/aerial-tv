@@ -147,6 +147,16 @@ object AppCatalog {
         // 宽带电视, GITV's live TV; MAIN only, no category, not on PatchWall either
         // (MiTV4-ANSM0, Android 6.0.1, issue #1378, found by the reporter).
         ComponentName("com.gitv.dvb.live", "com.gitv.dvb.live.activity.PlayActivity"),
+        // 应用商店 on older Xiaomi firmware: MAIN plus its own mitv.appstore.action.LAUNCHER, no
+        // category; MFTR0's declares APPSTORE_LAUNCHER and is found above (MiTV4C, Android 6.0.1,
+        // issue #1568, the reporter's pm dump).
+        ComponentName("com.xiaomi.mitv.appstore", "com.xiaomi.mitv.appstore.MainActivity"),
+        // Baofeng BAOFENG_TV AML_T962 (Android 5.1, Funshion firmware): its live TV player and its
+        // own inputs bar, both MAIN only with no category, started by explicit name from an app
+        // (issue #1378, the reporter's dumpsys and logcat). The TV registers no TvInputManager
+        // inputs, so the bar is the one way to its HDMI ports from Home.
+        ComponentName("com.baofengtv.tvplayer", "com.baofengtv.tvplayer.MainActivity"),
+        ComponentName("com.bftv.fui.biu", "com.bftv.fui.biu.views.activity.FRowActivity"),
     )
 
     /**
@@ -197,6 +207,18 @@ object AppCatalog {
 
     private class Cached(val stamp: Long, val width: Int, val label: String, val art: TileArt)
     private val cache = HashMap<String, Cached>()
+
+    /**
+     * Apps whose tile is Aerial's own (firmware apps, the stock launcher): the icon library's
+     * picture replaces it only when the phone page picked it, so the phone page shows what is in
+     * use. Without the banner check of [entry], so a firmware app that also has a banner may be
+     * counted; such apps are not in the library.
+     */
+    private val drawnByAerial = java.util.concurrent.ConcurrentHashMap<String, SystemTile>()
+
+    /** Whether [pkg]'s tile shows the icon library's picture (when it has one). */
+    fun usesLibrary(pkg: String): Boolean =
+        IconLibrary.uses(pkg) && (!drawnByAerial.containsKey(pkg) || IconLibrary.pick(pkg) == IconLibrary.Pick.Library)
 
     /** The apps of the last load, for the phone page. */
     @Volatile var loaded: List<AppEntry> = emptyList(); private set
@@ -433,6 +455,8 @@ object AppCatalog {
      * library: for the phone page to show beside the library's. Off the main thread.
      */
     fun ownArt(context: Context, entry: AppEntry): TileArt? = runCatching {
+        // A firmware app's own tile is Aerial's, as Home draws it without a library picture.
+        drawnByAerial[entry.packageName]?.let { return@runCatching TileArtFactory.forSystem(it) }
         val pm = context.packageManager
         val info = pm.getActivityInfo(entry.component, 0)
         fromApp(pm, info, banner(pm, info, entry.leanback), TileRecipes.of(entry.packageName))
@@ -448,6 +472,8 @@ object AppCatalog {
         val stamp = runCatching { pm.getPackageInfo(pkg, 0).lastUpdateTime }.getOrDefault(0L) + CustomIcons.stamp(pkg) +
             IconLibrary.stamp(pkg) + if (stockHome) 1 else 0
         val system = (info.applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+        val ownTile = if (stockHome) SystemTile.Home else if (system) SYSTEM_TILES[pkg] ?: byCategory[pkg] else null
+        if (ownTile != null) drawnByAerial[pkg] = ownTile else drawnByAerial.remove(pkg)
         val inMemory = synchronized(cache) { cache[pkg] }?.takeIf { it.stamp == stamp && it.width == TileArtFactory.W }
         if (inMemory == null && later) {
             TileDiskCache.readHeader(pkg, TileDiskCache.key(stamp))?.let { (label, tint) ->

@@ -13,6 +13,7 @@
     <string name="cc_settings">设置</string>
     <string name="cc_volume">音量</string>
     <string name="cc_muted">已静音</string>
+    <string name="cc_volume_external">由音响控制</string>
     <string name="cc_home_default">Aerial 是默认桌面</string>
     <string name="cc_home_guarded">桌面守护已开启</string>
     <string name="cc_home_not_default">尚未设为默认桌面</string>
@@ -269,7 +270,9 @@
     <string name="st_columns">每排卡片</string>
     <string name="st_columns_hint">每排放几张卡片。6 个一眼看全，4 个图标更大，离得远也看得清。</string>
     <string name="st_peek">下一排卡片</string>
-    <string name="st_peek_show">露出一点</string>
+
+    <string name="weather_temperature">%1$d℃</string>
+    <string name="weather_hours_ago">%d 小时前</string>    <string name="st_peek_show">露出一点</string>
     <string name="st_peek_hide">不露出</string>
     <string name="st_peek_hint">一排下方露出下一排的上沿，提示还有卡片；不露出时按下键才出现。</string>
     <string name="menu_boot_on">开机时打开</string>
@@ -296,6 +299,8 @@
     <string name="ss_show_time">时间</string>
     <string name="ss_show_time_hint">航拍和照片屏保上显示时间，位置会不时变化，以免烧屏。</string>
 
+    <string name="ss_show_caption">地点</string>
+    <string name="ss_show_caption_hint">航拍屏保左下角的地名，照片屏保上的图片标题。</string>
     <!-- Kids and Elders mode (settings/Restricted) -->
     <string name="kids_title">儿童与长辈模式</string>
     <string name="kids_hint">桌面上只显示你选的卡片，不能整理。退出要输入家长密码；进屏保或电视待机后会自动回到这个模式。</string>
@@ -371,4 +376,12 @@
     <string name="st_bili_scan_title">扫码登录 B 站</string>
     <string name="st_bili_scan_hint">用 B 站 App 扫这个码，扫完在手机上确认。这一格失去焦点就换回原来的二维码。</string>
     <string name="ss_delay_hint">桌面静止多久后开始屏保；不想自动开始就选「从不」。</string>
-</resources>
+
+    <string name="a11y_delete">删除</string>
+    <string name="cc_about">关于 Aerial</string>
+    <string name="cc_about_update">软件更新</string>
+    <string name="cc_about_latest">已是最新</string>
+    <string name="cc_about_version">版本 %1$s</string>
+    <string name="ss_sleep">待机</string>
+    <string name="ss_sleep_hint">不放屏保：时间到了让电视待机，和按电源键一样。很多电视之后只能用电源键开机。</string>
+    <string name="cc_update_to">更新到 %1$s</string></resources>

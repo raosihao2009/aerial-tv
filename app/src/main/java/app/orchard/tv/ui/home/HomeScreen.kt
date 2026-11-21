@@ -342,7 +342,8 @@ fun HomeScreen(
     val pillRequester = remember { FocusRequester() }
     val appContext = LocalContext.current
     val firmwareInputPanel = remember {
-        SystemProbe.tclInputPanel(appContext) != null || SystemProbe.coocaaInputPanel(appContext) != null
+        SystemProbe.tclInputPanel(appContext) != null || SystemProbe.coocaaInputPanel(appContext) ||
+            SystemProbe.tianciInputPanel(appContext) || SystemProbe.tclSourceManagerPanel(appContext)
     }
 
     // 上一个浮层: 从二级菜单回来时, 焦点要落在直播卡片上(不是右上角控制中心)
@@ -946,7 +947,12 @@ fun HomeScreen(
                         // TCL's firmware opens its own input panel on this key; answering it here
                         // as well drew both panels at once (TCL MT5879, PR #334).
                         if (firmwareInputPanel) return@onPreviewKeyEvent false
-                        vm.overlay = Overlay.ControlCenter(CcPage.Inputs)
+                        // With no inputs listed to Android, the key opens the TV's own input panel,
+                        // as Control Center's Inputs button does: the key reached Aerial and only
+                        // showed an empty Inputs page (Philips 75PUF6393/T3, TV838, MStar, Android
+                        // 6, issue #1580, the reporter's log on 1.99).
+                        vm.overlay = if (vm.sources.isEmpty() && SystemProbe.openInputPicker(appContext)) Overlay.None
+                        else Overlay.ControlCenter(CcPage.Inputs)
                         true
                     }
                     else -> false
@@ -1087,6 +1093,7 @@ fun HomeScreen(
                     standIn = filmStandsIn,
                     lastInputAt = vm.lastInputAt,
                     cover = filmCover,
+                    behindApp = !vm.filmFront,
                 )
             }
             sourceInput != null -> SourceWallpaper(sourceInput, show = vm.resumed && !vm.screensaverVisible, cover = filmCover)
@@ -1669,6 +1676,9 @@ fun HomeScreen(
                 else vm.whenUnlocked { AerialSettings.chooseHomeLocked(false); vm.overlay = Overlay.Wallpaper }
             },
             onKids = vm::setUpKidsMode,
+            // 关于: 版本、更新入口、桌面接管状态都在个性化里(控制中心只在有新版时留一个入口)。
+            homeStatus = vm.homeStatus,
+            onUpdate = { vm.overlay = Overlay.ControlCenter(CcPage.Update) },
             onToast = { msg -> vm.showToast(msg) },
             onStartScreensaver = {
                 vm.overlay = Overlay.None

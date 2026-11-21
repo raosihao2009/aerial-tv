@@ -10,6 +10,8 @@ import androidx.core.content.edit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -29,7 +31,12 @@ data class ForecastDay(val kind: WeatherKind, val high: Int, val low: Int, val d
                        val week: String = "", val date: String = "")
 
 /** [high] and [low] are today's, shown under the large clock; null in a reading saved by an older version. */
-data class WeatherNow(val celsius: Int, val kind: WeatherKind, val day: Boolean, val high: Int? = null, val low: Int? = null, val forecast: List<ForecastDay> = emptyList())
+data class WeatherNow(
+    val celsius: Int, val kind: WeatherKind, val day: Boolean, val high: Int? = null, val low: Int? = null,
+    /** 这次读数的时间(墙钟毫秒), 用来在旁边标"几小时前的读数"。 */
+    val readAt: Long = 0L,
+    val forecast: List<ForecastDay> = emptyList(),
+)
 
 /**
  * The weather beside the home clock, from 中国天气网 (weather.com.cn): CMA official data.
@@ -44,8 +51,10 @@ object Weather {
     private const val FALLBACK_CITY_CODE = "101240103"  // 南昌县兜底
     private const val REFRESH_MS = 10 * 60 * 1000L
     private const val RETRY_MS = 1 * 60 * 1000L
-    /** A reading older than this is not shown at all. */
+    /** 读数比这个更旧时旁边标"几小时前"([hoursOld])。 */
     private const val STALE_MS = 60 * 60 * 1000L
+    /** 读数比这个更旧就整行不显示。 */
+    private const val SHOWN_MS = 12 * 60 * 60 * 1000L
     /** Stands for "no high or low" in the prefs. */
     private const val NONE = Int.MIN_VALUE
 
@@ -83,6 +92,7 @@ object Weather {
                 val fc = cachedAligned.ifEmpty { legacyCachedForecast() }
                 now = WeatherNow(
                     prefs.getInt("celsius", 0), kind, prefs.getBoolean("day", true),
+                    readAt = prefs.getLong("fetched_at", 0),
                     high = cachedAligned.firstOrNull()?.high ?: cachedHigh,
                     low = cachedAligned.firstOrNull()?.low ?: cachedLow,
                     forecast = fc,
@@ -91,7 +101,55 @@ object Weather {
         }
     }
 
+    /**
+     * The reading to show at [atMs], or null once it is over [SHOWN_MS] old. Up to that it stays,
+     * with its age beside it past [STALE_MS] ([hoursOld]): a line that blocks Open-Meteo for a few
+     * hours left the row blank, and a blank row read as broken (issue #1576, two reporters).
+     */
+    fun shown(atMs: Long): WeatherNow? = now?.takeIf { atMs - it.readAt < SHOWN_MS }
+
+    /** Whole hours since [w] was read, once that is over [STALE_MS]; else null. */
+    fun hoursOld(w: WeatherNow, atMs: Long): Int? =
+        (atMs - w.readAt).takeIf { it >= STALE_MS }?.let { (it / (60 * 60 * 1000L)).toInt() }
+
     private var failed = false
+    /** 连续失败次数(诊断用)。 */
+    private var failures = 0
+    private var lastResult = "none"
+    private var ticker: Job? = null
+
+    /**
+     * 首页在前台时按计划自己刷([refreshIfStale]), 不在前台就停: 电视闲着不跑网络。
+     * (上游 2.13 的 whileShown; MainActivity 回桌面/离开桌面时调。)
+     */
+    fun whileShown(shown: Boolean) {
+        ticker?.cancel()
+        ticker = null
+        if (!shown || !started) return
+        ticker = scope.launch {
+            while (isActive) {
+                delay(60_000L)
+                job?.join()
+                refreshIfStale()
+            }
+        }
+    }
+
+    /** 诊断报告用: 不写地名和坐标, 报告是公开贴出去的。 */
+    fun diagnostics(): String {
+        if (!started) return "本进程还没启动"
+        fun ago(at: Long) = if (at == 0L) "从未" else "${(System.currentTimeMillis() - at) / 60_000} 分钟前"
+        return "shown=${shown(System.currentTimeMillis()) != null} chosen=$chosen " +
+            "located=${!prefs.getFloat("lat", Float.NaN).isNaN()}; " +
+            "读取 ${ago(prefs.getLong("fetched_at", 0))}; 尝试 ${ago(lastAttempt)}, 结果=$lastResult, " +
+            "在途=${job?.isActive == true}"
+    }
+
+    private fun reasonOf(e: Throwable): String = e.message ?: e.javaClass.simpleName
+
+    /** 上游 2.13: 非 2xx 直接抛出, 好让诊断写清是哪一档状态码。 */
+    private class HttpStatus(code: Int) : java.io.IOException("HTTP $code")
+
     /** 上次成功刷新所在的完整日期键(yyyy-MM-dd), 用于识别跨天那一刻; 空串表示尚未记录。 */
     private var lastRefreshKey = ""
 
@@ -121,19 +179,24 @@ object Weather {
 
     private fun refresh() {
         lastAttempt = System.currentTimeMillis()
+        lastResult = "pending"
         job?.cancel()
         job = scope.launch {
+            var why: String? = null
             val reading = withContext(Dispatchers.IO) {
-                runCatching { fetch() }.onFailure { Log.w(TAG, "weather unavailable", it) }.getOrNull()
+                runCatching { fetch() }.onFailure { Log.w(TAG, "weather unavailable", it); why = reasonOf(it) }.getOrNull()
             }
             prefs.getString("place", null)?.let { place = it }
             failed = reading == null
+            failures = if (reading == null) failures + 1 else 0
+            lastResult = if (reading != null) "success" else "failed ($why)"
             if (reading != null) {
                 lastRefreshKey = dayKey()
-                now = reading
+                val at = System.currentTimeMillis()
+                now = reading.copy(readAt = at)
                 Log.i(TAG, "天气刷新成功: 实况 ${reading.celsius}°, 预报 ${reading.forecast.joinToString { it.date.ifEmpty { it.week } }}")
                 prefs.edit {
-                    putLong("fetched_at", System.currentTimeMillis())
+                    putLong("fetched_at", at)
                     putInt("celsius", reading.celsius)
                     putString("kind", reading.kind.name)
                     putBoolean("day", reading.day)
@@ -532,6 +595,8 @@ object Weather {
         c.setRequestProperty("Referer", referer)
         c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36")
         return try {
+            val code = c.responseCode
+            if (code !in 200..299) throw HttpStatus(code)
             c.inputStream.use { it.readBytes().decodeToString() }
         } finally {
             c.disconnect()

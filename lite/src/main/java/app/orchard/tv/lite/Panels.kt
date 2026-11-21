@@ -127,6 +127,16 @@ class ControlCenter(
     private val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val col = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(Ui.pxi(16f), Ui.pxi(16f), Ui.pxi(16f), Ui.pxi(16f)) }
 
+    /** The time and date at the top, kept current while the panel is open (issue #1588). */
+    private var timeLabel: TextView? = null
+    private var dateLabel: TextView? = null
+
+    /** Called by Home on the minute and when the TV's clock is set. */
+    fun refreshTime() {
+        timeLabel?.text = timeText(context)
+        dateLabel?.text = dateText()
+    }
+
     init {
         // The veil over Home: the full app's 45% black.
         addView(View(context).apply { setBackgroundColor(0x73000000) }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
@@ -154,8 +164,8 @@ class ControlCenter(
 
     /** Kids and Elders mode's page, as the full app's KidsPage: the time, volume, the day's time left, leaving. */
     private fun kidsMain() {
-        col.add(context.label(timeText(context), 27.3f, 600, spacingEm = 0.05f))
-        col.add(context.label(dateText(), 13f, 500, Ui.SECONDARY), top = 4f)
+        col.add(context.label(timeText(context), 27.3f, 600, spacingEm = 0.05f).also { timeLabel = it })
+        col.add(context.label(dateText(), 13f, 500, Ui.SECONDARY).also { dateLabel = it }, top = 4f)
         kidsTimeLine(context)?.let { col.add(context.label(it, 13f, 500, Ui.SECONDARY), top = 6f) }
         // A box or stick with its volume fixed has no sound level of its own (OutputDevice, #1307).
         val volume = if (OutputDevice.showsVolume(context)) volumeRow() else null
@@ -171,8 +181,8 @@ class ControlCenter(
         // The time (Type.SmallClock at LargeTitle × 1.05) and date (Callout); the network on the right.
         val head = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.BOTTOM }
         val times = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        times.addView(context.label(timeText(context), 27.3f, 600, spacingEm = 0.05f))
-        times.add(context.label(dateText(), 13f, 500, Ui.SECONDARY), top = 4f)
+        times.addView(context.label(timeText(context), 27.3f, 600, spacingEm = 0.05f).also { timeLabel = it })
+        times.add(context.label(dateText(), 13f, 500, Ui.SECONDARY).also { dateLabel = it }, top = 4f)
         head.addView(times, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         val (netGlyph, netName, netLevel, netVpn) = network(context)
         val net = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
@@ -231,7 +241,7 @@ class ControlCenter(
         }
 
         // Brightness where Lite can set the panel's (Brightness), else the TV's own picture settings.
-        if (!OutputDevice.showsBrightness()) Unit
+        if (!OutputDevice.showsBrightness() || Brightness.hidden(context)) Unit
         else if (Brightness.level(context) != null) {
             val brightness = SliderRow(
                 context,
@@ -268,14 +278,7 @@ class ControlCenter(
             row(boot)
         }
 
-        // Whether Lite is the TV's Home, and the version.
-        val status = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(Ui.pxi(14f), 0, Ui.pxi(14f), 0) }
-        val home = isHome(context)
-        status.addView(Dot(context, if (home) Ui.GREEN else 0xFFFF9F0A.toInt()), LinearLayout.LayoutParams(Ui.pxi(7f), Ui.pxi(7f)))
-        status.addView(context.label(context.getString(if (home) R.string.cc_home_default else R.string.cc_home_not_default), 11f, 500, Ui.SECONDARY),
-            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { leftMargin = Ui.pxi(8f) })
-        status.addView(context.label("Aerial Lite " + version(context), 11f, 500, Ui.TERTIARY))
-        col.add(status, top = 8f)
+        // Whether Lite is the TV's Home, and the version, are at the bottom of Personalize (#1606).
     }
 
     /** What the TV starts on: an app is chosen from its tile's menu; here it shows, and "nothing" clears it. */
@@ -591,6 +594,8 @@ class Personalize(
             // The clock screensaver is its clock, and the others show none.
             if (mode == ScreensaverMode.Aerial || mode == ScreensaverMode.Photos) choices(R.string.ss_show_time, string(R.string.ss_show_time_hint),
                 listOf(true to R.string.st_on, false to R.string.st_off), LiteSettings.screensaverClock) { LiteSettings.chooseScreensaverClock(it) }
+            if (mode == ScreensaverMode.Aerial || mode == ScreensaverMode.Photos) choices(R.string.ss_show_caption, string(R.string.ss_show_caption_hint),
+                listOf(true to R.string.st_on, false to R.string.st_off), LiteSettings.screensaverCaption) { LiteSettings.chooseScreensaverCaption(it) }
             choices(R.string.ss_delay, null, LiteSettings.screensaverChoices.map { it to if (it == LiteSettings.NEVER) string(R.string.ss_never) else context.getString(R.string.ss_minutes, it) },
                 LiteSettings.screensaverMinutes) { LiteSettings.chooseScreensaverMinutes(it) }
             choices(R.string.ss_back, string(R.string.ss_back_choice_hint), listOf(true to R.string.ss_back_on, false to R.string.ss_back_off),
@@ -602,7 +607,7 @@ class Personalize(
             settingRow(R.string.wp_weather_city, null, emptyList(), value = weatherValue())
         }
         col.add(space(context, 10f))
-        // The last row: one row says what it is; a title over it would only repeat it.
+        // One row says what it is; a title over it would only repeat it.
         group(string(R.string.st_pin_hint)) {
             choices(R.string.st_pin, null, listOf(false to R.string.st_pin_off, true to R.string.st_pin_on), LiteSettings.pinSet) { on ->
                 if (LiteSettings.pinSet != on) onPin(on)
@@ -613,6 +618,14 @@ class Personalize(
                 else -> R.string.kids_kind_elders
             }), { false }, Glyph.ChevronRight).apply { action = onKids }
             settingRow(R.string.st_kids, string(R.string.st_kids_hint), listOf(kids))
+        }
+
+        // About, last, as the full app (#1606): whether Lite is the TV's Home, and the version.
+        col.add(section(R.string.cc_about), top = 22f)
+        group(context.getString(R.string.cc_about_version, ControlCenter.version(context)) + " · Lite") {
+            val home = ControlCenter.isHome(context)
+            settingRow(if (home) R.string.cc_home_default else R.string.cc_home_not_default, null, emptyList(),
+                value = context.label("●", 14f, 500, if (home) Ui.GREEN else 0xFFFF9F0A.toInt()))
         }
     }
 

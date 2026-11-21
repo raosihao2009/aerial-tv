@@ -145,7 +145,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 import androidx.compose.ui.geometry.Size
+import app.orchard.tv.BuildConfig
 import app.orchard.tv.LiveSource
+import app.orchard.tv.system.HomeStatus
+import app.orchard.tv.update.Updates
 import app.orchard.tv.ui.home.liveSourceIconResId
 import app.orchard.tv.ui.home.liveColors
 
@@ -172,6 +175,10 @@ fun WallpaperSheet(
     onHomeLock: (on: Boolean) -> Unit = { AerialSettings.chooseHomeLocked(it) },
     /** Kids and Elders mode's setup (behind the PIN). */
     onKids: () -> Unit,
+    /** Whether Aerial is the home screen or guarded, for the About group. */
+    homeStatus: HomeStatus,
+    /** Control Center's update page, for a new version. */
+    onUpdate: () -> Unit,
     /** The sheet is all the way in (true) or not: Home need not draw under it then ([SheetCovers]). */
     onSettled: (Boolean) -> Unit = {},
     /** Draw the closed sheet once, nearly clear, so that its first opening is not its first draw (HomeScreen). */
@@ -317,6 +324,11 @@ fun WallpaperSheet(
                 Spacer(Modifier.height(18.dp))
                 CategoryTitle(Glyph.Shield, R.string.per_family)
                 FamilySection(onPin, onKids)
+                // 关于放在最后(上游 2.13 起: 版本、更新、桌面接管状态都在这里,
+                // 控制中心只在有新版时留一个入口)。以前的"检查更新"按钮搬到这里。
+                Spacer(Modifier.height(18.dp))
+                CategoryTitle(Glyph.Info, R.string.cc_about)
+                AboutSection(homeStatus, onUpdate)
                 Spacer(Modifier.height(24.dp))
             }
             Spacer(Modifier.width(18.dp))
@@ -695,6 +707,41 @@ private fun WeatherSection() {
             },
         )
         Row2({ WeatherCell() })
+    }
+    Spacer(Modifier.height(12.dp))
+}
+
+/** 关于: 版本号、更新入口和桌面接管状态。 */
+@Composable
+private fun AboutSection(homeStatus: HomeStatus, onUpdate: () -> Unit) {
+    val latest = Updates.available
+    Group {
+        Cell(
+            R.string.cc_about_update,
+            stringResource(R.string.cc_about_version, Updates.current) + " · " + BuildConfig.FLAVOR,
+        ) { onFocus ->
+            ChipButton(
+                if (latest != null) stringResource(R.string.cc_update_to, latest) else stringResource(R.string.cc_about_latest),
+                on = false,
+                chevron = true,
+                check = false,
+                onClick = { if (latest != null) onUpdate() else Updates.checkIfStale(force = true) },
+                onFocus = onFocus,
+            )
+        }
+    }
+    // 桌面接管状态只说明事实, 不是控件: 画成一行不带焦点的字。
+    val (dot, label) = when (homeStatus) {
+        HomeStatus.Default -> Palette.Green to R.string.cc_home_default
+        HomeStatus.Guarded -> Palette.Green to R.string.cc_home_guarded
+        HomeStatus.NotDefault -> Palette.Orange to R.string.cc_home_not_default
+    }
+    Row(
+        Modifier.fillMaxWidth().height(30.dp).padding(start = 18.dp, end = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BasicText(stringResource(label), style = Type.Caption.copy(color = Palette.SecondaryLabel), modifier = Modifier.weight(1f), maxLines = 1)
+        Box(Modifier.size(7.dp).clip(CircleShape).background(dot))
     }
     Spacer(Modifier.height(12.dp))
 }

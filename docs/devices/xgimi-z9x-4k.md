@@ -99,3 +99,19 @@ com.xgimi.xgimiframeworkui/.resolver.ResolverActivity
 轻量特效和 1080p 航拍质量已通过公开 CONFIG 接口设置，但没有进行帧时间基准，不能据此声称性能提升了某个比例。网络 ADB 只在户主授权的可信家庭局域网使用；本记录没有修改设备认证机制，也不建议把 ADB 暴露到公网。
 
 感谢维护者提供 Aerial，以及已经整理的极米机型笔记。希望这份有成功结果也保留限制的实测记录，能帮助其他同固件用户少走弯路。
+
+## RS20 Pro Max（XGIMI TV DOHKO，mt9952 / horse_popular，Android 14，#1483，报告人实测 1.94 standard）
+
+和 RS20 Ultra Max（#1379）同一个 DOHKO 平台。默认桌面留给极米，守护接管：`selftest.sh` 的 guard、home_on_aerial、待机（唤醒 0.9 秒回 Aerial）、重启（开机第 1 秒前台就是 Aerial）都通过。
+
+- 没有 `android.settings.SETTINGS` 的 Activity，自检的「从别的 App 按主页键」退到桌面 App 列表时挑中了 `com.android.newsettings.mock.MockActivity`（起不来）。2026-11-12 起脚本先找 TV 的 App、跳过 mock。报告人手工从 SmartTube、文件管理等按主页键都 0.7–1.4 秒回 Aerial。
+- 信号源：`com.xgimi.tvinput` 列出 HDMI1 / HDMI2，磁贴能切（HDMI1 实测出画面）；passthrough VIEW 没有 Activity 接，`open_source` 原来直接报 `ActivityNotFoundException`，2026-11-12 起和磁贴一样退到极米设置服务的信号源页。
+- `logcat -d` 读不出来（`Logcat read failure`），要看 Aerial 的日志用控制中心「反馈问题」或 `dumpsys activity app.orchard.tv/.MainActivity`。
+- 重启后 `SYSTEM_ALERT_WINDOW` 变 ignore、`REQUEST_INSTALL_PACKAGES` 变 default，UID 级的 allow 也没了（和本页 Z9X 不同）；开机接管照样成功。
+- HOME 有时解析到极米的选择器 `com.xgimi.xgimiframeworkui/.resolver.ResolverActivity`，没写过首选记录，再重启又回极米桌面。
+- 亮度条调的是光机档位（`getDlpLumensLevel`，1–10 档 ×10），Boost 档只能在极米自己的亮度页进，Aerial 显示 `10+`，和当贝 X7 Max 一致。
+- 抖 4K（DLP472TP，1080p 微镜 XPR），安卓只有 1080p60，`no 4K UI plane` 正常。
+- 信号源一次直达（1.97 复测，2026-11-14）：接两个 HDMI 时，点 HDMI1 / HDMI2 都只打开极米的信号源面板（总是高亮 HDMI 1），要再选一次。报告人实测 `am start -a com.xgimi.action.hdmiPlayer -n com.xgimi.xhplayer/.InputActivity --es sw HDMI2` 直接切到那个口；安卓 8 用的 `launcher_start_source`、`source`、`hdmi_port` 在这台上都没用。main 上：passthrough 没人接、安卓 14、输入 id 是 `com.xgimi.tvinput/.inputservice.Hdmi<n>TvInputService` 时直接开 xhplayer 带 `sw=HDMI<n>`（`openXgimiInput`），其他极米机型不变。没有真机验证。
+- 拔掉 HDMI 后列表仍显示「已连接」：列表只在启动和装卸 App 时读。main 上打开控制中心时重读一次。固件拔线后先把状态改成 CONNECTING（1）而不是 DISCONNECTED（2），刚拔时重读也可能还对不上。
+- 遥控器的信号源键发 `KEY_MESSENGER`（454），按键表里没有映射，安卓这边是空键，固件自己在用；Aerial 收不到。
+

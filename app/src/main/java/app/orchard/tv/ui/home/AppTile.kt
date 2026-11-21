@@ -70,6 +70,12 @@ import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
@@ -507,12 +513,21 @@ fun AppTile(
                         },
                     )
                 }
+                // The tile's name for a screen reader (TalkBack, issue #1476), whether or not it is
+                // drawn under the tile; double tap opens the app, a long one opens its menu.
+                .semantics {
+                    contentDescription = app.label
+                    role = Role.Button
+                    onClick { Sounds.select(); click(bounds); true }
+                    onLongClick { Sounds.select(); longPress(bounds); true }
+                }
                 .focusProperties {
                     canFocus = enabled
                     if (rowEnd) right = FocusRequester.Cancel
                 }
                 // 保留焦点节点, 只用 canFocus 排除: 改成 .focusable(false) 会把节点摘掉,
                 // 摘除那一帧触发 owner 焦点失效重搜, 焦点落到组合顺序最靠前的胶囊上。
+                // (上游这里是 .focusable(enabled), 本 fork 不吃这个。)
                 .focusable(),
         ) {
             Spacer(Modifier.fillMaxSize().drawWithCache {

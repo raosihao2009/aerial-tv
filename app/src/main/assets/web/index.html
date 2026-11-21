@@ -204,6 +204,9 @@
   .grab { width: 36px; height: 5px; border-radius: 3px; background: var(--tertiary); margin: 0 auto 14px; }
   .sheet .pic { border-radius: 12px; overflow: hidden; aspect-ratio: 16 / 9; background: var(--fill); width: 62%; margin: 0 auto; }
   .sheet .pic img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .libgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-height: 52vh; overflow-y: auto; padding: 2px; }
+  .libpic { padding: 0; border: 0; background: var(--fill); border-radius: 8px; overflow: hidden; aspect-ratio: 16 / 9; }
+  .libpic img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .item .ithumb { width: 64px; aspect-ratio: 16 / 9; border-radius: 6px; object-fit: cover; margin-right: 12px; flex: none; background: var(--fill); }
   .sheet h3 { text-align: center; font-size: 17px; font-weight: 600; margin: 12px 0 2px; }
   .sheet .meta { text-align: center; font-size: 13px; color: var(--secondary); margin: 0 0 16px; }
@@ -309,10 +312,12 @@
     <button class="item" role="radio" data-mode="photos"><span class="txt"><span data-i18n="ss_photos"></span><span class="sub" data-i18n="hint_photos"></span></span><svg class="tick" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
     <button class="item" role="radio" data-mode="clock"><span class="txt"><span data-i18n="ss_clock"></span><span class="sub" data-i18n="hint_clock"></span></span><svg class="tick" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
     <button class="item" role="radio" data-mode="videos"><span class="txt"><span data-i18n="ss_videos"></span><span class="sub" data-i18n="hint_videos"></span></span><svg class="tick" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+    <button class="item" role="radio" data-mode="sleep" hidden><span class="txt"><span data-i18n="ss_sleep"></span><span class="sub" data-i18n="hint_sleep"></span></span><svg class="tick" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
   </div>
   <p class="foot" id="ssFoot"></p>
   <div class="list" id="ssTimeBox" style="margin-top:10px">
     <label class="item"><span class="txt"><span data-i18n="sw_saver_time"></span><span class="sub" data-i18n="sw_saver_time_sub"></span></span><input class="switch" type="checkbox" id="swSaverTime" data-setting="screensaverClock"></label>
+    <label class="item"><span class="txt"><span data-i18n="sw_saver_place"></span><span class="sub" data-i18n="sw_saver_place_sub"></span></span><input class="switch" type="checkbox" id="swSaverPlace" data-setting="screensaverCaption"></label>
   </div>
   <div id="videos">
     <h2 data-i18n="videos_h"></h2>
@@ -364,6 +369,9 @@
   </div>
   <p class="foot" data-i18n="backup_hint"></p>
   <input type="file" id="restoreFile" accept=".zip,application/zip,application/octet-stream" hidden>
+
+  <!-- 单独一组放最后: 这是动作不是"关于电视"的说明。 -->
+  <div class="list" id="powerBox" hidden style="margin-top:10px"><button class="item tint center" id="powerOff" data-i18n="power_off"></button></div>
 
   <h2 data-i18n="feedback_h"></h2>
   <div class="list">
@@ -594,7 +602,7 @@ const TEXTS = {
   "Showing the weather for {place}.",
   "Go back to locating by network",
   "Back to locating by network",
-  "Located from the network: {place}. A proxy often throws it off; if it is wrong, enter your city.",
+  "Located from the network: {place}. A proxy, or an internet line that exits in another city, throws it off; if it is wrong, enter your city.",
   "Not located yet. Enter your city.",
   "Input",
   "Rename",
@@ -684,6 +692,8 @@ const TEXTS = {
   "Weather on Home",
   "Time on the screensaver",
   "Aerial and photo screensavers. The time and place name move a little now and then, so nothing burns in.",
+  "Place on the screensaver",
+  "The place name bottom left on the aerial screensaver, and the picture’s title on the photo screensaver.",
   "An input's live picture behind Home, without sound. Going down to the apps, it gives way to a frosted background.",
   "Picture",
   "Ready-made",
@@ -737,7 +747,7 @@ const TEXTS = {
   "Показана погода для: {place}.",
   "Вернуться к определению по сети",
   "Снова определяется по сети",
-  "Определено по сети: {place}. Прокси часто сбивает определение; если неверно, введите свой город.",
+  "Определено по сети: {place}. Прокси или выход провайдера в другом городе сбивают определение; если неверно, введите свой город.",
   "Пока не определено. Введите свой город.",
   "Источник",
   "Переименовать",
@@ -827,6 +837,8 @@ const TEXTS = {
   "Погода на главном экране",
   "Время на заставке",
   "Заставки с аэросъёмкой и фото. Время и название места иногда слегка сдвигаются, чтобы экран не выгорал.",
+  "Место на заставке",
+  "Название места слева внизу на заставке с аэросъёмкой и название снимка на заставке с фото.",
   "Живая картинка входа за главным экраном, без звука. Когда вы переходите к приложениям ниже, фон становится матовым.",
   "Картинка",
   "Готовая",
@@ -880,7 +892,7 @@ const TEXTS = {
   "Показано погоду для: {place}.",
   "Повернутися до визначення за мережею",
   "Знову визначається за мережею",
-  "Визначено за мережею: {place}. Проксі часто збиває визначення; якщо хибно, введіть своє місто.",
+  "Визначено за мережею: {place}. Проксі або вихід провайдера в іншому місті збивають визначення; якщо хибно, введіть своє місто.",
   "Ще не визначено. Введіть своє місто.",
   "Джерело",
   "Перейменувати",
@@ -970,6 +982,8 @@ const TEXTS = {
   "Погода на головному екрані",
   "Час на заставці",
   "Заставки з аерозйомкою і фото. Час і назва місця іноді трохи зсуваються, щоб екран не вигорав.",
+  "Місце на заставці",
+  "Назва місця зліва внизу на заставці з аерозйомкою і назва знімка на заставці з фото.",
   "Жива картинка входу за головним екраном, без звуку. Коли ви переходите до застосунків нижче, тло стає матовим.",
   "Зображення",
   "Готове",
@@ -1023,7 +1037,7 @@ const TEXTS = {
   "{place} ауа райы көрсетілген.",
   "Желі бойынша анықтауға оралу",
   "Қайтадан желі бойынша анықталады",
-  "Желі бойынша анықталды: {place}. Прокси жиі қателестіреді; қате болса, қалаңызды енгізіңіз.",
+  "Желі бойынша анықталды: {place}. Прокси немесе провайдердің басқа қаладағы шығысы қателестіреді; қате болса, қалаңызды енгізіңіз.",
   "Әлі анықталған жоқ. Қалаңызды енгізіңіз.",
   "Көз",
   "Атын өзгерту",
@@ -1113,6 +1127,8 @@ const TEXTS = {
   "Басты экранда ауа райы",
   "Экран қорғауышта уақыт",
   "Аэрожиын және фото қорғауыштары. Экран күймес үшін уақыт пен орын атауы анда-санда сәл жылжиды.",
+  "Экран қорғауышта орын",
+  "Аэрожиын экран қорғауышында төменгі сол жақтағы орын атауы, фото экран қорғауышында сурет атауы.",
   "Кірістің тірі суреті басты экран артында, дыбыссыз. Төмендегі қолданбаларға өткенде күңгірт фонға ауысады.",
   "Сурет",
   "Дайын",
@@ -1134,14 +1150,20 @@ const EXTRA = {
         backup_restored: "已导入，电视正在重启", backup_failed: "导入失败，文件可能不完整",
         backup_locked: "儿童/长辈模式已开启，需先在电视上输入家长密码",
         backup_packing: "正在打包备份，请稍候…", backup_save: "保存备份", backup_pack_fail: "打包失败，请再试一次",
-        backup_no_reply: "电视没有回报结果", backup_link_lost: "与电视的连接中断" },
+        backup_no_reply: "电视没有回报结果", backup_link_lost: "与电视的连接中断",
+        ss_sleep: "待机", hint_sleep: "不播屏保: 到时间直接待机, 等同按电源键。多数电视之后只能用遥控器电源键唤醒。",
+        sw_saver_place: "屏保显示地点", sw_saver_place_sub: "航拍屏保左下角的地名, 照片屏保的图片标题。",
+        power_off: "关机", power_off_confirm: "现在就关掉这台电视?", power_off_done: "已关机", power_off_fail: "关机失败" },
   en: { backup_h: "Backup & restore", backup_export: "Export backup", backup_import: "Import backup",
         backup_hint: "The backup holds every setting, live source, wallpaper, photo and video. Importing replaces all settings on this TV and restarts it.",
         backup_confirm: "Importing replaces all settings on this TV. Continue?", backup_restoring: "Importing…",
         backup_restored: "Imported. The TV is restarting", backup_failed: "Import failed — the file may be incomplete",
         backup_locked: "Kids/elders mode is on — unlock with the parental PIN on the TV first",
         backup_packing: "Packing the backup — one moment…", backup_save: "Save backup", backup_pack_fail: "Packing failed — try again",
-        backup_no_reply: "The TV did not report a result", backup_link_lost: "The connection to the TV dropped" },
+        backup_no_reply: "The TV did not report a result", backup_link_lost: "The connection to the TV dropped",
+        ss_sleep: "Standby", hint_sleep: "No screensaver: when the time comes the TV goes to standby, as with its power button.",
+        sw_saver_place: "Place on the screensaver", sw_saver_place_sub: "The place name bottom left on the aerial screensaver, and the picture's title on the photo screensaver.",
+        power_off: "Shut Down", power_off_confirm: "Turn this TV off now?", power_off_done: "Turned off", power_off_fail: "Could not turn it off" },
   ru: { backup_h: "Резервная копия", backup_export: "Экспорт копии", backup_import: "Импорт копии",
         backup_hint: "Копия содержит все настройки, источники трансляций, обои, фото и видео. Импорт заменит все настройки на этом телевизоре и перезапустит его.",
         backup_confirm: "Импорт заменит все настройки на этом телевизоре. Продолжить?", backup_restoring: "Импорт…",
@@ -1198,7 +1220,7 @@ function applyI18n() {
 }
 
 
-const hints = { aerial: t('hint_aerial'), photos: t('hint_photos'), clock: t('hint_clock'), videos: t('hint_videos'), system: t('hint_system') };
+const hints = { aerial: t('hint_aerial'), photos: t('hint_photos'), clock: t('hint_clock'), videos: t('hint_videos'), system: t('hint_system'), sleep: t('hint_sleep') };
 const groups = [
   ['live', t('g_live'), t('g_live_sub')],
   ['daily', t('g_daily'), t('g_daily_sub')],
@@ -1600,11 +1622,15 @@ async function sendPhotos(files) {
 let sendingVideo = '';
 function renderScreensaver() {
   document.querySelectorAll('#ss [data-mode]').forEach(b => b.setAttribute('aria-checked', b.dataset.mode === state.screensaver ? 'true' : 'false'));
+  // Standby only where the TV's guard can put it to sleep (Android 9+), or while still chosen.
+  $('#ss [data-mode="sleep"]').hidden = !state.canSleep && state.screensaver !== 'sleep';
+  $('#powerBox').hidden = !state.canSleep;
   $('#ssFoot').textContent = state.screensaverFollows ? t('hint_follows') : state.screensaver === 'system' ? hints.system : '';
   $('#ssFoot').hidden = !$('#ssFoot').textContent;
   // The time only over the aerial and photo screensavers; the clock one is its clock.
   $('#ssTimeBox').hidden = state.screensaver !== 'aerial' && state.screensaver !== 'photos';
   $('#swSaverTime').checked = !!state.screensaverClock;
+  $('#swSaverPlace').checked = state.screensaverCaption !== false;
   const list = $('#videoList'); list.replaceChildren();
   const videos = state.videos || [];
   if (!videos.length) { const row = el('div', 'item'); row.appendChild(el('span', 'txt', t('videos_empty'))).style.color = 'var(--secondary)'; list.appendChild(row); }
@@ -1625,6 +1651,10 @@ document.querySelectorAll('#ss [data-mode]').forEach(b => b.onclick = async () =
   if (b.dataset.mode === state.screensaver && !state.screensaverFollows) return;
   try { take(await api('api/screensaver', { mode: b.dataset.mode })); toast(t('toast_tv_updated')); } catch (e) { toast(t('toast_set_fail')); }
 });
+$('#powerOff').onclick = async () => {
+  if (!confirm(t('power_off_confirm'))) return;
+  try { const next = await api('api/power/off', {}); toast(t(next.saved ? 'power_off_done' : 'power_off_fail')); } catch (e) { toast(t('power_off_fail')); }
+};
 $('#videoFile').onchange = e => sendVideos([...e.target.files]);
 async function sendVideos(files) {
   const input = $('#videoFile'); if (!files.length || input.disabled) return;
@@ -1711,7 +1741,7 @@ async function setting(sw) {
   } catch (e) { sw.checked = !on; toast(t('toast_set_fail')); }
   sw.disabled = false;
 }
-['#swSaverTime', '#swWeather'].forEach(id => $(id).onchange = () => setting($(id)));
+['#swSaverTime', '#swSaverPlace', '#swWeather'].forEach(id => $(id).onchange = () => setting($(id)));
 document.querySelectorAll('#focus [data-style]').forEach(b => b.onclick = async () => {
   if (b.dataset.style === state.focusStyle) return;
   try { take(await api('api/focus', { style: b.dataset.style })); toast(t('toast_tv_updated')); } catch (e) { toast(t('toast_set_fail')); }
@@ -2126,26 +2156,32 @@ function tileSheet(e, inFolder, hidden) {
       b.onclick = () => deviceChooser(a, e);
       il.appendChild(b);
     }
-    // Where the picture comes from, when the icon library has one for this app: its picture,
-    // the app's own art, or the one sent from this phone.
+    // Where the picture comes from, when the icon library has one for this app: one of its
+    // pictures (each named by where it came from), the app's own art, or the one sent from this phone.
     if (!a.source && a.library) {
-      const choices = [
-        { pick: 'library', label: t('icon_library'), src: `${base}library/${encodeURIComponent(a.key)}?v=${a.stamp}` },
-        { pick: 'own', label: t('icon_own'), src: `${base}tile/${encodeURIComponent(a.key)}?art=own&v=${a.stamp}` },
+      const lib = `${base}library/${encodeURIComponent(a.key)}`;
+      const from = by => (by && (by[LANG] || by.name)) || '';
+      const library = (a.choices && a.choices.length ? a.choices : [{ id: '', on: a.icon === 'library' }]).map(c => ({
+        pick: 'library', choice: c.id, from: c.from || '', on: c.on, label: t('icon_library'), by: from(c.by),
+        src: c.id ? `${lib}?c=${encodeURIComponent(c.id)}&v=${a.stamp}` : `${lib}?v=${a.stamp}`,
+      }));
+      const choices = [...library,
+        { pick: 'own', on: a.icon === 'own', label: t('icon_own'), src: `${base}tile/${encodeURIComponent(a.key)}?art=own&v=${a.stamp}` },
       ];
-      if (a.custom) choices.push({ pick: 'custom', label: t('icon_custom'), src: `${base}tile/${encodeURIComponent(a.key)}?v=${a.stamp}` });
+      if (a.custom) choices.push({ pick: 'custom', on: true, label: t('icon_custom'), src: `${base}tile/${encodeURIComponent(a.key)}?v=${a.stamp}` });
       const cl = el('div', 'list'); cl.setAttribute('role', 'radiogroup'); cl.setAttribute('aria-label', t('icon_h'));
       il.before(cl); cl.style.marginBottom = '10px';
       for (const c of choices) {
-        const b = el('button', 'item'); b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', String(a.icon === c.pick));
+        const b = el('button', 'item'); b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', String(c.on));
         const img = el('img', 'ithumb'); img.alt = ''; img.src = c.src;
         b.append(img, el('span', 'txt', c.label));
+        if (c.by) b.append(el('span', 'val', c.by));
         b.insertAdjacentHTML('beforeend', ICON.tick);
         if (c.pick !== 'custom') b.onclick = async () => {
           closeSheet();
-          if (a.icon === c.pick) return;
+          if (c.on) return;
           try {
-            const next = await api('api/icon/pick', { app: a.key, pick: c.pick });
+            const next = await api('api/icon/pick', { app: a.key, pick: c.pick, choice: c.choice || '', from: c.from || '' });
             if (!next.saved) throw new Error('not saved');
             take(next); toast(t('toast_icon_picked'));
           } catch (err) { toast(t('toast_set_fail')); }
@@ -2153,6 +2189,8 @@ function tileSheet(e, inFolder, hidden) {
         cl.appendChild(b);
       }
     }
+    // Any picture in the icon library, for an app it has none of or not the right one (#1486).
+    if (!a.source) action(il, t('icon_more'), 'tint', () => libraryChooser(a));
     // The picker opens from this tap, so iOS treats it as the user's own gesture.
     action(il, t('change_icon'), 'tint', () => { iconFor = a; $('#iconFile').click(); closeSheet(); });
     if (a.custom) action(il, t('aria_reset_icon'), 'tint', async () => {
@@ -2174,6 +2212,38 @@ function tileSheet(e, inFolder, hidden) {
   });
 }
 /* The device on an input: its mark and colours on the tile, its name on the caption (as on the TV). */
+/*
+ * The whole icon library, as a grid of its pictures (each shows its app's logo, and the index has
+ * no names). The phone loads them from the website; the TV fetches only the one picked.
+ */
+async function libraryChooser(a) {
+  const body = $('#sheetBody'); body.replaceChildren();
+  body.appendChild(el('h3', '', t('icon_more'))); body.appendChild(el('p', 'meta', a.label));
+  const grid = el('div', 'libgrid'); body.appendChild(grid);
+  const foot = body.appendChild(el('p', 'foot', t('icon_more_hint'))); foot.style.marginBottom = '12px';
+  const c = el('div', 'list'); body.appendChild(c);
+  action(c, t('cancel'), 'tint', closeSheet).style.fontWeight = '600';
+  let lib;
+  try { lib = await api('api/library/all'); } catch (err) { foot.textContent = t('icon_more_fail'); return; }
+  // This app's own pictures first, then every other app's.
+  const apps = (lib.apps || []).slice().sort((x, y) => (y.app === a.key) - (x.app === a.key));
+  for (const app of apps) for (const pic of app.choices) {
+    const b = el('button', 'libpic'); b.setAttribute('aria-label', app.app);
+    const img = el('img'); img.alt = ''; img.loading = 'lazy'; img.src = lib.base + pic.p;
+    img.onerror = () => b.remove();
+    b.appendChild(img);
+    b.onclick = async () => {
+      closeSheet(); toast(t('toast_sending_icon'));
+      try {
+        const next = await api('api/icon/pick', { app: a.key, pick: 'library', choice: pic.id, from: app.app === a.key ? '' : app.app });
+        if (!next.saved) throw new Error('not saved');
+        take(next); toast(t('toast_icon_picked'));
+      } catch (err) { toast(t('toast_set_fail')); }
+    };
+    grid.appendChild(b);
+  }
+  if (!grid.children.length) foot.textContent = t('icon_more_fail');
+}
 function deviceChooser(a, e) {
   const body = $('#sheetBody'); body.replaceChildren();
   body.appendChild(el('h3', '', t('source_device'))); body.appendChild(el('p', 'meta', a.port || e.label));
