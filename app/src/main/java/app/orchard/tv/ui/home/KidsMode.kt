@@ -215,10 +215,10 @@ private fun SetupSettings(hasApps: Boolean, onStart: () -> Unit, first: FocusReq
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         ChipButton(stringResource(R.string.kids_kind_kids), kids, focusRequester = first, onClick = {
                             if (!kids) { Restricted.chooseKind(RestrictedKind.Kids); Restricted.chooseBlockOthers(true) }
-                        }, onFocus = onFocus, blockLeft = true)
+                        }, onFocus = onFocus, blockLeft = true, autoEdges = false)
                         ChipButton(stringResource(R.string.kids_kind_elders), !kids, onClick = {
                             if (kids) { Restricted.chooseKind(RestrictedKind.Elders); Restricted.chooseBlockOthers(false) }
-                        }, onFocus = onFocus)
+                        }, onFocus = onFocus, autoEdges = false)
                     }
                 }
             }
@@ -228,8 +228,8 @@ private fun SetupSettings(hasApps: Boolean, onStart: () -> Unit, first: FocusReq
                     stringResource(if (guard) R.string.kids_block_hint else R.string.kids_block_no_guard),
                 ) { onFocus ->
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        ChipButton(stringResource(R.string.kids_block_on), Restricted.blockOthers, onClick = { Restricted.chooseBlockOthers(true) }, onFocus = onFocus, blockLeft = true)
-                        ChipButton(stringResource(R.string.kids_block_off), !Restricted.blockOthers, onClick = { Restricted.chooseBlockOthers(false) }, onFocus = onFocus)
+                        ChipButton(stringResource(R.string.kids_block_on), Restricted.blockOthers, onClick = { Restricted.chooseBlockOthers(true) }, onFocus = onFocus, blockLeft = true, autoEdges = false)
+                        ChipButton(stringResource(R.string.kids_block_off), !Restricted.blockOthers, onClick = { Restricted.chooseBlockOthers(false) }, onFocus = onFocus, autoEdges = false)
                     }
                 }
             }

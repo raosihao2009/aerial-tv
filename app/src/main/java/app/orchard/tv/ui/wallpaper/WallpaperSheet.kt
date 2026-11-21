@@ -674,7 +674,7 @@ private fun ScreensaverSection(onStartScreensaver: () -> Unit) {
                         else -> stringResource(R.string.ss_delay_system_minutes, ((delay + 30_000) / 60_000).coerceAtLeast(1).toInt())
                     }
                     Cell(R.string.ss_delay, stringResource(R.string.ss_delay_hint)) { onFocus ->
-                        ChipButton(shown, on = true, check = false, onClick = {}, onFocus = onFocus, blockLeft = true, blockRight = true)
+                        ChipButton(shown, on = true, check = false, onClick = {}, onFocus = onFocus)
                     }
                 } else {
                     MenuCell(
@@ -796,7 +796,6 @@ private fun AboutSection(homeStatus: HomeStatus) {
                     if (latest != null && canInstall) Updates.install(context) else Updates.checkIfStale(force = true)
                 },
                 onFocus = onFocus,
-                blockLeft = true, blockRight = true,
             )
         }
     }
@@ -1041,14 +1040,21 @@ internal fun Group(rows: @Composable ColumnScope.() -> Unit) {
  * 两列网格: 一行放两个选项; 只有一个时它自己占满整行, 右边照样留出位置, 所以两列时
  * 左右两格的宽度和它们小字提示的左边总在同一条线上。
  */
+/**
+ * 一颗按钮在面板里的横向位置: 0 = Row2 的左边那格, 1 = 右边那格, -1 = 独占整行。
+ * 用来判断哪一边才是"面板真正的外沿": 外沿那一边按左/右键直接没反应(用户口径),
+ * 内部相邻的两颗之间照常能走。
+ */
+internal val LocalSheetColumn = compositionLocalOf { -1 }
+
 @Composable
 internal fun Row2(left: @Composable () -> Unit, right: (@Composable () -> Unit)? = null) {
     Row(
         Modifier.fillMaxWidth().padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(CellGap),
     ) {
-        Box(Modifier.weight(1f)) { left() }
-        if (right != null) Box(Modifier.weight(1f)) { right() }
+        Box(Modifier.weight(1f)) { CompositionLocalProvider(LocalSheetColumn provides 0) { left() } }
+        if (right != null) Box(Modifier.weight(1f)) { CompositionLocalProvider(LocalSheetColumn provides 1) { right() } }
     }
 }
 
@@ -1135,14 +1141,29 @@ internal fun ChipButton(
     // 不封的话, 默认的方向搜索会飘到别处那一排的选项上去, 看着像"按左键跳到了另一项"。
     blockLeft: Boolean = false,
     blockRight: Boolean = false,
+    // 同一排里的邻居: 显式给出, 左右键只在这一排里走, 绝不飘到别的格子去。
+    leftTarget: FocusRequester? = null,
+    rightTarget: FocusRequester? = null,
+    // false 表示这一颗的左右边由调用方自己定(一排好几颗), 不再按所在列的自动外沿判断。
+    autoEdges: Boolean = true,
 ) {
     val owner = remember { Any() }
     val memory = LocalSheetFocus.current
     val ownRequester = remember { FocusRequester() }
+    val column = LocalSheetColumn.current
     Pressable(
         modifier = Modifier.focusProperties {
-            if (blockLeft) left = FocusRequester.Cancel
-            if (blockRight) right = FocusRequester.Cancel
+            when {
+                leftTarget != null -> left = leftTarget
+                blockLeft -> left = FocusRequester.Cancel
+                // 自己独占一格时: 在右边那格说明左边是内部边, 能走; 否则就是面板的外沿。
+                autoEdges && column != 1 -> left = FocusRequester.Cancel
+            }
+            when {
+                rightTarget != null -> right = rightTarget
+                blockRight -> right = FocusRequester.Cancel
+                autoEdges && column != 0 -> right = FocusRequester.Cancel
+            }
         },
         onClick = onClick, focusRequester = focusRequester ?: ownRequester, focusedScale = 1f, onKey = onKey,
         // 同步回调: 气泡描边和按钮自己的白底必须同一帧开始变, 走 LaunchedEffect 会晚一帧
@@ -1191,14 +1212,24 @@ internal fun <T> ChoiceCell(
 ) {
     Cell(label, hint, modifier) { onFocus ->
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            // 每一颗都有自己的请求器: 左右键直接指给邻居, 一排之内怎么走就怎么走,
+            // 首尾之外的方向才封掉。
+            val reqs = remember(options.size) { List(options.size) { FocusRequester() } }
+            // 只有"面板真正的外沿"才封: 右列那格不应封它左边, 左列那格不应封它右边,
+            // 否则同一排里两格之间就走不过去了(用户口径)。
+            val column = LocalSheetColumn.current
             options.forEachIndexed { i, (value, text) ->
                 ChipButton(
                     if (text is Int) stringResource(text) else text.toString(),
                     on = current == value,
+                    focusRequester = reqs.getOrNull(i),
+                    leftTarget = reqs.getOrNull(i - 1),
+                    rightTarget = reqs.getOrNull(i + 1),
                     onClick = { choose(value) },
                     onFocus = onFocus,
-                    blockLeft = i == 0,
-                    blockRight = blockRightAtEnd && i == options.lastIndex,
+                    blockLeft = i == 0 && column != 1,
+                    blockRight = blockRightAtEnd && i == options.lastIndex && column != 0,
+                    autoEdges = false,
                 )
             }
         }
@@ -1247,7 +1278,6 @@ private fun HiddenChip(entry: HiddenEntry, onFocus: (Any, Boolean) -> Unit) {
             on = false, chevron = true, check = false,
             onClick = { window?.show(chipCenterX, chipTop, entry.onPick) },
             onFocus = onFocus,
-            blockLeft = true, blockRight = true,
             onKey = { e ->
                 if (window == null || !window.open) {
                     false
@@ -1313,6 +1343,8 @@ private fun ActionCell(
 ) {
     Cell(labelText, hint, modifier) { onFocus ->
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            val reqs = remember(actions.size) { List(actions.size) { FocusRequester() } }
+            val column = LocalSheetColumn.current
             actions.forEachIndexed { i, a ->
                 ChipButton(
                     a.text,
@@ -1320,10 +1352,14 @@ private fun ActionCell(
                     chevron = a.chevron,
                     check = false,
                     icon = a.icon,
+                    focusRequester = reqs.getOrNull(i),
+                    leftTarget = reqs.getOrNull(i - 1),
+                    rightTarget = reqs.getOrNull(i + 1),
                     onClick = a.run,
                     onFocus = onFocus,
-                    blockLeft = i == 0,
-                    blockRight = i == actions.lastIndex,
+                    blockLeft = i == 0 && column != 1,
+                    blockRight = i == actions.lastIndex && column != 0,
+                    autoEdges = false,
                 )
             }
         }
@@ -1447,6 +1483,8 @@ internal fun <T> MenuCell(
     // 窗口要对准"入口按钮"的顶边中点, 所以量按钮的位置, 不是量整格。
     var chipTop by remember { mutableStateOf(0f) }
     var chipCenterX by remember { mutableStateOf(0f) }
+    val leadReq = remember { FocusRequester() }
+    val valueReq = remember { FocusRequester() }
 
     fun bump(e: androidx.compose.ui.input.key.KeyEvent) {
         if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0) Sounds.limit()
@@ -1456,7 +1494,11 @@ internal fun <T> MenuCell(
         Cell(label, hint, modifier) { onFocus ->
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 leading?.let {
-                    ChipButton(it.text, on = false, chevron = it.chevron, check = false, icon = it.icon, onClick = it.run, onFocus = onFocus, blockLeft = true)
+                    ChipButton(
+                        it.text, on = false, chevron = it.chevron, check = false, icon = it.icon,
+                        focusRequester = leadReq, rightTarget = valueReq,
+                        onClick = it.run, onFocus = onFocus, blockLeft = true, autoEdges = false,
+                    )
                 }
                 Box(
                     Modifier.onGloballyPositioned { c ->
@@ -1468,12 +1510,15 @@ internal fun <T> MenuCell(
                     ChipButton(
                         labels.getOrElse(index) { "" },
                         on = false, chevron = true, check = false,
+                        focusRequester = valueReq,
+                        leftTarget = if (leading != null) leadReq else null,
                         onClick = {
                             window?.show(labels, index, chipCenterX, chipTop) { choose(options[it].first) }
                         },
                         onFocus = onFocus,
-                        blockLeft = leading == null,
-                        blockRight = true,
+                        blockLeft = leading == null && LocalSheetColumn.current != 1,
+                        blockRight = LocalSheetColumn.current != 0,
+                        autoEdges = false,
                         // 窗口开着的时候, 按键全在这颗按钮里处理: 焦点从没离开过它。
                         onKey = { e ->
                             if (window == null || !window.open) {
@@ -2072,7 +2117,6 @@ private fun BiliCell(mirror: BiliMirror) {
             action.text,
             on = false, chevron = action.chevron, check = false,
             onClick = action.run,
-            blockLeft = true, blockRight = true,
             onFocus = { owner, focused ->
                 onFocus(owner, focused)
                 if (focused) {
