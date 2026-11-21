@@ -190,7 +190,7 @@ class PhoneServer private constructor(private val context: Context, private val 
                 }
                 // 电视个性化面板里那些设置: 手机页照电视的 strings.xml 拿文案, 按电视同一套
                 // choose* 写进去。壁纸/屏保/隐藏卡片不在这里, 手机页别的标签页已有。
-                path == "/api/prefs" -> {
+                session.method == Method.GET && path == "/api/prefs" -> {
                     val lang = queryOf(session.queryParameterString, "lang") ?: "zh"
                     json(PhonePrefs.schema(context, lang))
                 }
@@ -218,6 +218,8 @@ class PhoneServer private constructor(private val context: Context, private val 
                     json(state().put("removed", removed))
                 }
                 path.startsWith("/tile/") -> tile(java.net.URLDecoder.decode(path.removePrefix("/tile/"), "UTF-8"), own = session.parameters["art"]?.firstOrNull() == "own")
+                // 儿童与长辈窗口里的卡片封面: 候选表里有直播卡片, 不在 loaded/pinned 里, /tile/ 找不到它们。
+                path.startsWith("/kids/art/") -> kidsArt(java.net.URLDecoder.decode(path.removePrefix("/kids/art/"), "UTF-8"))
                 path.startsWith("/library/") -> libraryPicture(java.net.URLDecoder.decode(path.removePrefix("/library/"), "UTF-8"), session.parameters["c"]?.firstOrNull())
                 session.method == Method.POST && path == "/api/icon" -> icon(session)
                 session.method == Method.POST && path == "/api/source/name" -> {
@@ -620,6 +622,19 @@ class PhoneServer private constructor(private val context: Context, private val 
         val bytes = out.toByteArray()
         return newFixedLengthResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(bytes), bytes.size.toLong()).apply {
             addHeader("Cache-Control", "no-store")
+        }
+    }
+
+    /** 一张候选卡片的封面, 供手机端儿童与长辈窗口用。 */
+    private fun kidsArt(key: String): Response {
+        val e = AppCatalog.kidsCandidates.firstOrNull { it.key == key } ?: return text(Response.Status.NOT_FOUND, "")
+        val bmp = TileArtFactory.flatten(e.art)
+        val out = ByteArrayOutputStream()
+        bmp.compress(Bitmap.CompressFormat.JPEG, 85, out)
+        bmp.recycle()
+        val bytes = out.toByteArray()
+        return newFixedLengthResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(bytes), bytes.size.toLong()).apply {
+            addHeader("Cache-Control", "no-cache")
         }
     }
 

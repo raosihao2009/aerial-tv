@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.res.Configuration
 import app.orchard.tv.R
 import app.orchard.tv.apps.AppCatalog
+import app.orchard.tv.apps.AppEntry
+import app.orchard.tv.apps.LIVE_KEY_PREFIX
 import app.orchard.tv.settings.AerialSettings
 import app.orchard.tv.settings.ClockHours
 import app.orchard.tv.settings.Effects
@@ -17,6 +19,7 @@ import app.orchard.tv.system.SystemProbe
 import app.orchard.tv.update.Updates
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URLEncoder
 import java.util.Locale
 
 /**
@@ -44,7 +47,7 @@ object PhonePrefs {
     private fun item(
         key: String, kind: String, label: String, hint: String?, value: String,
         options: List<Pair<String, String>> = emptyList(),
-        min: Int? = null, max: Int? = null,
+        min: Int? = null, max: Int? = null, muted: Boolean? = null,
     ): JSONObject {
         val o = JSONObject().put("key", key).put("kind", kind).put("label", label).put("value", value)
         if (!hint.isNullOrBlank()) o.put("hint", hint)
@@ -53,6 +56,7 @@ object PhonePrefs {
         }
         min?.let { o.put("min", it) }
         max?.let { o.put("max", it) }
+        muted?.let { o.put("muted", it) }
         return o
     }
 
@@ -161,8 +165,9 @@ object PhonePrefs {
             )
             put(
                 item(
-                    "keyVolume", "num", s(R.string.st_key_volume), s(R.string.st_key_volume_hint),
+                    "keyVolume", "slider", s(R.string.st_key_volume), s(R.string.st_key_volume_hint),
                     AerialSettings.keyVolume.toString(), min = 0, max = 100,
+                    muted = AerialSettings.keyVolumeMuted,
                 ),
             )
         }))
@@ -178,8 +183,13 @@ object PhonePrefs {
             )
         }))
 
-        // ---- 家庭守护: 家长密码 + 儿童与长辈模式(整屏那一页的全部规则) ----
+        // ---- 家庭守护: 家长密码留在这一页, 儿童与长辈的细则进窗口(手机屏小, 一页摆不下) ----
         val rules = Restricted.rules
+        val allowed = Restricted.allowed.toSet()
+        val kindLabel = s(if (Restricted.kind == RestrictedKind.Kids) R.string.kids_kind_kids else R.string.kids_kind_elders)
+        val kidsState = if (Restricted.enabled) {
+            listOf(s(R.string.st_on), kindLabel, s(R.string.kids_apps, allowed.size)).joinToString(" · ")
+        } else s(R.string.st_off)
         groups.put(JSONObject().put("title", s(R.string.per_family)).put("items", JSONArray().apply {
             put(
                 item(
@@ -188,105 +198,111 @@ object PhonePrefs {
                     listOf("1" to s(R.string.st_pin_on), "0" to s(R.string.st_pin_off)),
                 ),
             )
-            put(
-                item(
-                    "kidsEnabled", "seg", s(R.string.st_kids), s(R.string.st_kids_hint),
-                    if (Restricted.enabled) "1" else "0",
-                    listOf("1" to s(R.string.st_on), "0" to s(R.string.st_off)),
-                ),
-            )
-            put(
-                item(
-                    "kidsKind", "seg", s(R.string.kids_kind),
-                    s(if (Restricted.kind == RestrictedKind.Kids) R.string.kids_kind_kids_hint else R.string.kids_kind_elders_hint),
-                    Restricted.kind.key,
-                    listOf(
-                        RestrictedKind.Kids.key to s(R.string.kids_kind_kids),
-                        RestrictedKind.Elders.key to s(R.string.kids_kind_elders),
-                    ),
-                ),
-            )
-            put(
-                item(
-                    "kidsBlock", "seg", s(R.string.kids_block), s(R.string.kids_block_hint),
-                    if (Restricted.blockOthers) "1" else "0",
-                    listOf("1" to s(R.string.kids_block_on), "0" to s(R.string.kids_block_off)),
-                ),
-            )
-            put(
-                item(
-                    "kidsWeekday", "minutes", s(R.string.kids_weekday), s(R.string.kids_minutes_hint),
-                    rules.weekdayMinutes.toString(), min = 0, max = 1440,
-                ),
-            )
-            put(
-                item(
-                    "kidsWeekend", "minutes", s(R.string.kids_weekend), s(R.string.kids_minutes_hint),
-                    rules.weekendMinutes.toString(), min = 0, max = 1440,
-                ),
-            )
-            put(
-                item(
-                    "kidsLatest", "seg", s(R.string.kids_latest),
-                    c.getString(R.string.kids_latest_hint, KidsTime.clock(rules.startMinute)),
-                    rules.endMinute.toString(),
-                    listOf(
-                        0 to s(R.string.kids_no_limit),
-                        20 * 60 to KidsTime.clock(20 * 60),
-                        21 * 60 to KidsTime.clock(21 * 60),
-                        22 * 60 to KidsTime.clock(22 * 60),
-                        23 * 60 to KidsTime.clock(23 * 60),
-                    ).map { (v, l) -> v.toString() to l },
-                ),
-            )
-            put(
-                item(
-                    "kidsBreak", "seg", s(R.string.kids_break),
-                    c.getString(R.string.kids_break_hint, rules.breakMinutes),
-                    rules.breakEvery.toString(),
-                    listOf(0, 30, 45, 60).map { v -> v.toString() to (if (v == 0) s(R.string.st_off) else v.toString()) },
-                ),
-            )
-            put(
-                item(
-                    "kidsAllowed", "list", s(R.string.kids_apps, Restricted.allowed.size),
-                    s(R.string.kids_apps_hint),
-                    Restricted.allowed.joinToString("\n"),
-                    AppCatalog.kidsCandidates.map { it.key to it.label },
-                ),
-            )
+            put(item("kids", "open", s(R.string.st_kids), kidsState, ""))
         }))
 
-        // ---- 关于 ----
+        // ---- 关于: 就一项, 版本与更新状态合成一行, 点一下查更新 ----
         val home = SystemProbe.homeStatus(context)
+        var aboutHint = updateHint(c) ?: s(R.string.cc_about_latest, Updates.current)
+        if (home != HomeStatus.Default) {
+            aboutHint += " · " + s(if (home == HomeStatus.Guarded) R.string.cc_home_guarded else R.string.cc_home_not_default)
+        }
         groups.put(JSONObject().put("title", s(R.string.cc_about)).put("items", JSONArray().apply {
             put(
                 item(
-                    "version", "info", s(R.string.cc_about_version, Updates.current),
-                    if (Updates.upToDate) s(R.string.cc_about_latest, Updates.current) else null, "",
-                ),
-            )
-            put(
-                item(
-                    "update", "action", s(R.string.cc_about_update), updateHint(c),
-                    s(R.string.cc_about_check), emptyList(),
-                ),
-            )
-            put(
-                item(
-                    "homeStatus", "info", s(R.string.cc_home_label),
-                    when (home) {
-                        HomeStatus.Default -> s(R.string.cc_home_default)
-                        HomeStatus.Guarded -> s(R.string.cc_home_guarded)
-                        HomeStatus.NotDefault -> s(R.string.cc_home_not_default)
-                        else -> ""
-                    },
-                    "",
+                    "update", "action", s(R.string.cc_about_version, Updates.current), aboutHint,
+                    s(R.string.cc_about_check),
                 ),
             )
         }))
 
-        return JSONObject().put("groups", groups)
+        // 儿童与长辈窗口: 规则一项项排开; 卡片分两页(应用 / 直播), 每页带封面图与勾选编号。
+        val candidates = AppCatalog.kidsCandidates
+        val liveCards = candidates.filter { it.key.startsWith(LIVE_KEY_PREFIX) }
+        val appCards = candidates.filterNot { it.key.startsWith(LIVE_KEY_PREFIX) }
+        fun cards(list: List<AppEntry>): JSONArray = JSONArray().apply {
+            list.forEach { e ->
+                put(
+                    JSONObject().put("value", e.key).put("label", e.label)
+                        .put("art", "kids/art/" + URLEncoder.encode(e.key, "UTF-8"))
+                        .put("checked", e.key in allowed),
+                )
+            }
+        }
+        val kids = JSONObject()
+            .put("title", s(R.string.kids_title))
+            .put("hint", s(R.string.kids_hint))
+            .put("appsTitle", s(R.string.kw_tab_apps))
+            .put("liveTitle", s(R.string.kw_tab_live))
+            .put("appsHint", s(R.string.kids_apps_hint))
+            .put("emptyApps", s(R.string.kids_loading))
+            .put("emptyLive", s(R.string.kw_live_none))
+            .put("apps", cards(appCards))
+            .put("live", cards(liveCards))
+            .put("allowed", JSONArray().apply { Restricted.allowed.forEach { put(it) } })
+            .put("items", JSONArray().apply {
+                put(
+                    item(
+                        "kidsEnabled", "seg", s(R.string.st_kids), s(R.string.st_kids_hint),
+                        if (Restricted.enabled) "1" else "0",
+                        listOf("1" to s(R.string.st_on), "0" to s(R.string.st_off)),
+                    ),
+                )
+                put(
+                    item(
+                        "kidsKind", "seg", s(R.string.kids_kind),
+                        s(if (Restricted.kind == RestrictedKind.Kids) R.string.kids_kind_kids_hint else R.string.kids_kind_elders_hint),
+                        Restricted.kind.key,
+                        listOf(
+                            RestrictedKind.Kids.key to s(R.string.kids_kind_kids),
+                            RestrictedKind.Elders.key to s(R.string.kids_kind_elders),
+                        ),
+                    ),
+                )
+                put(
+                    item(
+                        "kidsBlock", "seg", s(R.string.kids_block), s(R.string.kids_block_hint),
+                        if (Restricted.blockOthers) "1" else "0",
+                        listOf("1" to s(R.string.kids_block_on), "0" to s(R.string.kids_block_off)),
+                    ),
+                )
+                put(
+                    item(
+                        "kidsWeekday", "minutes", s(R.string.kids_weekday), s(R.string.kids_minutes_hint),
+                        rules.weekdayMinutes.toString(), min = 0, max = 1440,
+                    ),
+                )
+                put(
+                    item(
+                        "kidsWeekend", "minutes", s(R.string.kids_weekend), s(R.string.kids_minutes_hint),
+                        rules.weekendMinutes.toString(), min = 0, max = 1440,
+                    ),
+                )
+                put(
+                    item(
+                        "kidsLatest", "seg", s(R.string.kids_latest),
+                        c.getString(R.string.kids_latest_hint, KidsTime.clock(rules.startMinute)),
+                        rules.endMinute.toString(),
+                        listOf(
+                            0 to s(R.string.kids_no_limit),
+                            20 * 60 to KidsTime.clock(20 * 60),
+                            21 * 60 to KidsTime.clock(21 * 60),
+                            22 * 60 to KidsTime.clock(22 * 60),
+                            23 * 60 to KidsTime.clock(23 * 60),
+                        ).map { (v, l) -> v.toString() to l },
+                    ),
+                )
+                put(
+                    item(
+                        "kidsBreak", "seg", s(R.string.kids_break),
+                        c.getString(R.string.kids_break_hint, rules.breakMinutes),
+                        rules.breakEvery.toString(),
+                        listOf(0, 30, 45, 60).map { v -> v.toString() to (if (v == 0) s(R.string.st_off) else v.toString()) },
+                    ),
+                )
+            })
+
+        return JSONObject().put("groups", groups).put("kids", kids)
     }
 
     private fun updateHint(c: Context): String? {
@@ -351,6 +367,7 @@ object PhonePrefs {
                 }
             }
             "keyVolume" -> int()?.takeIf { it in 0..100 }?.let { AerialSettings.chooseKeyVolume(it); true } ?: false
+            "keyVolumeMuted" -> { AerialSettings.chooseKeyVolumeMuted(on); true }
             "clockHours" -> {
                 AerialSettings.chooseClockHours(if (value == "12") ClockHours.H12 else ClockHours.H24)
                 true

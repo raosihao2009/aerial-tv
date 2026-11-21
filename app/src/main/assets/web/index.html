@@ -56,14 +56,56 @@
   .item .sub { display: block; font-size: 13px; color: var(--secondary); margin-top: 2px; }
   .item .val { color: var(--secondary); white-space: nowrap; }
   .item .chev { color: var(--tertiary); flex-shrink: 0; }
-  /* 个性化设置: 一行几个小选项按钮(电视上是分段键, 手机上是小胶囊)。 */
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; max-width: 62%; }
-  .chips button {
-    appearance: none; border: 0; border-radius: 9px; padding: 7px 12px; font-size: 14px; line-height: 1.1;
-    background: var(--fill); color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  /* 个性化设置: 一项设置一张圆角卡, 卡里选项一排一个, 当前值打勾并染成主题色。 */
+  .pcard { margin-top: 10px; }
+  .pcard .phead { cursor: default; }
+  .pcard .phead:active { background: none; }
+  .pcard .popt { justify-content: space-between; }
+  .pcard .popt .tick { font-size: 17px; font-weight: 600; }
+  .pcard .popt[aria-checked="true"] { color: var(--tint); }
+  .pnum { justify-content: flex-end; gap: 8px; }
+  .pnum .pref-num { width: 84px; }
+  .pnum .unit { color: var(--secondary); font-size: 13px; flex: none; }
+  .psld { gap: 10px; }
+  .psld input[type=range] {
+    -webkit-appearance: none; appearance: none; flex: 1; min-width: 0; height: 30px; background: none; margin: 0;
   }
-  .chips button[aria-checked="true"] { background: var(--tint); color: #fff; font-weight: 600; }
-  .chips button:disabled { opacity: .45; }
+  .psld input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--fill); }
+  .psld input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 24px; height: 24px; margin-top: -10px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.28), 0 0 0 .5px rgba(0,0,0,.12);
+  }
+  .psld input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--fill); }
+  .psld input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border: 0; border-radius: 50%; background: #fff; }
+  .psld.muted input[type=range] { opacity: .45; }
+  .psld .val { min-width: 46px; text-align: right; color: var(--secondary); font-variant-numeric: tabular-nums; }
+  .mutebtn {
+    appearance: none; border: 0; border-radius: 9px; padding: 6px 10px; font-size: 13px; flex: none;
+    background: var(--fill); color: inherit; cursor: pointer;
+  }
+  .mutebtn[aria-checked="true"] { background: var(--tint); color: #fff; font-weight: 600; }
+  /* 儿童与长辈窗口: 上面是两页卡片的切换键, 下面一排三张带封面和勾选编号。 */
+  .ptabs { display: flex; gap: 4px; background: var(--fill); border-radius: 10px; padding: 3px; margin: 8px 0 10px; }
+  .ptabs button {
+    flex: 1; appearance: none; border: 0; border-radius: 8px; padding: 8px 0; background: none;
+    font-size: 14px; color: var(--secondary); cursor: pointer;
+  }
+  .ptabs button[aria-checked="true"] { background: var(--card); color: var(--label); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .kgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .kcard { position: relative; padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: var(--fill); aspect-ratio: 16 / 10; }
+  .kcard img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: .5; }
+  .kcard[aria-checked="true"] img { opacity: 1; }
+  .kcard[aria-checked="true"] { outline: 2px solid var(--tint); outline-offset: -2px; }
+  .knum {
+    position: absolute; top: 4px; left: 4px; min-width: 18px; height: 18px; border-radius: 9px; padding: 0 4px;
+    background: var(--tint); color: #fff; font-size: 11px; line-height: 18px; text-align: center; font-weight: 600;
+  }
+  .knum:empty { display: none; }
+  .kc {
+    position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 4px 3px; font-size: 11px; line-height: 1.2;
+    color: #fff; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    background: linear-gradient(transparent, rgba(0,0,0,.75));
+  }
   .pref-num {
     width: 76px; flex: none; text-align: right; border: 0; background: none; color: var(--tint);
     font-size: 16px; font-variant-numeric: tabular-nums;
@@ -1161,6 +1203,7 @@ const LANGS = Object.keys(TEXTS);
 // 后加的文案单独放: KEYS 与 TEXTS 是按位置对齐的老表, 往里插一条就会把后面所有文案错位。
 const EXTRA = {
   zh: { backup_h: "备份与恢复", backup_export: "导出备份", backup_import: "导入备份",
+        mute: "静音", unmute: "恢复声音", unit_min: "分钟", kids_open: "打开设置",
         pin_new: "设置家长密码", pin_off_title: "关闭家长密码", pin_ph: "4~8 位数字",
         backup_hint: "备份包含所有设置、直播源、壁纸与照片影片。导入会覆盖这台电视上的全部设置，随后自动重启。",
         backup_confirm: "导入会覆盖这台电视上的全部设置，确定继续？", backup_restoring: "正在导入…",
@@ -1172,6 +1215,7 @@ const EXTRA = {
         sw_saver_place: "屏保显示地点", sw_saver_place_sub: "航拍屏保左下角的地名, 照片屏保的图片标题。",
         power_off: "关机", power_off_confirm: "现在就关掉这台电视?", power_off_done: "已关机", power_off_fail: "关机失败" },
   en: { backup_h: "Backup & restore", backup_export: "Export backup", backup_import: "Import backup",
+        mute: "Mute", unmute: "Sound on", unit_min: "min", kids_open: "Open settings",
         pin_new: "Set the parental PIN", pin_off_title: "Turn off the parental PIN", pin_ph: "4–8 digits",
         backup_hint: "The backup holds every setting, live source, wallpaper, photo and video. Importing replaces all settings on this TV and restarts it.",
         backup_confirm: "Importing replaces all settings on this TV. Continue?", backup_restoring: "Importing…",
@@ -1183,6 +1227,7 @@ const EXTRA = {
         sw_saver_place: "Place on the screensaver", sw_saver_place_sub: "The place name bottom left on the aerial screensaver, and the picture's title on the photo screensaver.",
         power_off: "Shut Down", power_off_confirm: "Turn this TV off now?", power_off_done: "Turned off", power_off_fail: "Could not turn it off" },
   ru: { backup_h: "Резервная копия", backup_export: "Экспорт копии", backup_import: "Импорт копии",
+        mute: "Без звука", unmute: "Включить звук", unit_min: "мин", kids_open: "Открыть настройки",
         pin_new: "Задать родительский PIN", pin_off_title: "Отключить родительский PIN", pin_ph: "4–8 цифр",
         backup_hint: "Копия содержит все настройки, источники трансляций, обои, фото и видео. Импорт заменит все настройки на этом телевизоре и перезапустит его.",
         backup_confirm: "Импорт заменит все настройки на этом телевизоре. Продолжить?", backup_restoring: "Импорт…",
@@ -1191,6 +1236,7 @@ const EXTRA = {
         backup_packing: "Собираем копию, подождите…", backup_save: "Сохранить копию", backup_pack_fail: "Не удалось собрать копию — попробуйте снова",
         backup_no_reply: "Телевизор не сообщил результат", backup_link_lost: "Связь с телевизором прервалась" },
   uk: { backup_h: "Резервна копія", backup_export: "Експорт копії", backup_import: "Імпорт копії",
+        mute: "Без звуку", unmute: "Увімкнути звук", unit_min: "хв", kids_open: "Відкрити налаштування",
         pin_new: "Задати батьківський PIN", pin_off_title: "Вимкнути батьківський PIN", pin_ph: "4–8 цифр",
         backup_hint: "Копія містить усі налаштування, джерела трансляцій, шпалери, фото й відео. Імпорт замінить усі налаштування на цьому телевізорі та перезапустить його.",
         backup_confirm: "Імпорт замінить усі налаштування на цьому телевізорі. Продовжити?", backup_restoring: "Імпорт…",
@@ -1199,6 +1245,7 @@ const EXTRA = {
         backup_packing: "Збираємо копію, зачекайте…", backup_save: "Зберегти копію", backup_pack_fail: "Не вдалося зібрати копію — спробуйте ще раз",
         backup_no_reply: "Телевізор не повідомив результат", backup_link_lost: "Зв'язок із телевізором обірвався" },
   kk: { backup_h: "Сақтық көшірме", backup_export: "Көшірмені шығару", backup_import: "Көшірмені қалпына келтіру",
+        mute: "Дыбысты өшіру", unmute: "Дыбысты қосу", unit_min: "мин", kids_open: "Параметрлерді ашу",
         pin_new: "Ата-ана PIN-ін орнату", pin_off_title: "Ата-ана PIN-ін өшіру", pin_ph: "4–8 сан",
         backup_hint: "Көшірмеде барлық параметрлер, эфир көздері, тұсқағаздар, фото және бейнелер бар. Қалпына келтіру осы теледидардағы барлық параметрлерді ауыстырып, оны қайта іске қосады.",
         backup_confirm: "Қалпына келтіру осы теледидардағы барлық параметрлерді ауыстырады. Жалғастыру керек пе?", backup_restoring: "Қалпына келтірілуде…",
@@ -1740,86 +1787,144 @@ async function loadPrefs() {
     if (r.ok) { prefs = await r.json(); renderPrefs(); }
   } catch (e) {}
 }
-async function setPref(key, value) {
+async function setPref(key, value, after) {
   try {
     const r = await api('api/prefs', { key: key, value: value });
     if (!r.ok) throw new Error('not saved');
     toast(t('toast_tv_updated'));
     await loadPrefs();
+    if (after) after();
     return true;
   } catch (e) {
     toast(t('toast_set_fail'));
     await loadPrefs();
+    if (after) after();
     return false;
   }
 }
-function prefRow(it) {
-  const row = el('div', 'item');
-  const txt = el('span', 'txt');
-  txt.appendChild(el('span', '', it.label));
-  if (it.hint) txt.appendChild(el('span', 'sub', it.hint));
-  row.appendChild(txt);
-  if (it.kind === 'seg') {
-    const chips = el('div', 'chips');
-    for (const o of it.options || []) {
-      const b = el('button', '', o.label); b.type = 'button';
-      b.setAttribute('aria-checked', o.value === it.value ? 'true' : 'false');
-      b.onclick = () => {
-        if (it.key === 'pin') return pinPick(o.value === '1');
-        b.disabled = true; setPref(it.key, o.value);
-      };
-      chips.appendChild(b);
-    }
-    row.appendChild(chips);
-  } else if (it.kind === 'num' || it.kind === 'minutes') {
-    const inp = el('input', 'pref-num'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.value = it.value;
-    if (it.min !== undefined) inp.min = it.min;
-    if (it.max !== undefined) inp.max = it.max;
-    inp.onchange = () => setPref(it.key, String(Math.max(0, parseInt(inp.value, 10) || 0)));
-    row.appendChild(inp);
-  } else if (it.kind === 'action') {
-    const b = el('button', 'link', it.label); b.type = 'button'; b.style.flexShrink = '0';
-    b.onclick = async () => { b.disabled = true; await setPref(it.key, '1'); b.disabled = false; };
-    row.appendChild(b);
-  }
-  return row;
-}
-/* 「显示的应用卡片」: 一行一个开关, 至少留一个。 */
-function prefListRow(it) {
-  const wrap = el('div');
-  const head = el('div', 'item');
+function prefTick() { return el('span', 'tick', '✓'); }
+
+/* 一项设置一张圆角卡: 标题和说明在上, 选项一排一个, 选中的那行打勾并染成主题色。 */
+function prefCard(it, after) {
+  const card = el('div', 'list pcard');
+  const head = el('div', 'item phead');
   const txt = el('span', 'txt');
   txt.appendChild(el('span', '', it.label));
   if (it.hint) txt.appendChild(el('span', 'sub', it.hint));
   head.appendChild(txt);
-  wrap.appendChild(head);
-  const picked = (it.value || '').split('\n').filter(Boolean);
-  for (const o of it.options || []) {
-    const row = el('label', 'item');
-    const t2 = el('span', 'txt'); t2.appendChild(el('span', '', o.label)); row.appendChild(t2);
-    const sw = el('input', 'switch'); sw.type = 'checkbox'; sw.checked = picked.includes(o.value);
-    sw.setAttribute('aria-label', o.label);
-    sw.onchange = () => {
-      const now = (it.value || '').split('\n').filter(Boolean);
-      const next = sw.checked ? now.concat([o.value]) : now.filter(v => v !== o.value);
-      sw.disabled = true;
-      setPref(it.key, next.join('\n'));
-    };
-    row.appendChild(sw);
-    wrap.appendChild(row);
+  card.appendChild(head);
+  const changed = (k, v) => { setPref(k, v, after); };
+
+  if (it.kind === 'seg') {
+    for (const o of it.options || []) {
+      const row = el('button', 'item popt', o.label);
+      row.type = 'button';
+      const on = o.value === it.value;
+      row.setAttribute('aria-checked', on ? 'true' : 'false');
+      row.appendChild(prefTick());
+      row.onclick = () => {
+        if (it.key === 'pin') return pinPick(o.value === '1');
+        if (on) return;
+        row.disabled = true; changed(it.key, o.value);
+      };
+      card.appendChild(row);
+    }
+  } else if (it.kind === 'num' || it.kind === 'minutes') {
+    const row = el('div', 'item pnum');
+    const inp = el('input', 'pref-num'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.value = it.value;
+    if (it.min !== undefined) inp.min = it.min;
+    if (it.max !== undefined) inp.max = it.max;
+    inp.onchange = () => changed(it.key, String(Math.max(0, parseInt(inp.value, 10) || 0)));
+    if (it.kind === 'minutes') row.appendChild(el('span', 'unit', t('unit_min')));
+    row.appendChild(inp);
+    card.appendChild(row);
+  } else if (it.kind === 'slider') {
+    const row = el('div', 'item psld');
+    if (it.muted) row.classList.add('muted');
+    const mute = el('button', 'mutebtn', it.muted ? t('unmute') : t('mute'));
+    mute.type = 'button';
+    mute.setAttribute('aria-checked', it.muted ? 'true' : 'false');
+    mute.setAttribute('aria-label', it.muted ? t('unmute') : t('mute'));
+    mute.onclick = () => changed(it.key + 'Muted', it.muted ? '0' : '1');
+    const rg = el('input', ''); rg.type = 'range'; rg.min = it.min ?? 0; rg.max = it.max ?? 100; rg.value = it.value;
+    rg.setAttribute('aria-label', it.label);
+    const val = el('span', 'val', it.value);
+    rg.oninput = () => val.textContent = rg.value;
+    rg.onchange = () => changed(it.key, rg.value);
+    row.append(mute, rg, val);
+    card.appendChild(row);
+  } else if (it.kind === 'action') {
+    const row = el('button', 'item tint center', it.value || it.label);
+    row.type = 'button';
+    row.onclick = async () => { row.disabled = true; await changed(it.key, '1'); row.disabled = false; };
+    card.appendChild(row);
+  } else if (it.kind === 'open') {
+    const row = el('button', 'item');
+    row.type = 'button';
+    row.appendChild(el('span', 'txt', t('kids_open')));
+    const chev = el('svg', 'chev'); chev.setAttribute('width', '8'); chev.setAttribute('height', '13');
+    chev.setAttribute('viewBox', '0 0 8 13'); chev.setAttribute('fill', 'none'); chev.setAttribute('stroke', 'currentColor');
+    chev.setAttribute('stroke-width', '2.2'); chev.setAttribute('stroke-linecap', 'round');
+    chev.innerHTML = '<path d="M1.5 1.5l5 5-5 5"/>';
+    row.appendChild(chev);
+    row.onclick = () => openKids();
+    card.appendChild(row);
   }
-  return wrap;
+  return card;
 }
+
 function renderPrefs() {
   const host = $('#prefs'); if (!host || !prefs) return;
   host.replaceChildren();
   for (const g of prefs.groups || []) {
     host.appendChild(el('h2', '', g.title));
-    const list = el('div', 'list');
-    for (const it of g.items || []) list.appendChild(it.kind === 'list' ? prefListRow(it) : prefRow(it));
-    host.appendChild(list);
+    for (const it of g.items || []) host.appendChild(prefCard(it));
   }
 }
+
+/* 儿童与长辈: 细则和两页卡片都放进窗口, 卡片带封面、勾选后左上角标编号。 */
+let kidsTab = 0;
+function openKids() {
+  openSheet(body => {
+    const k = prefs && prefs.kids; if (!k) return;
+    body.appendChild(el('h3', '', k.title));
+    if (k.hint) body.appendChild(el('p', 'meta', k.hint));
+    const refresh = () => openKids();
+    const tabs = el('div', 'ptabs');
+    [k.appsTitle, k.liveTitle].forEach((label, i) => {
+      const b = el('button', '', label); b.type = 'button';
+      b.setAttribute('aria-checked', kidsTab === i ? 'true' : 'false');
+      b.onclick = () => { kidsTab = i; refresh(); };
+      tabs.appendChild(b);
+    });
+    body.appendChild(tabs);
+    const list = kidsTab === 0 ? (k.apps || []) : (k.live || []);
+    const allowed = k.allowed || [];
+    const inPage = allowed.filter(v => list.some(c => c.value === v));
+    if (!list.length) body.appendChild(el('p', 'meta', kidsTab === 0 ? (k.emptyApps || '') : (k.emptyLive || '')));
+    if (k.appsHint) body.appendChild(el('p', 'foot', kidsTab === 0 ? k.appsHint : ''));
+    const grid = el('div', 'kgrid');
+    for (const c of list) {
+      const t2 = el('button', 'kcard'); t2.type = 'button';
+      const pos = inPage.indexOf(c.value);
+      t2.setAttribute('aria-checked', pos >= 0 ? 'true' : 'false');
+      const img = el('img'); img.src = base + (c.art || ''); img.alt = ''; img.loading = 'lazy';
+      const num = el('span', 'knum', pos >= 0 ? String(pos + 1) : '');
+      const cap = el('span', 'kc', c.label || c.value);
+      t2.append(img, num, cap);
+      t2.onclick = () => {
+        const now = allowed.slice();
+        const next = pos >= 0 ? now.filter(v => v !== c.value) : now.concat([c.value]);
+        t2.disabled = true;
+        setPref('kidsAllowed', next.join('\n'), refresh);
+      };
+      grid.appendChild(t2);
+    }
+    body.appendChild(grid);
+    for (const it of k.items || []) body.appendChild(prefCard(it, refresh));
+  });
+}
+
 /* 家长密码: 开要立刻给一个 4~8 位数字, 关要先验证现有的。 */
 function pinPick(on) {
   openSheet(body => {
