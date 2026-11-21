@@ -310,4 +310,9 @@
     <string name="cc_update_busy">Оновлення\u2026</string>
     <string name="cc_update_now">Оновити до %1$s</string>
     <string name="cc_update_connecting">Підключення до джерела завантаження\u2026</string>
+    <string name="cc_home_label">Домашній екран</string>
+    <string name="jank_off">Вимк.</string>
+    <string name="jank_low">Низька</string>
+    <string name="jank_medium">Середня</string>
+    <string name="jank_high">Висока</string>
 </resources>

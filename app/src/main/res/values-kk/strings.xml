@@ -310,4 +310,9 @@
     <string name="cc_update_busy">Жаңартылуда\u2026</string>
     <string name="cc_update_now">%1$s нұсқасына жаңарту</string>
     <string name="cc_update_connecting">Жүктеу көзіне қосылуда\u2026</string>
+    <string name="cc_home_label">Басты экран</string>
+    <string name="jank_off">Өшірулі</string>
+    <string name="jank_low">Төмен</string>
+    <string name="jank_medium">Орташа</string>
+    <string name="jank_high">Жоғары</string>
 </resources>

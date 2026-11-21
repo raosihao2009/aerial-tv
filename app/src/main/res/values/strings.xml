@@ -365,4 +365,9 @@
     <string name="cc_update_failed_check">The check failed. Check the network and try again.</string>
     <string name="cc_update_busy">Updating\u2026</string>
     <string name="cc_update_now">Update to %1$s now</string>
+    <string name="cc_home_label">Home Screen</string>
+    <string name="jank_off">Off</string>
+    <string name="jank_low">Low</string>
+    <string name="jank_medium">Medium</string>
+    <string name="jank_high">High</string>
 </resources>

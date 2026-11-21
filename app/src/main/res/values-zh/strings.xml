@@ -355,4 +355,9 @@
     <string name="cc_update_failed_check">检查失败，请检查网络后再试</string>
     <string name="cc_update_busy">正在更新…</string>
     <string name="cc_update_now">立即更新到 %1$s</string>
+    <string name="cc_home_label">桌面接管</string>
+    <string name="jank_off">关闭</string>
+    <string name="jank_low">低</string>
+    <string name="jank_medium">中</string>
+    <string name="jank_high">高</string>
 </resources>

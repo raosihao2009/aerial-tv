@@ -188,6 +188,18 @@ class PhoneServer private constructor(private val context: Context, private val 
                     }
                     json(state().put("saved", known))
                 }
+                // 电视个性化面板里那些设置: 手机页照电视的 strings.xml 拿文案, 按电视同一套
+                // choose* 写进去。壁纸/屏保/隐藏卡片不在这里, 手机页别的标签页已有。
+                path == "/api/prefs" -> {
+                    val lang = queryOf(session.queryParameterString, "lang") ?: "zh"
+                    json(PhonePrefs.schema(context, lang))
+                }
+                session.method == Method.POST && path == "/api/prefs" -> {
+                    val f = form(session)
+                    var ok = false
+                    onMain { ok = PhonePrefs.set(f["key"].orEmpty(), f["value"].orEmpty()) }
+                    json(JSONObject().put("ok", ok))
+                }
                 session.method == Method.POST && path == "/api/focus" -> {
                     val style = FocusStyle.of(form(session)["style"])
                     onMain { AerialSettings.chooseFocusStyle(style) }

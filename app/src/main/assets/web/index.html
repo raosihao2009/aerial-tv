@@ -56,6 +56,19 @@
   .item .sub { display: block; font-size: 13px; color: var(--secondary); margin-top: 2px; }
   .item .val { color: var(--secondary); white-space: nowrap; }
   .item .chev { color: var(--tertiary); flex-shrink: 0; }
+  /* 个性化设置: 一行几个小选项按钮(电视上是分段键, 手机上是小胶囊)。 */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; max-width: 62%; }
+  .chips button {
+    appearance: none; border: 0; border-radius: 9px; padding: 7px 12px; font-size: 14px; line-height: 1.1;
+    background: var(--fill); color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .chips button[aria-checked="true"] { background: var(--tint); color: #fff; font-weight: 600; }
+  .chips button:disabled { opacity: .45; }
+  .pref-num {
+    width: 76px; flex: none; text-align: right; border: 0; background: none; color: var(--tint);
+    font-size: 16px; font-variant-numeric: tabular-nums;
+  }
+  .pref-num:focus { outline: none; }
   .item.tint { color: var(--tint); }
   .item.danger { color: var(--danger); }
   .item.center { justify-content: center; font-weight: 500; }
@@ -356,6 +369,9 @@
     <button class="item tint center" id="satBtn" type="button">按卫星定位</button>
   </div>
   <p class="foot" id="wxHint"></p>
+
+  <!-- 电视个性化面板里其余的选项, 由服务端按电视的 strings.xml 发过来(groups/items)。 -->
+  <div id="prefs"></div>
 
   <h2 data-i18n="this_tv"></h2>
   <div class="list">
@@ -1145,6 +1161,7 @@ const LANGS = Object.keys(TEXTS);
 // 后加的文案单独放: KEYS 与 TEXTS 是按位置对齐的老表, 往里插一条就会把后面所有文案错位。
 const EXTRA = {
   zh: { backup_h: "备份与恢复", backup_export: "导出备份", backup_import: "导入备份",
+        pin_new: "设置家长密码", pin_off_title: "关闭家长密码", pin_ph: "4~8 位数字",
         backup_hint: "备份包含所有设置、直播源、壁纸与照片影片。导入会覆盖这台电视上的全部设置，随后自动重启。",
         backup_confirm: "导入会覆盖这台电视上的全部设置，确定继续？", backup_restoring: "正在导入…",
         backup_restored: "已导入，电视正在重启", backup_failed: "导入失败，文件可能不完整",
@@ -1155,6 +1172,7 @@ const EXTRA = {
         sw_saver_place: "屏保显示地点", sw_saver_place_sub: "航拍屏保左下角的地名, 照片屏保的图片标题。",
         power_off: "关机", power_off_confirm: "现在就关掉这台电视?", power_off_done: "已关机", power_off_fail: "关机失败" },
   en: { backup_h: "Backup & restore", backup_export: "Export backup", backup_import: "Import backup",
+        pin_new: "Set the parental PIN", pin_off_title: "Turn off the parental PIN", pin_ph: "4–8 digits",
         backup_hint: "The backup holds every setting, live source, wallpaper, photo and video. Importing replaces all settings on this TV and restarts it.",
         backup_confirm: "Importing replaces all settings on this TV. Continue?", backup_restoring: "Importing…",
         backup_restored: "Imported. The TV is restarting", backup_failed: "Import failed — the file may be incomplete",
@@ -1165,6 +1183,7 @@ const EXTRA = {
         sw_saver_place: "Place on the screensaver", sw_saver_place_sub: "The place name bottom left on the aerial screensaver, and the picture's title on the photo screensaver.",
         power_off: "Shut Down", power_off_confirm: "Turn this TV off now?", power_off_done: "Turned off", power_off_fail: "Could not turn it off" },
   ru: { backup_h: "Резервная копия", backup_export: "Экспорт копии", backup_import: "Импорт копии",
+        pin_new: "Задать родительский PIN", pin_off_title: "Отключить родительский PIN", pin_ph: "4–8 цифр",
         backup_hint: "Копия содержит все настройки, источники трансляций, обои, фото и видео. Импорт заменит все настройки на этом телевизоре и перезапустит его.",
         backup_confirm: "Импорт заменит все настройки на этом телевизоре. Продолжить?", backup_restoring: "Импорт…",
         backup_restored: "Импортировано. Телевизор перезапускается", backup_failed: "Импорт не удался — файл может быть повреждён",
@@ -1172,6 +1191,7 @@ const EXTRA = {
         backup_packing: "Собираем копию, подождите…", backup_save: "Сохранить копию", backup_pack_fail: "Не удалось собрать копию — попробуйте снова",
         backup_no_reply: "Телевизор не сообщил результат", backup_link_lost: "Связь с телевизором прервалась" },
   uk: { backup_h: "Резервна копія", backup_export: "Експорт копії", backup_import: "Імпорт копії",
+        pin_new: "Задати батьківський PIN", pin_off_title: "Вимкнути батьківський PIN", pin_ph: "4–8 цифр",
         backup_hint: "Копія містить усі налаштування, джерела трансляцій, шпалери, фото й відео. Імпорт замінить усі налаштування на цьому телевізорі та перезапустить його.",
         backup_confirm: "Імпорт замінить усі налаштування на цьому телевізорі. Продовжити?", backup_restoring: "Імпорт…",
         backup_restored: "Імпортовано. Телевізор перезапускається", backup_failed: "Імпорт не вдався — файл може бути пошкоджений",
@@ -1179,6 +1199,7 @@ const EXTRA = {
         backup_packing: "Збираємо копію, зачекайте…", backup_save: "Зберегти копію", backup_pack_fail: "Не вдалося зібрати копію — спробуйте ще раз",
         backup_no_reply: "Телевізор не повідомив результат", backup_link_lost: "Зв'язок із телевізором обірвався" },
   kk: { backup_h: "Сақтық көшірме", backup_export: "Көшірмені шығару", backup_import: "Көшірмені қалпына келтіру",
+        pin_new: "Ата-ана PIN-ін орнату", pin_off_title: "Ата-ана PIN-ін өшіру", pin_ph: "4–8 сан",
         backup_hint: "Көшірмеде барлық параметрлер, эфир көздері, тұсқағаздар, фото және бейнелер бар. Қалпына келтіру осы теледидардағы барлық параметрлерді ауыстырып, оны қайта іске қосады.",
         backup_confirm: "Қалпына келтіру осы теледидардағы барлық параметрлерді ауыстырады. Жалғастыру керек пе?", backup_restoring: "Қалпына келтірілуде…",
         backup_restored: "Қалпына келтірілді. Теледидар қайта іске қосылуда", backup_failed: "Қалпына келтіру сәтсіз — файл бүлінген болуы мүмкін",
@@ -1278,6 +1299,7 @@ function show(next, keepScroll) {
   setTitle();
   if (tab === 'home') placeShelves();   // measured while the tab shows
   if (tab === 'live') renderLive();
+  if (tab === 'more') loadPrefs();
   window.scrollTo(0, scrolls[tab] || 0);
   try { localStorage.setItem('aerial-tab', tab); } catch (e) {}
   history.replaceState(null, '', '#' + tab);
@@ -1709,6 +1731,114 @@ function renderMore() {
   if (w.chosen) {
     hint.textContent = t('wx_chosen', { place: w.place });
   } else hint.textContent = w.place ? t('wx_guessed', { place: w.place }) : t('wx_none');
+}
+/* ---- 个性化设置: 服务端发来的那一份(和电视面板一一对应) ---- */
+let prefs = null;
+async function loadPrefs() {
+  try {
+    const r = await fetch(base + 'api/prefs?lang=' + LANG);
+    if (r.ok) { prefs = await r.json(); renderPrefs(); }
+  } catch (e) {}
+}
+async function setPref(key, value) {
+  try {
+    const r = await api('api/prefs', { key: key, value: value });
+    if (!r.ok) throw new Error('not saved');
+    toast(t('toast_tv_updated'));
+    await loadPrefs();
+    return true;
+  } catch (e) {
+    toast(t('toast_set_fail'));
+    await loadPrefs();
+    return false;
+  }
+}
+function prefRow(it) {
+  const row = el('div', 'item');
+  const txt = el('span', 'txt');
+  txt.appendChild(el('span', '', it.label));
+  if (it.hint) txt.appendChild(el('span', 'sub', it.hint));
+  row.appendChild(txt);
+  if (it.kind === 'seg') {
+    const chips = el('div', 'chips');
+    for (const o of it.options || []) {
+      const b = el('button', '', o.label); b.type = 'button';
+      b.setAttribute('aria-checked', o.value === it.value ? 'true' : 'false');
+      b.onclick = () => {
+        if (it.key === 'pin') return pinPick(o.value === '1');
+        b.disabled = true; setPref(it.key, o.value);
+      };
+      chips.appendChild(b);
+    }
+    row.appendChild(chips);
+  } else if (it.kind === 'num' || it.kind === 'minutes') {
+    const inp = el('input', 'pref-num'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.value = it.value;
+    if (it.min !== undefined) inp.min = it.min;
+    if (it.max !== undefined) inp.max = it.max;
+    inp.onchange = () => setPref(it.key, String(Math.max(0, parseInt(inp.value, 10) || 0)));
+    row.appendChild(inp);
+  } else if (it.kind === 'action') {
+    const b = el('button', 'link', it.label); b.type = 'button'; b.style.flexShrink = '0';
+    b.onclick = async () => { b.disabled = true; await setPref(it.key, '1'); b.disabled = false; };
+    row.appendChild(b);
+  }
+  return row;
+}
+/* 「显示的应用卡片」: 一行一个开关, 至少留一个。 */
+function prefListRow(it) {
+  const wrap = el('div');
+  const head = el('div', 'item');
+  const txt = el('span', 'txt');
+  txt.appendChild(el('span', '', it.label));
+  if (it.hint) txt.appendChild(el('span', 'sub', it.hint));
+  head.appendChild(txt);
+  wrap.appendChild(head);
+  const picked = (it.value || '').split('\n').filter(Boolean);
+  for (const o of it.options || []) {
+    const row = el('label', 'item');
+    const t2 = el('span', 'txt'); t2.appendChild(el('span', '', o.label)); row.appendChild(t2);
+    const sw = el('input', 'switch'); sw.type = 'checkbox'; sw.checked = picked.includes(o.value);
+    sw.setAttribute('aria-label', o.label);
+    sw.onchange = () => {
+      const now = (it.value || '').split('\n').filter(Boolean);
+      const next = sw.checked ? now.concat([o.value]) : now.filter(v => v !== o.value);
+      sw.disabled = true;
+      setPref(it.key, next.join('\n'));
+    };
+    row.appendChild(sw);
+    wrap.appendChild(row);
+  }
+  return wrap;
+}
+function renderPrefs() {
+  const host = $('#prefs'); if (!host || !prefs) return;
+  host.replaceChildren();
+  for (const g of prefs.groups || []) {
+    host.appendChild(el('h2', '', g.title));
+    const list = el('div', 'list');
+    for (const it of g.items || []) list.appendChild(it.kind === 'list' ? prefListRow(it) : prefRow(it));
+    host.appendChild(list);
+  }
+}
+/* 家长密码: 开要立刻给一个 4~8 位数字, 关要先验证现有的。 */
+function pinPick(on) {
+  openSheet(body => {
+    const h = el('h3', '', on ? t('pin_new') : t('pin_off_title'));
+    const f = el('form', 'item field');
+    const inp = el('input', ''); inp.type = 'tel'; inp.inputMode = 'numeric'; inp.maxLength = 8;
+    inp.placeholder = t('pin_ph'); inp.autocomplete = 'off';
+    const ok = el('button', 'link', t('save')); ok.type = 'submit';
+    f.append(inp, ok);
+    f.onsubmit = async e => {
+      e.preventDefault();
+      const pin = inp.value.replace(/[^0-9]/g, '');
+      if (pin.length < 4) { inp.value = ''; inp.placeholder = t('pin_ph'); return; }
+      const done = await setPref('pin', (on ? 'set:' : 'off:') + pin);
+      if (done) closeSheet();
+    };
+    body.append(h, f);
+    setTimeout(() => inp.focus(), 120);
+  });
 }
 function renderInputs() {
   const inputs = state.inputs || [];
@@ -2420,6 +2550,7 @@ applyI18n();
 show((location.hash || '').slice(1) || (() => { try { return localStorage.getItem('aerial-tab'); } catch (e) { return null; } })(), true);
 async function refresh() { try { state = await api('api/state'); render(); } catch (e) {} }
 refresh();
+loadPrefs();
 setInterval(() => { if (!document.hidden && sheet.hidden && !arrDragging) refresh(); }, 2000);
 </script>
 </body>
