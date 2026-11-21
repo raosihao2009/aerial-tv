@@ -125,7 +125,15 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         fun notifyLiveSourcesChanged() { instance?.reloadLiveSources() }
     }
 
-    init { instance = this }
+    init {
+        instance = this
+        // 自愈: 处在儿童/长辈模式却没有家长密码 —— 锁屏和控制中心都要验证密码, 等于锁死;
+        // 这种状态启动时直接把模式关掉, 免得一台电视被永远困在里面。
+        if (Restricted.enabled && !AerialSettings.pinSet) {
+            Restricted.chooseEnabled(false)
+            Restricted.suspend()
+        }
+    }
     private val store = LayoutStore(app)
     // 直播状态轮询防重入: 救场时 onStatusRefresh 会连续调用本方法。注意必须放在类顶部字段区,
     // 不能搁在方法后面——init 块里就会走 checkLiveStatuses, 后置字段此时还没初始化(null),
@@ -785,6 +793,13 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
      * standby or Home.
      */
     fun leaveKidsMode() {
+        // 没有家长密码就没有什么可"验证"的: 直接放行, 否则人会被锁在模式里出不来。
+        if (!AerialSettings.pinSet) {
+            Restricted.chooseEnabled(false)
+            Restricted.suspend()
+            overlay = Overlay.None
+            return
+        }
         overlay = Overlay.Pin(PinMode.Unlock) {
             Restricted.suspend()
             overlay = Overlay.None
@@ -1023,7 +1038,8 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun whenUnlocked(action: () -> Unit) {
-        if (!AerialSettings.locked) action()
+        // 没设密码时"锁着"是没有意义的: 记错/没设过密码的机器不该被永远卡住。
+        if (!AerialSettings.locked || !AerialSettings.pinSet) action()
         else overlay = Overlay.Pin(PinMode.Unlock) { overlay = Overlay.None; action() }
     }
 
