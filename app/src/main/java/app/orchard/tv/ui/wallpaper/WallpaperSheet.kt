@@ -2374,7 +2374,7 @@ private fun UpdateWindowContent(close: () -> Unit) {
     }
 }
 
-/** 「儿童与长辈模式」: 一块小窗口三页签 —— 选项、直播卡片、应用, 由页签切换, 窗口就不用摊开那么大。 */
+/** 「儿童与长辈模式」: 回到 3.74 那种一块窗口的样子 —— 选项在上, 卡片在下; 卡片分「直播」「应用」两页签, 窗口才不用摊太宽。 */
 @Composable
 private fun KidsWindowContent(candidates: List<AppEntry>, close: () -> Unit, onStart: () -> Unit) {
     val first = remember { FocusRequester() }
@@ -2390,46 +2390,121 @@ private fun KidsWindowContent(candidates: List<AppEntry>, close: () -> Unit, onS
     val allowed = Restricted.allowed
     val sources = candidates.filter { it.source != null }
     val appsOnly = candidates.filter { it.source == null }
-    val hasAny = candidates.isNotEmpty()
-    var tab by remember { mutableStateOf(0) }
+    var cardTab by remember { mutableStateOf(0) }
 
-    Column(Modifier.width(820.dp).padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 14.dp)) {
+    Column(Modifier.width(1080.dp).padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             GlyphIcon(Glyph.Kids, Palette.Label, 22.dp)
             Spacer(Modifier.width(10.dp))
             BasicText(stringResource(R.string.st_kids), style = Type.Headline)
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(12.dp))
             BasicText(
                 stringResource(R.string.kids_hint),
                 style = Type.Caption.copy(color = Palette.SecondaryLabel),
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
-        // 三页签: 选项 / 直播卡片 / 应用
+        // 选项区: 就是原来的三排格子, 不再单独做成页签。
+        Column(
+            Modifier
+                .padding(top = 8.dp)
+                .heightIn(max = 300.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            Group {
+                Row2(
+                    {
+                        ChoiceCell(
+                            R.string.kids_kind,
+                            stringResource(if (kids) R.string.kids_kind_kids_hint else R.string.kids_kind_elders_hint),
+                            listOf(RestrictedKind.Kids to R.string.kids_kind_kids, RestrictedKind.Elders to R.string.kids_kind_elders),
+                            if (kids) RestrictedKind.Kids else RestrictedKind.Elders,
+                            { kind ->
+                                // 各自从一个合适的起点开始: 儿童拦别的 App, 长辈放行。
+                                Restricted.chooseKind(kind)
+                                Restricted.chooseBlockOthers(kind == RestrictedKind.Kids)
+                                KidsWatch.poke()
+                            },
+                        )
+                    },
+                    {
+                        ChoiceCell(
+                            R.string.kids_block,
+                            stringResource(if (guard) R.string.kids_block_hint else R.string.kids_block_no_guard),
+                            listOf(true to R.string.kids_block_on, false to R.string.kids_block_off),
+                            Restricted.blockOthers,
+                            { on -> Restricted.chooseBlockOthers(on); KidsWatch.poke() },
+                        )
+                    },
+                )
+                val minutesHint = stringResource(R.string.kids_minutes_hint)
+                Row2(
+                    {
+                        ChoiceCell(
+                            R.string.kids_weekday, minutesHint,
+                            withCustomMinutes(KIDS_DAY_MINUTES, rules.weekdayMinutes)
+                                .map { m -> m to (if (m == 0) stringResource(R.string.kids_no_limit) else m.toString()) as Any },
+                            rules.weekdayMinutes,
+                            { m -> Restricted.chooseRules(rules.copy(weekdayMinutes = m)); KidsWatch.poke() },
+                        )
+                    },
+                    {
+                        ChoiceCell(
+                            R.string.kids_weekend, minutesHint,
+                            withCustomMinutes(KIDS_DAY_MINUTES, rules.weekendMinutes)
+                                .map { m -> m to (if (m == 0) stringResource(R.string.kids_no_limit) else m.toString()) as Any },
+                            rules.weekendMinutes,
+                            { m -> Restricted.chooseRules(rules.copy(weekendMinutes = m)); KidsWatch.poke() },
+                        )
+                    },
+                )
+                Row2(
+                    {
+                        ChoiceCell(
+                            R.string.kids_latest, stringResource(R.string.kids_latest_hint, KidsTime.clock(rules.startMinute)),
+                            withCustomMinutes(KIDS_END_MINUTES, rules.endMinute)
+                                .map { m -> m to (if (m == 0) stringResource(R.string.kids_no_limit) else KidsTime.clock(m)) as Any },
+                            rules.endMinute,
+                            { m ->
+                                val next = rules.copy(endMinute = m)
+                                Restricted.chooseRules(if (next.valid) next else next.copy(startMinute = KidsTime.DEFAULT_START))
+                                KidsWatch.poke()
+                            },
+                        )
+                    },
+                    {
+                        ChoiceCell(
+                            R.string.kids_break, stringResource(R.string.kids_break_hint, rules.breakMinutes),
+                            withCustomMinutes(KIDS_BREAKS, rules.breakEvery)
+                                .map { m -> m to (if (m == 0) stringResource(R.string.st_off) else m.toString()) as Any },
+                            rules.breakEvery,
+                            { m -> Restricted.chooseRules(rules.copy(breakEvery = m)); KidsWatch.poke() },
+                        )
+                    },
+                )
+            }
+        }
+        // 卡片区: 「直播卡片」「应用卡片」两页签切换, 只占一块地方。
         Row(
             Modifier.padding(top = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             listOf(
-                R.string.kw_tab_settings,
                 R.string.kw_tab_live,
                 R.string.kw_tab_apps,
             ).forEachIndexed { index, label ->
-                Pressable(
-                    onClick = { tab = index },
-                    focusRequester = if (index == 0) first else null,
-                ) { st ->
+                Pressable(onClick = { cardTab = index }) { st ->
                     val bg = when {
                         st.focused -> Palette.Focus
-                        tab == index -> Palette.FillStrong
+                        cardTab == index -> Palette.FillStrong
                         else -> Palette.Fill
                     }
                     Row(
                         Modifier
                             .clip(RoundedCornerShape(50))
                             .background(bg)
-                            .height(34.dp)
-                            .padding(horizontal = 16.dp),
+                            .height(32.dp)
+                            .padding(horizontal = 15.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         BasicText(
@@ -2439,113 +2514,27 @@ private fun KidsWindowContent(candidates: List<AppEntry>, close: () -> Unit, onS
                     }
                 }
             }
+            Spacer(Modifier.width(6.dp))
+            BasicText(
+                if (cardTab == 0) stringResource(R.string.kids_sources_note)
+                else stringResource(R.string.kids_apps, allowed.size),
+                style = Type.Caption.copy(color = Palette.SecondaryLabel),
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.align(Alignment.CenterVertically),
+            )
         }
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(top = 10.dp)
-                .heightIn(min = 300.dp, max = 340.dp)
+                .padding(top = 8.dp)
+                .heightIn(min = 170.dp, max = 250.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
-            when (tab) {
-                0 -> Group {
-                    Row2(
-                        {
-                            ChoiceCell(
-                                R.string.kids_kind,
-                                stringResource(if (kids) R.string.kids_kind_kids_hint else R.string.kids_kind_elders_hint),
-                                listOf(RestrictedKind.Kids to R.string.kids_kind_kids, RestrictedKind.Elders to R.string.kids_kind_elders),
-                                if (kids) RestrictedKind.Kids else RestrictedKind.Elders,
-                                { kind ->
-                                    // 各自从一个合适的起点开始: 儿童拦别的 App, 长辈放行。
-                                    Restricted.chooseKind(kind)
-                                    Restricted.chooseBlockOthers(kind == RestrictedKind.Kids)
-                                    KidsWatch.poke()
-                                },
-                            )
-                        },
-                        {
-                            ChoiceCell(
-                                R.string.kids_block,
-                                stringResource(if (guard) R.string.kids_block_hint else R.string.kids_block_no_guard),
-                                listOf(true to R.string.kids_block_on, false to R.string.kids_block_off),
-                                Restricted.blockOthers,
-                                { on -> Restricted.chooseBlockOthers(on); KidsWatch.poke() },
-                            )
-                        },
-                    )
-                    val minutesHint = stringResource(R.string.kids_minutes_hint)
-                    Row2(
-                        {
-                            ChoiceCell(
-                                R.string.kids_weekday, minutesHint,
-                                withCustomMinutes(KIDS_DAY_MINUTES, rules.weekdayMinutes)
-                                    .map { m -> m to (if (m == 0) stringResource(R.string.kids_no_limit) else m.toString()) as Any },
-                                rules.weekdayMinutes,
-                                { m -> Restricted.chooseRules(rules.copy(weekdayMinutes = m)); KidsWatch.poke() },
-                            )
-                        },
-                        {
-                            ChoiceCell(
-                                R.string.kids_weekend, minutesHint,
-                                withCustomMinutes(KIDS_DAY_MINUTES, rules.weekendMinutes)
-                                    .map { m -> m to (if (m == 0) stringResource(R.string.kids_no_limit) else m.toString()) as Any },
-                                rules.weekendMinutes,
-                                { m -> Restricted.chooseRules(rules.copy(weekendMinutes = m)); KidsWatch.poke() },
-                            )
-                        },
-                    )
-                    Row2(
-                        {
-                            ChoiceCell(
-                                R.string.kids_latest, stringResource(R.string.kids_latest_hint, KidsTime.clock(rules.startMinute)),
-                                withCustomMinutes(KIDS_END_MINUTES, rules.endMinute)
-                                    .map { m -> m to (if (m == 0) stringResource(R.string.kids_no_limit) else KidsTime.clock(m)) as Any },
-                                rules.endMinute,
-                                { m ->
-                                    val next = rules.copy(endMinute = m)
-                                    Restricted.chooseRules(if (next.valid) next else next.copy(startMinute = KidsTime.DEFAULT_START))
-                                    KidsWatch.poke()
-                                },
-                            )
-                        },
-                        {
-                            ChoiceCell(
-                                R.string.kids_break, stringResource(R.string.kids_break_hint, rules.breakMinutes),
-                                withCustomMinutes(KIDS_BREAKS, rules.breakEvery)
-                                    .map { m -> m to (if (m == 0) stringResource(R.string.st_off) else m.toString()) as Any },
-                                rules.breakEvery,
-                                { m -> Restricted.chooseRules(rules.copy(breakEvery = m)); KidsWatch.poke() },
-                            )
-                        },
-                    )
-                }
-
-                1 -> {
-                    if (sources.isEmpty()) {
-                        BasicText(stringResource(R.string.kids_loading), style = Type.Caption.copy(color = Palette.Orange))
-                    } else {
-                        BasicText(stringResource(R.string.kids_sources_note), style = Type.Caption.copy(color = Palette.SecondaryLabel))
-                        Spacer(Modifier.height(8.dp))
-                        KidsCards(sources, allowed, tileW = 150.dp, tileH = 84.dp, perRow = 4)
-                    }
-                }
-
-                else -> {
-                    if (appsOnly.isEmpty()) {
-                        BasicText(stringResource(R.string.kids_loading), style = Type.Caption.copy(color = Palette.Orange))
-                    } else {
-                        BasicText(
-                            stringResource(R.string.kids_apps, allowed.size),
-                            style = Type.Caption.copy(color = Palette.SecondaryLabel),
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        KidsCards(appsOnly, allowed, tileW = 118.dp, tileH = 66.dp, perRow = 5)
-                    }
-                }
-            }
-            if (!hasAny) {
-                Spacer(Modifier.height(8.dp))
+            if (!candidates.isEmpty() && cardTab == 0 && sources.isNotEmpty()) {
+                KidsCards(sources, allowed, tileW = 150.dp, tileH = 84.dp, perRow = 6)
+            } else if (!candidates.isEmpty() && cardTab == 1 && appsOnly.isNotEmpty()) {
+                KidsCards(appsOnly, allowed, tileW = 118.dp, tileH = 66.dp, perRow = 7)
+            } else {
                 BasicText(stringResource(R.string.kids_loading), style = Type.Caption.copy(color = Palette.Orange))
             }
         }
@@ -2553,6 +2542,7 @@ private fun KidsWindowContent(candidates: List<AppEntry>, close: () -> Unit, onS
         Row(verticalAlignment = Alignment.CenterVertically) {
             Pressable(
                 onClick = { if (allowed.isNotEmpty()) { onStart(); close() } },
+                focusRequester = first,
             ) { s ->
                 Row(
                     Modifier
