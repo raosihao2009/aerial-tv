@@ -20,7 +20,9 @@ import app.orchard.tv.apps.CustomIcons
 import app.orchard.tv.apps.IconLibrary
 import app.orchard.tv.apps.SourceLooks
 import app.orchard.tv.apps.FOLDER_KEY_PREFIX
+import app.orchard.tv.apps.LIVE_KEY_PREFIX
 import app.orchard.tv.apps.SOURCE_KEY_PREFIX
+import app.orchard.tv.apps.liveEntry
 import app.orchard.tv.apps.LayoutStore
 import app.orchard.tv.apps.TileArt
 import app.orchard.tv.apps.TileArtFactory
@@ -260,6 +262,11 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun reloadLiveQuality() { liveQualityReloadTick++ }
     var liveSources by mutableStateOf<List<LiveSource>>(emptyList()); private set
+    /** 未按模式过滤的完整直播源列表([liveSources] 是它在儿童/长辈模式下的过滤视图)。 */
+    private var liveAll: List<LiveSource> = emptyList()
+
+    /** 儿童/长辈模式下只留选中的那几路; 没进模式时全给。 */
+    private fun liveShown(s: LiveSource) = !Restricted.active || (LIVE_KEY_PREFIX + s.id) in Restricted.allowed
     var hiddenLiveSources by mutableStateOf<List<LiveSource>>(emptyList()); private set
 
     init {
@@ -300,7 +307,8 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         val ordered = mutableListOf<LiveSource>()
         savedOrder.forEach { id -> all.find { it.id == id }?.let { ordered.add(it) } }
         all.forEach { if (it.id !in savedOrder) ordered.add(it) }
-        liveSources = ordered.filter { it.id !in hidden }
+        liveAll = ordered.filter { it.id !in hidden }
+        liveSources = liveAll.filter(::liveShown)
         hiddenLiveSources = ordered.filter { it.id in hidden }
         // 开机时上次选择的源可能已被删除/隐藏，回退到第一个可用源，避免直播永不加载
         if (liveSources.none { it.id == currentLiveSourceId }) {
@@ -556,7 +564,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         // Into or out of Kids and Elders mode, or its tiles chosen: another Home.
         viewModelScope.launch {
             snapshotFlow { listOf(Restricted.active, Restricted.enabled, Restricted.allowed, overlay == Overlay.Kids, AerialSettings.pinSet) }.drop(1).collect {
-                if (loaded) { arrange(); prepareFaces() }
+                if (loaded) { liveSources = liveAll.filter(::liveShown); arrange(); prepareFaces() }
             }
         }
         // What the mode keeps away or warns of, said at the top of Home.
@@ -757,12 +765,14 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         kidsCandidates = run {
             val unpinned = shownSources.filter { it.id !in AerialSettings.pinnedSources }.map { sourceEntry(context, it) }
             arrangement.home.flatMap { e -> e.folder?.let { arrangement.folders[it.id].orEmpty() } ?: listOf(e) } +
-                arrangement.hidden + unpinned
+                arrangement.hidden + unpinned + liveSources.map { liveEntry(context, it) }
         }
         AppCatalog.kidsCandidates = kidsCandidates
         if (kids) noteKidsPackages()
         apps = when {
-            Restricted.active -> Restricted.allowed.mapNotNull { key -> kidsCandidates.firstOrNull { it.key == key } }
+            // 直播卡片走「直播」菜单(不在桌面网格里), 不能混进应用卡片。
+            Restricted.active -> Restricted.allowed.filterNot { it.startsWith(LIVE_KEY_PREFIX) }
+                .mapNotNull { key -> kidsCandidates.firstOrNull { it.key == key } }
             else -> AerialSettings.previewApps.takeIf { it > 0 }?.let { arrangement.home.take(it) } ?: arrangement.home
         }
         AppCatalog.home = arrangement.home
@@ -783,7 +793,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** The packages Home Guard lets through in the mode, and the inputs' players it keeps away otherwise. */
     private fun noteKidsPackages() {
-        val allowed = kidsCandidates.filter { it.key in Restricted.allowed }
+        val allowed = kidsCandidates.filter { it.key in Restricted.allowed && !it.key.startsWith(LIVE_KEY_PREFIX) }
             .mapNotNullTo(HashSet()) { e -> e.source?.let(::playerOf) ?: e.component.packageName }
         Restricted.notePackages(allowed, sources.mapNotNullTo(HashSet(), ::playerOf))
     }

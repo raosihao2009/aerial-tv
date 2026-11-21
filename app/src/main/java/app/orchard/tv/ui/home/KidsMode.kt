@@ -51,6 +51,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.orchard.tv.R
 import app.orchard.tv.apps.AppEntry
+import app.orchard.tv.apps.LIVE_KEY_PREFIX
 import app.orchard.tv.guard.HomeGuardService
 import app.orchard.tv.guard.KidsWatch
 import app.orchard.tv.settings.KidsLock
@@ -270,8 +271,8 @@ private fun WideButton(label: String, glyph: Glyph?, focusRequester: FocusReques
 @Composable
 private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier) {
     val allowed = Restricted.allowed
-    val live = candidates.filter { it.source != null }
-    val appsOnly = candidates.filter { it.source == null }
+    val live = candidates.filter { it.key.startsWith(LIVE_KEY_PREFIX) }
+    val appsOnly = candidates.filterNot { it.key.startsWith(LIVE_KEY_PREFIX) }
     // 一个"切换式"分段键: 左右键切页, 高亮始终绑在当前页, 不是两颗各自独立的按钮。
     var tab by remember { mutableStateOf(if (live.isEmpty()) 1 else 0) }
     val inputPicked = live.any { it.key in allowed }

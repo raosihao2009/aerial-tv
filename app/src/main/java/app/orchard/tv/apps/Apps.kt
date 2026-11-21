@@ -117,6 +117,28 @@ private val sourceArt = HashMap<String, Pair<SourceArt, TileArt>>()
 
 const val SOURCE_KEY_PREFIX = "input:"
 
+/** Aerial 自己的直播源(内置六路 + 自定义)在儿童与长辈模式里的键: "live:<id>". */
+const val LIVE_KEY_PREFIX = "live:"
+
+/** 直播源在设置页里的一张卡片: 走 Aerial 自己的播放器, 所以 [AppEntry.source] 为空。 */
+fun liveEntry(context: android.content.Context, source: app.orchard.tv.LiveSource): AppEntry {
+    val key = LIVE_KEY_PREFIX + source.id
+    val made = SourceArt(null, source.name, null, 0L, TileArtFactory.W)
+    val art = synchronized(sourceArt) { sourceArt[key]?.takeIf { it.first == made }?.second } ?: run {
+        TileArtFactory.forSource(app.orchard.tv.system.SourceKind.Tuner, source.name, null)
+            .also { synchronized(sourceArt) { sourceArt[key] = made to it } }
+    }
+    return AppEntry(
+        packageName = key,
+        label = source.name,
+        component = ComponentName("live", source.id),
+        leanback = false,
+        removable = false,
+        art = art,
+        source = null,
+    )
+}
+
 /** A Home tile for [folder], with [art] made from the apps in it. */
 fun folderEntry(folder: Folder, art: TileArt): AppEntry = AppEntry(
     packageName = folder.key,
