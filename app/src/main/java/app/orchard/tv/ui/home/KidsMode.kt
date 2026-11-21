@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
@@ -105,6 +106,7 @@ private fun clockText(ms: Long): String =
  */
 @Composable
 fun KidsSetupSheet(visible: Boolean, candidates: List<AppEntry>, onStart: () -> Unit, onDismiss: () -> Unit) {
+    val leftFirst = remember { FocusRequester() }
     BackHandler(enabled = visible, onBack = onDismiss)
     AnimatedVisibility(
         visible = visible,
@@ -121,17 +123,16 @@ fun KidsSetupSheet(visible: Boolean, candidates: List<AppEntry>, onStart: () -> 
                     .liquidGlass(28.dp)
                     .padding(start = 28.dp, end = 20.dp, top = 24.dp, bottom = 16.dp),
             ) {
-                SetupSettings(candidates.isNotEmpty(), onStart, Modifier.width(480.dp).fillMaxHeight())
+                SetupSettings(candidates.isNotEmpty(), onStart, leftFirst, Modifier.width(480.dp).fillMaxHeight())
                 Spacer(Modifier.width(24.dp))
-                AllowedApps(candidates, Modifier.weight(1f).fillMaxHeight())
+                AllowedApps(candidates, Modifier.weight(1f).fillMaxHeight(), leftFirst)
             }
         }
     }
 }
 
 @Composable
-private fun SetupSettings(hasApps: Boolean, onStart: () -> Unit, modifier: Modifier) {
-    val first = remember { FocusRequester() }
+private fun SetupSettings(hasApps: Boolean, onStart: () -> Unit, first: FocusRequester, modifier: Modifier) {
     LaunchedEffect(Unit) {
         withFrameNanos { }
         runCatching { first.requestFocus() }
@@ -269,7 +270,7 @@ private fun WideButton(label: String, glyph: Glyph?, focusRequester: FocusReques
 
 /** Every tile the mode can show; picking one puts it at the end of the mode's Home. */
 @Composable
-private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier) {
+private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier, leftTarget: FocusRequester? = null) {
     val allowed = Restricted.allowed
     val live = candidates.filter { it.key.startsWith(LIVE_KEY_PREFIX) }
     val appsOnly = candidates.filterNot { it.key.startsWith(LIVE_KEY_PREFIX) }
@@ -336,37 +337,23 @@ private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier) {
             }
             Spacer(Modifier.width(10.dp))
             BasicText(
-                if (tab == 0) stringResource(R.string.kids_live, live.size) else stringResource(R.string.kids_apps, allowed.size),
+                if (tab == 0) stringResource(R.string.kids_live, live.count { it.key in allowed })
+                else stringResource(R.string.kids_apps, appsOnly.count { it.key in allowed }),
                 style = Type.Caption.copy(color = Palette.SecondaryLabel),
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
         }
-        // 直播卡片这一页的说明只在"确实选了信号源"时出现: 选了以后别的信号源也能被切过去,
-        // 它们共用一个播放器, Aerial 分不出来。
-        if (tab == 0 && live.isEmpty()) {
-            BasicText(
-                stringResource(R.string.kw_live_none),
-                style = Type.Caption.copy(color = Palette.SecondaryLabel),
-                maxLines = 2, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-        } else if (tab == 0 && inputPicked) {
-            BasicText(
-                stringResource(R.string.kids_sources_note),
-                style = Type.Caption.copy(color = Palette.Orange),
-                maxLines = 2, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-        } else {
-            BasicText(
-                stringResource(R.string.kids_apps_hint),
-                style = Type.Caption.copy(color = Palette.SecondaryLabel),
-                maxLines = 2, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-        }
+        // 两页用同一句说明(用户口径): 桌面按选择的顺序显示, 以后新增的卡片不会自动加进来。
+        BasicText(
+            stringResource(R.string.kids_apps_hint),
+            style = Type.Caption.copy(color = Palette.SecondaryLabel),
+            maxLines = 2, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 4.dp),
+        )
         val items = if (tab == 0) live else appsOnly
+        // 编号只看本组里的勾选顺序: 直播卡片和应用卡片各自从 1 开始, 不串号。
+        val allowedInGroup = allowed.filter { k -> items.any { it.key == k } }
         val perRow = if (tab == 0) 2 else 3
         Column(
             Modifier
@@ -382,13 +369,17 @@ private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier) {
                     modifier = Modifier.padding(top = 6.dp),
                 )
             }
-            items.chunked(perRow).forEach { row ->
+            items.chunked(perRow).forEachIndexed { rowIdx, row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(bottom = 12.dp)) {
                     row.forEach { app ->
-                        val index = allowed.indexOf(app.key)
+                        val index = allowedInGroup.indexOf(app.key)
                         val w = if (tab == 0) 150.dp else 112.dp
                         val h = if (tab == 0) 84.dp else 63.dp
-                        Pressable(onClick = { Restricted.toggleAllowed(app.key) }, focusedScale = 1.08f) { state ->
+                        Pressable(
+                            onClick = { Restricted.toggleAllowed(app.key) },
+                            modifier = if (rowIdx == 0) Modifier.focusProperties { leftTarget?.let { left = it } } else Modifier,
+                            focusedScale = 1.08f,
+                        ) { state ->
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Box {
                                     MiniTile(app, state.focused, Modifier.size(w, h))

@@ -298,7 +298,7 @@
     <string name="kids_turn_off">关闭这个模式</string>
         <string name="kids_live">显示的直播卡片· %d 个</string>
     <string name="kids_apps">显示的应用卡片· %d 个</string>
-    <string name="kids_apps_hint">桌面按选择的顺序显示。以后新装的卡片不会自动加进来。</string>
+    <string name="kids_apps_hint">桌面按选择的顺序显示。以后新增的卡片不会自动加进来。</string>
     <string name="kids_sources_note">选了信号源以后，用遥控器的信号源键也能切到电视的其他信号源：它们共用一个播放器，Aerial 分不出来。</string>
     <string name="kids_m">%d 分钟</string>
     <string name="kids_h">%d 小时</string>

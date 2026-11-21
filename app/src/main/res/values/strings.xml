@@ -312,7 +312,7 @@
     <string name="kids_turn_off">Turn Mode Off</string>
         <string name="kids_live">Shown Live Cards · %d</string>
     <string name="kids_apps">Shown App Cards · %d</string>
-    <string name="kids_apps_hint">Home shows them in the order picked. Apps installed later are not added.</string>
+    <string name="kids_apps_hint">Home shows them in the order picked. Cards added later are not added.</string>
     <string name="kids_sources_note">With an input picked, the remote’s input key can also switch to the TV’s other inputs: they share one player, which Aerial cannot tell apart.</string>
     <string name="kids_m">%d min</string>
     <string name="kids_h">%d h</string>

@@ -123,9 +123,14 @@ const val LIVE_KEY_PREFIX = "live:"
 /** 直播源在设置页里的一张卡片: 走 Aerial 自己的播放器, 所以 [AppEntry.source] 为空。 */
 fun liveEntry(context: android.content.Context, source: app.orchard.tv.LiveSource): AppEntry {
     val key = LIVE_KEY_PREFIX + source.id
-    val made = SourceArt(null, source.name, null, 0L, TileArtFactory.W)
+    val made = SourceArt(null, source.name, null, source.iconTs, TileArtFactory.W)
     val art = synchronized(sourceArt) { sourceArt[key]?.takeIf { it.first == made }?.second } ?: run {
-        TileArtFactory.forSource(app.orchard.tv.system.SourceKind.Tuner, source.name, null)
+        // 图标: 自建源用存下来的那张图, 内置六路用自己的图标, 都没有才退回渐变底板。
+        val bitmap = android.graphics.BitmapFactory.decodeFile(
+            java.io.File(context.filesDir, "live_icon_${source.id}.jpg").path,
+        ) ?: builtInLiveIcon(source.id, context)
+        (bitmap?.let { TileArtFactory.fromBanner(android.graphics.drawable.BitmapDrawable(context.resources, it)) }
+            ?: TileArtFactory.forSource(app.orchard.tv.system.SourceKind.Tuner, source.name, null))
             .also { synchronized(sourceArt) { sourceArt[key] = made to it } }
     }
     return AppEntry(
@@ -138,6 +143,16 @@ fun liveEntry(context: android.content.Context, source: app.orchard.tv.LiveSourc
         source = null,
     )
 }
+
+private fun builtInLiveIcon(id: String, context: android.content.Context): android.graphics.Bitmap? = when (id) {
+    "preset_0" -> app.orchard.tv.R.drawable.live_cctv
+    "preset_1" -> app.orchard.tv.R.drawable.live_yangshipin
+    "preset_2" -> app.orchard.tv.R.drawable.live_cctvkuikan
+    "preset_3" -> app.orchard.tv.R.drawable.live_kuikan
+    "preset_4" -> app.orchard.tv.R.drawable.live_dongfangmingzhu
+    "preset_5" -> app.orchard.tv.R.drawable.live_dengzi
+    else -> null
+}?.let { android.graphics.BitmapFactory.decodeResource(context.resources, it) }
 
 /** A Home tile for [folder], with [art] made from the apps in it. */
 fun folderEntry(folder: Folder, art: TileArt): AppEntry = AppEntry(

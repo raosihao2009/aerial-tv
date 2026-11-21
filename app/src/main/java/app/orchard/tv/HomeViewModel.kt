@@ -309,6 +309,10 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         all.forEach { if (it.id !in savedOrder) ordered.add(it) }
         liveAll = ordered.filter { it.id !in hidden }
         liveSources = liveAll.filter(::liveShown)
+        // 模式里选中的那几路里没有当前这一路(甚至一路都没选): 换个能播的, 否则预览起不来。
+        if (liveSources.none { it.id == currentLiveSourceId }) {
+            currentLiveSourceId = liveSources.firstOrNull()?.id ?: ""
+        }
         hiddenLiveSources = ordered.filter { it.id in hidden }
         // 开机时上次选择的源可能已被删除/隐藏，回退到第一个可用源，避免直播永不加载
         if (liveSources.none { it.id == currentLiveSourceId }) {
@@ -564,7 +568,11 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         // Into or out of Kids and Elders mode, or its tiles chosen: another Home.
         viewModelScope.launch {
             snapshotFlow { listOf(Restricted.active, Restricted.enabled, Restricted.allowed, overlay == Overlay.Kids, AerialSettings.pinSet) }.drop(1).collect {
-                if (loaded) { liveSources = liveAll.filter(::liveShown); arrange(); prepareFaces() }
+                if (loaded) {
+                    liveSources = liveAll.filter(::liveShown)
+                    if (liveSources.none { it.id == currentLiveSourceId }) currentLiveSourceId = liveSources.firstOrNull()?.id ?: ""
+                    arrange(); prepareFaces()
+                }
             }
         }
         // What the mode keeps away or warns of, said at the top of Home.

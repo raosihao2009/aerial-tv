@@ -204,8 +204,10 @@ fun WallpaperSheet(
         focusMemory.holding = holding
         val released = wasHolding && !holding
         wasHolding = holding
+        // 密码框盖着面板时 visible 已经是 false, 但面板并没有真的关掉: 这时候不能把记忆清空,
+        // 否则密码框一撤, 面板找不到该还焦点的那颗按钮, 就落到别处(实测落到最下面的分组)。
         if (!visible) {
-            focusMemory.last = null
+            if (!holding) focusMemory.last = null
             return@LaunchedEffect
         }
         if (released) {
