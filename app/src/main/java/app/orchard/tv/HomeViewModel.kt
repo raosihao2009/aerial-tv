@@ -584,9 +584,21 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { snapshotFlow { Restricted.warning }.drop(1).collect { w -> if (w != null) notify(w.first, Glyph.Kids) } }
         // Another number of apps a row: the artwork again if four a row wants it larger, else
         // every face at the new size, before the tiles draw them.
+        //
+        // 进出儿童/长辈模式也会改列数(4 列), 但这不该重拉整份目录: reload() 要把 30 张卡片在
+        // 新尺寸上重画一遍(实测 3.8 秒), 退模式时这几秒就是"点完关闭这个模式, 界面卡住"的根源。
+        // 模式引起的列数变化交给上面那条(只 arrange+prepareFaces), 桌面直接用现有的图缩放;
+        // 用户在个性化里真改了列数, 才重画。
         viewModelScope.launch {
+            var inMode = Restricted.active
             snapshotFlow { AerialSettings.homeColumns }.drop(1).collect {
-                if (TileArtFactory.fitColumns()) reload() else if (loaded) prepareFaces()
+                if (!loaded) return@collect
+                val modeNow = Restricted.active
+                if (modeNow != inMode) {
+                    inMode = modeNow
+                    return@collect
+                }
+                if (TileArtFactory.fitColumns()) reload() else prepareFaces()
             }
         }
     }

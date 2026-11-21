@@ -119,10 +119,21 @@ private fun PinPanel(mode: PinMode, onDone: () -> Unit, onCancel: () -> Unit) {
         entered = ""
     }
 
+    // 第四位按下去先让那四颗点画出来, 再结算。原来是在同一个事件里立刻 complete():
+    // entered 马上被清空, 第四颗点一帧都来不及亮, 看着就是"最后一位永远是空的"。
+    var pending by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(pending) {
+        val pin = pending ?: return@LaunchedEffect
+        withFrameNanos { }
+        withFrameNanos { }
+        complete(pin)
+        pending = null
+    }
+
     fun type(digit: Char) {
-        if (entered.length >= PIN_LENGTH) return
+        if (pending != null || entered.length >= PIN_LENGTH) return
         entered += digit
-        if (entered.length == PIN_LENGTH) complete(entered)
+        if (entered.length == PIN_LENGTH) pending = entered
     }
 
     fun erase() { entered = entered.dropLast(1) }

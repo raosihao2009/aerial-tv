@@ -17,6 +17,7 @@ import app.orchard.tv.ui.components.UhdCanvas
 import app.orchard.tv.BuildConfig
 import app.orchard.tv.guard.GuardSetup
 import app.orchard.tv.settings.AerialSettings
+import app.orchard.tv.settings.Restricted
 import app.orchard.tv.system.DiagLog
 import app.orchard.tv.ui.home.fileFramesJam
 import kotlinx.coroutines.CoroutineScope
@@ -322,6 +323,9 @@ object Wallpapers {
      * and each minute while Home is in front.
      */
     fun rotateIfDue() {
+        // 儿童/长辈模式下背景不许到点自动换(用户口径): 模式里桌面应当是一张固定的图, 轮播到点
+        // 也先不动, 退出模式后下一次调用再补上该换的那张。
+        if (Restricted.active) return
         if (!started || selectedId != ROTATE_PHOTOS || rotatedOn == photoSlot()) return
         rebuildBackdrop()
     }

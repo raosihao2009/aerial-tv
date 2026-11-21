@@ -195,13 +195,15 @@ private fun SetupSettings(hasApps: Boolean, onStart: () -> Unit, first: FocusReq
     val kids = Restricted.kind == RestrictedKind.Kids
     val rules = Restricted.rules
     val guard = HomeGuardService.isRunning
-    Column(modifier.verticalScroll(rememberScrollState())) {
+    Column(modifier) {
+        // 大标题和说明钉在左上角(用户口径): 左边选项一多就要往下滚, 它们不能被一起滚出去。
         BasicText(stringResource(R.string.kids_title), style = Type.LargeTitle)
         BasicText(
             stringResource(R.string.kids_hint),
             style = Type.Callout,
             modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
         )
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
         Group {
             Box(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 Cell(
@@ -289,6 +291,7 @@ private fun SetupSettings(hasApps: Boolean, onStart: () -> Unit, first: FocusReq
             }
         }
         Spacer(Modifier.height(12.dp))
+        }
     }
 }
 
@@ -449,7 +452,11 @@ private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier, leftTarg
                         BasicText(
                             if (locked) app.label + " · " + stringResource(R.string.kids_required) else app.label,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            style = Type.Caption.copy(color = if (state.focused || index >= 0) Palette.Label else Palette.SecondaryLabel),
+                            // 卡片名左右居中(用户口径): 名字在整格宽度里居中, 不是贴着左边界。
+                            style = Type.Caption.copy(
+                                color = if (state.focused || index >= 0) Palette.Label else Palette.SecondaryLabel,
+                                textAlign = TextAlign.Center,
+                            ),
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
