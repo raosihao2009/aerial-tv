@@ -823,7 +823,10 @@ private fun FamilySection(onPin: (on: Boolean) -> Unit, window: CardWindow) {
                                     else -> stringResource(R.string.kids_kind_elders)
                                 },
                                 chevron = true,
-                            ) { window.show(chipX, chipY, 1180) },
+                            ) {
+                                // 没设家长密码: 模式进去就退不出来, 所以先让设密码, 设好再点一次开窗口。
+                                if (!AerialSettings.pinSet) onPin(true) else window.show(chipX, chipY, 1080)
+                            },
                         ),
                     )
                 }
@@ -2181,12 +2184,10 @@ private fun CardWindowLayer(
     LaunchedEffect(window.open) {
         if (window.open) {
             alive = true
-            memory.holding = true
         } else if (alive) {
             shown = false
             delay(MiniExitMs)
             alive = false
-            memory.holding = false
             memory.last?.let { runCatching { it.requestFocus() } }
         }
     }
