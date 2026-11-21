@@ -2,9 +2,6 @@
 <resources>
     <string name="guard_name">Aerial Home Guard</string>
     <string name="guard_description">Оставляет Aerial главным экраном на телевизорах, где его нельзя сменить. Не читает содержимое экрана.</string>
-    <string name="greeting_morning">Доброе утро</string>
-    <string name="greeting_afternoon">Добрый день</string>
-    <string name="greeting_evening">Добрый вечер</string>
     <string name="cc_title">Центр управления</string>
     <string name="cc_inputs">Источники</string>
     <string name="cc_network">Сеть</string>
@@ -24,7 +21,6 @@
     <string name="cc_setup_revival_where">Доступ к уведомлениям</string>
     <string name="cc_setup_scan">Или настройте всё с компьютера (рекомендуется)</string>
     <string name="cc_setup_scan_hint">Отсканируйте телефоном, чтобы получить команду для этого телевизора и подсказку для ИИ-агента.</string>
-    <string name="cc_back">Назад</string>
     <string name="cc_no_inputs">На этом телевизоре нет источников сигнала</string>
     <string name="net_ethernet">Ethernet</string>
     <string name="net_wifi">Wi-Fi</string>
@@ -41,7 +37,6 @@
     <string name="menu_out_of_folder">Убрать из папки</string>
     <string name="menu_rename_folder">Переименовать</string>
     <string name="menu_ungroup">Удалить папку</string>
-    <string name="menu_back">Назад</string>
     <string name="folder_default">Папка</string>
     <string-array name="folder_names">
         <item>Система</item>
@@ -58,13 +53,10 @@
     <string name="menu_uninstall">Удалить</string>
     <string name="move_hint">Стрелками перемещайте · по завершении нажмите OK</string>
     <string name="move_hint_touch">Стрелками или касанием выберите место · по завершении нажмите OK или коснитесь приложения</string>
-    <string name="hidden_title">Скрытые приложения</string>
     <string name="hidden_hint">Выберите приложение, чтобы вернуть его на главный экран</string>
     <string name="hidden_empty">Нет скрытых приложений</string>
     <string name="launch_failed">Не удалось открыть %1$s</string>
     <string name="unavailable">Недоступно на этом телевизоре</string>
-    <string name="cc_brightness">Яркость</string>
-    <string name="cc_brightness_in_settings">Настройки изображения</string>
     <string name="cc_personalize">Персонализация</string>
     <string name="wp_title">Персонализация</string>
     <string name="wp_wallpaper">Обои</string>
@@ -89,7 +81,6 @@
     <string name="st_photo_every_hint">Как часто главный экран переходит к следующему фото.</string>
     <string name="wp_photo_note">Ваше фото. Отсканируйте код справа, чтобы прислать ещё с телефона.</string>
     <string name="wp_auto_note">Свет берётся из обложки выбранного приложения.</string>
-    <string name="wp_screensaver">Заставка</string>
     <string name="ss_follow_hint">Пока не выбрано, поэтому следует за обоями: аэросъёмка с обоями аэросъёмки, фото с картинкой, начиная с неё. Выберите, чтобы закрепить.</string>
     <string name="ss_aerial">Аэросъёмка</string>
     <string name="ss_photos">Фото</string>
@@ -115,20 +106,9 @@
     <string name="ss_quality_hd">1080p</string>
     <string name="ss_quality_uhd">4K</string>
     <string name="ss_quality_dv">4K Dolby Vision</string>
-    <string name="ss_aerial_keeps">Aerial хранит на телевизоре %2$d последних фильма (до %1$s); обои и заставка показывают их по очереди, каждый день добавляется новый. В заставке вправо — новый фильм, влево — предыдущий.</string>
     <string name="st_focus_style">Стиль фокуса</string>
-    <string name="st_home_layout">Главный экран</string>
     <string name="st_layout">Раскладка</string>
-    <string name="st_clock">Часы</string>
-    <string name="st_clock_left">Сверху слева</string>
-    <string name="st_clock_right">Сверху справа</string>
-    <string name="st_clock_hint">Где расположены часы, дата и погода.</string>
-    <string name="st_clock_size">Размер часов</string>
-    <string name="st_clock_small">Маленькие</string>
-    <string name="st_clock_large">Большие</string>
-    <string name="st_clock_size_hint">«Маленькие» показывают время и погоду одной строкой в углу. «Большие» ставят крупные часы вверху экрана, дату над ними и погоду под ними.</string>
     <string name="st_clock_hours">Формат времени</string>
-    <string name="st_clock_hours_system">Как на ТВ</string>
     <string name="st_clock_hours_24">24 часа</string>
     <string name="st_clock_hours_12">12 часов</string>
     <string name="st_clock_hours_hint">«Как на ТВ» следует настройке времени телевизора, а если её нет, показывает 24 часа.</string>
@@ -152,13 +132,10 @@
     <string name="st_sounds_aerial">Aerial</string>
     <string name="st_on">Вкл.</string>
     <string name="st_off">Выкл.</string>
-    <string name="st_hidden_apps">Скрытые приложения</string>
-    <string name="st_hidden_apps_hint">Приложения, скрытые с главного экрана, хранятся здесь, чтобы их можно было вернуть. Если задан родительский PIN-код, сначала он будет запрошен.</string>
     <string name="st_home_lock">Закрепить экран</string>
     <string name="st_home_lock_hint">Если включено, удержание OK или кнопка «Меню» на приложении не открывают меню, и приложения нельзя случайно переместить, скрыть или удалить. С родительским PIN-кодом для выключения нужен PIN.</string>
     <string name="home_locked_notice">Экран закреплён. Чтобы упорядочить приложения, выключите «Закрепить экран» в разделе «Персонализация».</string>
     <string name="st_hidden_none">Нет</string>
-    <string name="st_hidden_count">%d</string>
     <string name="st_focus_high">Высокий контраст</string>
     <string name="st_focus_standard">Стандартный</string>
     <string name="st_focus_high_hint">Белая рамка вокруг выбранного приложения, хорошо заметная с другого конца комнаты.</string>
@@ -170,10 +147,6 @@
     <string name="st_effects_hint">Лёгкие: простые панели, выбранное приложение без блика, экран остаётся на 60 Гц. Для телевизоров, которые подтормаживают.</string>
     <string name="st_effects_auto_lite_hint">У этого телевизора мало памяти или старый Android, поэтому «Авто» выбирает лёгкие.</string>
     <string name="cc_inputs_settings">Настройки источников</string>
-    <string name="cc_inputs_list">Показывать в списке</string>
-    <string name="cc_inputs_list_hint">Снимите отметку с источников, которых у телевизора нет или которыми вы не пользуетесь. Они пропадут из списка и с главного экрана.</string>
-    <string name="cc_inputs_cec">Переключать при включении устройства</string>
-    <string name="cc_inputs_cec_hint">Когда приставка или консоль включается по HDMI-CEC (One Touch Play), телевизор переключается на её источник, как это делает его собственный главный экран. Не каждый телевизор сообщает об этом; телевизоры на Amlogic, как многие Xiaomi, сообщают.</string>
     <string name="cc_inputs_pin">Показывать на главном экране (любое число)</string>
     <string name="cc_inputs_boot">При включении телевизора (один)</string>
     <string name="cc_inputs_boot_none">Ничего, оставаться в Aerial</string>
@@ -190,7 +163,6 @@
     <string name="device_computer">Компьютер</string>
     <string name="device_set_top_box">ТВ-приставка</string>
     <string name="device_speaker">Саундбар</string>
-    <string name="cc_update_available">Новая версия: %s</string>
     <string name="cc_update_title">Aerial %s</string>
     <string name="cc_update_notes">Что нового в %s</string>
     <string name="cc_update_current">На этом телевизоре установлен Aerial %s.</string>
@@ -228,10 +200,7 @@
     <string name="weather_partly_cloudy">Переменная облачность</string>
     <string name="weather_cloudy">Облачно</string>
     <string name="weather_fog">Туман</string>
-    <string name="weather_rain">Дождь</string>
-    <string name="weather_snow">Снег</string>
     <string name="weather_thunder">Грозы</string>
-    <string name="weather_temperature">%1$d°</string>
     <string name="weather_high_low">Макс.: %1$d°  Мин.: %2$d°</string>
     <string name="weather_hours_ago">%d ч назад</string>
     <string name="st_columns">Приложений в ряду</string>
@@ -263,8 +232,6 @@
     <string name="st_play_hint">В покое: через 10 секунд на верхнем ряду (в двухрядном виде — на любом из двух); любая кнопка останавливает. Всегда: кнопки не останавливают, фон чуть затемнён; останавливается, когда вы переходите к приложениям ниже.</string>
     <string name="ss_show_time">Время</string>
     <string name="ss_show_time_hint">Время на заставках с аэросъёмкой и фото. Время и название места время от времени слегка сдвигаются, чтобы не выгорал экран.</string>
-    <string name="ss_show_caption">Место</string>
-    <string name="ss_show_caption_hint">Название места слева внизу на заставке с аэросъёмкой и название снимка на заставке с фото.</string>
 
     <!-- Kids and Elders mode (settings/Restricted) -->
     <string name="kids_title">Дети и пожилые</string>
@@ -321,12 +288,10 @@
     <string name="kids_warn">Осталось %d мин</string>
     <string name="kids_warn_break">Перерыв через %d мин</string>
 
-
     <string name="a11y_delete">Удалить</string>
     <string name="cc_about">Об Aerial</string>
     <string name="cc_about_update">Обновление</string>
     <string name="cc_about_latest">Последняя версия</string>
     <string name="cc_about_version">Версия %1$s</string>
-    <string name="ss_sleep">Сон</string>
-    <string name="ss_sleep_hint">Без заставки: по истечении времени телевизор уходит в режим ожидания, как от кнопки питания. Многие телевизоры потом включаются только кнопкой питания.</string>
-    <string name="cc_update_to">Обновить до %1$s</string></resources>
+    <string name="cc_update_to">Обновить до %1$s</string>
+</resources>

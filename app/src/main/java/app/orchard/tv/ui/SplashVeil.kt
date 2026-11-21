@@ -45,14 +45,8 @@ import kotlin.math.sin
  * 字用包内的 Inter(和桌面同一套字体), 图标用应用图标, 圆角取卡片圆角的半径: 卡片画在设计稿 960
  * 宽的画布上、圆角 12dp, 也就是屏宽的 1/80, 这里按同一个比例切。
  */
-/** 卡片圆角 12dp / 设计画布 960 = 1/80: 卡片按这个比例切。 */
-private const val CARD_CORNER_RATIO = 1f / 80f
-
 /** 开屏图标自己的圆角, 按图标边长取: 比卡片圆角圆一档, 独看时不显得"方"。 */
 private const val ICON_CORNER_RATIO = 0.24f
-
-/** 连续圆角的 smoothing, 和 [AppleSmoothing] 一致。 */
-private const val CORNER_SMOOTHING = 0.6f
 
 private class SplashArt(context: Context) {
     val word = Paint(Paint.ANTI_ALIAS_FLAG).apply {

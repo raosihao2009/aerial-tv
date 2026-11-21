@@ -2,9 +2,6 @@
 <resources>
     <string name="guard_name">Aerial Home Guard</string>
     <string name="guard_description">Басты экранды өзгертуге болмайтын теледидарларда Aerial-ді басты экран ретінде сақтайды. Экран мазмұнын оқымайды.</string>
-    <string name="greeting_morning">Қайырлы таң</string>
-    <string name="greeting_afternoon">Қайырлы күн</string>
-    <string name="greeting_evening">Қайырлы кеш</string>
     <string name="cc_title">Басқару орталығы</string>
     <string name="cc_inputs">Көздер</string>
     <string name="cc_network">Желі</string>
@@ -24,7 +21,6 @@
     <string name="cc_setup_revival_where">Хабарландыруларға қолжетімділік</string>
     <string name="cc_setup_scan">Немесе бәрін компьютерден баптаңыз (ұсынылады)</string>
     <string name="cc_setup_scan_hint">Осы теледидарға арналған пәрмен мен жасанды интеллект агентіне арналған нұсқауды алу үшін телефонмен сканерлеңіз.</string>
-    <string name="cc_back">Артқа</string>
     <string name="cc_no_inputs">Бұл теледидарда сигнал көздері табылмады</string>
     <string name="net_ethernet">Ethernet</string>
     <string name="net_wifi">Wi-Fi</string>
@@ -41,7 +37,6 @@
     <string name="menu_out_of_folder">Қалтадан шығару</string>
     <string name="menu_rename_folder">Атын өзгерту</string>
     <string name="menu_ungroup">Қалтаны жою</string>
-    <string name="menu_back">Артқа</string>
     <string name="folder_default">Қалта</string>
     <string-array name="folder_names">
         <item>Жүйе</item>
@@ -58,13 +53,10 @@
     <string name="menu_uninstall">Жою</string>
     <string name="move_hint">Жылжыту үшін көрсеткілерді пайдаланыңыз · аяқталғанда OK басыңыз</string>
     <string name="move_hint_touch">Орынды таңдау үшін көрсеткілерді пайдаланыңыз немесе түртіңіз · аяқталғанда OK басыңыз немесе қолданбаны түртіңіз</string>
-    <string name="hidden_title">Жасырын қолданбалар</string>
     <string name="hidden_hint">Қолданбаны басты экранға қайтару үшін таңдаңыз</string>
     <string name="hidden_empty">Жасырын қолданбалар жоқ</string>
     <string name="launch_failed">%1$s ашылмады</string>
     <string name="unavailable">Бұл теледидарда қолжетімсіз</string>
-    <string name="cc_brightness">Жарықтық</string>
-    <string name="cc_brightness_in_settings">Кескін параметрлері</string>
     <string name="cc_personalize">Жекелендіру</string>
     <string name="wp_title">Жекелендіру</string>
     <string name="wp_wallpaper">Түсқағаз</string>
@@ -89,7 +81,6 @@
     <string name="st_photo_every_hint">Басты экран келесі фотоға қаншалықты жиі ауысады.</string>
     <string name="wp_photo_note">Сіздің фотоңыз. Телефоннан тағы жіберу үшін оң жақтағы кодты сканерлеңіз.</string>
     <string name="wp_auto_note">Жарық таңдалған қолданбаның суретінен алынады.</string>
-    <string name="wp_screensaver">Экран қорғаушы</string>
     <string name="ss_follow_hint">Әлі таңдалмаған, сондықтан түсқағазға ілеседі: аэрожиын түсқағазымен аэрожиын, сурет түсқағазымен фотолар, сол суреттен бастап. Бекіту үшін біреуін таңдаңыз.</string>
     <string name="ss_aerial">Аэрожиын</string>
     <string name="ss_photos">Фотолар</string>
@@ -115,20 +106,9 @@
     <string name="ss_quality_hd">1080p</string>
     <string name="ss_quality_uhd">4K</string>
     <string name="ss_quality_dv">4K Dolby Vision</string>
-    <string name="ss_aerial_keeps">Aerial теледидарда соңғы %2$d фильмді сақтайды (ең көбі %1$s); тұсқағаз бен скринсейвер оларды кезекпен ойнатады, күн сайын жаңасы қосылады. Скринсейверде оңға — жаңа фильм, солға — алдыңғысы.</string>
     <string name="st_focus_style">Фокус стилі</string>
-    <string name="st_home_layout">Басты экран</string>
     <string name="st_layout">Орналасу</string>
-    <string name="st_clock">Сағат</string>
-    <string name="st_clock_left">Жоғарғы сол жақ</string>
-    <string name="st_clock_right">Жоғарғы оң жақ</string>
-    <string name="st_clock_hint">Сағат, күн және ауа райы қайда орналасады.</string>
-    <string name="st_clock_size">Сағат өлшемі</string>
-    <string name="st_clock_small">Кіші</string>
-    <string name="st_clock_large">Үлкен</string>
-    <string name="st_clock_size_hint">«Кіші» уақыт пен ауа райын бұрышта бір жолда көрсетеді. «Үлкен» экранның жоғарғы жағына үлкен сағатты, оның үстіне күнді, астына ауа райын қояды.</string>
     <string name="st_clock_hours">Уақыт пішімі</string>
-    <string name="st_clock_hours_system">ТД сияқты</string>
     <string name="st_clock_hours_24">24 сағат</string>
     <string name="st_clock_hours_12">12 сағат</string>
     <string name="st_clock_hours_hint">«ТД сияқты» теледидардың уақыт параметріне сүйенеді, ол болмаса 24 сағатты көрсетеді.</string>
@@ -152,13 +132,10 @@
     <string name="st_sounds_aerial">Aerial</string>
     <string name="st_on">Қосулы</string>
     <string name="st_off">Өшірулі</string>
-    <string name="st_hidden_apps">Жасырын қолданбалар</string>
-    <string name="st_hidden_apps_hint">Басты экраннан жасырылған қолданбалар қайтару үшін осында сақталады. Ата-аналық PIN-код орнатылған болса, алдымен сол сұралады.</string>
     <string name="st_home_lock">Экранды бекіту</string>
     <string name="st_home_lock_hint">Қосулы болса, қолданбада OK түймесін басып тұру немесе «Мәзір» мәзірді ашпайды, сондықтан қолданбаларды байқаусызда жылжыту, жасыру не жою мүмкін емес. Ата-ана PIN коды болса, өшіру үшін PIN керек.</string>
     <string name="home_locked_notice">Экран бекітілген. Қолданбаларды реттеу үшін «Жекелендіру» бөлімінде «Экранды бекіту» параметрін өшіріңіз.</string>
     <string name="st_hidden_none">Жоқ</string>
-    <string name="st_hidden_count">%d</string>
     <string name="st_focus_high">Жоғары контраст</string>
     <string name="st_focus_standard">Стандартты</string>
     <string name="st_focus_high_hint">Таңдалған қолданбаның айналасындағы ақ жақтау, бөлменің арғы шетінен де жақсы көрінеді.</string>
@@ -170,10 +147,6 @@
     <string name="st_effects_hint">Жеңіл: панельдер қарапайым, таңдалған қолданбада жылтыр жоқ, экран 60 Гц-те қалады. Кідіретін теледидарларға арналған.</string>
     <string name="st_effects_auto_lite_hint">Бұл теледидарда жад аз немесе Android ескі, сондықтан «Авто» жеңілді таңдайды.</string>
     <string name="cc_inputs_settings">Көздер параметрлері</string>
-    <string name="cc_inputs_list">Тізімде көрсету</string>
-    <string name="cc_inputs_list_hint">Теледидарда жоқ немесе пайдаланбайтын көздерден белгіні алыңыз. Олар тізімнен және басты экраннан жоғалады.</string>
-    <string name="cc_inputs_cec">Құрылғы қосылғанда ауысу</string>
-    <string name="cc_inputs_cec_hint">Консоль немесе приставка HDMI-CEC арқылы қосылғанда (One Touch Play), теледидар оның көзіне ауысады, өзінің басты экраны сияқты. Әр теледидар бұл туралы хабарламайды; Amlogic теледидарлары (көптеген Xiaomi) хабарлайды.</string>
     <string name="cc_inputs_pin">Басты экранда көрсету (кез келген саны)</string>
     <string name="cc_inputs_boot">Теледидар қосылғанда (біреу)</string>
     <string name="cc_inputs_boot_none">Ештеңе, Aerial-де қалу</string>
@@ -190,7 +163,6 @@
     <string name="device_computer">Компьютер</string>
     <string name="device_set_top_box">ТД қосымша қорабы</string>
     <string name="device_speaker">Саундбар</string>
-    <string name="cc_update_available">Жаңа нұсқа: %s</string>
     <string name="cc_update_title">Aerial %s</string>
     <string name="cc_update_notes">%s нұсқасындағы жаңалықтар</string>
     <string name="cc_update_current">Бұл теледидарда Aerial %s орнатылған.</string>
@@ -228,10 +200,7 @@
     <string name="weather_partly_cloudy">Ауыспалы бұлтты</string>
     <string name="weather_cloudy">Бұлтты</string>
     <string name="weather_fog">Тұман</string>
-    <string name="weather_rain">Жаңбыр</string>
-    <string name="weather_snow">Қар</string>
     <string name="weather_thunder">Найзағай</string>
-    <string name="weather_temperature">%1$d°</string>
     <string name="weather_high_low">Макс.: %1$d°  Мин.: %2$d°</string>
     <string name="weather_hours_ago">%d сағ бұрын</string>
     <string name="st_columns">Қатардағы қолданбалар</string>
@@ -263,8 +232,6 @@
     <string name="st_play_hint">Тыныштықта: жоғарғы қатарда (екі қатарлы көріністе — екеуінің кез келгенінде) 10 секундтан кейін; кез келген түйме тоқтатады. Әрдайым: түймелер тоқтатпайды, фон сәл күңгірттенеді; төмендегі қолданбаларға өткенде тоқтайды.</string>
     <string name="ss_show_time">Уақыт</string>
     <string name="ss_show_time_hint">Аэрожиын және фото экран қорғауыштарындағы уақыт. Экран күйіп қалмас үшін уақыт пен орын атауы анда-санда сәл жылжиды.</string>
-    <string name="ss_show_caption">Орын</string>
-    <string name="ss_show_caption_hint">Аэрожиын экран қорғауышында төменгі сол жақтағы орын атауы, фото экран қорғауышында сурет атауы.</string>
 
     <!-- Kids and Elders mode (settings/Restricted) -->
     <string name="kids_title">Балалар мен қарттар</string>
@@ -321,12 +288,10 @@
     <string name="kids_warn">%d мин қалды</string>
     <string name="kids_warn_break">%d минуттан кейін үзіліс</string>
 
-
     <string name="a11y_delete">Жою</string>
     <string name="cc_about">Aerial туралы</string>
     <string name="cc_about_update">Жаңарту</string>
     <string name="cc_about_latest">Соңғы нұсқа</string>
     <string name="cc_about_version">Нұсқа %1$s</string>
-    <string name="ss_sleep">Ұйқы</string>
-    <string name="ss_sleep_hint">Экран сақтағышсыз: уақыт келгенде теледидар қуат түймесін басқандай күту режиміне өтеді. Көп теледидар кейін тек қуат түймесімен қосылады.</string>
-    <string name="cc_update_to">%1$s нұсқасына жаңарту</string></resources>
+    <string name="cc_update_to">%1$s нұсқасына жаңарту</string>
+</resources>

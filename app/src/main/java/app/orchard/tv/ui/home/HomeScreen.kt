@@ -307,18 +307,12 @@ private const val FILM_SAVER_WAIT_MS = 10_000L
 /** How long the large clock's time takes back from the screensaver's corner (ShelfClock waits for it). */
 internal const val CLOCK_BACK_MS = 1000
 
-/** How long Control Center takes to come in before a picture of Home stands in for it. */
-private const val HOME_SHOT_AFTER_MS = 450L
-
 /**
  * 冷启动揭罩的兜底: 首卡一直没拿到焦点时, 最多等这么久就照撤。
  * 这台盒子(DBBOX-A2)实测 setContent 后约 8.8-9.4s 才落首卡焦点, 旧的 3s 兜底必然早于首卡,
  * 撤开时露出的是一张壁纸。10.5s 留约 1s 余量, 又必须小于 MainActivity 的冷启动 forceFinish(13s)。
  */
 private const val BOOT_STEADY_FALLBACK_MS = 10_500L
-
-/** How often that picture is taken again while Control Center stays open, for the clock. */
-private const val HOME_SHOT_EVERY_MS = 30_000L
 
 @Composable
 fun HomeScreen(

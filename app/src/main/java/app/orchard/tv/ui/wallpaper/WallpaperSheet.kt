@@ -936,12 +936,6 @@ private fun WallpaperCard(wp: Wallpaper, focusRequester: FocusRequester?, onFocu
     }
 }
 
-@Composable
-private fun SectionTitle(title: Int) {
-    BasicText(stringResource(title), style = Type.Headline, modifier = Modifier.padding(start = 4.dp))
-    Spacer(Modifier.height(10.dp))
-}
-
 /**
  * A card of setting rows, as in tvOS Settings, with one note under it: the focused row's, or
  * [note] when the row has none or focus is elsewhere. The note keeps two lines of room so the

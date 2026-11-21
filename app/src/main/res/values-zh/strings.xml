@@ -3,10 +3,6 @@
     <string name="guard_name">Aerial 桌面守护</string>
     <string name="guard_description">在不允许更换桌面的电视上，让 Aerial 保持为主屏幕。不会读取任何屏幕内容。</string>
 
-    <string name="greeting_morning">早上好</string>
-    <string name="greeting_afternoon">下午好</string>
-    <string name="greeting_evening">晚上好</string>
-
     <string name="cc_title">控制中心</string>
     <string name="cc_inputs">信号源</string>
     <string name="cc_network">网络</string>
@@ -26,7 +22,6 @@
     <string name="cc_setup_revival_where">通知使用权</string>
     <string name="cc_setup_scan">或者用电脑一次设好（推荐）</string>
     <string name="cc_setup_scan_hint">手机扫码，拿到这台电视的命令和给 Agent 的提示词。</string>
-    <string name="cc_back">返回</string>
     <string name="cc_no_inputs">这台电视没有可用的信号源</string>
 
     <string name="net_ethernet">有线网络</string>
@@ -46,7 +41,6 @@
     <string name="menu_out_of_folder">移出文件夹</string>
     <string name="menu_rename_folder">重命名</string>
     <string name="menu_ungroup">解散文件夹</string>
-    <string name="menu_back">返回</string>
     <string name="folder_default">文件夹</string>
     <string-array name="folder_names">
         <item>系统应用</item>
@@ -64,16 +58,11 @@
     <string name="move_hint">用方向键移动 · 按确定键完成</string>
     <string name="move_hint_touch">用方向键移动，或点一下要放的位置 · 按确定键或点这个卡片完成</string>
 
-    <string name="hidden_title">隐藏的卡片</string>
     <string name="hidden_hint">选择一张卡片放回应用菜单</string>
     <string name="hidden_empty">没有隐藏的卡片</string>
 
     <string name="launch_failed">无法打开%1$s</string>
     <string name="unavailable">此电视不支持</string>
-    <string name="cc_brightness">亮度</string>
-    <string name="cc_brightness_in_settings">在图像设置里调</string>
-    <string name="cc_check_update">检查更新</string>
-    <string name="cc_checking">检查中…</string>
     <string name="cc_personalize">个性化</string>
     <string name="wp_title">个性化</string>
     <string name="wp_wallpaper">壁纸</string>
@@ -95,7 +84,6 @@
     <string name="wp_photos_rotate_note">从你的照片里按设定的间隔换一张，间隔在下面选。</string>
     <string name="wp_photo_note">你的照片。用手机扫右边的二维码可以继续添加。</string>
     <string name="wp_auto_note">取所选卡片图片里的颜色做背景。</string>
-    <string name="wp_screensaver">屏幕保护程序</string>
     <string name="ss_follow_hint">尚未选择：跟随壁纸，航拍配航拍，其他壁纸配照片。</string>
     <string name="ss_aerial">航拍</string>
     <string name="ss_photos">照片</string>
@@ -121,18 +109,8 @@
     <string name="ss_quality_hd">1080p</string>
     <string name="ss_quality_uhd">4K</string>
     <string name="ss_quality_dv">4K 杜比视界</string>
-    <string name="ss_aerial_keeps">航拍在电视上存最近 %2$d 部影片（最多占 %1$s），壁纸和屏保轮流播放，每天换一部新的。屏保里按右键换新片，左键回到上一部。</string>
     <string name="st_focus_style">焦点样式</string>
-    <string name="st_home_layout">主屏幕</string>
     <string name="st_layout">卡片布局</string>
-    <string name="st_clock">时钟</string>
-    <string name="st_clock_left">左上</string>
-    <string name="st_clock_right">右上</string>
-    <string name="st_clock_hint">时钟、日期和天气显示的位置。</string>
-    <string name="st_clock_size">时钟大小</string>
-    <string name="st_clock_small">小</string>
-    <string name="st_clock_large">大</string>
-    <string name="st_clock_size_hint">小：时间和天气在角上一行小字。大：屏幕上方一个大时钟，上面是日期，下面是天气。</string>
     <string name="st_names">卡片名称</string>
     <string name="st_names_focused">只显示选中</string>
     <string name="st_names_all">全部显示</string>
@@ -159,15 +137,9 @@
     <string name="st_splash_veil_hint">启动时先显示开屏遮罩；关闭则直接进入桌面。</string>
     <string name="st_on">开启</string>
     <string name="st_off">关闭</string>
-    <string name="st_hidden_apps">【应用菜单】隐藏的卡片</string>
-    <string name="st_hidden_live">【直播菜单】隐藏的卡片</string>
     <string name="st_live_preview">直播预览</string>
-    <string name="st_live_quality">直播画质</string>
-    <string name="st_live_1080">1080p</string>
-    <string name="st_live_original">原画</string>
     <string name="st_clock_hours">时钟制式</string>
     <string name="st_clock_hours_hint">24 小时制显示 15:00，12 小时制显示 3:00。</string>
-    <string name="st_clock_hours_system">跟随电视</string>
     <string name="st_clock_hours_24">24 小时制</string>
     <string name="st_clock_hours_12">12 小时制</string>
     <string name="st_home_lock">锁定主页</string>
@@ -175,10 +147,8 @@
     <string name="st_photo_every">多久换一张</string>
     <string name="st_photo_every_hint">桌面多久换到下一张照片。</string>
     <string name="st_photo_every_day">每天</string>
-    <string name="st_hidden_apps_hint">从应用菜单隐藏的卡片在这里，可以放回应用菜单。设了家长密码时要先输入密码。</string>
     <string name="st_hidden_live_hint">选择一张卡片放回直播菜单</string>
     <string name="st_hidden_none">没有</string>
-    <string name="st_hidden_count">%d 个</string>
     <string name="st_hidden">隐藏的卡片</string>
     <string name="st_hidden_apps_title">隐藏的卡片·应用</string>
     <string name="st_hidden_live_title">隐藏的卡片·直播</string>
@@ -214,12 +184,9 @@
     <string name="device_computer">电脑</string>
     <string name="device_set_top_box">机顶盒</string>
     <string name="device_speaker">回音壁</string>
-    <string name="cc_update_available">有新版本 %s</string>
     <string name="cc_update_title">Aerial %s</string>
     <string name="cc_update_notes">%s 更新内容</string>
     <string name="cc_update_current">这台电视上是 Aerial %s。</string>
-    <string name="cc_update_uptodate">已是最新</string>
-    <string name="cc_update_failed">检查更新失败</string>
     <string name="cc_update_keeps">卡片、排列顺序、壁纸和设置都会保留。</string>
     <string name="cc_update_scan">用手机扫码，看怎么升级（可以复制安装命令，或者发给 AI 助手）。</string>
     <string name="cc_update_scan_else">装不上？用手机扫码，看别的升级方法。</string>
@@ -256,8 +223,6 @@
     <string name="weather_cloudy">阴</string>
     <string name="weather_fog">雾</string>
     <string name="weather_haze">霾</string>
-    <string name="weather_rain">雨</string>
-    <string name="weather_snow">雪</string>
     <string name="weather_thunder">雷雨</string>
     <string name="weather_drizzle">毛毛雨</string>
     <string name="weather_light_rain">小雨</string>
@@ -271,7 +236,6 @@
     <string name="st_columns_hint">每排放几张卡片。6 个一眼看全，4 个图标更大，离得远也看得清。</string>
     <string name="st_peek">下一排卡片</string>
 
-    <string name="weather_temperature">%1$d℃</string>
     <string name="weather_hours_ago">%d 小时前</string>    <string name="st_peek_show">露出一点</string>
     <string name="st_peek_hide">不露出</string>
     <string name="st_peek_hint">一排下方露出下一排的上沿，提示还有卡片；不露出时按下键才出现。</string>
@@ -299,8 +263,6 @@
     <string name="ss_show_time">时间</string>
     <string name="ss_show_time_hint">航拍和照片屏保上显示时间，位置会不时变化，以免烧屏。</string>
 
-    <string name="ss_show_caption">地点</string>
-    <string name="ss_show_caption_hint">航拍屏保左下角的地名，照片屏保上的图片标题。</string>
     <!-- Kids and Elders mode (settings/Restricted) -->
     <string name="kids_title">儿童与长辈模式</string>
     <string name="kids_hint">桌面上只显示你选的卡片，不能整理。退出要输入家长密码；进屏保或电视待机后会自动回到这个模式。</string>
@@ -358,21 +320,16 @@
     <string name="home_locked_notice">主屏幕已锁定。要整理卡片，请在「个性化」里关闭「锁定主页」。</string>
 
     <!-- 备份与恢复: 一个 zip 装下全部设置和文件(照片、影片、图标)。 -->
-    <string name="per_wallpaper">壁纸</string>
     <string name="per_home">主屏幕</string>
     <string name="per_live">直播</string>
     <string name="per_look">外观与声音</string>
     <string name="per_screensaver">屏保</string>
-    <string name="per_weather">天气</string>
     <string name="per_family">家庭守护</string>
     <string name="st_live_preview_hint">焦点在 IPTV 应用时，背景播放相关直播。</string>
     <string name="st_live_jank_hint">高灵敏切得早，低灵敏切得少，关闭则不自动切换。</string>
     <string name="st_bili_account_hint">登录后直播可选更高画质；登录信息只存在本机。</string>
     <string name="st_bili_account_on">B站账号（已登录）</string>
     <string name="st_bili_hint_uid">UID %1$s · 登录后可选更高直播画质，只存本机。</string>
-    <string name="st_bili_sign_state">已登录 %1$s · 退出登录</string>
-    <string name="st_bili_logged_in_uid">已登录 %1$s · 退出登录</string>
-    <string name="st_bili_account_logged_in">B站账号（已登录 · %1$s）</string>
     <string name="st_bili_scan_title">扫码登录 B 站</string>
     <string name="st_bili_scan_hint">用 B 站 App 扫这个码，扫完在手机上确认。这一格失去焦点就换回原来的二维码。</string>
     <string name="ss_delay_hint">桌面静止多久后开始屏保；不想自动开始就选「从不」。</string>
@@ -382,6 +339,5 @@
     <string name="cc_about_update">软件更新</string>
     <string name="cc_about_latest">已是最新</string>
     <string name="cc_about_version">版本 %1$s</string>
-    <string name="ss_sleep">待机</string>
-    <string name="ss_sleep_hint">不放屏保：时间到了让电视待机，和按电源键一样。很多电视之后只能用电源键开机。</string>
-    <string name="cc_update_to">更新到 %1$s</string></resources>
+    <string name="cc_update_to">更新到 %1$s</string>
+</resources>
