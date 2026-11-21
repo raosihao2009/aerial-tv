@@ -1,5 +1,6 @@
 package app.orchard.tv.ui.home
 
+import android.view.KeyEvent as NativeKeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -41,6 +42,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -55,6 +58,7 @@ import app.orchard.tv.settings.AerialSettings
 import app.orchard.tv.settings.KidsTime
 import app.orchard.tv.settings.Restricted
 import app.orchard.tv.settings.RestrictedKind
+import app.orchard.tv.system.Sounds
 import app.orchard.tv.ui.components.Pressable
 import app.orchard.tv.ui.components.consumeTaps
 import app.orchard.tv.ui.components.liquidGlass
@@ -266,17 +270,96 @@ private fun WideButton(label: String, glyph: Glyph?, focusRequester: FocusReques
 @Composable
 private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier) {
     val allowed = Restricted.allowed
+    val live = candidates.filter { it.source != null }
+    val appsOnly = candidates.filter { it.source == null }
+    // 一个"切换式"分段键: 左右键切页, 高亮始终绑在当前页, 不是两颗各自独立的按钮。
+    var tab by remember { mutableStateOf(0) }
+    val inputPicked = live.any { it.key in allowed }
     Column(modifier) {
-        BasicText(stringResource(R.string.kids_apps, allowed.size), style = Type.Headline)
-        // An input picked lets the others through too: one player plays them all (TCL com.tcl.tv,
-        // Xiaomi's tvplayer), and which input it shows is not reliably readable (TCL's
-        // global tvInputId went empty on an input with no signal, MT5879).
-        val inputPicked = candidates.any { it.source != null && it.key in allowed }
-        BasicText(
-            stringResource(if (inputPicked) R.string.kids_sources_note else R.string.kids_apps_hint),
-            style = Type.Caption.copy(color = if (inputPicked) Palette.Orange else Palette.SecondaryLabel),
-            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Pressable(
+                onClick = { tab = 1 - tab },
+                focusedScale = 1.03f,
+                onKey = { e ->
+                    if (e.type != KeyEventType.KeyDown) false else when (e.nativeKeyEvent.keyCode) {
+                        NativeKeyEvent.KEYCODE_DPAD_LEFT -> {
+                            if (tab > 0) { tab = 0; Sounds.focusMoved() }
+                            true
+                        }
+                        NativeKeyEvent.KEYCODE_DPAD_RIGHT -> {
+                            if (tab < 1) { tab = 1; Sounds.focusMoved() }
+                            true
+                        }
+                        else -> false
+                    }
+                },
+            ) { st ->
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(if (st.focused) Palette.Focus else Palette.Fill)
+                        .height(32.dp)
+                        .padding(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    listOf(R.string.kw_tab_live, R.string.kw_tab_apps).forEachIndexed { index, label ->
+                        val active = tab == index
+                        Row(
+                            Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(
+                                    when {
+                                        active && st.focused -> Palette.OnFocus.copy(alpha = 0.22f)
+                                        active -> Palette.FillStrong
+                                        else -> Color.Transparent
+                                    },
+                                )
+                                .height(24.dp)
+                                .padding(horizontal = 13.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            BasicText(
+                                stringResource(label),
+                                style = Type.Callout.copy(
+                                    color = when {
+                                        active && st.focused -> Palette.OnFocus
+                                        active -> Palette.Label
+                                        st.focused -> Palette.OnFocus.copy(alpha = 0.62f)
+                                        else -> Palette.SecondaryLabel
+                                    },
+                                ),
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.width(10.dp))
+            BasicText(
+                if (tab == 0) stringResource(R.string.kids_live, live.size) else stringResource(R.string.kids_apps, allowed.size),
+                style = Type.Caption.copy(color = Palette.SecondaryLabel),
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        // 直播卡片这一页的说明只在"确实选了信号源"时出现: 选了以后别的信号源也能被切过去,
+        // 它们共用一个播放器, Aerial 分不出来。
+        if (tab == 0 && inputPicked) {
+            BasicText(
+                stringResource(R.string.kids_sources_note),
+                style = Type.Caption.copy(color = Palette.Orange),
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        } else {
+            BasicText(
+                stringResource(R.string.kids_apps_hint),
+                style = Type.Caption.copy(color = Palette.SecondaryLabel),
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+        val items = if (tab == 0) live else appsOnly
+        val perRow = if (tab == 0) 2 else 3
         Column(
             Modifier
                 .weight(1f)
@@ -284,14 +367,23 @@ private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier) {
                 // Room for the focused tile's scale.
                 .padding(horizontal = 6.dp, vertical = 6.dp),
         ) {
-            candidates.chunked(3).forEach { row ->
+            if (items.isEmpty()) {
+                BasicText(
+                    stringResource(R.string.kids_loading),
+                    style = Type.Caption.copy(color = Palette.SecondaryLabel),
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
+            items.chunked(perRow).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(bottom = 12.dp)) {
                     row.forEach { app ->
                         val index = allowed.indexOf(app.key)
+                        val w = if (tab == 0) 150.dp else 112.dp
+                        val h = if (tab == 0) 84.dp else 63.dp
                         Pressable(onClick = { Restricted.toggleAllowed(app.key) }, focusedScale = 1.08f) { state ->
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Box {
-                                    MiniTile(app, state.focused, Modifier.size(112.dp, 63.dp))
+                                    MiniTile(app, state.focused, Modifier.size(w, h))
                                     if (index >= 0) {
                                         // The place it takes on the mode's Home.
                                         Box(
@@ -308,7 +400,7 @@ private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier) {
                                 BasicText(
                                     app.label, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                     style = Type.Caption.copy(color = if (state.focused || index >= 0) Palette.Label else Palette.SecondaryLabel),
-                                    modifier = Modifier.width(112.dp),
+                                    modifier = Modifier.width(w),
                                 )
                             }
                         }

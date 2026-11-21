@@ -237,7 +237,7 @@
     <string name="wp_window_close">Жабу</string>
     <string name="kw_tab_settings">Параметрлер</string>
     <string name="kw_tab_live">Тікелей эфир</string>
-    <string name="kw_tab_apps">Қолданбалар</string>
+    <string name="kw_tab_apps">Қолданба карточкалары</string>
 
     <!-- Kids and Elders mode (settings/Restricted) -->
     <string name="kids_title">Балалар мен қарттар</string>
@@ -265,7 +265,8 @@
     <string name="kids_pick_first">Алдымен оң жақтан кемінде бір қолданба таңдаңыз.</string>
     <string name="kids_loading">Қолданбалар әлі жүктелуде.</string>
     <string name="kids_turn_off">Режимді өшіру</string>
-    <string name="kids_apps">Қолданбалар · %d</string>
+        <string name="kids_live">Көрсетілген тікелей карточкалар · %d</string>
+    <string name="kids_apps">Көрсетілген қолданба карточкалары · %d</string>
     <string name="kids_apps_hint">Таңдалған ретпен көрсетіледі. Жаңа қолданбалар өздігінен қосылмайды.</string>
     <string name="kids_sources_note">Кіріс таңдалса, пульттегі кіріс түймесімен теледидардың басқа кірістеріне де ауысуға болады: олардың ойнатқышы ортақ, Aerial оларды ажырата алмайды.</string>
     <string name="kids_m">%d мин</string>

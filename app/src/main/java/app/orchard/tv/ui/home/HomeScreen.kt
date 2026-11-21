@@ -1669,19 +1669,11 @@ fun HomeScreen(
                 else if (on) AerialSettings.chooseHomeLocked(true)
                 else vm.whenUnlocked { AerialSettings.chooseHomeLocked(false); vm.overlay = Overlay.Wallpaper }
             },
-            // 儿童与长辈模式的设置就在面板里的小窗口里开, 不再整屏跳出去; 候选里带上直播卡片。
-            kidsCandidates = vm.kidsCandidates,
-            onStartKids = {
-                // 没有家长密码就不能进模式: 否则进去以后既没有"家长解锁"也没有别的路能退出来
-                // (3.74 起面板里能直接开始, 就出过这种事)。先让设密码, 设完再开始。
-                val start = {
-                    if (!Restricted.enabled) Restricted.chooseEnabled(true)
-                    Restricted.start()
-                    vm.overlay = Overlay.None
-                    vm.homeFocusTarget = 0
-                    KidsWatch.poke()
-                }
-                if (!AerialSettings.pinSet) vm.overlay = Overlay.Pin(PinMode.Create) { start() } else start()
+            // 儿童与长辈模式: 回到上游那张整屏设置页(面板先收起), 没有家长密码就先设密码。
+            onKids = {
+                // 没有密码就不能进模式: 进去以后既没有"家长解锁"也没有别的路退出来。
+                if (!AerialSettings.pinSet) vm.overlay = Overlay.Pin(PinMode.Create) { vm.overlay = Overlay.Kids }
+                else vm.overlay = Overlay.Kids
             },
             // 关于: 版本、更新入口、桌面接管状态都在个性化里(控制中心只在有新版时留一个入口)。
             homeStatus = vm.homeStatus,
@@ -1697,7 +1689,20 @@ fun HomeScreen(
             },
         )
 
-        // 儿童/长辈模式设置已经搬进个性化面板的迷你窗口; 这张整屏卡片只剩锁屏在用。
+        // 上游原生的整屏设置页: 左半是选项, 右半是卡片(直播卡片 / 应用卡片 两个切换式页签)。
+        KidsSetupSheet(
+            visible = overlay is Overlay.Kids,
+            candidates = vm.kidsCandidates,
+            onStart = {
+                if (!Restricted.enabled) Restricted.chooseEnabled(true)
+                Restricted.start()
+                vm.overlay = Overlay.None
+                vm.homeFocusTarget = 0
+                KidsWatch.poke()
+            },
+            onDismiss = { vm.overlay = Overlay.Wallpaper },
+        )
+
         // Locked mid-panel (the day's time ran out with Control Center open): the lock is all there is.
         LaunchedEffect(kidsLock != null) {
             if (kidsLock != null && vm.overlay !is Overlay.Pin) vm.overlay = Overlay.None

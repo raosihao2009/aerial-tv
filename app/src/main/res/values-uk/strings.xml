@@ -237,7 +237,7 @@
     <string name="wp_window_close">Закрити</string>
     <string name="kw_tab_settings">Налаштування</string>
     <string name="kw_tab_live">Прямі ефіри</string>
-    <string name="kw_tab_apps">Програми</string>
+    <string name="kw_tab_apps">Картки застосунків</string>
 
     <!-- Kids and Elders mode (settings/Restricted) -->
     <string name="kids_title">Діти та літні</string>
@@ -265,7 +265,8 @@
     <string name="kids_pick_first">Спершу виберіть праворуч хоча б один застосунок.</string>
     <string name="kids_loading">Застосунки ще завантажуються.</string>
     <string name="kids_turn_off">Вимкнути режим</string>
-    <string name="kids_apps">Застосунки · %d</string>
+        <string name="kids_live">Показано живих карток · %d</string>
+    <string name="kids_apps">Показано карток застосунків · %d</string>
     <string name="kids_apps_hint">Показуються в порядку вибору. Нові застосунки самі не додаються.</string>
     <string name="kids_sources_note">Якщо вибрано вхід, кнопкою входів на пульті можна перемкнутися й на інші входи телевізора: у них спільний плеєр, і Aerial їх не розрізняє.</string>
     <string name="kids_m">%d хв</string>

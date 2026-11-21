@@ -17,16 +17,16 @@ import kotlinx.coroutines.CancellationException
 /** Keep only the latest descendant's request active in this scrolling sheet.
  * Must be placed after verticalScroll so it intercepts requests before the scroll responder.
  */
-internal fun Modifier.latestBringIntoView(scroll: ScrollState): Modifier =
-    this then LatestBringIntoViewElement(scroll)
+internal fun Modifier.latestBringIntoView(scroll: ScrollState, frozen: Boolean = false): Modifier =
+    this then LatestBringIntoViewElement(scroll, frozen)
 
-private data class LatestBringIntoViewElement(val scroll: ScrollState) : ModifierNodeElement<LatestBringIntoViewNode>() {
-    override fun create() = LatestBringIntoViewNode(scroll)
-    override fun update(node: LatestBringIntoViewNode) { node.scroll = scroll }
+private data class LatestBringIntoViewElement(val scroll: ScrollState, val frozen: Boolean) : ModifierNodeElement<LatestBringIntoViewNode>() {
+    override fun create() = LatestBringIntoViewNode(scroll, frozen)
+    override fun update(node: LatestBringIntoViewNode) { node.scroll = scroll; node.frozen = frozen }
     override fun InspectorInfo.inspectableProperties() { name = "latestBringIntoView" }
 }
 
-private class LatestBringIntoViewNode(var scroll: ScrollState) : Modifier.Node(), BringIntoViewModifierNode, LayoutAwareModifierNode {
+private class LatestBringIntoViewNode(var scroll: ScrollState, var frozen: Boolean) : Modifier.Node(), BringIntoViewModifierNode, LayoutAwareModifierNode {
     private val requests = MutatorMutex()
     private var pendingRequests = 0
     private var hasBeenPlaced = false
@@ -38,6 +38,8 @@ private class LatestBringIntoViewNode(var scroll: ScrollState) : Modifier.Node()
         // Focus gain starts a request, but focus loss does not cancel it. Group's note expansion
         // makes consecutive row requests nested: Compose can scroll towards the larger request
         // while waiting for the smaller one to reach its TV pivot, leaving animation running.
+        // 冻结期间(密码框/面板内小窗口盖着)一律不滚: 谁请都不动, 省得"先滚走再拉回来"。
+        if (frozen) throw CancellationException("Sheet scroll frozen")
         val replacing = pendingRequests > 0
         pendingRequests++
         try {

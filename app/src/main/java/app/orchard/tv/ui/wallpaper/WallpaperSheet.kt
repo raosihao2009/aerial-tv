@@ -178,10 +178,8 @@ fun WallpaperSheet(
      * 所以这里拿到的是回调而不是直接写设置。
      */
     onHomeLock: (on: Boolean) -> Unit = { AerialSettings.chooseHomeLocked(it) },
-    /** 儿童与长辈模式的候选卡片(应用 + 直播源), 在面板里的小窗口里挑。 */
-    kidsCandidates: List<AppEntry> = emptyList(),
-    /** 小窗口里按下"开始"时进这个模式(调用方负责关掉面板)。 */
-    onStartKids: () -> Unit = {},
+    /** 儿童与长辈模式的设置页(上游原生的整屏界面), 调用方负责密码前置。 */
+    onKids: () -> Unit = {},
     /** Whether Aerial is the home screen or guarded, for the About group. */
     homeStatus: HomeStatus,
     /** The sheet is all the way in (true) or not: Home need not draw under it then ([SheetCovers]). */
@@ -272,7 +270,6 @@ fun WallpaperSheet(
         // 关于里的"更新到 x.y"和家庭守护里的"儿童与长辈模式": 都在面板里浮一个小窗口,
         // 不再整屏跳控制中心的更新页 / 也不再盖一张整屏的设置卡片。
         val updateWindow = remember { CardWindow() }
-        val kidsWindow = remember { CardWindow() }
         Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(
             LocalMenuWindow provides menuWindow,
@@ -312,7 +309,7 @@ fun WallpaperSheet(
             // 密码框关掉后还焦点, 位置还是原来那一屏。
             var heldScroll by remember { mutableStateOf(-1) }
             // 密码框盖着、或者面板里的小窗口开着: 都算"面板此刻不该动", 同帧钉住。
-            val pinScroll = holdFocus || updateWindow.open || kidsWindow.open
+            val pinScroll = holdFocus || updateWindow.open
             LaunchedEffect(pinScroll) {
                 if (!pinScroll) {
                     heldScroll = -1
@@ -326,7 +323,7 @@ fun WallpaperSheet(
             }
             // 一页往下走: 每个分类是"图标 + 分类名"的标题, 标题下就是那一组选项, 不再做左栏
             // 焦点切换。分类图标保留, 是为了在这一长页里一眼认出走到哪一组。
-            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(leftScroll).latestBringIntoView(leftScroll)) {
+            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(leftScroll).latestBringIntoView(leftScroll, pinScroll)) {
                 Spacer(Modifier.height(14.dp))
                 CategoryTitle(Glyph.Photo, R.string.wp_wallpaper)
                 WallpaperSection(takeFocus)
@@ -349,7 +346,7 @@ fun WallpaperSheet(
                 WeatherSection()
                 Spacer(Modifier.height(18.dp))
                 CategoryTitle(Glyph.Shield, R.string.per_family)
-                FamilySection(onPin, kidsWindow)
+                FamilySection(onPin, onKids)
                 // 关于放在最后(上游 2.13 起: 版本、更新、桌面接管状态都在这里,
                 // 控制中心只在有新版时留一个入口)。以前的"检查更新"按钮搬到这里。
                 Spacer(Modifier.height(18.dp))
@@ -368,7 +365,6 @@ fun WallpaperSheet(
         // 迷你窗口画在最上层: 不用独立窗口, 焦点始终在入口按钮上。
         MenuWindowLayer(menuWindow)
         CardWindowLayer(updateWindow, focusMemory) { close -> UpdateWindowContent(close) }
-        CardWindowLayer(kidsWindow, focusMemory) { close -> KidsWindowContent(kidsCandidates, close, onStartKids) }
         // 小窗口里不再带标题行: 「隐藏的卡片·应用 / ·直播」那两行字去掉, 直接从第一张卡片开始。
         ListWindowLayer(
             popupHost.apps,
@@ -794,9 +790,7 @@ private fun AboutSection(homeStatus: HomeStatus, window: CardWindow) {
 
 /** 亲子守护: 密码与儿童/长辈模式的入口。 */
 @Composable
-private fun FamilySection(onPin: (on: Boolean) -> Unit, window: CardWindow) {
-    var chipX by remember { mutableStateOf(0f) }
-    var chipY by remember { mutableStateOf(0f) }
+private fun FamilySection(onPin: (on: Boolean) -> Unit, onKids: () -> Unit) {
     Group {
         Row2(
             {
@@ -808,28 +802,20 @@ private fun FamilySection(onPin: (on: Boolean) -> Unit, window: CardWindow) {
                 )
             },
             {
-                Box(Modifier.onGloballyPositioned { c ->
-                    val b = c.boundsInRoot()
-                    chipX = b.center.x
-                    chipY = b.top
-                }) {
-                    ActionCell(
-                        R.string.st_kids, stringResource(R.string.st_kids_hint),
-                        listOf(
-                            CellAction(
-                                when {
-                                    !Restricted.enabled -> stringResource(R.string.st_off)
-                                    Restricted.kind == RestrictedKind.Kids -> stringResource(R.string.kids_kind_kids)
-                                    else -> stringResource(R.string.kids_kind_elders)
-                                },
-                                chevron = true,
-                            ) {
-                                // 没设家长密码: 模式进去就退不出来, 所以先让设密码, 设好再点一次开窗口。
-                                if (!AerialSettings.pinSet) onPin(true) else window.show(chipX, chipY, 1080)
+                ActionCell(
+                    R.string.st_kids, stringResource(R.string.st_kids_hint),
+                    listOf(
+                        CellAction(
+                            when {
+                                !Restricted.enabled -> stringResource(R.string.st_off)
+                                Restricted.kind == RestrictedKind.Kids -> stringResource(R.string.kids_kind_kids)
+                                else -> stringResource(R.string.kids_kind_elders)
                             },
+                            chevron = true,
+                            run = onKids,
                         ),
-                    )
-                }
+                    ),
+                )
             },
         )
     }
@@ -2375,274 +2361,3 @@ private fun UpdateWindowContent(close: () -> Unit) {
     }
 }
 
-/** 「儿童与长辈模式」: 回到 3.74 那种一块窗口的样子 —— 选项在上, 卡片在下; 卡片分「直播」「应用」两页签, 窗口才不用摊太宽。 */
-@Composable
-private fun KidsWindowContent(candidates: List<AppEntry>, close: () -> Unit, onStart: () -> Unit) {
-    val first = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
-        repeat(20) {
-            if (runCatching { first.requestFocus() }.isSuccess) return@LaunchedEffect
-            withFrameNanos { }
-        }
-    }
-    val kids = Restricted.kind == RestrictedKind.Kids
-    val rules = Restricted.rules
-    val guard = HomeGuardService.isRunning
-    val allowed = Restricted.allowed
-    val sources = candidates.filter { it.source != null }
-    val appsOnly = candidates.filter { it.source == null }
-    var cardTab by remember { mutableStateOf(0) }
-
-    Column(Modifier.width(1080.dp).padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 14.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            GlyphIcon(Glyph.Kids, Palette.Label, 22.dp)
-            Spacer(Modifier.width(10.dp))
-            BasicText(stringResource(R.string.st_kids), style = Type.Headline)
-            Spacer(Modifier.width(12.dp))
-            BasicText(
-                stringResource(R.string.kids_hint),
-                style = Type.Caption.copy(color = Palette.SecondaryLabel),
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-        }
-        // 选项区: 就是原来的三排格子, 不再单独做成页签。
-        Column(
-            Modifier
-                .padding(top = 8.dp)
-                .heightIn(max = 300.dp)
-                .verticalScroll(rememberScrollState()),
-        ) {
-            Group {
-                Row2(
-                    {
-                        ChoiceCell(
-                            R.string.kids_kind,
-                            stringResource(if (kids) R.string.kids_kind_kids_hint else R.string.kids_kind_elders_hint),
-                            listOf(RestrictedKind.Kids to R.string.kids_kind_kids, RestrictedKind.Elders to R.string.kids_kind_elders),
-                            if (kids) RestrictedKind.Kids else RestrictedKind.Elders,
-                            { kind ->
-                                // 各自从一个合适的起点开始: 儿童拦别的 App, 长辈放行。
-                                Restricted.chooseKind(kind)
-                                Restricted.chooseBlockOthers(kind == RestrictedKind.Kids)
-                                KidsWatch.poke()
-                            },
-                        )
-                    },
-                    {
-                        ChoiceCell(
-                            R.string.kids_block,
-                            stringResource(if (guard) R.string.kids_block_hint else R.string.kids_block_no_guard),
-                            listOf(true to R.string.kids_block_on, false to R.string.kids_block_off),
-                            Restricted.blockOthers,
-                            { on -> Restricted.chooseBlockOthers(on); KidsWatch.poke() },
-                        )
-                    },
-                )
-                val minutesHint = stringResource(R.string.kids_minutes_hint)
-                Row2(
-                    {
-                        ChoiceCell(
-                            R.string.kids_weekday, minutesHint,
-                            withCustomMinutes(KIDS_DAY_MINUTES, rules.weekdayMinutes)
-                                .map { m -> m to (if (m == 0) stringResource(R.string.kids_no_limit) else m.toString()) as Any },
-                            rules.weekdayMinutes,
-                            { m -> Restricted.chooseRules(rules.copy(weekdayMinutes = m)); KidsWatch.poke() },
-                        )
-                    },
-                    {
-                        ChoiceCell(
-                            R.string.kids_weekend, minutesHint,
-                            withCustomMinutes(KIDS_DAY_MINUTES, rules.weekendMinutes)
-                                .map { m -> m to (if (m == 0) stringResource(R.string.kids_no_limit) else m.toString()) as Any },
-                            rules.weekendMinutes,
-                            { m -> Restricted.chooseRules(rules.copy(weekendMinutes = m)); KidsWatch.poke() },
-                        )
-                    },
-                )
-                Row2(
-                    {
-                        ChoiceCell(
-                            R.string.kids_latest, stringResource(R.string.kids_latest_hint, KidsTime.clock(rules.startMinute)),
-                            withCustomMinutes(KIDS_END_MINUTES, rules.endMinute)
-                                .map { m -> m to (if (m == 0) stringResource(R.string.kids_no_limit) else KidsTime.clock(m)) as Any },
-                            rules.endMinute,
-                            { m ->
-                                val next = rules.copy(endMinute = m)
-                                Restricted.chooseRules(if (next.valid) next else next.copy(startMinute = KidsTime.DEFAULT_START))
-                                KidsWatch.poke()
-                            },
-                        )
-                    },
-                    {
-                        ChoiceCell(
-                            R.string.kids_break, stringResource(R.string.kids_break_hint, rules.breakMinutes),
-                            withCustomMinutes(KIDS_BREAKS, rules.breakEvery)
-                                .map { m -> m to (if (m == 0) stringResource(R.string.st_off) else m.toString()) as Any },
-                            rules.breakEvery,
-                            { m -> Restricted.chooseRules(rules.copy(breakEvery = m)); KidsWatch.poke() },
-                        )
-                    },
-                )
-            }
-        }
-        // 卡片区: 「直播卡片」「应用卡片」两页签切换, 只占一块地方。
-        Row(
-            Modifier.padding(top = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            listOf(
-                R.string.kw_tab_live,
-                R.string.kw_tab_apps,
-            ).forEachIndexed { index, label ->
-                Pressable(onClick = { cardTab = index }) { st ->
-                    val bg = when {
-                        st.focused -> Palette.Focus
-                        cardTab == index -> Palette.FillStrong
-                        else -> Palette.Fill
-                    }
-                    Row(
-                        Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(bg)
-                            .height(32.dp)
-                            .padding(horizontal = 15.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        BasicText(
-                            stringResource(label),
-                            style = Type.Callout.copy(color = if (st.focused) Palette.OnFocus else Palette.Label),
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.width(6.dp))
-            BasicText(
-                if (cardTab == 0) stringResource(R.string.kids_sources_note)
-                else stringResource(R.string.kids_apps, allowed.size),
-                style = Type.Caption.copy(color = Palette.SecondaryLabel),
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.align(Alignment.CenterVertically),
-            )
-        }
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp)
-                .heightIn(min = 170.dp, max = 250.dp)
-                .verticalScroll(rememberScrollState()),
-        ) {
-            if (!candidates.isEmpty() && cardTab == 0 && sources.isNotEmpty()) {
-                KidsCards(sources, allowed, tileW = 150.dp, tileH = 84.dp, perRow = 6)
-            } else if (!candidates.isEmpty() && cardTab == 1 && appsOnly.isNotEmpty()) {
-                KidsCards(appsOnly, allowed, tileW = 118.dp, tileH = 66.dp, perRow = 7)
-            } else {
-                BasicText(stringResource(R.string.kids_loading), style = Type.Caption.copy(color = Palette.Orange))
-            }
-        }
-        Spacer(Modifier.height(10.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Pressable(
-                onClick = { if (allowed.isNotEmpty()) { onStart(); close() } },
-                focusRequester = first,
-            ) { s ->
-                Row(
-                    Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(if (s.focused) Palette.Focus else Palette.Fill)
-                        .height(36.dp)
-                        .padding(horizontal = 18.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(7.dp),
-                ) {
-                    GlyphIcon(Glyph.Kids, if (s.focused) Palette.OnFocus else Palette.Label, 16.dp)
-                    BasicText(
-                        stringResource(if (kids) R.string.kids_start_kids else R.string.kids_start_elders),
-                        style = Type.Callout.copy(color = if (s.focused) Palette.OnFocus else Palette.Label),
-                    )
-                }
-            }
-            Spacer(Modifier.width(12.dp))
-            if (allowed.isEmpty()) {
-                BasicText(
-                    stringResource(R.string.kids_pick_first),
-                    style = Type.Caption.copy(color = Palette.Orange),
-                )
-            } else if (Restricted.enabled) {
-                Pressable(onClick = { Restricted.chooseEnabled(false); KidsWatch.poke() }) { s ->
-                    Row(
-                        Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(if (s.focused) Palette.Focus else Palette.Fill)
-                            .height(36.dp)
-                            .padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        BasicText(
-                            stringResource(R.string.kids_turn_off),
-                            style = Type.Callout.copy(color = if (s.focused) Palette.OnFocus else Palette.Label),
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.weight(1f))
-            Pressable(onClick = close) { s ->
-                Row(
-                    Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(if (s.focused) Palette.Focus else Palette.Fill)
-                        .height(36.dp)
-                        .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    BasicText(
-                        stringResource(R.string.wp_window_close),
-                        style = Type.Callout.copy(color = if (s.focused) Palette.OnFocus else Palette.Label),
-                    )
-                }
-            }
-        }
-    }
-}
-
-/** 模式里可选的卡片: 选中按顺序编号, 没选中的压一层暗罩。 */
-@Composable
-private fun KidsCards(
-    items: List<AppEntry>,
-    allowed: List<String>,
-    tileW: androidx.compose.ui.unit.Dp,
-    tileH: androidx.compose.ui.unit.Dp,
-    perRow: Int,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        items.chunked(perRow).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                row.forEach { app ->
-                    val index = allowed.indexOf(app.key)
-                    Pressable(onClick = { Restricted.toggleAllowed(app.key); KidsWatch.poke() }, focusedScale = 1.06f) { state ->
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box {
-                                MiniTile(app, state.focused, Modifier.size(tileW, tileH))
-                                if (index >= 0) {
-                                    Box(
-                                        Modifier.align(Alignment.TopEnd).padding(4.dp).size(20.dp).clip(CircleShape).background(Palette.Green),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        BasicText("${index + 1}", style = Type.Caption.copy(color = Color.White, textAlign = androidx.compose.ui.text.style.TextAlign.Center))
-                                    }
-                                } else {
-                                    Box(Modifier.matchParentSize().clip(RoundedCornerShape(10.dp)).background(Color.Black.copy(alpha = 0.35f)))
-                                }
-                            }
-                            Spacer(Modifier.height(4.dp))
-                            BasicText(
-                                app.label, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                style = Type.Caption.copy(color = if (state.focused || index >= 0) Palette.Label else Palette.SecondaryLabel),
-                                modifier = Modifier.width(tileW),
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}

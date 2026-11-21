@@ -752,7 +752,9 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         }
         // With a PIN set the phone page can set the mode up too.
         val kids = Restricted.enabled || overlay == Overlay.Kids || AerialSettings.pinSet
-        kidsCandidates = if (!kids) emptyList() else {
+        // 面板一打开就要能列出卡片, 所以这份候选名单无条件算; 只有包名登记还看 kids。
+        // (之前跟着 kids 判空, 没设密码时窗口里"直播卡片"就是一片空白。)
+        kidsCandidates = run {
             val unpinned = shownSources.filter { it.id !in AerialSettings.pinnedSources }.map { sourceEntry(context, it) }
             arrangement.home.flatMap { e -> e.folder?.let { arrangement.folders[it.id].orEmpty() } ?: listOf(e) } +
                 arrangement.hidden + unpinned
