@@ -757,7 +757,7 @@ private fun AboutSection(homeStatus: HomeStatus) {
             if (install.fraction <= 0f) stringResource(R.string.cc_update_connecting)
             else stringResource(R.string.cc_update_downloading, (install.fraction * 100).toInt())
         Updates.Install.Waiting -> stringResource(R.string.cc_update_waiting)
-        else -> if (latest != null) stringResource(R.string.cc_update_to, latest) else stringResource(R.string.cc_about_latest)
+        else -> if (latest != null) stringResource(R.string.cc_update_to, latest) else stringResource(R.string.cc_about_check)
     }
     val status = when (install) {
         is Updates.Install.Downloading ->
@@ -778,7 +778,9 @@ private fun AboutSection(homeStatus: HomeStatus) {
         else -> stringResource(R.string.cc_about_version, Updates.current)
     }
     Group {
-        Cell(R.string.cc_about_update, status + " · " + BuildConfig.FLAVOR) { onFocus ->
+        // 说明行只写状态: "版本 3.85", 下载中写"正在下载… 40%", 出错写原因。
+        // 以前尾巴上还拼了 FLAVOR(standard), 就成了"正在连接下载源 · standard"这种看不懂的句子。
+        Cell(R.string.cc_about_update, status) { onFocus ->
             ChipButton(
                 buttonText,
                 on = false,

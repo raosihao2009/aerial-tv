@@ -303,4 +303,5 @@
     <string name="cc_about_version">Версія %1$s</string>
     <string name="cc_update_to">Оновити до %1$s</string>
     <string name="kids_required">Обов\'язково</string>
+    <string name="cc_about_check">Перевірити оновлення</string>
 </resources>

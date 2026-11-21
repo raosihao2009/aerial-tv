@@ -70,6 +70,12 @@ import app.orchard.tv.ui.theme.GlyphIcon
 import app.orchard.tv.ui.theme.Motion
 import app.orchard.tv.ui.theme.Palette
 import app.orchard.tv.ui.theme.Type
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import app.orchard.tv.ui.wallpaper.Cell
 import app.orchard.tv.ui.wallpaper.ChipButton
 import app.orchard.tv.ui.wallpaper.ChoiceCell
@@ -335,7 +341,8 @@ private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier, leftTarg
                 Row(
                     Modifier
                         .clip(RoundedCornerShape(50))
-                        .background(if (st.focused) Palette.Focus else Palette.Fill)
+                        // 聚焦只让"当前这一页"那颗变成白底, 不再整条胶囊一起变白
+                        .background(Palette.Fill)
                         .height(32.dp)
                         .padding(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -347,7 +354,7 @@ private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier, leftTarg
                                 .clip(RoundedCornerShape(50))
                                 .background(
                                     when {
-                                        active && st.focused -> Palette.OnFocus.copy(alpha = 0.22f)
+                                        active && st.focused -> Palette.Focus
                                         active -> Palette.FillStrong
                                         else -> Color.Transparent
                                     },
@@ -362,7 +369,7 @@ private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier, leftTarg
                                     color = when {
                                         active && st.focused -> Palette.OnFocus
                                         active -> Palette.Label
-                                        st.focused -> Palette.OnFocus.copy(alpha = 0.62f)
+                                        st.focused -> Palette.Label
                                         else -> Palette.SecondaryLabel
                                     },
                                 ),
@@ -390,67 +397,61 @@ private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier, leftTarg
         val items = if (tab == 0) live else appsOnly
         // 编号只看本组里的勾选顺序: 直播卡片和应用卡片各自从 1 开始, 不串号。
         val allowedInGroup = allowed.filter { k -> items.any { it.key == k } }
-        Column(
-            Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                // Room for the focused tile's scale.
-                .padding(horizontal = 6.dp, vertical = 6.dp),
+        // 两页都是一排三张(用户口径)。用固定三列的网格, 宽度由网格自己分, 不会叠在一起,
+        // 卡片多了就往下排、整块自己滚。
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(3),
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            if (items.isEmpty() && !(tab == 0 && live.isEmpty())) {
-                BasicText(
-                    stringResource(R.string.kids_loading),
-                    style = Type.Caption.copy(color = Palette.SecondaryLabel),
-                    modifier = Modifier.padding(top = 6.dp),
-                )
+            if (items.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    BasicText(
+                        stringResource(if (tab == 0) R.string.kw_live_none else R.string.kids_loading),
+                        style = Type.Caption.copy(color = Palette.SecondaryLabel),
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                }
             }
-            // 两页都是一排三张(用户口径), 宽度按网格算, 换面板宽度也不会挤出右边。
-            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
-                val gap = 14.dp
-                val w = (maxWidth - gap * 2) / 3
-                val h = w / 1.78f
-                items.chunked(3).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(gap), modifier = Modifier.padding(bottom = 12.dp)) {
-                        row.forEachIndexed { colIdx, app ->
-                            val index = allowedInGroup.indexOf(app.key)
-                            // 只有每排第一张按左才回到左侧选项, 别的都留在卡片之间。
-                            val locked = app.key in locks
-                            Pressable(
-                                onClick = {
-                                    // 必选/被锁的卡片按下去不给取消, 只响一声撞边音。
-                                    if (locked) Sounds.limit() else {
-                                        Restricted.toggleAllowed(app.key)
-                                        enforceModeRules(candidates)
-                                    }
-                                },
-                                modifier = if (colIdx == 0) Modifier.focusProperties { leftTarget?.let { left = it } } else Modifier,
-                                focusedScale = 1.08f,
-                            ) { state ->
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Box {
-                                        MiniTile(app, state.focused, Modifier.size(w, h))
-                                        if (index >= 0) {
-                                            // The place it takes on the mode's Home.
-                                            Box(
-                                                Modifier.align(Alignment.TopEnd).padding(4.dp).size(20.dp).clip(CircleShape).background(Palette.Green),
-                                                contentAlignment = Alignment.Center,
-                                            ) {
-                                                BasicText("${index + 1}", style = Type.Caption.copy(color = Color.White, textAlign = TextAlign.Center))
-                                            }
-                                        } else {
-                                            Box(Modifier.matchParentSize().clip(RoundedCornerShape(10.dp)).background(Color.Black.copy(alpha = 0.35f)))
-                                        }
-                                    }
-                                    Spacer(Modifier.height(5.dp))
-                                    BasicText(
-                                        if (locked) app.label + " · " + stringResource(R.string.kids_required) else app.label,
-                                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                        style = Type.Caption.copy(color = if (state.focused || index >= 0) Palette.Label else Palette.SecondaryLabel),
-                                        modifier = Modifier.width(w),
-                                    )
+            itemsIndexed(items, key = { _, app -> app.key }) { idx, app ->
+                val index = allowedInGroup.indexOf(app.key)
+                // 只有每排第一张按左才回到左侧选项, 别的都留在卡片之间。
+                val locked = app.key in locks
+                Pressable(
+                    onClick = {
+                        // 必选/被锁的卡片按下去不给取消, 只响一声撞边音。
+                        if (locked) Sounds.limit() else {
+                            Restricted.toggleAllowed(app.key)
+                            enforceModeRules(candidates)
+                        }
+                    },
+                    modifier = if (idx % 3 == 0) Modifier.focusProperties { leftTarget?.let { left = it } } else Modifier,
+                    focusedScale = 1.08f,
+                ) { state ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+                            MiniTile(app, state.focused, Modifier.fillMaxSize())
+                            if (index >= 0) {
+                                // The place it takes on the mode's Home.
+                                Box(
+                                    Modifier.align(Alignment.TopEnd).padding(4.dp).size(20.dp).clip(CircleShape).background(Palette.Green),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    BasicText("${index + 1}", style = Type.Caption.copy(color = Color.White, textAlign = TextAlign.Center))
                                 }
+                            } else {
+                                Box(Modifier.matchParentSize().clip(RoundedCornerShape(10.dp)).background(Color.Black.copy(alpha = 0.35f)))
                             }
                         }
+                        Spacer(Modifier.height(5.dp))
+                        BasicText(
+                            if (locked) app.label + " · " + stringResource(R.string.kids_required) else app.label,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            style = Type.Caption.copy(color = if (state.focused || index >= 0) Palette.Label else Palette.SecondaryLabel),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
                 }
             }
