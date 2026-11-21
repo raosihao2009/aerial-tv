@@ -271,7 +271,6 @@ fun WallpaperSheet(
         val popupHost = remember { PopupHost() }
         // 关于里的"更新到 x.y"和家庭守护里的"儿童与长辈模式": 都在面板里浮一个小窗口,
         // 不再整屏跳控制中心的更新页 / 也不再盖一张整屏的设置卡片。
-        val updateWindow = remember { CardWindow() }
         Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(
             LocalMenuWindow provides menuWindow,
@@ -311,7 +310,7 @@ fun WallpaperSheet(
             // 密码框关掉后还焦点, 位置还是原来那一屏。
             var heldScroll by remember { mutableStateOf(-1) }
             // 密码框盖着、或者面板里的小窗口开着: 都算"面板此刻不该动", 同帧钉住。
-            val pinScroll = holdFocus || updateWindow.open
+            val pinScroll = holdFocus
             LaunchedEffect(pinScroll) {
                 if (!pinScroll) {
                     heldScroll = -1
@@ -353,7 +352,7 @@ fun WallpaperSheet(
                 // 控制中心只在有新版时留一个入口)。以前的"检查更新"按钮搬到这里。
                 Spacer(Modifier.height(18.dp))
                 CategoryTitle(Glyph.Info, R.string.cc_about)
-                AboutSection(homeStatus, updateWindow)
+                AboutSection(homeStatus)
                 Spacer(Modifier.height(24.dp))
             }
             Spacer(Modifier.width(18.dp))
@@ -366,7 +365,6 @@ fun WallpaperSheet(
         }
         // 迷你窗口画在最上层: 不用独立窗口, 焦点始终在入口按钮上。
         MenuWindowLayer(menuWindow)
-        CardWindowLayer(updateWindow, focusMemory) { close -> UpdateWindowContent(close) }
         // 小窗口里不再带标题行: 「隐藏的卡片·应用 / ·直播」那两行字去掉, 直接从第一张卡片开始。
         ListWindowLayer(
             popupHost.apps,
@@ -748,30 +746,49 @@ private fun WeatherSection() {
 
 /** 关于: 版本号、更新入口和桌面接管状态。 */
 @Composable
-private fun AboutSection(homeStatus: HomeStatus, window: CardWindow) {
+private fun AboutSection(homeStatus: HomeStatus) {
+    val context = LocalContext.current
     val latest = Updates.available
-    var chipX by remember { mutableStateOf(0f) }
-    var chipY by remember { mutableStateOf(0f) }
+    val install = Updates.install
+    val canInstall = remember { Updates.canInstall(context) }
+    // 更新就做在选项里: 一颗按钮(有新版按下去直接下载/安装, 没新版按下去重新查), 状态写在说明行。
+    val buttonText = when (install) {
+        is Updates.Install.Downloading ->
+            if (install.fraction <= 0f) stringResource(R.string.cc_update_connecting)
+            else stringResource(R.string.cc_update_downloading, (install.fraction * 100).toInt())
+        Updates.Install.Waiting -> stringResource(R.string.cc_update_waiting)
+        else -> if (latest != null) stringResource(R.string.cc_update_to, latest) else stringResource(R.string.cc_about_latest)
+    }
+    val status = when (install) {
+        is Updates.Install.Downloading ->
+            if (install.fraction <= 0f) stringResource(R.string.cc_update_connecting)
+            else stringResource(R.string.cc_update_downloading, (install.fraction * 100).toInt())
+        is Updates.Install.Failed -> stringResource(
+            when (install.reason) {
+                Updates.Failure.Download -> R.string.cc_update_failed_download
+                Updates.Failure.Blocked -> R.string.cc_update_failed_blocked
+                Updates.Failure.NotOfficial -> R.string.cc_update_failed_signature
+                Updates.Failure.NotNewer -> R.string.cc_update_failed_older
+            },
+        )
+        Updates.Install.Opened -> stringResource(R.string.cc_update_opened)
+        Updates.Install.NeedsPermission -> stringResource(R.string.cc_update_permission)
+        Updates.Install.NeedsStoragePermission -> stringResource(R.string.cc_update_storage_permission)
+        Updates.Install.Waiting -> stringResource(R.string.cc_update_waiting)
+        else -> stringResource(R.string.cc_about_version, Updates.current)
+    }
     Group {
-        Cell(
-            R.string.cc_about_update,
-            stringResource(R.string.cc_about_version, Updates.current) + " · " + BuildConfig.FLAVOR,
-        ) { onFocus ->
-            Box(Modifier.onGloballyPositioned { c ->
-                val b = c.boundsInRoot()
-                chipX = b.center.x
-                chipY = b.top
-            }) {
-                ChipButton(
-                    if (latest != null) stringResource(R.string.cc_update_to, latest) else stringResource(R.string.cc_about_latest),
-                    on = false,
-                    chevron = true,
-                    check = false,
-                    // 有新版就在面板里浮出下载小窗口; 没有就当场再查一次。
-                    onClick = { if (latest != null) window.show(chipX, chipY, 560) else Updates.checkIfStale(force = true) },
-                    onFocus = onFocus,
-                )
-            }
+        Cell(R.string.cc_about_update, status + " · " + BuildConfig.FLAVOR) { onFocus ->
+            ChipButton(
+                buttonText,
+                on = false,
+                chevron = latest != null,
+                check = false,
+                onClick = {
+                    if (latest != null && canInstall) Updates.install(context) else Updates.checkIfStale(force = true)
+                },
+                onFocus = onFocus,
+            )
         }
     }
     // 桌面接管状态只说明事实, 不是控件: 画成一行不带焦点的字。
@@ -789,7 +806,6 @@ private fun AboutSection(homeStatus: HomeStatus, window: CardWindow) {
     }
     Spacer(Modifier.height(12.dp))
 }
-
 /** 亲子守护: 密码与儿童/长辈模式的入口。 */
 @Composable
 private fun FamilySection(onPin: (on: Boolean) -> Unit, onKids: () -> Unit) {
@@ -1330,28 +1346,6 @@ private class SheetFocusMemory {
 }
 
 private val LocalSheetFocus = compositionLocalOf<SheetFocusMemory?> { null }
-
-/**
- * 面板里"内容型"的迷你窗口(更新下载、儿童与长辈模式): 和选项窗口同一套气泡,
- * 但里面放的不是一行选项, 而是一整块自己的内容(按钮、开关、卡片), 也拿自己的焦点。
- */
-private class CardWindow {
-    var open by mutableStateOf(false)
-    var anchorX = 0f
-    var anchorY = 0f
-    var widthDp = 560
-    var openedAt = 0L
-
-    fun show(anchorX: Float, anchorY: Float, widthDp: Int) {
-        this.anchorX = anchorX
-        this.anchorY = anchorY
-        this.widthDp = widthDp
-        this.openedAt = SystemClock.uptimeMillis()
-        open = true
-    }
-
-    fun hide() { open = false }
-}
 
 private val LocalMenuWindow = compositionLocalOf<MenuWindow?> { null }
 
@@ -2143,105 +2137,6 @@ private val SheetCorner = 30.dp
  */
 val SheetCovers = SheetHeight - SheetCorner
 
-/**
- * 内容小窗口的壳子: 和选项窗口同一块气泡、同一颗三角, 锚在入口按钮上; 只是里面装的是内容,
- * 不是一列选项。开着的时候面板里的按钮整片不可聚焦(不跟窗口抢), 窗口自己拿一套焦点;
- * 关掉时焦点回到入口那颗按钮。
- */
-@Composable
-private fun CardWindowLayer(
-    window: CardWindow,
-    memory: SheetFocusMemory,
-    content: @Composable (close: () -> Unit) -> Unit,
-) {
-    val gap = 10.dp
-    val edge = 8.dp
-    var originX by remember { mutableStateOf(0f) }
-    var originY by remember { mutableStateOf(0f) }
-    var winSize by remember { mutableStateOf(IntSize.Zero) }
-    var shown by remember { mutableStateOf(false) }
-    var placed by remember { mutableStateOf(false) }
-    var alive by remember { mutableStateOf(window.open) }
-    val windowMemory = remember { SheetFocusMemory() }
-    LaunchedEffect(window.openedAt) {
-        winSize = IntSize.Zero
-        placed = false
-        shown = false
-    }
-    LaunchedEffect(placed, window.open) { if (placed && window.open) shown = true }
-    LaunchedEffect(window.open) {
-        if (window.open) {
-            alive = true
-        } else if (alive) {
-            shown = false
-            delay(MiniExitMs)
-            alive = false
-            memory.last?.let { runCatching { it.requestFocus() } }
-        }
-    }
-    if (!alive) return
-    val scale by animateFloatAsState(
-        if (shown) 1f else 0.92f,
-        spring(dampingRatio = 1f, stiffness = 800f), label = "card-window-scale",
-    )
-    val alpha by animateFloatAsState(if (shown) 1f else 0f, tween(120, easing = Motion.EaseOut), label = "card-window-alpha")
-
-    BoxWithConstraints(
-        Modifier.fillMaxSize().onGloballyPositioned {
-            val at = it.positionInRoot()
-            originX = at.x
-            originY = at.y
-        },
-    ) {
-        val density = LocalDensity.current
-        val fullW = with(density) { maxWidth.toPx() }
-        val fullH = with(density) { maxHeight.toPx() }
-        val ax = window.anchorX - originX
-        val ay = window.anchorY - originY
-        val gapPx = with(density) { gap.toPx() }
-        val edgePx = with(density) { edge.toPx() }
-        val x = if (winSize.width == 0) ax else
-            (ax - winSize.width / 2f).coerceIn(edgePx, (fullW - winSize.width - edgePx).coerceAtLeast(edgePx))
-        // 入口多在面板下半截: 窗口往上长, 顶到屏幕上边就当场收一收。
-        val top = (ay - winSize.height - gapPx).coerceAtLeast(edgePx)
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .offset { IntOffset(x.roundToInt(), top.roundToInt()) }
-                .onGloballyPositioned {
-                    winSize = it.size
-                    if (it.size.width > 0 && it.size.height > 0) placed = true
-                }
-                .drawWithContent { if (placed) drawContent() }
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                    this.alpha = alpha
-                    transformOrigin = TransformOrigin(0.5f, 1f)
-                }
-                .bubbleGlass(
-                    corner = 22.dp,
-                    tailHalf = 9.dp,
-                    tailHeight = MiniTailHeight,
-                    tailX = { with(density) { (ax - x).toDp() } },
-                )
-                .onPreviewKeyEvent { e ->
-                    // 返回键只管收这个窗口, 不传下去把整块面板关掉。
-                    if (e.nativeKeyEvent.keyCode == NativeKeyEvent.KEYCODE_BACK && e.type == KeyEventType.KeyDown) {
-                        window.hide()
-                        true
-                    } else {
-                        false
-                    }
-                },
-        ) {
-            CompositionLocalProvider(LocalSheetFocus provides windowMemory) {
-                content { window.hide() }
-            }
-        }
-    }
-}
-
 private val KIDS_DAY_MINUTES = listOf(0, 30, 60, 90, 120)
 private val KIDS_END_MINUTES = listOf(0, 20 * 60, 21 * 60, 22 * 60)
 private val KIDS_BREAKS = listOf(0, 30, 45, 60)
@@ -2249,76 +2144,3 @@ private val KIDS_BREAKS = listOf(0, 30, 45, 60)
 /** 预设之外, 手机网页里设过的那个值也要留在选项里, 否则一点就看不出来当前是什么。 */
 private fun withCustomMinutes(presets: List<Int>, current: Int): List<Int> =
     (presets + current).distinct().sorted()
-
-/** 「更新到 x.yy」按下后浮出来的下载小窗口: 下载、进度、装好后的提示, 都在这块气泡里。 */
-@Composable
-private fun UpdateWindowContent(close: () -> Unit) {
-    val context = LocalContext.current
-    val first = remember { FocusRequester() }
-    val canInstall = remember { Updates.canInstall(context) }
-    LaunchedEffect(Unit) {
-        repeat(20) {
-            if (runCatching { first.requestFocus() }.isSuccess) return@LaunchedEffect
-            withFrameNanos { }
-        }
-    }
-    // 小窗口只留"下载/安装 + 状态行", 二维码、扫码说明和关闭按钮都去掉: 窗口本身按返回键就能收。
-    Column(Modifier.width(560.dp).padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 16.dp)) {
-        BasicText(
-            stringResource(R.string.cc_update_title, Updates.available ?: Updates.current),
-            style = Type.Headline,
-        )
-        Spacer(Modifier.height(4.dp))
-        val state = Updates.install
-        if (canInstall) {
-            Row(Modifier.padding(top = 10.dp)) {
-                Pressable(
-                    onClick = { Updates.install(context) },
-                    focusRequester = first,
-                ) { s ->
-                    Row(
-                        Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(if (s.focused) Palette.Focus else Palette.Fill)
-                            .height(34.dp)
-                            .padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(7.dp),
-                    ) {
-                        GlyphIcon(Glyph.Download, if (s.focused) Palette.OnFocus else Palette.Label, 15.dp)
-                        BasicText(
-                            when (state) {
-                                is Updates.Install.Downloading ->
-                                    if (state.fraction <= 0f) stringResource(R.string.cc_update_connecting)
-                                    else stringResource(R.string.cc_update_downloading, (state.fraction * 100).toInt())
-                                Updates.Install.Waiting -> stringResource(R.string.cc_update_waiting)
-                                else -> stringResource(R.string.cc_update_install)
-                            },
-                            style = Type.Callout.copy(color = if (s.focused) Palette.OnFocus else Palette.Label),
-                        )
-                    }
-                }
-            }
-        }
-        val status = when (state) {
-            Updates.Install.Waiting -> stringResource(R.string.cc_update_waiting)
-            Updates.Install.Opened -> stringResource(R.string.cc_update_opened)
-            Updates.Install.NeedsPermission -> stringResource(R.string.cc_update_permission)
-            Updates.Install.NeedsStoragePermission -> stringResource(R.string.cc_update_storage_permission)
-            is Updates.Install.Failed -> stringResource(
-                when (state.reason) {
-                    Updates.Failure.Download -> R.string.cc_update_failed_download
-                    Updates.Failure.Blocked -> R.string.cc_update_failed_blocked
-                    Updates.Failure.NotOfficial -> R.string.cc_update_failed_signature
-                    Updates.Failure.NotNewer -> R.string.cc_update_failed_older
-                },
-            )
-            else -> stringResource(R.string.cc_update_current, Updates.current)
-        }
-        BasicText(
-            status,
-            style = Type.Caption.copy(color = Palette.SecondaryLabel),
-            modifier = Modifier.padding(top = 10.dp),
-        )
-    }
-}

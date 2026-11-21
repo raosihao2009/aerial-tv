@@ -196,8 +196,9 @@ private fun SetupSettings(hasApps: Boolean, onStart: () -> Unit, first: FocusReq
             note?.let { BasicText(it, style = Type.Caption.copy(color = Palette.TertiaryLabel), maxLines = 2, overflow = TextOverflow.Ellipsis) }
         }
         val start = stringResource(if (kids) R.string.kids_start_kids else R.string.kids_start_elders)
+        val startFocus = remember { FocusRequester() }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            WideButton(start, Glyph.Kids, onClick = { if (Restricted.allowed.isNotEmpty()) onStart() })
+            WideButton(start, Glyph.Kids, focusRequester = startFocus, onClick = { if (Restricted.allowed.isNotEmpty()) onStart() })
             Spacer(Modifier.width(14.dp))
             if (Restricted.allowed.isEmpty()) {
                 BasicText(
@@ -205,7 +206,11 @@ private fun SetupSettings(hasApps: Boolean, onStart: () -> Unit, first: FocusReq
                     style = Type.Caption.copy(color = Palette.Orange), maxLines = 2,
                 )
             } else if (Restricted.enabled) {
-                WideButton(stringResource(R.string.kids_turn_off), null, onClick = { Restricted.chooseEnabled(false); KidsWatch.poke() })
+                WideButton(stringResource(R.string.kids_turn_off), null, onClick = {
+                    Restricted.chooseEnabled(false); KidsWatch.poke()
+                    // 这颗按钮一按就消失(模式已关), 焦点要落回「进入」按钮, 不能凭空丢掉。
+                    startFocus.requestFocus()
+                })
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -369,15 +374,15 @@ private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier, leftTarg
                     modifier = Modifier.padding(top = 6.dp),
                 )
             }
-            items.chunked(perRow).forEachIndexed { rowIdx, row ->
+            items.chunked(perRow).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(bottom = 12.dp)) {
-                    row.forEach { app ->
+                    row.forEachIndexed { colIdx, app ->
                         val index = allowedInGroup.indexOf(app.key)
                         val w = if (tab == 0) 150.dp else 112.dp
                         val h = if (tab == 0) 84.dp else 63.dp
                         Pressable(
                             onClick = { Restricted.toggleAllowed(app.key) },
-                            modifier = if (rowIdx == 0) Modifier.focusProperties { leftTarget?.let { left = it } } else Modifier,
+                            modifier = if (colIdx == 0) Modifier.focusProperties { leftTarget?.let { left = it } } else Modifier,
                             focusedScale = 1.08f,
                         ) { state ->
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
