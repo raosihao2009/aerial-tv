@@ -265,6 +265,9 @@
     <string name="ss_show_caption">地点</string>
     <string name="ss_show_caption_hint">航拍屏保左下角的地名，照片屏保上的图片标题。</string>
     <string name="wp_window_close">关闭</string>
+    <string name="kw_tab_settings">选项</string>
+    <string name="kw_tab_live">直播卡片</string>
+    <string name="kw_tab_apps">应用</string>
 
     <!-- Kids and Elders mode (settings/Restricted) -->
     <string name="kids_title">儿童与长辈模式</string>

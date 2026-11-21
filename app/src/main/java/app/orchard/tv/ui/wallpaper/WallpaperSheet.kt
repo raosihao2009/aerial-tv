@@ -311,8 +311,10 @@ fun WallpaperSheet(
             // (看上去像"自己跳到天气与时钟")。持焦这段把滚动位置钉住, 松手再放开,
             // 密码框关掉后还焦点, 位置还是原来那一屏。
             var heldScroll by remember { mutableStateOf(-1) }
-            LaunchedEffect(holdFocus) {
-                if (!holdFocus) {
+            // 密码框盖着、或者面板里的小窗口开着: 都算"面板此刻不该动", 同帧钉住。
+            val pinScroll = holdFocus || updateWindow.open || kidsWindow.open
+            LaunchedEffect(pinScroll) {
+                if (!pinScroll) {
                     heldScroll = -1
                     return@LaunchedEffect
                 }
@@ -1117,10 +1119,8 @@ private fun ChipButton(
     val owner = remember { Any() }
     val memory = LocalSheetFocus.current
     val ownRequester = remember { FocusRequester() }
-    val holding = memory?.holding == true
     Pressable(
         onClick = onClick, focusRequester = focusRequester ?: ownRequester, focusedScale = 1f, onKey = onKey,
-        enabled = !holding,
         // 同步回调: 气泡描边和按钮自己的白底必须同一帧开始变, 走 LaunchedEffect 会晚一帧
         onFocusState = { got ->
             onFocus(owner, got)
@@ -2184,10 +2184,8 @@ private fun CardWindowLayer(
             memory.holding = true
         } else if (alive) {
             shown = false
-            windowMemory.holding = true
             delay(MiniExitMs)
             alive = false
-            windowMemory.holding = false
             memory.holding = false
             memory.last?.let { runCatching { it.requestFocus() } }
         }
@@ -2376,7 +2374,7 @@ private fun UpdateWindowContent(close: () -> Unit) {
     }
 }
 
-/** 「儿童与长辈模式」的设置: 面板样式的选项(格子 + 胶囊) + 直播卡片与应用的候选, 全在一块小窗口里。 */
+/** 「儿童与长辈模式」: 一块小窗口三页签 —— 选项、直播卡片、应用, 由页签切换, 窗口就不用摊开那么大。 */
 @Composable
 private fun KidsWindowContent(candidates: List<AppEntry>, close: () -> Unit, onStart: () -> Unit) {
     val first = remember { FocusRequester() }
@@ -2393,123 +2391,168 @@ private fun KidsWindowContent(candidates: List<AppEntry>, close: () -> Unit, onS
     val sources = candidates.filter { it.source != null }
     val appsOnly = candidates.filter { it.source == null }
     val hasAny = candidates.isNotEmpty()
-    Column(Modifier.width(1180.dp).padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 14.dp)) {
+    var tab by remember { mutableStateOf(0) }
+
+    Column(Modifier.width(820.dp).padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             GlyphIcon(Glyph.Kids, Palette.Label, 22.dp)
             Spacer(Modifier.width(10.dp))
             BasicText(stringResource(R.string.st_kids), style = Type.Headline)
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(10.dp))
             BasicText(
                 stringResource(R.string.kids_hint),
                 style = Type.Caption.copy(color = Palette.SecondaryLabel),
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
-        Column(
-            Modifier
-                .padding(top = 10.dp)
-                .heightIn(max = 470.dp)
-                .verticalScroll(rememberScrollState()),
+        // 三页签: 选项 / 直播卡片 / 应用
+        Row(
+            Modifier.padding(top = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Group {
-                Row2(
-                    {
-                        ChoiceCell(
-                            R.string.kids_kind,
-                            stringResource(if (kids) R.string.kids_kind_kids_hint else R.string.kids_kind_elders_hint),
-                            listOf(RestrictedKind.Kids to R.string.kids_kind_kids, RestrictedKind.Elders to R.string.kids_kind_elders),
-                            if (kids) RestrictedKind.Kids else RestrictedKind.Elders,
-                            { kind ->
-                                // 各自从一个合适的起点开始: 儿童拦别的 App, 长辈放行。
-                                Restricted.chooseKind(kind)
-                                Restricted.chooseBlockOthers(kind == RestrictedKind.Kids)
-                                KidsWatch.poke()
-                            },
+            listOf(
+                R.string.kw_tab_settings,
+                R.string.kw_tab_live,
+                R.string.kw_tab_apps,
+            ).forEachIndexed { index, label ->
+                Pressable(
+                    onClick = { tab = index },
+                    focusRequester = if (index == 0) first else null,
+                ) { st ->
+                    val bg = when {
+                        st.focused -> Palette.Focus
+                        tab == index -> Palette.FillStrong
+                        else -> Palette.Fill
+                    }
+                    Row(
+                        Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(bg)
+                            .height(34.dp)
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        BasicText(
+                            stringResource(label),
+                            style = Type.Callout.copy(color = if (st.focused) Palette.OnFocus else Palette.Label),
                         )
-                    },
-                    {
-                        ChoiceCell(
-                            R.string.kids_block,
-                            stringResource(if (guard) R.string.kids_block_hint else R.string.kids_block_no_guard),
-                            listOf(true to R.string.kids_block_on, false to R.string.kids_block_off),
-                            Restricted.blockOthers,
-                            { on -> Restricted.chooseBlockOthers(on); KidsWatch.poke() },
-                        )
-                    },
-                )
-                val minutesHint = stringResource(R.string.kids_minutes_hint)
-                Row2(
-                    {
-                        ChoiceCell(
-                            R.string.kids_weekday, minutesHint,
-                            withCustomMinutes(KIDS_DAY_MINUTES, rules.weekdayMinutes)
-                                .map { m -> m to (if (m == 0) stringResource(R.string.kids_no_limit) else m.toString()) as Any },
-                            rules.weekdayMinutes,
-                            { m -> Restricted.chooseRules(rules.copy(weekdayMinutes = m)); KidsWatch.poke() },
-                        )
-                    },
-                    {
-                        ChoiceCell(
-                            R.string.kids_weekend, minutesHint,
-                            withCustomMinutes(KIDS_DAY_MINUTES, rules.weekendMinutes)
-                                .map { m -> m to (if (m == 0) stringResource(R.string.kids_no_limit) else m.toString()) as Any },
-                            rules.weekendMinutes,
-                            { m -> Restricted.chooseRules(rules.copy(weekendMinutes = m)); KidsWatch.poke() },
-                        )
-                    },
-                )
-                Row2(
-                    {
-                        ChoiceCell(
-                            R.string.kids_latest, stringResource(R.string.kids_latest_hint, KidsTime.clock(rules.startMinute)),
-                            withCustomMinutes(KIDS_END_MINUTES, rules.endMinute)
-                                .map { m -> m to (if (m == 0) stringResource(R.string.kids_no_limit) else KidsTime.clock(m)) as Any },
-                            rules.endMinute,
-                            { m ->
-                                val next = rules.copy(endMinute = m)
-                                Restricted.chooseRules(if (next.valid) next else next.copy(startMinute = KidsTime.DEFAULT_START))
-                                KidsWatch.poke()
-                            },
-                        )
-                    },
-                    {
-                        ChoiceCell(
-                            R.string.kids_break, stringResource(R.string.kids_break_hint, rules.breakMinutes),
-                            withCustomMinutes(KIDS_BREAKS, rules.breakEvery)
-                                .map { m -> m to (if (m == 0) stringResource(R.string.st_off) else m.toString()) as Any },
-                            rules.breakEvery,
-                            { m -> Restricted.chooseRules(rules.copy(breakEvery = m)); KidsWatch.poke() },
-                        )
-                    },
-                )
-            }
-            // 直播卡片与应用分开摆: 直播源在这块模式里当一张卡用, 选一张就等于放行一个可以看台的口子。
-            if (!hasAny) {
-                BasicText(
-                    stringResource(R.string.kids_loading),
-                    style = Type.Caption.copy(color = Palette.Orange),
-                    modifier = Modifier.padding(top = 12.dp),
-                )
-            } else {
-                if (sources.isNotEmpty()) {
-                    Spacer(Modifier.height(12.dp))
-                    BasicText(stringResource(R.string.kids_sources_note), style = Type.Caption.copy(color = Palette.SecondaryLabel))
-                    Spacer(Modifier.height(6.dp))
-                    KidsCards(sources, allowed, tileW = 150.dp, tileH = 84.dp, perRow = 6)
-                }
-                if (appsOnly.isNotEmpty()) {
-                    Spacer(Modifier.height(10.dp))
-                    BasicText(stringResource(R.string.kids_apps, allowed.size), style = Type.Caption.copy(color = Palette.SecondaryLabel))
-                    Spacer(Modifier.height(6.dp))
-                    KidsCards(appsOnly, allowed, tileW = 118.dp, tileH = 66.dp, perRow = 8)
+                    }
                 }
             }
         }
-        Spacer(Modifier.height(12.dp))
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 10.dp)
+                .heightIn(min = 300.dp, max = 340.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            when (tab) {
+                0 -> Group {
+                    Row2(
+                        {
+                            ChoiceCell(
+                                R.string.kids_kind,
+                                stringResource(if (kids) R.string.kids_kind_kids_hint else R.string.kids_kind_elders_hint),
+                                listOf(RestrictedKind.Kids to R.string.kids_kind_kids, RestrictedKind.Elders to R.string.kids_kind_elders),
+                                if (kids) RestrictedKind.Kids else RestrictedKind.Elders,
+                                { kind ->
+                                    // 各自从一个合适的起点开始: 儿童拦别的 App, 长辈放行。
+                                    Restricted.chooseKind(kind)
+                                    Restricted.chooseBlockOthers(kind == RestrictedKind.Kids)
+                                    KidsWatch.poke()
+                                },
+                            )
+                        },
+                        {
+                            ChoiceCell(
+                                R.string.kids_block,
+                                stringResource(if (guard) R.string.kids_block_hint else R.string.kids_block_no_guard),
+                                listOf(true to R.string.kids_block_on, false to R.string.kids_block_off),
+                                Restricted.blockOthers,
+                                { on -> Restricted.chooseBlockOthers(on); KidsWatch.poke() },
+                            )
+                        },
+                    )
+                    val minutesHint = stringResource(R.string.kids_minutes_hint)
+                    Row2(
+                        {
+                            ChoiceCell(
+                                R.string.kids_weekday, minutesHint,
+                                withCustomMinutes(KIDS_DAY_MINUTES, rules.weekdayMinutes)
+                                    .map { m -> m to (if (m == 0) stringResource(R.string.kids_no_limit) else m.toString()) as Any },
+                                rules.weekdayMinutes,
+                                { m -> Restricted.chooseRules(rules.copy(weekdayMinutes = m)); KidsWatch.poke() },
+                            )
+                        },
+                        {
+                            ChoiceCell(
+                                R.string.kids_weekend, minutesHint,
+                                withCustomMinutes(KIDS_DAY_MINUTES, rules.weekendMinutes)
+                                    .map { m -> m to (if (m == 0) stringResource(R.string.kids_no_limit) else m.toString()) as Any },
+                                rules.weekendMinutes,
+                                { m -> Restricted.chooseRules(rules.copy(weekendMinutes = m)); KidsWatch.poke() },
+                            )
+                        },
+                    )
+                    Row2(
+                        {
+                            ChoiceCell(
+                                R.string.kids_latest, stringResource(R.string.kids_latest_hint, KidsTime.clock(rules.startMinute)),
+                                withCustomMinutes(KIDS_END_MINUTES, rules.endMinute)
+                                    .map { m -> m to (if (m == 0) stringResource(R.string.kids_no_limit) else KidsTime.clock(m)) as Any },
+                                rules.endMinute,
+                                { m ->
+                                    val next = rules.copy(endMinute = m)
+                                    Restricted.chooseRules(if (next.valid) next else next.copy(startMinute = KidsTime.DEFAULT_START))
+                                    KidsWatch.poke()
+                                },
+                            )
+                        },
+                        {
+                            ChoiceCell(
+                                R.string.kids_break, stringResource(R.string.kids_break_hint, rules.breakMinutes),
+                                withCustomMinutes(KIDS_BREAKS, rules.breakEvery)
+                                    .map { m -> m to (if (m == 0) stringResource(R.string.st_off) else m.toString()) as Any },
+                                rules.breakEvery,
+                                { m -> Restricted.chooseRules(rules.copy(breakEvery = m)); KidsWatch.poke() },
+                            )
+                        },
+                    )
+                }
+
+                1 -> {
+                    if (sources.isEmpty()) {
+                        BasicText(stringResource(R.string.kids_loading), style = Type.Caption.copy(color = Palette.Orange))
+                    } else {
+                        BasicText(stringResource(R.string.kids_sources_note), style = Type.Caption.copy(color = Palette.SecondaryLabel))
+                        Spacer(Modifier.height(8.dp))
+                        KidsCards(sources, allowed, tileW = 150.dp, tileH = 84.dp, perRow = 4)
+                    }
+                }
+
+                else -> {
+                    if (appsOnly.isEmpty()) {
+                        BasicText(stringResource(R.string.kids_loading), style = Type.Caption.copy(color = Palette.Orange))
+                    } else {
+                        BasicText(
+                            stringResource(R.string.kids_apps, allowed.size),
+                            style = Type.Caption.copy(color = Palette.SecondaryLabel),
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        KidsCards(appsOnly, allowed, tileW = 118.dp, tileH = 66.dp, perRow = 5)
+                    }
+                }
+            }
+            if (!hasAny) {
+                Spacer(Modifier.height(8.dp))
+                BasicText(stringResource(R.string.kids_loading), style = Type.Caption.copy(color = Palette.Orange))
+            }
+        }
+        Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Pressable(
                 onClick = { if (allowed.isNotEmpty()) { onStart(); close() } },
-                focusRequester = first,
             ) { s ->
                 Row(
                     Modifier

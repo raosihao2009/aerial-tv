@@ -279,6 +279,9 @@
     <string name="ss_show_caption">Place</string>
     <string name="ss_show_caption_hint">The place name bottom left on the aerial screensaver, and the picture\'s title on the photo screensaver.</string>
     <string name="wp_window_close">Close</string>
+    <string name="kw_tab_settings">Options</string>
+    <string name="kw_tab_live">Live Cards</string>
+    <string name="kw_tab_apps">Apps</string>
 
     <!-- Kids and Elders mode (settings/Restricted) -->
     <string name="kids_title">Kids and Elders</string>

@@ -235,6 +235,9 @@
     <string name="ss_show_caption">Место</string>
     <string name="ss_show_caption_hint">Название места слева внизу на заставке с аэросъёмкой и название снимка на заставке с фото.</string>
     <string name="wp_window_close">Закрыть</string>
+    <string name="kw_tab_settings">Настройки</string>
+    <string name="kw_tab_live">Прямые эфиры</string>
+    <string name="kw_tab_apps">Приложения</string>
 
     <!-- Kids and Elders mode (settings/Restricted) -->
     <string name="kids_title">Дети и пожилые</string>
