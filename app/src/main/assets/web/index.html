@@ -84,6 +84,13 @@
   }
   .gtabs button .glabel { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .gtabs svg { width: 18px; height: 18px; flex: none; }
+  /* 其他页的三颗选项卡: 都带图标和名字, 平分一行; 选中的那颗白底染一个字色。 */
+  .otabs button, .otabs button[aria-checked="true"] {
+    flex: 1 1 0; width: auto; min-width: 0; padding: 0 6px; font-weight: 500;
+    box-shadow: none; background: none; color: var(--secondary);
+  }
+  .otabs button[aria-checked="true"] { background: var(--card); color: var(--tint); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .otabs button span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .wxlist { margin-top: 10px; }
   .pcard .popen { color: var(--tint); justify-content: center; }
   .pcard .popen .txt { flex: 0 1 auto; font-weight: 600; text-align: center; }
@@ -400,7 +407,6 @@
 <header>
   <button class="link back" id="homeBack" hidden><svg width="11" height="18" viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2L2 10l8 8"/></svg><span data-i18n="tab_home"></span></button>
   <h1 id="title"></h1>
-  <p>{{DEVICE}}</p>
 </header>
 
 <!-- Home screen: the TV's tiles, arranged here -->
@@ -422,7 +428,6 @@
 
 <!-- More -->
 <section data-tab="more" hidden>
-  <p class="foot" id="prefsLead"></p>
   <div class="gtabs" id="gtabs" role="tablist"></div>
 
   <!-- 壁纸与屏保: 原来是底部一个单独的 Tab, 现在收进「更多」的分类选项卡里 -->
@@ -460,33 +465,40 @@
   </div>
 
   <div id="prefsFamily" class="pgroup" data-g="family" hidden></div>
-  <!-- 其他: 关于 Aerial、备份与恢复、反馈问题、关机→待机, 单独一个分类。 -->
-  <div class="pgroup" id="prefsOther" data-g="other" hidden>
-  <div id="prefsAbout"></div>
+</section>
 
-  <h2 data-i18n="backup_h"></h2>
-  <div class="list">
-    <a class="item tint center" id="backupBtn" data-i18n="backup_export"></a>
-    <button class="item tint center" id="restoreBtn" data-i18n="backup_import"></button>
-  </div>
-  <p class="foot" data-i18n="backup_hint"></p>
-  <input type="file" id="restoreFile" accept=".zip,application/zip,application/octet-stream" hidden>
+<!-- Other: 关于 Aerial、备份与恢复、反馈问题, 单独一页, 页内三颗选项卡 -->
+<section data-tab="other" hidden>
+  <div class="gtabs otabs" id="otabs" role="tablist"></div>
 
-  <!-- 单独一组放最后: 这是动作不是"关于电视"的说明。 -->
-  <div class="list" id="powerBox" hidden style="margin-top:10px"><button class="item tint center" id="powerOff" data-i18n="power_off"></button></div>
-
-  <h2 data-i18n="feedback_h"></h2>
-  <div class="list">
-    <button class="item tint center" id="diagBtn" data-i18n="diag_show"></button>
-    <button class="item tint center" id="logBtn" data-i18n="diag_export"></button>
-  </div>
-  <pre class="diag" id="diag" hidden></pre>
-  <div class="row" id="diagActions" hidden>
-    <button class="btn" id="diagCopy" data-i18n="diag_copy"></button>
-    <button class="btn plain" id="diagDownload" data-i18n="diag_github"></button>
+  <!-- 关于 Aerial: 版本/检查更新, 下面接关机(待机)。 -->
+  <div class="ogroup" data-o="about">
+    <div id="prefsAbout"></div>
+    <div class="list" id="powerBox" hidden style="margin-top:10px"><button class="item tint center" id="powerOff" data-i18n="power_off"></button></div>
   </div>
 
-  <p class="foot" data-i18n="feedback_hint"></p>
+  <!-- 备份与恢复 -->
+  <div class="ogroup" data-o="backup" hidden>
+    <div class="list">
+      <a class="item tint center" id="backupBtn" data-i18n="backup_export"></a>
+      <button class="item tint center" id="restoreBtn" data-i18n="backup_import"></button>
+    </div>
+    <p class="foot" data-i18n="backup_hint"></p>
+    <input type="file" id="restoreFile" accept=".zip,application/zip,application/octet-stream" hidden>
+  </div>
+
+  <!-- 反馈问题 -->
+  <div class="ogroup" data-o="feedback" hidden>
+    <div class="list">
+      <button class="item tint center" id="diagBtn" data-i18n="diag_show"></button>
+      <button class="item tint center" id="logBtn" data-i18n="diag_export"></button>
+    </div>
+    <pre class="diag" id="diag" hidden></pre>
+    <div class="row" id="diagActions" hidden>
+      <button class="btn" id="diagCopy" data-i18n="diag_copy"></button>
+      <button class="btn plain" id="diagDownload" data-i18n="diag_github"></button>
+    </div>
+    <p class="foot" data-i18n="feedback_hint"></p>
   </div>
 </section>
 </main>
@@ -494,7 +506,8 @@
 <nav role="tablist">
   <button role="tab" data-go="home"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="7" height="6" rx="1.8"/><rect x="13.5" y="4.5" width="7" height="6" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="6" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="6" rx="1.8"/></svg><span data-i18n="tab_home"></span></button>
   <button role="tab" data-go="live"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M10 9.5l5 2.5-5 2.5z" fill="currentColor" stroke="none"/><path d="M8 21h8"/></svg><span data-i18n="tab_live"></span></button>
-  <button role="tab" data-go="more"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="8" cy="12" r=".6" fill="currentColor"/><circle cx="12" cy="12" r=".6" fill="currentColor"/><circle cx="16" cy="12" r=".6" fill="currentColor"/></svg><span data-i18n="tab_more"></span></button>
+  <button role="tab" data-go="more"><svg width="26" height="26" viewBox="0 -960 960 960" fill="currentColor"><path d="M480-280q-83 0-141.5-58.5T280-480q0-83 58.5-141.5T480-680q83 0 141.5 58.5T680-480q0 83-58.5 141.5T480-280ZM70-450q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32Q57.25-510 70-510h100q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H70Zm720 0q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h100q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H790ZM479.82-760q-12.82 0-21.32-8.63-8.5-8.62-8.5-21.37v-100q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v100q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63Zm0 720Q467-40 458.5-48.63 450-57.25 450-70v-100q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v100q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63ZM240-678l-57-56q-9-9-8.63-21.6.37-12.61 8.53-21.5 8.89-8.9 21.5-8.9 12.6 0 21.6 9l56 57q8 9 8 21t-8 20.5q-8 8.5-20.5 8.5t-21.5-8Zm494 495-56-57q-8-9-8-21.38 0-12.37 8.5-20.62 8.5-9 20.5-9t21 9l57 56q9 9 8.63 21.6-.37 12.61-8.53 21.5-8.89 8.9-21.5 8.9-12.6 0-21.6-9Zm-56-495q-9-9-9-21t9-21l56-57q9-9 21.6-8.63 12.61.37 21.5 8.53 8.9 8.89 8.9 21.5 0 12.6-9 21.6l-57 56q-8 8-20.36 8-12.37 0-21.64-8ZM182.9-182.9q-8.9-8.89-8.9-21.5 0-12.6 9-21.6l57-56q8.8-9 20.9-9 12.1 0 20.71 9 9.39 9 9.39 21t-9 21l-56 57q-9 9-21.6 8.63-12.61-.37-21.5-8.53Z"/></svg><span data-i18n="tab_more"></span></button>
+  <button role="tab" data-go="other"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="6.6" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="17.4" cy="12" r="2"/></svg><span data-i18n="tab_other"></span></button>
 </nav>
 
 <div class="sheet-wrap" id="sheet" hidden>
@@ -1246,7 +1259,7 @@ const TEXTS = {
 const LANGS = Object.keys(TEXTS);
 // 后加的文案单独放: KEYS 与 TEXTS 是按位置对齐的老表, 往里插一条就会把后面所有文案错位。
 const EXTRA = {
-  zh: { st_on: "开", st_off: "关", tab_other: "其他",
+  zh: { st_on: "开", st_off: "关", tab_other: "其他", tab_more: "个性化", tab_other_about: "关于 Aerial", tab_other_backup: "备份与恢复", tab_other_feedback: "反馈问题",
         weather_place: "天气位置", weather_place_hint: "顶部问候行和屏保显示的就是这里的天气。",
         g_builtin_more: "内置与更多",
         backup_h: "备份与恢复", backup_export: "导出备份", backup_import: "导入备份",
@@ -1266,7 +1279,7 @@ const EXTRA = {
         ss_sleep: "待机", hint_sleep: "不播屏保: 到时间直接待机, 等同按电源键。多数电视之后只能用遥控器电源键唤醒。",
         sw_saver_place: "屏保显示地点", sw_saver_place_sub: "航拍屏保左下角的地名, 照片屏保的图片标题。",
         power_off: "关机", power_off_confirm: "现在就关掉这台电视?", power_off_done: "已关机", power_off_fail: "关机失败" },
-  en: { st_on: "On", st_off: "Off", tab_other: "Other",
+  en: { st_on: "On", st_off: "Off", tab_other: "Other", tab_more: "Personalise", tab_other_about: "About Aerial", tab_other_backup: "Backup & restore", tab_other_feedback: "Feedback",
         weather_place: "Weather location", weather_place_hint: "The weather in the greeting row and on the screensaver comes from here.",
         g_builtin_more: "Built-in & more",
         backup_h: "Backup & restore", backup_export: "Export backup", backup_import: "Import backup",
@@ -1286,7 +1299,7 @@ const EXTRA = {
         ss_sleep: "Standby", hint_sleep: "No screensaver: when the time comes the TV goes to standby, as with its power button.",
         sw_saver_place: "Place on the screensaver", sw_saver_place_sub: "The place name bottom left on the aerial screensaver, and the picture's title on the photo screensaver.",
         power_off: "Shut Down", power_off_confirm: "Turn this TV off now?", power_off_done: "Turned off", power_off_fail: "Could not turn it off" },
-  ru: { st_on: "Вкл", st_off: "Выкл", tab_other: "Другое",
+  ru: { st_on: "Вкл", st_off: "Выкл", tab_other: "Другое", tab_more: "Персонализация", tab_other_about: "О Aerial", tab_other_backup: "Резервная копия", tab_other_feedback: "Обратная связь",
         weather_place: "Местоположение погоды", weather_place_hint: "Погода в приветствии и на заставке берётся отсюда.",
         g_builtin_more: "Встроенные и ещё",
         backup_h: "Резервная копия", backup_export: "Экспорт копии", backup_import: "Импорт копии",
@@ -1303,7 +1316,7 @@ const EXTRA = {
         backup_locked: "Включён детский режим — сначала разблокируйте PIN-кодом на ТВ",
         backup_packing: "Собираем копию, подождите…", backup_save: "Сохранить копию", backup_pack_fail: "Не удалось собрать копию — попробуйте снова",
         backup_no_reply: "Телевизор не сообщил результат", backup_link_lost: "Связь с телевизором прервалась" },
-  uk: { st_on: "Увімк", st_off: "Вимк", tab_other: "Інше",
+  uk: { st_on: "Увімк", st_off: "Вимк", tab_other: "Інше", tab_more: "Персоналізація", tab_other_about: "Про Aerial", tab_other_backup: "Резервна копія", tab_other_feedback: "Зворотний зв'язок",
         weather_place: "Місце погоди", weather_place_hint: "Погода у вітанні та на заставці береться звідси.",
         g_builtin_more: "Вбудовані та інші",
         backup_h: "Резервна копія", backup_export: "Експорт копії", backup_import: "Імпорт копії",
@@ -1320,7 +1333,7 @@ const EXTRA = {
         backup_locked: "Увімкнено дитячий режим — спочатку розблокуйте PIN-кодом на ТБ",
         backup_packing: "Збираємо копію, зачекайте…", backup_save: "Зберегти копію", backup_pack_fail: "Не вдалося зібрати копію — спробуйте ще раз",
         backup_no_reply: "Телевізор не повідомив результат", backup_link_lost: "Зв'язок із телевізором обірвався" },
-  kk: { st_on: "Қосулы", st_off: "Өшірулі", tab_other: "Басқа",
+  kk: { st_on: "Қосулы", st_off: "Өшірулі", tab_other: "Басқа", tab_more: "Жекешелендіру", tab_other_about: "Aerial туралы", tab_other_backup: "Сақтық көшірме", tab_other_feedback: "Кері байланыс",
         weather_place: "Ауа райы орны", weather_place_hint: "Сәлемдеу жолы мен экран сақтағыштағы ауа райы осы жерден алынады.",
         g_builtin_more: "Кіріктірілген және тағы басқа",
         backup_h: "Сақтық көшірме", backup_export: "Көшірмені шығару", backup_import: "Көшірмені қалпына келтіру",
@@ -1406,8 +1419,8 @@ async function api(path, body) {
 function take(next) { state = next; stateJson = ''; render(); }
 
 /* Tabs. The tab is kept in the address (#home) and on the phone, and each tab keeps its own scroll. */
-const TABS = ['home', 'live', 'more'];
-const TITLES = { home: 'tab_home', live: 'tab_live', more: 'tab_more' };
+const TABS = ['home', 'live', 'more', 'other'];
+const TITLES = { home: 'tab_home', live: 'tab_live', more: 'tab_more', other: 'tab_other' };
 // The four tabs of 1.46 and 1.47's first builds.
 const OLD_TABS = { wallpaper: 'more', screensaver: 'more', looks: 'more' };
 const scrolls = {};
@@ -1435,7 +1448,8 @@ function show(next, keepScroll) {
   if (tab === 'live') renderLive();
   if (prefsTimer) { clearInterval(prefsTimer); prefsTimer = 0; }
   // 这一页要跟着电视走: 电视面板上改了, 手机上三秒内就该看到。
-  if (tab === 'more') { loadPrefs(); prefsTimer = setInterval(loadPrefs, 3000); }
+  if (tab === 'other') renderOtherTabs();
+  if (tab === 'more' || tab === 'other') { loadPrefs(); prefsTimer = setInterval(loadPrefs, 3000); }
   window.scrollTo(0, scrolls[tab] || 0);
   try { localStorage.setItem('aerial-tab', tab); } catch (e) {}
   history.replaceState(null, '', '#' + tab);
@@ -2092,15 +2106,61 @@ let prefsTab = 'home';
 function applyPrefsTab() {
   document.querySelectorAll('[data-tab="more"] .pgroup').forEach(g => { g.hidden = g.dataset.g !== prefsTab; });
 }
+/* 其他页的三颗选项卡: 关于 Aerial / 备份与恢复 / 反馈问题, 各配一个图标。 */
+const OTHER_PANES = ['about', 'backup', 'feedback'];
+let otherPane = 'about';
+function oticon(kind) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.8');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  const add = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); svg.appendChild(e); };
+  if (kind === 'about') {
+    // 圆圈里的 i
+    add('circle', { cx: 12, cy: 12, r: 8.6 });
+    add('circle', { cx: 12, cy: 8.2, r: 1.1, fill: 'currentColor', stroke: 'none' });
+    add('path', { d: 'M12 11v5' });
+  } else if (kind === 'backup') {
+    // 一只柜子加一道盖线: 备份
+    add('rect', { x: 3.6, y: 7.4, width: 16.8, height: 11.2, rx: 1.8 });
+    add('path', { d: 'M3.6 11.4h16.8' });
+    add('path', { d: 'M9.4 15.4h5.2' });
+  } else {
+    // 对话气泡: 反馈
+    add('path', { d: 'M20 5.4H4a1.8 1.8 0 0 0-1.8 1.8v7a1.8 1.8 0 0 0 1.8 1.8h2.4v3.2l3.6-3.2h7a1.8 1.8 0 0 0 1.8-1.8v-7A1.8 1.8 0 0 0 20 5.4Z' });
+  }
+  return svg;
+}
+function renderOtherTabs() {
+  const bar = $('#otabs'); if (!bar) return;
+  bar.replaceChildren();
+  const names = { about: t('tab_other_about'), backup: t('tab_other_backup'), feedback: t('tab_other_feedback') };
+  for (const key of OTHER_PANES) {
+    const b = el('button', ''); b.type = 'button';
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-checked', key === otherPane ? 'true' : 'false');
+    b.appendChild(oticon(key));
+    b.appendChild(el('span', '', names[key]));
+    b.onclick = () => { if (otherPane === key) return; otherPane = key; applyOtherPane(); renderOtherTabs(); window.scrollTo({ top: 0, behavior: scrollBehavior() }); };
+    bar.appendChild(b);
+  }
+  applyOtherPane();
+}
+function applyOtherPane() {
+  document.querySelectorAll('section[data-tab="other"] .ogroup').forEach(g => { g.hidden = g.dataset.o !== otherPane; });
+}
 function renderTabs() {
   const bar = $('#gtabs'); if (!bar) return;
   bar.replaceChildren();
   // 壁纸与屏保不是电视个性化面板里的组(它的内容在网页上自己画), 排在最前, 和电视的次序一致。
   const all = [{ key: 'wallpaper', title: SAVER_TAB[LANG] || SAVER_TAB.en }]
-    .concat((prefs && prefs.groups) || [])
-    .concat([{ key: 'other', title: t('tab_other') }]);
+    .concat((prefs && prefs.groups) || []);
   for (const g of all) {
-    if (!GROUP_ICONS[g.key] && g.key !== 'other') continue;
+    if (!GROUP_ICONS[g.key]) continue;
     const b = el('button', ''); b.type = 'button';
     b.setAttribute('role', 'tab');
     b.setAttribute('aria-checked', g.key === prefsTab ? 'true' : 'false');
@@ -2119,8 +2179,7 @@ function renderPrefs() {
   for (const g of prefs.groups || []) {
     const host = $(PREFS_HOST[g.key] || '#prefsAbout');
     if (!host || !g.items) continue;
-    // 分类名字已经在选项卡上, 只在「关于」那一段还留标题。
-    if (g.key === 'about' && about) about.appendChild(el('h2', '', g.title));
+    // 分类名字都在选项卡上, 正文不再重复标题。
     for (const it of g.items) host.appendChild(prefCard(it));
   }
   renderTabs();
@@ -2955,6 +3014,7 @@ function render() {
   renderLive();
 }
 
+renderOtherTabs();
 initLangSwitch();
 applyI18n();
 show((location.hash || '').slice(1) || (() => { try { return localStorage.getItem('aerial-tab'); } catch (e) { return null; } })(), true);
@@ -2962,7 +3022,6 @@ async function refresh() { try { state = await api('api/state'); render(); loadS
 refresh();
 loadPrefs();
 loadSaver();
-$('#prefsLead').textContent = PREFS_LEAD[LANG] || PREFS_LEAD.en;
 setInterval(() => { if (!document.hidden && sheet.hidden && !arrDragging) refresh(); }, 2000);
 </script>
 </body>
