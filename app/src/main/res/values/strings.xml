@@ -370,4 +370,5 @@
     <string name="jank_low">Low</string>
     <string name="jank_medium">Medium</string>
     <string name="jank_high">High</string>
+    <string name="wp_wallpaper_saver">Wallpaper &amp; Screensaver</string>
 </resources>

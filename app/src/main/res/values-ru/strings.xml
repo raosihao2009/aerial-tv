@@ -315,4 +315,5 @@
     <string name="jank_low">Низкая</string>
     <string name="jank_medium">Средняя</string>
     <string name="jank_high">Высокая</string>
+    <string name="wp_wallpaper_saver">Обои и заставка</string>
 </resources>

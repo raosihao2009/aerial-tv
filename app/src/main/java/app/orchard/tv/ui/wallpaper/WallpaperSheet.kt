@@ -326,8 +326,11 @@ fun WallpaperSheet(
             // 焦点切换。分类图标保留, 是为了在这一长页里一眼认出走到哪一组。
             Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(leftScroll).latestBringIntoView(leftScroll, pinScroll)) {
                 Spacer(Modifier.height(14.dp))
-                CategoryTitle(Glyph.Photo, R.string.wp_wallpaper)
+                // 壁纸与屏保合成一组(用户口径): 一个分类标题, 壁纸在上面, 屏保的选项紧接在下面。
+                CategoryTitle(Glyph.Wallpaper, R.string.wp_wallpaper_saver)
                 WallpaperSection(takeFocus)
+                Spacer(Modifier.height(18.dp))
+                ScreensaverSection(onStartScreensaver)
                 Spacer(Modifier.height(18.dp))
                 CategoryTitle(Glyph.Home, R.string.per_home)
                 HomeSection(
@@ -339,9 +342,6 @@ fun WallpaperSheet(
                 Spacer(Modifier.height(18.dp))
                 CategoryTitle(Glyph.Sun, R.string.per_look)
                 LookSection()
-                Spacer(Modifier.height(18.dp))
-                CategoryTitle(Glyph.Moon, R.string.per_screensaver)
-                ScreensaverSection(onStartScreensaver)
                 Spacer(Modifier.height(18.dp))
                 CategoryTitle(Glyph.CloudSun, R.string.wp_weather)
                 WeatherSection()

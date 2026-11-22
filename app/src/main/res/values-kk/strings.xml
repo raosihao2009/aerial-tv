@@ -315,4 +315,5 @@
     <string name="jank_low">Төмен</string>
     <string name="jank_medium">Орташа</string>
     <string name="jank_high">Жоғары</string>
+    <string name="wp_wallpaper_saver">Түсқағаз және экран сақтағыш</string>
 </resources>

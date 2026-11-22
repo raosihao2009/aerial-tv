@@ -315,4 +315,5 @@
     <string name="jank_low">Низька</string>
     <string name="jank_medium">Середня</string>
     <string name="jank_high">Висока</string>
+    <string name="wp_wallpaper_saver">Шпалери та заставка</string>
 </resources>
