@@ -8,6 +8,7 @@ import app.orchard.tv.apps.AppEntry
 import app.orchard.tv.apps.LIVE_KEY_PREFIX
 import app.orchard.tv.settings.AerialSettings
 import app.orchard.tv.settings.ClockHours
+import app.orchard.tv.settings.FocusStyle
 import app.orchard.tv.settings.Effects
 import app.orchard.tv.settings.KidsTime
 import app.orchard.tv.settings.Restricted
@@ -70,7 +71,7 @@ object PhonePrefs {
         val groups = JSONArray()
 
         // ---- 主屏幕 ----
-        groups.put(JSONObject().put("title", s(R.string.per_home)).put("items", JSONArray().apply {
+        groups.put(JSONObject().put("key", "home").put("title", s(R.string.per_home)).put("items", JSONArray().apply {
             put(
                 item(
                     "homeColumns", "seg", s(R.string.st_columns), s(R.string.st_columns_hint),
@@ -116,7 +117,7 @@ object PhonePrefs {
         }))
 
         // ---- 直播 ----
-        groups.put(JSONObject().put("title", s(R.string.per_live)).put("items", JSONArray().apply {
+        groups.put(JSONObject().put("key", "live").put("title", s(R.string.per_live)).put("items", JSONArray().apply {
             put(
                 item(
                     "livePreviewEnabled", "seg", s(R.string.st_live_preview), s(R.string.st_live_preview_hint),
@@ -137,7 +138,17 @@ object PhonePrefs {
         }))
 
         // ---- 外观与声音 ----
-        groups.put(JSONObject().put("title", s(R.string.per_look)).put("items", JSONArray().apply {
+        groups.put(JSONObject().put("key", "look").put("title", s(R.string.per_look)).put("items", JSONArray().apply {
+            // 焦点样式原来在手机页单独一组, 并进外观里(同一类东西不该分成两块)。
+            put(
+                item(
+                    "focusStyle", "seg", s(R.string.st_focus_style), null,
+                    AerialSettings.focusStyle.key,
+                    listOf(
+                        "high_contrast" to s(R.string.st_focus_high), "standard" to s(R.string.st_focus_standard),
+                    ),
+                ),
+            )
             put(
                 item(
                     "effects", "seg", s(R.string.st_effects),
@@ -177,7 +188,7 @@ object PhonePrefs {
         }))
 
         // ---- 天气与时钟 ----
-        groups.put(JSONObject().put("title", s(R.string.wp_weather)).put("items", JSONArray().apply {
+        groups.put(JSONObject().put("key", "weather").put("title", s(R.string.wp_weather)).put("items", JSONArray().apply {
             put(
                 item(
                     "clockHours", "seg", s(R.string.st_clock_hours), s(R.string.st_clock_hours_hint),
@@ -191,7 +202,7 @@ object PhonePrefs {
         val rules = Restricted.rules
         val allowed = Restricted.allowed.toSet()
         val kindLabel = s(if (Restricted.kind == RestrictedKind.Kids) R.string.kids_kind_kids else R.string.kids_kind_elders)
-        groups.put(JSONObject().put("title", s(R.string.per_family)).put("items", JSONArray().apply {
+        groups.put(JSONObject().put("key", "family").put("title", s(R.string.per_family)).put("items", JSONArray().apply {
             put(
                 item(
                     "pin", "seg", s(R.string.st_pin), s(R.string.st_pin_hint),
@@ -209,7 +220,7 @@ object PhonePrefs {
         if (home != HomeStatus.Default) {
             aboutHint += " · " + s(if (home == HomeStatus.Guarded) R.string.cc_home_guarded else R.string.cc_home_not_default)
         }
-        groups.put(JSONObject().put("title", s(R.string.cc_about)).put("items", JSONArray().apply {
+        groups.put(JSONObject().put("key", "about").put("title", s(R.string.cc_about)).put("items", JSONArray().apply {
             put(
                 item(
                     "update", "action", s(R.string.cc_about_version, Updates.current), aboutHint,
@@ -368,6 +379,7 @@ object PhonePrefs {
             all.firstOrNull { it.name.equals(name, ignoreCase = true) }
 
         return when (key) {
+            "focusStyle" -> { AerialSettings.chooseFocusStyle(FocusStyle.of(value)); true }
             "homeColumns" -> int()?.takeIf { it in AerialSettings.HOME_COLUMNS }?.let {
                 AerialSettings.chooseHomeColumns(it); true
             } ?: false
