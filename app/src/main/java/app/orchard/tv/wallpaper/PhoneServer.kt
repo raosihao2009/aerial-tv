@@ -12,6 +12,9 @@ import app.orchard.tv.apps.AppCatalog
 import app.orchard.tv.apps.FOLDER_KEY_PREFIX
 import app.orchard.tv.apps.AppEntry
 import app.orchard.tv.apps.AppNames
+import app.orchard.tv.apps.BiliAccount
+import app.orchard.tv.apps.BiliLogin
+import app.orchard.tv.apps.BiliLoginState
 import app.orchard.tv.apps.CustomIcons
 import app.orchard.tv.apps.IconLibrary
 import app.orchard.tv.apps.SourceDevice
@@ -175,6 +178,26 @@ class PhoneServer private constructor(private val context: Context, private val 
                     onMain { Wallpapers.chooseScreensaver(mode) }
                     json(state())
                 }
+                // B 站账号: 手机上扫码登录, 与电视面板共用 BiliLogin / BiliAccount。
+                path == "/api/bili" && session.method == Method.GET -> json(JSONObject()
+                    .put("loggedIn", BiliAccount.loggedIn)
+                    .put("uid", BiliAccount.uid ?: "")
+                    .put("phase", BiliPhone.phase)
+                    .put("hasQr", BiliPhone.qrUrl != null))
+                session.method == Method.POST && path == "/api/bili" -> {
+                    when (form(session)["action"]) {
+                        "logout" -> {
+                            BiliAccount.clear()
+                            BiliPhone.reset()
+                            json(JSONObject().put("ok", true).put("loggedIn", false))
+                        }
+                        else -> {
+                            BiliPhone.start()
+                            json(JSONObject().put("ok", true).put("phase", BiliPhone.phase))
+                        }
+                    }
+                }
+                path == "/api/bili/qr" -> biliQr()
                 session.method == Method.POST && path == "/api/setting" -> {
                     // The few on/off settings the phone page shows, as Personalize does.
                     val f = form(session)
@@ -184,6 +207,11 @@ class PhoneServer private constructor(private val context: Context, private val 
                         "showWeather" -> { onMain { AerialSettings.chooseShowWeather(on) }; true }
                         "screensaverClock" -> { onMain { AerialSettings.chooseScreensaverClock(on) }; true }
                         "screensaverCaption" -> { onMain { AerialSettings.chooseScreensaverCaption(on) }; true }
+                        "photoMinutes" -> {
+                            val m = f["value"]?.toIntOrNull()
+                            if (m == null || m !in AerialSettings.PHOTO_MINUTES) false
+                            else { onMain { AerialSettings.choosePhotoMinutes(m); Wallpapers.rotateIfDue() }; true }
+                        }
                         else -> false
                     }
                     json(state().put("saved", known))
@@ -466,6 +494,9 @@ class PhoneServer private constructor(private val context: Context, private val 
             .put("showWeather", AerialSettings.showWeather)
             .put("screensaverClock", AerialSettings.screensaverClock)
             .put("screensaverCaption", AerialSettings.screensaverCaption)
+            // 轮流播放照片的换图间隔: 电视面板上那几档, 手机页照同一份列。
+            .put("photoMinutes", AerialSettings.photoMinutes)
+            .put("photoChoices", JSONArray().apply { AerialSettings.PHOTO_MINUTES.forEach { put(it) } })
             .put("wallpapers", list)
             .put("apps", JSONArray().apply {
                 // Pinned inputs first, then apps by the name Home shows. [default] is the name a
@@ -710,6 +741,18 @@ class PhoneServer private constructor(private val context: Context, private val 
         val saved = f.inputStream().use { CustomIcons.save(pkg, it, context.cacheDir) }
         if (saved) onMain { CustomIcons.changed() }
         return json(state().put("saved", saved))
+    }
+
+    /** 手机页的 B 站二维码: 就一张黑白 PNG, 与电视面板同一份登录链接。 */
+    private fun biliQr(): Response {
+        val url = BiliPhone.qrUrl ?: return text(Response.Status.NOT_FOUND, "")
+        val bmp = qr(url, scale = 10)
+        val out = ByteArrayOutputStream()
+        bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
+        val bytes = out.toByteArray()
+        return newFixedLengthResponse(Response.Status.OK, "image/png", ByteArrayInputStream(bytes), bytes.size.toLong()).apply {
+            addHeader("Cache-Control", "no-cache, no-store, must-revalidate")
+        }
     }
 
     private fun thumb(id: String): Response {
@@ -1080,6 +1123,50 @@ class PhoneServer private constructor(private val context: Context, private val 
         return json(state().put("restored", true).put("prefs", summary.prefs).put("files", summary.files)).apply {
             // 响应写完就关连接: 进程随后自杀, 别让 keep-alive 把手机那头正在读的回复掐断。
             addHeader("Connection", "close")
+        }
+    }
+
+    /**
+     * 手机页发起的那次扫码登录的状态。手机上关掉页面也不影响电视已经登录的凭据:
+     * 这里只管"码画出来没有、扫到哪一步", 成功与否以 [BiliAccount] 为准。
+     */
+    private object BiliPhone {
+        @Volatile var phase: String = "idle"     // idle / qr / wait / confirm / ok / expired / failed
+        @Volatile var qrUrl: String? = null
+        @Volatile private var running = false
+
+        fun reset() {
+            phase = "idle"
+            qrUrl = null
+        }
+
+        fun start() {
+            if (running) return
+            running = true
+            phase = "qr"
+            qrUrl = null
+            Thread {
+                try {
+                    runBlocking {
+                        BiliLogin.login { st ->
+                            when (st) {
+                                is BiliLoginState.QrReady -> { qrUrl = st.qrUrl; phase = "qr" }
+                                BiliLoginState.WaitingScan -> if (qrUrl != null) phase = "wait"
+                                BiliLoginState.ScannedConfirm -> phase = "confirm"
+                                BiliLoginState.Success -> { phase = "ok"; qrUrl = null }
+                                BiliLoginState.Expired -> { phase = "expired"; qrUrl = null }
+                                is BiliLoginState.Failed -> { phase = "failed"; qrUrl = null }
+                                else -> {}
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    app.orchard.tv.system.DiagLog.e("手机页 B 站登录失败", e)
+                    phase = "failed"
+                } finally {
+                    running = false
+                }
+            }.start()
         }
     }
 

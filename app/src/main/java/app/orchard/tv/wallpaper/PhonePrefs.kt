@@ -5,6 +5,7 @@ import android.content.res.Configuration
 import app.orchard.tv.R
 import app.orchard.tv.apps.AppCatalog
 import app.orchard.tv.apps.AppEntry
+import app.orchard.tv.apps.BiliAccount
 import app.orchard.tv.apps.LIVE_KEY_PREFIX
 import app.orchard.tv.settings.AerialSettings
 import app.orchard.tv.settings.ClockHours
@@ -127,6 +128,15 @@ object PhonePrefs {
                     if (AerialSettings.livePreviewEnabled) "1" else "0",
                     listOf("1" to s(R.string.st_on), "0" to s(R.string.st_off)),
                 ),
+            )
+            // B 站账号: 电视上「直播预览」右边那一格, 手机这页按电视的左右顺序排在同一行后面。
+            put(
+                JSONObject().put("key", "bili").put("kind", "bili")
+                    .put("label", s(R.string.st_bili_account))
+                    .put("hint", s(R.string.st_bili_account_hint))
+                    .put("value", if (BiliAccount.loggedIn) s(R.string.st_bili_logout) else s(R.string.st_bili_login))
+                    .put("loggedIn", BiliAccount.loggedIn)
+                    .put("uid", BiliAccount.uid ?: ""),
             )
             put(
                 item(
