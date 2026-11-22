@@ -198,6 +198,8 @@ class PhoneServer private constructor(private val context: Context, private val 
                     }
                 }
                 path == "/api/bili/qr" -> biliQr()
+                // 手机端「打开 B 站登录页」: 只回那条登录链接, 由手机自己决定用浏览器还是 App 打开。
+                path == "/api/bili/qr-url" -> json(JSONObject().put("url", BiliPhone.qrUrl ?: ""))
                 session.method == Method.POST && path == "/api/setting" -> {
                     // The few on/off settings the phone page shows, as Personalize does.
                     val f = form(session)

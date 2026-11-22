@@ -108,6 +108,8 @@
   .pinfo .val { font-size: 14px; color: var(--secondary); }
   .pqr { padding: 0 14px 12px; }
   .pqr img { width: 180px; height: 180px; display: block; margin: 0 auto; border-radius: 8px; background: #fff; }
+  .pqr .foot.center { text-align: center; margin: 8px 0 2px; }
+  .link.center.wide { display: block; width: 100%; text-align: center; margin: 6px 0 4px; }
   .pin-dots { display: flex; gap: 12px; justify-content: center; margin: 12px 0 4px; }
   .pin-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--fill); transition: background-color .15s ease; }
   .pin-dot.on { background: var(--tint); }
@@ -1275,7 +1277,7 @@ const EXTRA = {
   zh: { st_on: "开", st_off: "关", tab_other: "其他", tab_more: "个性化", tab_other_about: "关于 Aerial", tab_other_backup: "备份与恢复", tab_other_feedback: "反馈问题",
         weather_place: "天气位置", weather_place_hint: "顶部问候行和屏保显示的就是这里的天气。",
         bili_login: "扫码登录", bili_logout: "退出登录", bili_scan: "用 B 站 App 扫码登录",
-        bili_wait: "等待扫码…", bili_confirm: "已扫码，请在手机上确认", bili_expired: "二维码已失效", bili_again: "重新生成", bili_ok: "已登录",
+        bili_wait: "等待扫码…", bili_confirm: "已扫码，请在手机上确认", bili_expired: "二维码已失效", bili_again: "重新生成", bili_ok: "已登录", bili_longpress: "手机上长按二维码可识别；也可以用另一台手机扫。", bili_open: "用这台手机打开 B 站登录页",
         photo_every: "换图间隔", photo_every_hint: "每隔多久换下一张照片。", photo_day: "每天", photo_hour: "每小时", photo_min: "{n} 分钟",
         g_builtin_more: "更多",
         backup_h: "备份与恢复", backup_export: "导出备份", backup_import: "导入备份",
@@ -1298,7 +1300,7 @@ const EXTRA = {
   en: { st_on: "On", st_off: "Off", tab_other: "Other", tab_more: "Personalise", tab_other_about: "About Aerial", tab_other_backup: "Backup & restore", tab_other_feedback: "Feedback",
         weather_place: "Weather location", weather_place_hint: "The weather in the greeting row and on the screensaver comes from here.",
         bili_login: "Sign in", bili_logout: "Sign out", bili_scan: "Scan with the Bilibili app",
-        bili_wait: "Waiting for the scan…", bili_confirm: "Scanned — confirm on your phone", bili_expired: "The code has expired", bili_again: "Show a new code", bili_ok: "Signed in",
+        bili_wait: "Waiting for the scan…", bili_confirm: "Scanned — confirm on your phone", bili_expired: "The code has expired", bili_again: "Show a new code", bili_ok: "Signed in", bili_longpress: "Long-press the code on this phone, or scan it with another one.", bili_open: "Open the Bilibili sign-in page on this phone",
         photo_every: "Change every", photo_every_hint: "How often the next photo comes up.", photo_day: "Every day", photo_hour: "Every hour", photo_min: "{n} min",
         g_builtin_more: "More",
         backup_h: "Backup & restore", backup_export: "Export backup", backup_import: "Import backup",
@@ -1321,7 +1323,7 @@ const EXTRA = {
   ru: { st_on: "Вкл", st_off: "Выкл", tab_other: "Другое", tab_more: "Персонализация", tab_other_about: "О Aerial", tab_other_backup: "Резервная копия", tab_other_feedback: "Обратная связь",
         weather_place: "Местоположение погоды", weather_place_hint: "Погода в приветствии и на заставке берётся отсюда.",
         bili_login: "Войти", bili_logout: "Выйти", bili_scan: "Сканируйте приложением Bilibili",
-        bili_wait: "Ждём сканирования…", bili_confirm: "Код считан — подтвердите в телефоне", bili_expired: "Код истёк", bili_again: "Новый код", bili_ok: "Вход выполнен",
+        bili_wait: "Ждём сканирования…", bili_confirm: "Код считан — подтвердите в телефоне", bili_expired: "Код истёк", bili_again: "Новый код", bili_ok: "Вход выполнен", bili_longpress: "Нажмите и удерживайте код на телефоне или сканируйте другим устройством.", bili_open: "Открыть вход Bilibili на этом телефоне",
         photo_every: "Менять каждые", photo_every_hint: "Как часто менять фото.", photo_day: "Каждый день", photo_hour: "Каждый час", photo_min: "{n} мин",
         g_builtin_more: "Ещё",
         backup_h: "Резервная копия", backup_export: "Экспорт копии", backup_import: "Импорт копии",
@@ -1341,7 +1343,7 @@ const EXTRA = {
   uk: { st_on: "Увімк", st_off: "Вимк", tab_other: "Інше", tab_more: "Персоналізація", tab_other_about: "Про Aerial", tab_other_backup: "Резервна копія", tab_other_feedback: "Зворотний зв'язок",
         weather_place: "Місце погоди", weather_place_hint: "Погода у вітанні та на заставці береться звідси.",
         bili_login: "Увійти", bili_logout: "Вийти", bili_scan: "Скануйте застосунком Bilibili",
-        bili_wait: "Чекаємо сканування…", bili_confirm: "Код зчитано — підтвердьте у телефоні", bili_expired: "Код застарів", bili_again: "Новий код", bili_ok: "Вхід виконано",
+        bili_wait: "Чекаємо сканування…", bili_confirm: "Код зчитано — підтвердьте у телефоні", bili_expired: "Код застарів", bili_again: "Новий код", bili_ok: "Вхід виконано", bili_longpress: "Утримуйте код на телефоні або скануйте іншим пристроєм.", bili_open: "Відкрити вхід Bilibili на цьому телефоні",
         photo_every: "Змінювати що", photo_every_hint: "Як часто змінювати фото.", photo_day: "Щодня", photo_hour: "Щогодини", photo_min: "{n} хв",
         g_builtin_more: "Ще",
         backup_h: "Резервна копія", backup_export: "Експорт копії", backup_import: "Імпорт копії",
@@ -1361,7 +1363,7 @@ const EXTRA = {
   kk: { st_on: "Қосулы", st_off: "Өшірулі", tab_other: "Басқа", tab_more: "Жекешелендіру", tab_other_about: "Aerial туралы", tab_other_backup: "Сақтық көшірме", tab_other_feedback: "Кері байланыс",
         weather_place: "Ауа райы орны", weather_place_hint: "Сәлемдеу жолы мен экран сақтағыштағы ауа райы осы жерден алынады.",
         bili_login: "Кіру", bili_logout: "Шығу", bili_scan: "Bilibili қолданбасымен сканерлеңіз",
-        bili_wait: "Сканерлеуді күтудеміз…", bili_confirm: "Код оқылды — телефонда растаңыз", bili_expired: "Код ескірді", bili_again: "Жаңа код", bili_ok: "Кірдіңіз",
+        bili_wait: "Сканерлеуді күтудеміз…", bili_confirm: "Код оқылды — телефонда растаңыз", bili_expired: "Код ескірді", bili_again: "Жаңа код", bili_ok: "Кірдіңіз", bili_longpress: "Телефонда кодты басып тұрыңыз немесе басқа құрылғымен сканерлеңіз.", bili_open: "Осы телефонда Bilibili кіру бетін ашу",
         photo_every: "Ауыстыру аралығы", photo_every_hint: "Фото қаншалықты жиі ауысады.", photo_day: "Күн сайын", photo_hour: "Сағат сайын", photo_min: "{n} мин",
         g_builtin_more: "Тағы",
         backup_h: "Сақтық көшірме", backup_export: "Көшірмені шығару", backup_import: "Көшірмені қалпына келтіру",
@@ -2045,7 +2047,20 @@ function biliCard(card) {
   const stat = el('p', 'foot', '');
   const qrBox = el('div', 'pqr'); qrBox.hidden = true;
   const img = el('img', 'qimg'); img.alt = 'QR'; img.decoding = 'async';
-  qrBox.appendChild(img);
+  const qrTip = el('p', 'foot center', '');
+  const qrOpen = el('button', 'link center wide', '');
+  qrOpen.type = 'button';
+  qrOpen.hidden = true;
+  // 二维码画在手机自己屏上: 手机上长按可识别, 或直接把这个登录链接交给手机打开(B 站 App 会接)。
+  const openLogin = async () => {
+    try {
+      const r = await (await fetch(base + 'api/bili/qr-url')).json();
+      if (r && r.url) window.open(r.url, '_blank');
+    } catch (e) {}
+  };
+  img.onclick = openLogin;
+  qrOpen.onclick = openLogin;
+  qrBox.append(img, qrTip, qrOpen);
   card.append(btn, stat, qrBox);
 
   let timer = 0, shownQr = '';
@@ -2076,7 +2091,13 @@ function biliCard(card) {
       prefsJson = ''; loadPrefs(); refresh();
     } else if (r.hasQr && (r.phase === 'qr' || r.phase === 'wait' || r.phase === 'confirm')) {
       qrBox.hidden = false;
-      if (shownQr !== String(r.qrStamp || 'a')) { shownQr = String(r.qrStamp || 'a'); img.src = base + 'api/bili/qr?v=' + Date.now(); }
+      if (shownQr !== String(r.qrStamp || 'a')) {
+        shownQr = String(r.qrStamp || 'a');
+        img.src = base + 'api/bili/qr?v=' + Date.now();
+        qrTip.textContent = t('bili_longpress');
+        qrOpen.textContent = t('bili_open');
+        qrOpen.hidden = false;
+      }
       stat.textContent = r.phase === 'confirm' ? t('bili_confirm') : t('bili_wait');
     } else if (r.phase === 'expired' || r.phase === 'failed') {
       stop(); qrBox.hidden = true; shownQr = '';

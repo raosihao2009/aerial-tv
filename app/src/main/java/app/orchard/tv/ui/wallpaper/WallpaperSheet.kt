@@ -2050,8 +2050,9 @@ private fun WeatherCell() {
 /** B 站扫码要显示在右侧那张卡上, 所以状态提到这一层, 面板和卡片共用一份。 */
 private class BiliMirror {
     var focused by mutableStateOf(false)
-    var loggedIn by mutableStateOf(BiliAccount.loggedIn)
-    var uid by mutableStateOf(BiliAccount.uid)
+    // 直接读登录态本身, 不再各自缓存一份: 手机页退出登录、别处重新登录, 这里都会立刻跟着变。
+    val loggedIn: Boolean get() = BiliAccount.loggedIn
+    val uid: String? get() = BiliAccount.uid
     var state by mutableStateOf<BiliLoginState?>(null)
     var qr by mutableStateOf<ImageBitmap?>(null)
 }
@@ -2075,10 +2076,7 @@ private fun BiliCell(mirror: BiliMirror) {
                         // 回调本身就在 BiliLogin 的 IO 线程里, 直接同步编码二维码。
                         mirror.qr = PhoneServer.qr(s.qrUrl).asImageBitmap()
                     }
-                    BiliLoginState.Success -> {
-                        mirror.loggedIn = BiliAccount.loggedIn
-                        mirror.uid = BiliAccount.uid
-                    }
+                    BiliLoginState.Success -> Unit
                     BiliLoginState.Expired, is BiliLoginState.Failed -> mirror.qr = null
                     else -> {}
                 }
@@ -2089,8 +2087,6 @@ private fun BiliCell(mirror: BiliMirror) {
     val action = if (mirror.loggedIn) {
         CellAction(stringResource(R.string.st_bili_logout), chevron = false) {
             BiliAccount.clear()
-            mirror.loggedIn = false
-            mirror.uid = null
             mirror.state = null
             mirror.qr = null
         }
