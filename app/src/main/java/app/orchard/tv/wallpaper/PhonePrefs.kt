@@ -48,20 +48,13 @@ object PhonePrefs {
     private fun item(
         key: String, kind: String, label: String, hint: String?, value: String,
         options: List<Pair<String, String>> = emptyList(),
-        optionHints: List<String?> = emptyList(),
         min: Int? = null, max: Int? = null, muted: Boolean? = null,
         custom: Boolean? = null, clock: Boolean? = null, arrows: Boolean? = null,
     ): JSONObject {
         val o = JSONObject().put("key", key).put("kind", kind).put("label", label).put("value", value)
         if (!hint.isNullOrBlank()) o.put("hint", hint)
         if (options.isNotEmpty()) {
-            o.put("options", JSONArray().apply {
-                options.forEachIndexed { i, (v, l) ->
-                    val one = JSONObject().put("value", v).put("label", l)
-                    optionHints.getOrNull(i)?.takeIf { it.isNotBlank() }?.let { one.put("hint", it) }
-                    put(one)
-                }
-            })
+            o.put("options", JSONArray().apply { options.forEach { (v, l) -> put(JSONObject().put("value", v).put("label", l)) } })
         }
         min?.let { o.put("min", it) }
         max?.let { o.put("max", it) }
@@ -149,12 +142,13 @@ object PhonePrefs {
             // 焦点样式原来在手机页单独一组, 并进外观里(同一类东西不该分成两块)。
             put(
                 item(
-                    "focusStyle", "seg", s(R.string.st_focus_style), null,
+                    "focusStyle", "seg", s(R.string.st_focus_style),
+                    // 小字跟着当前选的那条走(电视上两条各有各的说明), 放在标题下面, 不挂在按钮下面。
+                    s(if (AerialSettings.focusStyle == FocusStyle.HighContrast) R.string.st_focus_high_hint else R.string.st_focus_standard_hint),
                     AerialSettings.focusStyle.key,
                     listOf(
                         "high_contrast" to s(R.string.st_focus_high), "standard" to s(R.string.st_focus_standard),
                     ),
-                    optionHints = listOf(s(R.string.st_focus_high_hint), s(R.string.st_focus_standard_hint)),
                 ),
             )
             put(
@@ -205,6 +199,13 @@ object PhonePrefs {
                     "clockHours", "seg", s(R.string.st_clock_hours), s(R.string.st_clock_hours_hint),
                     if (AerialSettings.clockHours == ClockHours.H12) "12" else "24",
                     listOf("24" to s(R.string.st_clock_hours_24), "12" to s(R.string.st_clock_hours_12)),
+                ),
+            )
+            put(
+                item(
+                    "showWeather", "seg", s(R.string.st_weather_visibility), s(R.string.st_weather_visibility_hint),
+                    if (AerialSettings.showWeather) "1" else "0",
+                    listOf("1" to s(R.string.st_on), "0" to s(R.string.st_off)),
                 ),
             )
         }))
@@ -420,6 +421,7 @@ object PhonePrefs {
             }
             "keyVolume" -> int()?.takeIf { it in 0..100 }?.let { AerialSettings.chooseKeyVolume(it); true } ?: false
             "keyVolumeMuted" -> { AerialSettings.chooseKeyVolumeMuted(on); true }
+            "showWeather" -> { AerialSettings.chooseShowWeather(on); true }
             "clockHours" -> {
                 AerialSettings.chooseClockHours(if (value == "12") ClockHours.H12 else ClockHours.H24)
                 true

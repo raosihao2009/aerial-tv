@@ -60,9 +60,29 @@
   .pcard { margin-top: 10px; }
   .pcard .phead { cursor: default; }
   .pcard .phead:active { background: none; }
-  .pcard .popt { justify-content: space-between; }
-  .pcard .popt .tick { font-size: 17px; font-weight: 600; }
-  .pcard .popt[aria-checked="true"] { color: var(--tint); }
+  /* 选项一排按钮: 一排摆满, 文字左右居中; 选中不画勾, 直接染主题色。 */
+  .pcard .prow { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 12px 12px; }
+  .pcard .pbtn {
+    appearance: none; border: 0; border-radius: 10px; background: var(--fill); color: var(--label);
+    flex: 1 1 0; min-width: 74px; padding: 11px 8px; font-size: 15px; text-align: center; line-height: 1.25;
+    cursor: pointer; transition: background-color .15s ease, color .15s ease;
+  }
+  .pcard .pbtn[aria-checked="true"] { background: var(--card); color: var(--tint); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.10); }
+  .pcard .pbtn:disabled { opacity: .55; }
+  /* 分类选项卡: 没选中的只留图标, 选中的那颗长出图标+名字。 */
+  .gtabs { display: flex; gap: 4px; align-items: center; background: var(--fill); border-radius: 10px; padding: 3px; margin: 6px 0 4px; max-width: 100%; overflow: hidden; }
+  .gtabs button {
+    appearance: none; border: 0; background: none; border-radius: 8px; height: 36px;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    flex: 0 1 44px; min-width: 0; padding: 0 6px; overflow: hidden; color: var(--secondary); font-size: 13px; cursor: pointer;
+  }
+  .gtabs button[aria-checked="true"] {
+    background: var(--card); color: var(--label); font-weight: 600; flex: 1 1 0; min-width: 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,.12);
+  }
+  .gtabs button .glabel { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gtabs svg { width: 18px; height: 18px; flex: none; }
+  .wxlist { margin-top: 10px; }
   .pcard .popen { color: var(--tint); justify-content: center; }
   .pcard .popen .txt { flex: 0 1 auto; font-weight: 600; text-align: center; }
   .pcard .popen .chev { margin-left: 6px; }
@@ -75,11 +95,14 @@
   .pin-num .pinkey { font-size: 22px; padding: 12px 0; }
   .pin-num .del { font-size: 20px; }
   .pin-pad .wide { grid-column: 1 / -1; font-size: 15px; padding: 10px 0; }
-  .pin-pad .pinkey {
-    appearance: none; border: 0; border-radius: 10px; padding: 14px 0; font-size: 22px; font-weight: 600;
-    background: var(--fill); color: inherit; cursor: pointer;
+  /* 密码键: 白底、圆角、不描边; 按下去整颗染主题色。 */
+  .pin-pad .pinkey, .pin-num .pinkey {
+    appearance: none; border: 0; outline: 0; border-radius: 14px; padding: 15px 0; font-size: 22px; font-weight: 600;
+    background: var(--card); color: var(--label); cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0,0,0,.06);
+    transition: background-color .12s ease, color .12s ease;
   }
-  .pin-pad .pinkey:active { background: var(--tint); color: #fff; }
+  .pin-pad .pinkey:active, .pin-num .pinkey:active { background: var(--tint); color: #fff; }
   .pnum { justify-content: flex-end; gap: 8px; }
   .pnum .pref-num { width: 84px; }
   .pnum .unit { color: var(--secondary); font-size: 13px; flex: none; }
@@ -421,30 +444,33 @@
 
 <!-- More -->
 <section data-tab="more" hidden>
-  <!-- 电视个性化面板: 天气之前的组(主屏幕 / 直播 / 外观 / 时钟)排在这里。 -->
-  <div id="prefsA"></div>
+  <p class="foot" id="prefsLead"></p>
+  <div class="gtabs" id="gtabs" role="tablist"></div>
 
-  <!-- 天气这几行是「天气与时钟」那张分组的一部分: 夹在上面那段和下面那段中间, 由页面直接摆好, 不再搬节点。 -->
-  <div id="wxBlock" hidden>
-  <div class="list">
-    <label class="item"><span class="txt" data-i18n="sw_weather"></span><input class="switch" type="checkbox" id="swWeather" data-setting="showWeather"></label>
-    <div class="item wx"><b id="wxNow">—</b><span id="wxPlace"></span></div>
-    <form class="item field" id="cityForm">
-      <input id="city" type="text" data-i18n-placeholder="city_ph" enterkeyhint="done" autocomplete="off">
-      <button class="link" id="cityBtn" data-i18n="set" disabled></button>
-    </form>
-    <form class="item field" id="placeForm">
-      <input id="placeName" type="text" placeholder="显示名（可选）" autocomplete="off">
-      <button class="link" id="placeBtn" data-i18n="set"></button>
-    </form>
-    <button class="item tint center" id="netBtn" type="button">按网络定位</button>
-    <button class="item tint center" id="satBtn" type="button">按卫星定位</button>
-  </div>
-  <p class="foot" id="wxHint"></p>
+  <div id="prefsHome" class="pgroup" data-g="home" hidden></div>
+  <div id="prefsLive" class="pgroup" data-g="live" hidden></div>
+  <div id="prefsLook" class="pgroup" data-g="look" hidden></div>
+
+  <div id="prefsWeather" class="pgroup" data-g="weather" hidden>
+    <div id="wxItems"></div>
+    <div class="list wxlist">
+      <div class="item wx"><b id="wxNow">—</b><span id="wxPlace"></span></div>
+      <form class="item field" id="cityForm">
+        <input id="city" type="text" data-i18n-placeholder="city_ph" enterkeyhint="done" autocomplete="off">
+        <button class="link" id="cityBtn" data-i18n="set" disabled></button>
+      </form>
+      <form class="item field" id="placeForm">
+        <input id="placeName" type="text" placeholder="显示名（可选）" autocomplete="off">
+        <button class="link" id="placeBtn" data-i18n="set"></button>
+      </form>
+      <button class="item tint center" id="netBtn" type="button">按网络定位</button>
+      <button class="item tint center" id="satBtn" type="button">按卫星定位</button>
+    </div>
+    <p class="foot" id="wxHint"></p>
   </div>
 
-  <!-- 天气之后的组(家庭守护 / 关于)排在这里。 -->
-  <div id="prefsB"></div>
+  <div id="prefsFamily" class="pgroup" data-g="family" hidden></div>
+  <div id="prefsAbout"></div>
 
   <h2 data-i18n="this_tv"></h2>
   <div class="list">
@@ -1319,6 +1345,8 @@ const LANG = (() => {
   return 'en';
 })();
 const NAMES = { zh: '中文', en: 'English', ru: 'Русский', uk: 'Українська', kk: 'Қазақша' };
+// 选项卡上面那句小字(不塞进 KEYS, 免得动到现有语言表的下标)。
+const PREFS_LEAD = { zh: '个性化选项', en: 'Personalisation', ru: 'Персонализация', uk: 'Персоналізація', kk: 'Жеке параметрлер' };
 const I18N = {};
 for (const l of LANGS) { I18N[l] = {}; KEYS.forEach((k, i) => I18N[l][k] = TEXTS[l][i]); }
 function t(key, vars) {
@@ -1826,7 +1854,6 @@ window.addEventListener('drop', e => {
 /* More tab: focus style and weather. */
 const weatherNames = { clear: t('wx_clear'), partlycloudy: t('wx_partlycloudy'), cloudy: t('wx_cloudy'), fog: t('wx_fog'), rain: t('wx_rain'), snow: t('wx_snow'), thunder: t('wx_thunder') };
 function renderMore() {
-  $('#swWeather').checked = state.showWeather !== false;
   const w = state.weather || {};
   $('#wxNow').textContent = w.celsius !== undefined ? `${w.celsius}° ${weatherNames[w.kind] || ''}` : '—';
   $('#wxPlace').textContent = w.place || '';
@@ -1865,7 +1892,6 @@ async function setPref(key, value, after, quiet) {
     return false;
   }
 }
-function prefTick() { return el('span', 'tick', '✓'); }
 
 const hhmm = m => String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
 const toMinutes = v => { const p = String(v || '').split(':'); return Math.max(0, Math.min(1440, (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0))); };
@@ -1899,40 +1925,22 @@ function prefCard(it, after) {
   card.appendChild(head);
   const changed = (k, v) => setPref(k, v, after);
 
-  if (it.kind === 'seg') {
+  if (it.kind === 'seg' || it.kind === 'minutes') {
+    const row = el('div', 'prow');
     for (const o of it.options || []) {
-      const row = el('button', 'item popt');
-      row.type = 'button';
-      const txt = el('span', 'txt');
-      txt.appendChild(el('span', '', o.label));
-      if (o.hint) txt.appendChild(el('span', 'sub', o.hint));
-      row.appendChild(txt);
+      const btn = el('button', 'pbtn', o.label);
+      btn.type = 'button';
       const on = o.value === it.value;
-      row.setAttribute('aria-checked', on ? 'true' : 'false');
-      row.appendChild(prefTick());
-      row.onclick = () => {
+      btn.setAttribute('aria-checked', on ? 'true' : 'false');
+      btn.onclick = () => {
         if (it.key === 'pin') return pinPick(o.value === '1');
         if (on) return;
-        row.disabled = true; changed(it.key, o.value);
+        btn.disabled = true; changed(it.key, o.value);
       };
-      card.appendChild(row);
+      row.appendChild(btn);
     }
-    if (it.custom) card.appendChild(customRow(it, changed));
-  } else if (it.kind === 'minutes') {
-    for (const o of it.options || []) {
-      const row = el('button', 'item popt');
-      row.type = 'button';
-      const txt = el('span', 'txt');
-      txt.appendChild(el('span', '', o.label));
-      if (o.hint) txt.appendChild(el('span', 'sub', o.hint));
-      row.appendChild(txt);
-      const on = o.value === it.value;
-      row.setAttribute('aria-checked', on ? 'true' : 'false');
-      row.appendChild(prefTick());
-      row.onclick = () => { if (on) return; row.disabled = true; changed(it.key, o.value); };
-      card.appendChild(row);
-    }
-    card.appendChild(customRow(it, changed));
+    card.appendChild(row);
+    if (it.custom || it.kind === 'minutes') card.appendChild(customRow(it, changed));
   } else if (it.kind === 'num') {
     card.appendChild(customRow(it, changed));
   } else if (it.kind === 'slider') {
@@ -1989,18 +1997,59 @@ function prefCard(it, after) {
   return card;
 }
 
-function renderPrefs() {
-  const a = $('#prefsA'), b = $('#prefsB'), wx = $('#wxBlock');
-  if (!a || !b || !prefs) return;
-  a.replaceChildren(); b.replaceChildren();
-  wx.hidden = true;
-  for (const g of prefs.groups || []) {
-    // 天气之后的组(家庭守护 / 关于)排到天气那块下面去; 位置在页面上是固定的, 不搬节点。
-    const host = g.key === 'family' || g.key === 'about' ? b : a;
-    host.appendChild(el('h2', '', g.title));
-    for (const it of g.items || []) host.appendChild(prefCard(it));
-    if (g.key === 'weather') wx.hidden = false;
+/* 分类选项卡的图标: 主屏幕 / 直播 / 外观与声音 / 天气与时钟 / 家庭守护。 */
+const GROUP_ICONS = {
+  home: 'M3 10.5 10.5 4 17 10.5 17 17H10.5V13H6.5z',
+  live: 'M8 5.5v11l8-5.5zM4.5 4.5h13v13h-13z',
+  look: 'M10 4.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zM10 6.8v3.2M10 13.2v.2M6.8 10h3.2M13.2 10h.2',
+  weather: 'M6.5 14.5a3.5 3.5 0 0 1 .4-7 5 5 0 0 1 9.6 1.2a3.2 3.2 0 0 1-.6 6.3H7a2.6 2.6 0 0 1-.5-5z',
+  family: 'M10 16.4s-6-3.6-6-7.4a3.2 3.2 0 0 1 6-1.6 3.2 3.2 0 0 1 6 1.6c0 3.8-6 7.4-6 7.4z',
+};
+function groupIcon(key) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 20 20');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.6');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', GROUP_ICONS[key] || GROUP_ICONS.home);
+  svg.appendChild(path);
+  return svg;
+}
+let prefsTab = 'home';
+function applyPrefsTab() {
+  document.querySelectorAll('[data-tab="more"] .pgroup').forEach(g => { g.hidden = g.dataset.g !== prefsTab; });
+}
+function renderTabs() {
+  const bar = $('#gtabs'); if (!bar) return;
+  bar.replaceChildren();
+  for (const g of (prefs && prefs.groups) || []) {
+    if (!GROUP_ICONS[g.key]) continue;
+    const b = el('button', ''); b.type = 'button';
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-checked', g.key === prefsTab ? 'true' : 'false');
+    b.appendChild(groupIcon(g.key));
+    if (g.key === prefsTab) b.appendChild(el('span', 'glabel', g.title));
+    b.onclick = () => { if (prefsTab === g.key) return; prefsTab = g.key; applyPrefsTab(); renderTabs(); };
+    bar.appendChild(b);
   }
+  applyPrefsTab();
+}
+const PREFS_HOST = { home: '#prefsHome', live: '#prefsLive', look: '#prefsLook', weather: '#wxItems', family: '#prefsFamily', about: '#prefsAbout' };
+function renderPrefs() {
+  if (!prefs) return;
+  const about = $('#prefsAbout');
+  for (const sel of Object.values(PREFS_HOST)) { const h = $(sel); if (h) h.replaceChildren(); }
+  for (const g of prefs.groups || []) {
+    const host = $(PREFS_HOST[g.key] || '#prefsAbout');
+    if (!host || !g.items) continue;
+    // 分类名字已经在选项卡上, 只在「关于」那一段还留标题。
+    if (g.key === 'about' && about) about.appendChild(el('h2', '', g.title));
+    for (const it of g.items) host.appendChild(prefCard(it));
+  }
+  renderTabs();
 }
 
 /* 进儿童与长辈窗口前先验密码: 没设过就先设一个, 设过就核对一次。 */
@@ -2163,7 +2212,7 @@ async function setting(sw) {
   } catch (e) { sw.checked = !on; toast(t('toast_set_fail')); }
   sw.disabled = false;
 }
-['#swSaverTime', '#swSaverPlace', '#swWeather'].forEach(id => $(id).onchange = () => setting($(id)));
+['#swSaverTime', '#swSaverPlace'].forEach(id => $(id).onchange = () => setting($(id)));
 $('#city').oninput = () => $('#cityBtn').disabled = !$('#city').value.trim();
 $('#netBtn').onclick = async () => {
   try { take(await api('api/weather/auto', {})); if (state.weather) $('#placeName').value = state.weather.place || ''; } catch (e) { toast('网络定位失败，请手动输入城市'); }
@@ -2839,6 +2888,7 @@ show((location.hash || '').slice(1) || (() => { try { return localStorage.getIte
 async function refresh() { try { state = await api('api/state'); render(); } catch (e) {} }
 refresh();
 loadPrefs();
+$('#prefsLead').textContent = PREFS_LEAD[LANG] || PREFS_LEAD.en;
 setInterval(() => { if (!document.hidden && sheet.hidden && !arrDragging) refresh(); }, 2000);
 </script>
 </body>
