@@ -81,11 +81,14 @@ object SaverPanel {
     /** 写一条; 认不出来的键返回 false。 */
     fun set(context: Context, key: String, value: String): Boolean = when (key) {
         "saverKind" -> {
+            // 已经是这个类型就不重开屏保, 但也算存下了: 同一个值点一下不该报设置失败。
             val mode = ScreensaverMode.of(value)
-            if (mode == Wallpapers.screensaver) false else { Wallpapers.chooseScreensaver(mode); true }
+            if (mode != Wallpapers.screensaver) Wallpapers.chooseScreensaver(mode)
+            true
         }
         "aerialQuality" -> {
-            AerialSettings.chooseAerialQuality(AerialQuality.of(value)); true
+            if (!AerialFormats.supported(context).contains(AerialQuality.of(value))) false
+            else { AerialSettings.chooseAerialQuality(AerialQuality.of(value)); true }
         }
         "saverMinutes" -> {
             val minutes = value.toIntOrNull() ?: -1

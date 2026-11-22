@@ -195,8 +195,15 @@ class PhoneServer private constructor(private val context: Context, private val 
                 }
                 session.method == Method.POST && path == "/api/saver" -> {
                     val f = form(session)
+                    val key = f["key"].orEmpty()
+                    val value = f["value"].orEmpty()
                     var ok = false
-                    onMain { ok = SaverPanel.set(context, f["key"].orEmpty(), f["value"].orEmpty()) }
+                    try {
+                        onMain { ok = SaverPanel.set(context, key, value) }
+                    } catch (e: Exception) {
+                        app.orchard.tv.system.DiagLog.e("手机页屏保设置失败: $key=$value", e)
+                    }
+                    app.orchard.tv.system.DiagLog.i("手机页屏保: $key=$value -> saved=$ok")
                     json(state().put("saved", ok))
                 }
                 // 电视个性化面板里那些设置: 手机页照电视的 strings.xml 拿文案, 按电视同一套

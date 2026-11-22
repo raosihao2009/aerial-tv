@@ -1840,7 +1840,7 @@ async function setSaver(key, value) {
 function renderSaver() {
   const box = $('#saverItems'); if (!box || !saver) return;
   box.replaceChildren();
-  for (const it of saver.items || []) box.appendChild(prefCard(it, (k, v) => setSaver(k, v)));
+  for (const it of saver.items || []) box.appendChild(prefCard(it, null, (k, v) => setSaver(k, v)));
 }
 
 let sendingVideo = '';
@@ -1965,7 +1965,8 @@ function customRow(it, changed) {
 }
 
 /* 一项设置一张圆角卡: 标题和说明在上, 选项一排一个, 选中的那行打勾并染成主题色。 */
-function prefCard(it, after) {
+// after: 存完以后要做的事; save: 自己那份保存接口, 不给就走 /api/prefs(个性化面板那份)。
+function prefCard(it, after, save) {
   const card = el('div', 'list pcard');
   const head = el('div', 'item phead');
   const txt = el('span', 'txt');
@@ -1973,7 +1974,7 @@ function prefCard(it, after) {
   if (it.hint) txt.appendChild(el('span', 'sub', it.hint));
   head.appendChild(txt);
   card.appendChild(head);
-  const changed = (k, v) => setPref(k, v, after);
+  const changed = save ? (k, v) => save(k, v) : (k, v) => setPref(k, v, after);
 
   if (it.kind === 'seg' || it.kind === 'minutes') {
     const row = el('div', 'prow');
