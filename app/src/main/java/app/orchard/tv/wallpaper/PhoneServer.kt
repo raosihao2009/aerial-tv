@@ -188,6 +188,17 @@ class PhoneServer private constructor(private val context: Context, private val 
                     }
                     json(state().put("saved", known))
                 }
+                // 手机页「壁纸与屏保」那一格最下面的屏保四项: 类型、航拍画质、开始时间、返回键。
+                session.method == Method.GET && path == "/api/saver" -> {
+                    val lang = queryOf(session.queryParameterString, "lang") ?: "zh"
+                    json(SaverPanel.schema(context, lang))
+                }
+                session.method == Method.POST && path == "/api/saver" -> {
+                    val f = form(session)
+                    var ok = false
+                    onMain { ok = SaverPanel.set(context, f["key"].orEmpty(), f["value"].orEmpty()) }
+                    json(state().put("saved", ok))
+                }
                 // 电视个性化面板里那些设置: 手机页照电视的 strings.xml 拿文案, 按电视同一套
                 // choose* 写进去。壁纸/屏保/隐藏卡片不在这里, 手机页别的标签页已有。
                 session.method == Method.GET && path == "/api/prefs" -> {

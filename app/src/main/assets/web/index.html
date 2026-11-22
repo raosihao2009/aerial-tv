@@ -78,7 +78,7 @@
     flex: 0 1 44px; min-width: 0; padding: 0 6px; overflow: hidden; color: var(--secondary); font-size: 13px; cursor: pointer;
   }
   .gtabs button[aria-checked="true"] {
-    background: var(--card); color: var(--label); font-weight: 600; flex: 1 1 0; min-width: 0;
+    background: var(--card); color: var(--label); font-weight: 600; flex: 1 1 0; min-width: max-content; padding: 0 10px; max-width: 58vw;
     box-shadow: 0 1px 3px rgba(0,0,0,.12);
   }
   .gtabs button .glabel { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -198,6 +198,10 @@
   .hero .cap small { display: block; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; opacity: .8; }
   .hero .cap b { font-size: 20px; font-weight: 600; }
   /* Cells start at the top: a button centres its content, so a tile without a caption sat lower than its neighbour. */
+  /* 壁纸一排一排左右翻：卡片定宽, 一屏两三张, 手指横划。 */
+  .wrow { display: flex; gap: 12px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; padding: 2px 4px 6px; margin: 0 -4px; }
+  .wrow::-webkit-scrollbar { display: none; }
+  .wrow .wp { flex: 0 0 38vw; max-width: 180px; scroll-snap-align: start; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px 12px; align-items: start; }
   .wp { position: relative; display: block; border: 0; padding: 0; background: none; text-align: left; min-width: 0; }
   .wp .pic {
@@ -421,36 +425,13 @@
   <div class="gtabs" id="gtabs" role="tablist"></div>
 
   <!-- 壁纸与屏保: 原来是底部一个单独的 Tab, 现在收进「更多」的分类选项卡里 -->
+  <!-- 壁纸与屏保: 原来是底部一个单独的 Tab, 现在收进「更多」的分类选项卡里。
+       照电视的顺序: 先大图当前壁纸, 再四排左右翻的壁纸, 最后是屏保那四行。 -->
   <div class="pgroup" id="prefsWallpaper" data-g="wallpaper" hidden>
-
-
-  <div class="hero" id="hero"><img id="heroImg" alt=""><div class="cap"><small data-i18n="current_wp"></small><b id="heroTitle"></b></div></div>
-  <div id="sections"></div>
-
-  <h2 class="big" data-i18n="screensaver"></h2>
-  <div class="list" id="ss" role="radiogroup" data-i18n-aria-label="screensaver_short">
-    <button class="item" role="radio" data-mode="aerial"><span class="txt"><span data-i18n="ss_aerial"></span><span class="sub" data-i18n="hint_aerial"></span></span><svg class="tick" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
-    <button class="item" role="radio" data-mode="photos"><span class="txt"><span data-i18n="ss_photos"></span><span class="sub" data-i18n="hint_photos"></span></span><svg class="tick" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
-    <button class="item" role="radio" data-mode="clock"><span class="txt"><span data-i18n="ss_clock"></span><span class="sub" data-i18n="hint_clock"></span></span><svg class="tick" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
-    <button class="item" role="radio" data-mode="videos"><span class="txt"><span data-i18n="ss_videos"></span><span class="sub" data-i18n="hint_videos"></span></span><svg class="tick" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
-    <button class="item" role="radio" data-mode="sleep" hidden><span class="txt"><span data-i18n="ss_sleep"></span><span class="sub" data-i18n="hint_sleep"></span></span><svg class="tick" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
-  </div>
-  <p class="foot" id="ssFoot"></p>
-  <div class="list" id="ssTimeBox" style="margin-top:10px">
-    <label class="item"><span class="txt"><span data-i18n="sw_saver_time"></span><span class="sub" data-i18n="sw_saver_time_sub"></span></span><input class="switch" type="checkbox" id="swSaverTime" data-setting="screensaverClock"></label>
-    <label class="item"><span class="txt"><span data-i18n="sw_saver_place"></span><span class="sub" data-i18n="sw_saver_place_sub"></span></span><input class="switch" type="checkbox" id="swSaverPlace" data-setting="screensaverCaption"></label>
-  </div>
-  <div id="videos">
-    <h2 data-i18n="videos_h"></h2>
-    <div class="list" id="videoList"></div>
-    <div class="list" style="margin-top:10px">
-      <label class="item tint center" id="videoUploadBtn">
-        <span id="videoUploadLabel" data-i18n="videos_upload"></span>
-        <input id="videoFile" type="file" accept=".mp4,.mov,video/mp4,video/quicktime" multiple hidden>
-      </label>
-    </div>
-    <p class="foot" data-i18n="videos_hint"></p>
-  </div>
+    <div class="hero" id="hero"><img id="heroImg" alt=""><div class="cap"><small data-i18n="current_wp"></small><b id="heroTitle"></b></div></div>
+    <div id="sections"></div>
+    <h2 class="big" data-i18n="screensaver_short"></h2>
+    <div id="saverItems"></div>
   </div>
 
   <div id="prefsHome" class="pgroup" data-g="home" hidden></div>
@@ -1264,7 +1245,8 @@ const TEXTS = {
 const LANGS = Object.keys(TEXTS);
 // 后加的文案单独放: KEYS 与 TEXTS 是按位置对齐的老表, 往里插一条就会把后面所有文案错位。
 const EXTRA = {
-  zh: { backup_h: "备份与恢复", backup_export: "导出备份", backup_import: "导入备份",
+  zh: { g_builtin_more: "内置与更多",
+        backup_h: "备份与恢复", backup_export: "导出备份", backup_import: "导入备份",
         pin_back: "删除",
         pin_digits: "4 位数字", pin_arrows: "4 个方向键", pin_digits_hint: "输入 4 位数字。",
         pin_arrows_hint: "依次按 4 下方向键。", pin_verify_title: "输入家长密码", pin_wrong: "密码不对，请重试。",
@@ -1281,7 +1263,8 @@ const EXTRA = {
         ss_sleep: "待机", hint_sleep: "不播屏保: 到时间直接待机, 等同按电源键。多数电视之后只能用遥控器电源键唤醒。",
         sw_saver_place: "屏保显示地点", sw_saver_place_sub: "航拍屏保左下角的地名, 照片屏保的图片标题。",
         power_off: "关机", power_off_confirm: "现在就关掉这台电视?", power_off_done: "已关机", power_off_fail: "关机失败" },
-  en: { backup_h: "Backup & restore", backup_export: "Export backup", backup_import: "Import backup",
+  en: { g_builtin_more: "Built-in & more",
+        backup_h: "Backup & restore", backup_export: "Export backup", backup_import: "Import backup",
         pin_back: "Delete",
         pin_digits: "4 digits", pin_arrows: "4 arrow keys", pin_digits_hint: "Type the 4 digits.",
         pin_arrows_hint: "Press four arrows in order.", pin_verify_title: "Enter the parental PIN", pin_wrong: "Wrong PIN — try again.",
@@ -1298,7 +1281,8 @@ const EXTRA = {
         ss_sleep: "Standby", hint_sleep: "No screensaver: when the time comes the TV goes to standby, as with its power button.",
         sw_saver_place: "Place on the screensaver", sw_saver_place_sub: "The place name bottom left on the aerial screensaver, and the picture's title on the photo screensaver.",
         power_off: "Shut Down", power_off_confirm: "Turn this TV off now?", power_off_done: "Turned off", power_off_fail: "Could not turn it off" },
-  ru: { backup_h: "Резервная копия", backup_export: "Экспорт копии", backup_import: "Импорт копии",
+  ru: { g_builtin_more: "Встроенные и ещё",
+        backup_h: "Резервная копия", backup_export: "Экспорт копии", backup_import: "Импорт копии",
         pin_back: "Удалить",
         pin_digits: "4 цифры", pin_arrows: "4 стрелки", pin_digits_hint: "Введите 4 цифры.",
         pin_arrows_hint: "Нажмите четыре стрелки по порядку.", pin_verify_title: "Введите родительский PIN", pin_wrong: "PIN неверный — попробуйте снова.",
@@ -1312,7 +1296,8 @@ const EXTRA = {
         backup_locked: "Включён детский режим — сначала разблокируйте PIN-кодом на ТВ",
         backup_packing: "Собираем копию, подождите…", backup_save: "Сохранить копию", backup_pack_fail: "Не удалось собрать копию — попробуйте снова",
         backup_no_reply: "Телевизор не сообщил результат", backup_link_lost: "Связь с телевизором прервалась" },
-  uk: { backup_h: "Резервна копія", backup_export: "Експорт копії", backup_import: "Імпорт копії",
+  uk: { g_builtin_more: "Вбудовані та інші",
+        backup_h: "Резервна копія", backup_export: "Експорт копії", backup_import: "Імпорт копії",
         pin_back: "Видалити",
         pin_digits: "4 цифри", pin_arrows: "4 стрілки", pin_digits_hint: "Введіть 4 цифри.",
         pin_arrows_hint: "Натисніть чотири стрілки по черзі.", pin_verify_title: "Введіть батьківський PIN", pin_wrong: "PIN неправильний — спробуйте ще раз.",
@@ -1326,7 +1311,8 @@ const EXTRA = {
         backup_locked: "Увімкнено дитячий режим — спочатку розблокуйте PIN-кодом на ТБ",
         backup_packing: "Збираємо копію, зачекайте…", backup_save: "Зберегти копію", backup_pack_fail: "Не вдалося зібрати копію — спробуйте ще раз",
         backup_no_reply: "Телевізор не повідомив результат", backup_link_lost: "Зв'язок із телевізором обірвався" },
-  kk: { backup_h: "Сақтық көшірме", backup_export: "Көшірмені шығару", backup_import: "Көшірмені қалпына келтіру",
+  kk: { g_builtin_more: "Кіріктірілген және тағы басқа",
+        backup_h: "Сақтық көшірме", backup_export: "Көшірмені шығару", backup_import: "Көшірмені қалпына келтіру",
         pin_back: "Жою",
         pin_digits: "4 сан", pin_arrows: "4 бағыттағы перне", pin_digits_hint: "4 санды енгізіңіз.",
         pin_arrows_hint: "Төрт бағыт пернесін ретімен басыңыз.", pin_verify_title: "Ата-ана PIN-ін енгізіңіз", pin_wrong: "PIN дұрыс емес — қайталап көріңіз.",
@@ -1552,6 +1538,17 @@ function card(w) {
     if (w.id === state.selected) return;
     try { take(await api('api/wallpaper', { id: w.id })); toast(t('toast_wallpaper')); } catch (e) { toast(t('toast_set_fail')); }
   };
+  if (w.kind === 'video') {
+    const d = el('button', 'badge'); d.innerHTML = ICON.close; d.setAttribute('aria-label', t('aria_delete'));
+    d.onclick = e => {
+      e.stopPropagation();
+      confirmSheet(t('confirm_video_delete', { name: w.title })).then(ok => {
+        if (!ok) return;
+        api('api/videos/delete', { id: w.id.replace(/^video:/, '') }).then(take).catch(() => toast(t('toast_video_bad')));
+      });
+    };
+    b.querySelector('.pic').appendChild(d);
+  }
   if (w.kind === 'photo') {
     const d = el('button', 'badge'); d.innerHTML = ICON.close; d.setAttribute('aria-label', t('aria_delete'));
     d.onclick = e => {
@@ -1732,40 +1729,58 @@ function renderWallpapers() {
   $('#heroImg').src = `${base}thumb/${encodeURIComponent(state.selected)}`;
   $('#heroTitle').textContent = titleOf(state.selected);
   const root = $('#sections'); root.replaceChildren();
-  for (const [kind, title, sub] of groups) {
-    // Moving: the aerial films and the owner's videos.
-    let list = state.wallpapers.filter(w => w.kind === kind || (kind === 'live' && w.kind === 'video'));
-    // Each video on its own; the card that plays them in turn only for two or more (#762), as on the TV.
-    if (kind === 'live' && list.filter(w => w.kind === 'video').length < 3 && state.selected !== 'videos:mine') list = list.filter(w => w.id !== 'videos:mine');
-    if (kind === 'daily' && list.length) list = [{ id: state.latestDaily, kind: 'daily', title: t('daily_title'), caption: t('daily_caption') }, ...list];
-    // Two or more photos: one a day, as on the TV (#27, #194).
-    if (kind === 'photo' && list.length > 1) list = [{ id: state.rotatePhotos, kind: 'photos', title: t('rotate_title'), caption: t('rotate_caption') }, ...list];
-    if (!list.length && kind !== 'photo') continue;
+  const wp = state.wallpapers || [];
+  // 一排: 标题、可能有的添加按钮或小字, 再一条左右翻的卡片带。
+  const row = (title, items, opts) => {
+    opts = opts || {};
     root.appendChild(el('h2', 'big', title));
-    if (kind === 'photo') {
-      const up = el('label', 'btn add');
-      up.innerHTML = `${ICON.plus}<span id="uploadLabel"></span><input id="file" type="file" accept="image/*" multiple hidden>`;
-      up.querySelector('span').textContent = uploading ? t('sending_n', { n: uploading }) : t('upload_label');
-      if (uploading) up.setAttribute('disabled', '');
-      up.querySelector('input').onchange = uploadPhotos;
-      root.appendChild(up);
-      if (!list.length) { root.appendChild(el('p', 'empty', t('empty_photos'))); continue; }
-    }
-    const g = el('div', 'grid');
-    list.forEach(w => g.appendChild(card(w)));
-    root.appendChild(g);
-    if (sub) root.appendChild(el('p', 'foot', sub));
-    // Whether keys stop the owner's videos, as on the TV; the aerial films always move.
-    if (kind === 'live' && /^videos?:/.test(state.selected)) {
-      const l = el('div', 'list'); l.style.marginTop = '10px';
-      const row = el('label', 'item');
-      const txt = el('span', 'txt', t('sw_always')); txt.appendChild(el('span', 'sub', t('sw_always_sub')));
-      const sw = el('input', 'switch'); sw.type = 'checkbox'; sw.checked = !!state.wallpaperAlwaysMoves; sw.dataset.setting = 'wallpaperAlwaysMoves';
-      sw.onchange = () => setting(sw);
-      row.append(txt, sw); l.appendChild(row); root.appendChild(l);
-    }
-    if (kind === 'photo' && list.length === 1) root.appendChild(el('p', 'foot', t('add_second')));
+    if (opts.photoAdd) root.appendChild(photoAddBtn());
+    if (opts.videoAdd) root.appendChild(videoAddBtn());
+    if (opts.lead) root.appendChild(el('p', 'foot', opts.lead));
+    if (!items.length) { if (opts.empty) root.appendChild(el('p', 'empty', opts.empty)); return; }
+    const strip = el('div', 'wrow');
+    items.forEach(w => strip.appendChild(card(w)));
+    root.appendChild(strip);
+    if (opts.foot) root.appendChild(el('p', 'foot', opts.foot));
+  };
+
+  // 我的照片: 两张以上先给一张轮流播放的卡, 和电视一样。
+  let photos = wp.filter(w => w.kind === 'photo');
+  if (photos.length > 1) photos = [{ id: state.rotatePhotos, kind: 'photos', title: t('rotate_title'), caption: t('rotate_caption') }].concat(photos);
+  row(t('g_photo'), photos, { photoAdd: true, empty: t('empty_photos'), foot: photos.length === 1 ? t('add_second') : '' });
+
+  // 动态: 航拍影片和你的视频; 三段视频以上才多一张轮流播放的卡 (#762, 同电视)。
+  let moving = wp.filter(w => w.kind === 'live' || w.kind === 'video');
+  if (moving.filter(w => w.kind === 'video').length < 3 && state.selected !== 'videos:mine') moving = moving.filter(w => w.id !== 'videos:mine');
+  row(t('g_live'), moving, { videoAdd: true, lead: t('videos_hint') });
+  // 按键停不停自己的视频, 和电视一样; 航拍影片一直动。
+  if (/^videos?:/.test(state.selected)) {
+    const l = el('div', 'list'); l.style.marginTop = '10px';
+    const r2 = el('label', 'item');
+    const txt = el('span', 'txt', t('sw_always')); txt.appendChild(el('span', 'sub', t('sw_always_sub')));
+    const sw = el('input', 'switch'); sw.type = 'checkbox'; sw.checked = !!state.wallpaperAlwaysMoves; sw.dataset.setting = 'wallpaperAlwaysMoves';
+    sw.onchange = () => setting(sw);
+    r2.append(txt, sw); l.appendChild(r2); root.appendChild(l);
   }
+
+  let daily = wp.filter(w => w.kind === 'daily');
+  if (daily.length) {
+    daily = [{ id: state.latestDaily, kind: 'daily', title: t('daily_title'), caption: t('daily_caption') }].concat(daily);
+    row(t('g_daily'), daily, {});
+  }
+
+  // 内置与更多合成一排。
+  const built = wp.filter(w => w.kind === 'builtin' || w.kind === 'auto');
+  if (built.length) row(t('g_builtin_more'), built, {});
+}
+
+function photoAddBtn() {
+  const up = el('label', 'btn plain add');
+  up.innerHTML = `${ICON.plus}<span></span><input type="file" accept="image/*" multiple hidden>`;
+  up.querySelector('span').textContent = uploading ? t('sending_n', { n: uploading }) : t('upload_label');
+  if (uploading) up.setAttribute('disabled', '');
+  up.querySelector('input').onchange = uploadPhotos;
+  return up;
 }
 let uploading = 0;
 function uploadPhotos(e) { sendPhotos([...e.target.files]); }
@@ -1781,51 +1796,51 @@ async function sendPhotos(files) {
   } catch (err) { uploading = 0; stateJson = ''; render(); toast(t('toast_send_fail')); }
 }
 
-/* Screensaver tab. */
-let sendingVideo = '';
-function renderScreensaver() {
-  document.querySelectorAll('#ss [data-mode]').forEach(b => b.setAttribute('aria-checked', b.dataset.mode === state.screensaver ? 'true' : 'false'));
-  // Standby only where the TV's guard can put it to sleep (Android 9+), or while still chosen.
-  $('#ss [data-mode="sleep"]').hidden = !state.canSleep && state.screensaver !== 'sleep';
-  $('#powerBox').hidden = !state.canSleep;
-  $('#ssFoot').textContent = state.screensaverFollows ? t('hint_follows') : state.screensaver === 'system' ? hints.system : '';
-  $('#ssFoot').hidden = !$('#ssFoot').textContent;
-  // The time only over the aerial and photo screensavers; the clock one is its clock.
-  $('#ssTimeBox').hidden = state.screensaver !== 'aerial' && state.screensaver !== 'photos';
-  $('#swSaverTime').checked = !!state.screensaverClock;
-  $('#swSaverPlace').checked = state.screensaverCaption !== false;
-  const list = $('#videoList'); list.replaceChildren();
-  const videos = state.videos || [];
-  if (!videos.length) { const row = el('div', 'item'); row.appendChild(el('span', 'txt', t('videos_empty'))).style.color = 'var(--secondary)'; list.appendChild(row); }
-  for (const video of videos) {
-    const row = el('div', 'item');
-    row.appendChild(el('span', 'txt', video.name));
-    const del = el('button', 'link', t('aria_delete')); del.style.color = 'var(--danger)';
-    del.onclick = async () => {
-      if (!await confirmSheet(t('confirm_video_delete', { name: video.name }))) return;
-      del.disabled = true;
-      try { take(await api('api/videos/delete', { id: video.id })); } catch (err) { del.disabled = false; toast(t('toast_video_bad')); }
-    };
-    row.appendChild(del); list.appendChild(row);
-  }
-  $('#videoUploadLabel').textContent = sendingVideo || t('videos_upload');
+/* 屏保: 类型、航拍画质、开始时间、返回键四行, 由电视发一份 JSON 过来, 和个性化面板同一套卡片。 */
+let saver = null, saverJson = '';
+async function loadSaver() {
+  try {
+    const r = await fetch(base + 'api/saver?lang=' + LANG);
+    if (!r.ok) return;
+    const text = await r.text();
+    // 和上次一样就不重画, 免得轮询把刚点的按钮打断。
+    if (text === saverJson) return;
+    saverJson = text;
+    saver = JSON.parse(text);
+    renderSaver();
+  } catch (e) {}
 }
-document.querySelectorAll('#ss [data-mode]').forEach(b => b.onclick = async () => {
-  if (b.dataset.mode === state.screensaver && !state.screensaverFollows) return;
-  try { take(await api('api/screensaver', { mode: b.dataset.mode })); toast(t('toast_tv_updated')); } catch (e) { toast(t('toast_set_fail')); }
-});
-$('#powerOff').onclick = async () => {
-  if (!confirm(t('power_off_confirm'))) return;
-  try { const next = await api('api/power/off', {}); toast(t(next.saved ? 'power_off_done' : 'power_off_fail')); } catch (e) { toast(t('power_off_fail')); }
-};
-$('#videoFile').onchange = e => sendVideos([...e.target.files]);
-async function sendVideos(files) {
-  const input = $('#videoFile'); if (!files.length || input.disabled) return;
-  const btn = $('#videoUploadBtn');
-  input.disabled = true; btn.setAttribute('disabled', '');
+async function setSaver(key, value) {
+  try {
+    const r = await api('api/saver', { key: key, value: value });
+    if (!r.ok) throw new Error('not saved');
+    toast(t('toast_tv_updated'));
+  } catch (e) { toast(t('toast_set_fail')); }
+  saverJson = ''; await loadSaver(); refresh();
+}
+function renderSaver() {
+  const box = $('#saverItems'); if (!box || !saver) return;
+  box.replaceChildren();
+  for (const it of saver.items || []) box.appendChild(prefCard(it, (k, v) => setSaver(k, v)));
+}
+
+let sendingVideo = '';
+function videoAddBtn() {
+  const up = el('label', 'btn plain add');
+  up.innerHTML = `${ICON.plus}<span></span><input type="file" accept=".mp4,.mov,video/mp4,video/quicktime" multiple hidden>`;
+  up.querySelector('span').textContent = sendingVideo || t('videos_upload');
+  if (sendingVideo) up.setAttribute('disabled', '');
+  up.querySelector('input').onchange = e => sendVideos([...e.target.files], up);
+  return up;
+}
+async function sendVideos(files, btn) {
+  if (!files.length) return;
+  const label = btn ? btn.querySelector('span') : null;
+  if (btn) btn.setAttribute('disabled', '');
   let added = 0;
   for (const [i, file] of files.entries()) {
-    sendingVideo = t('sending_video', { n: i + 1, total: files.length }); $('#videoUploadLabel').textContent = sendingVideo;
+    sendingVideo = t('sending_video', { n: i + 1, total: files.length });
+    if (label) label.textContent = sendingVideo;
     if (!file.size || file.size > 200 * 1024 * 1024) continue;
     try {
       // The TV server takes the raw bytes as the body and the name in the query, not multipart.
@@ -1836,9 +1851,15 @@ async function sendVideos(files) {
       const next = await r.json(); if (next.saved) added++; take(next);
     } catch (err) { /* Keep going: a failed film should not discard the rest of the batch. */ }
   }
-  sendingVideo = ''; input.disabled = false; input.value = ''; btn.removeAttribute('disabled'); stateJson = ''; render();
+  sendingVideo = '';
+  if (btn) { btn.removeAttribute('disabled'); const inp = btn.querySelector('input'); if (inp) { inp.value = ''; inp.disabled = false; } }
+  stateJson = ''; render();
   toast(t('toast_videos_added', { n: added, failed: files.length - added }));
 }
+$('#powerOff').onclick = async () => {
+  if (!confirm(t('power_off_confirm'))) return;
+  try { const next = await api('api/power/off', {}); toast(t(next.saved ? 'power_off_done' : 'power_off_fail')); } catch (e) { toast(t('power_off_fail')); }
+};
 
 /* Files dropped anywhere on the page, as from a computer's folder: photos to the wallpapers, videos to the screensaver. */
 let dragDepth = 0;
@@ -1863,6 +1884,7 @@ window.addEventListener('drop', e => {
 /* More tab: focus style and weather. */
 const weatherNames = { clear: t('wx_clear'), partlycloudy: t('wx_partlycloudy'), cloudy: t('wx_cloudy'), fog: t('wx_fog'), rain: t('wx_rain'), snow: t('wx_snow'), thunder: t('wx_thunder') };
 function renderMore() {
+  if ($('#powerBox')) $('#powerBox').hidden = !state.canSleep;
   const w = state.weather || {};
   $('#wxNow').textContent = w.celsius !== undefined ? `${w.celsius}° ${weatherNames[w.kind] || ''}` : '—';
   $('#wxPlace').textContent = w.place || '';
@@ -2020,7 +2042,7 @@ const GROUP_ICONS = {
   live: 'm418-332 202-129q11-7 11-19t-11-19L418-628q-11-8-23-1.5T383-609v258q0 14 12 20.5t23-1.5Zm62 252q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-156t86-127Q252-817 325-848.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 82-31.5 155T763-197.5q-54 54.5-127 86T480-80Z',
   look: 'M480-280q-83 0-141.5-58.5T280-480q0-83 58.5-141.5T480-680q83 0 141.5 58.5T680-480q0 83-58.5 141.5T480-280ZM70-450q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32Q57.25-510 70-510h100q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H70Zm720 0q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h100q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H790ZM479.82-760q-12.82 0-21.32-8.63-8.5-8.62-8.5-21.37v-100q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v100q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63Zm0 720Q467-40 458.5-48.63 450-57.25 450-70v-100q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v100q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63ZM240-678l-57-56q-9-9-8.63-21.6.37-12.61 8.53-21.5 8.89-8.9 21.5-8.9 12.6 0 21.6 9l56 57q8 9 8 21t-8 20.5q-8 8.5-20.5 8.5t-21.5-8Zm494 495-56-57q-8-9-8-21.38 0-12.37 8.5-20.62 8.5-9 20.5-9t21 9l57 56q9 9 8.63 21.6-.37 12.61-8.53 21.5-8.89 8.9-21.5 8.9-12.6 0-21.6-9Zm-56-495q-9-9-9-21t9-21l56-57q9-9 21.6-8.63 12.61.37 21.5 8.53 8.9 8.89 8.9 21.5 0 12.6-9 21.6l-57 56q-8 8-20.36 8-12.37 0-21.64-8ZM182.9-182.9q-8.9-8.89-8.9-21.5 0-12.6 9-21.6l57-56q8.8-9 20.9-9 12.1 0 20.71 9 9.39 9 9.39 21t-9 21l-56 57q-9 9-21.6 8.63-12.61-.37-21.5-8.53Z',
   weather: 'm749-169-63-63q-9-9.07-9-21.53 0-12.47 9-21.47 9-9 21.47-9 12.46 0 21.53 9l63 63q9 9.07 9 21.53 0 12.47-9.05 21.47-9.06 9-21.5 9-12.45 0-21.45-9Zm-509-11q-57.75 0-98.87-41.18-41.13-41.17-41.13-99Q100-378 141.13-419q41.12-41 98.87-41 38.86 0 71.64 20.91Q344.43-418.19 359-382l18.24 41H421q33 0 56 24t23 57q0 33-23.5 56.5T420-180H240Zm318-73q0-61-41-104.5T416-401q-20-56-68-89t-108-30q14-88 82.5-144T480-720q100 0 170 70t70 170q0 78-44.5 140T558-253Zm242-197q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h90q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5h-90ZM233-685l-64-64q-9-9-9-21t9-21q8.8-9 20.9-9 12.1 0 21.1 9l64 64q9 8.8 9 20.9 0 12.1-9 21.1-9 9-21 9t-21-9Zm452 0q-9-9-9-21.47 0-12.46 9-21.53l63-63q9.07-9 21.53-9 12.47 0 21.47 9 9 9 9 21t-9 21l-64 64q-9 9-21 9t-21-9Zm-205.18-85q-12.82 0-21.32-8.63-8.5-8.62-8.5-21.37v-90q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v90q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63Z',
-  wallpaper: 'M200-120q-33 0-56.5-23.5T120-200v-200q0-17 11.5-28.5T160-440q17 0 28.5 11.5T200-400v200h200q17 0 28.5 11.5T440-160q0 17-11.5 28.5T400-120H200Zm560 0H560q-17 0-28.5-11.5T520-160q0-17 11.5-28.5T560-200h200v-200q0-17 11.5-28.5T800-440q17 0 28.5 11.5T840-400v200q0 33-23.5 56.5T760-120ZM450-320l104-139q6-8 16-8t16 8l110 147q8 10 2 21t-18 11H280q-12 0-18-11t2-21l80-107q6-8 16-8t16 8l74 99ZM120-760q0-33 23.5-56.5T200-840h200q17 0 28.5 11.5T440-800q0 17-11.5 28.5T400-760H200v200q0 17-11.5 28.5T160-520q-17 0-28.5-11.5T120-560v-200Zm720 0v200q0 17-11.5 28.5T800-520q-17 0-28.5-11.5T760-560v-200H560q-17 0-28.5-11.5T520-800q0-17 11.5-28.5T560-840h200q33 0 56.5 23.5T840-760ZM620-560q-26 0-43-17t-17-43q0-26 17-43t43-17q26 0 43 17t17 43q0 26-17 43t-43 17Z',
+  wallpaper: 'M180-120q-24 0-42-18t-18-42v-600q0-24 18-42t42-18h600q24 0 42 18t18 42v600q0 24-18 42t-42 18H180Zm86-157h429q9 0 13-8t-1-16L590-457q-5-6-12-6t-12 6L446-302l-81-111q-5-6-12-6t-12 6l-86 112q-6 8-2 16t13 8Z',
   family: 'm439-442-79-79q-9-9-22-9t-22 9q-9 9-9 22t9 22l99 100q9 9 21 9t21-9l186-186q9-9 9-21.5t-9-20.5q-8-8-21-7.5t-21 8.5L439-442Zm41 358q-5 0-9.5-1t-9.5-3q-139-47-220-168.5T160-523v-196q0-19 11-34.5t28-22.5l260-97q11-4 21-4t21 4l260 97q17 7 28 22.5t11 34.5v196q0 145-81 266.5T499-88q-5 2-9.5 3t-9.5 1Z',
 };
 function groupIcon(key) {
@@ -2229,7 +2251,6 @@ async function setting(sw) {
   } catch (e) { sw.checked = !on; toast(t('toast_set_fail')); }
   sw.disabled = false;
 }
-['#swSaverTime', '#swSaverPlace'].forEach(id => $(id).onchange = () => setting($(id)));
 $('#city').oninput = () => $('#cityBtn').disabled = !$('#city').value.trim();
 $('#netBtn').onclick = async () => {
   try { take(await api('api/weather/auto', {})); if (state.weather) $('#placeName').value = state.weather.place || ''; } catch (e) { toast('网络定位失败，请手动输入城市'); }
@@ -2892,7 +2913,6 @@ function render() {
   if (json === stateJson) return;
   stateJson = json;
   renderWallpapers();
-  renderScreensaver();
   renderMore();
   renderInputs();
   renderArrange(false);
@@ -2902,9 +2922,10 @@ function render() {
 initLangSwitch();
 applyI18n();
 show((location.hash || '').slice(1) || (() => { try { return localStorage.getItem('aerial-tab'); } catch (e) { return null; } })(), true);
-async function refresh() { try { state = await api('api/state'); render(); } catch (e) {} }
+async function refresh() { try { state = await api('api/state'); render(); loadSaver(); } catch (e) {} }
 refresh();
 loadPrefs();
+loadSaver();
 $('#prefsLead').textContent = PREFS_LEAD[LANG] || PREFS_LEAD.en;
 setInterval(() => { if (!document.hidden && sheet.hidden && !arrDragging) refresh(); }, 2000);
 </script>
