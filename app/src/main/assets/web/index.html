@@ -441,7 +441,9 @@
 
   <div id="prefsWeather" class="pgroup" data-g="weather" hidden>
     <div id="wxItems"></div>
-    <div class="list wxlist">
+    <!-- 天气位置: 和其他设置一样先给标题, 下面是当前天气、城市和定位几行。 -->
+    <div class="list pcard wxlist">
+      <div class="item phead"><span class="txt"><span data-i18n="weather_place"></span><span class="sub" data-i18n="weather_place_hint"></span></span></div>
       <div class="item wx"><b id="wxNow">—</b><span id="wxPlace"></span></div>
       <form class="item field" id="cityForm">
         <input id="city" type="text" data-i18n-placeholder="city_ph" enterkeyhint="done" autocomplete="off">
@@ -458,14 +460,9 @@
   </div>
 
   <div id="prefsFamily" class="pgroup" data-g="family" hidden></div>
-  <!-- 其他: 关于 Aerial(含这台电视)、备份与恢复、反馈问题、关机→待机, 单独一个分类。 -->
+  <!-- 其他: 关于 Aerial、备份与恢复、反馈问题、关机→待机, 单独一个分类。 -->
   <div class="pgroup" id="prefsOther" data-g="other" hidden>
   <div id="prefsAbout"></div>
-
-  <h2 data-i18n="this_tv"></h2>
-  <div class="list">
-    <div class="item"><span class="txt" data-i18n="tv_model"></span><span class="val">{{DEVICE}}</span></div>
-  </div>
 
   <h2 data-i18n="backup_h"></h2>
   <div class="list">
@@ -1250,6 +1247,7 @@ const LANGS = Object.keys(TEXTS);
 // 后加的文案单独放: KEYS 与 TEXTS 是按位置对齐的老表, 往里插一条就会把后面所有文案错位。
 const EXTRA = {
   zh: { st_on: "开", st_off: "关", tab_other: "其他",
+        weather_place: "天气位置", weather_place_hint: "顶部问候行和屏保显示的就是这里的天气。",
         g_builtin_more: "内置与更多",
         backup_h: "备份与恢复", backup_export: "导出备份", backup_import: "导入备份",
         pin_back: "删除",
@@ -1269,6 +1267,7 @@ const EXTRA = {
         sw_saver_place: "屏保显示地点", sw_saver_place_sub: "航拍屏保左下角的地名, 照片屏保的图片标题。",
         power_off: "关机", power_off_confirm: "现在就关掉这台电视?", power_off_done: "已关机", power_off_fail: "关机失败" },
   en: { st_on: "On", st_off: "Off", tab_other: "Other",
+        weather_place: "Weather location", weather_place_hint: "The weather in the greeting row and on the screensaver comes from here.",
         g_builtin_more: "Built-in & more",
         backup_h: "Backup & restore", backup_export: "Export backup", backup_import: "Import backup",
         pin_back: "Delete",
@@ -1288,6 +1287,7 @@ const EXTRA = {
         sw_saver_place: "Place on the screensaver", sw_saver_place_sub: "The place name bottom left on the aerial screensaver, and the picture's title on the photo screensaver.",
         power_off: "Shut Down", power_off_confirm: "Turn this TV off now?", power_off_done: "Turned off", power_off_fail: "Could not turn it off" },
   ru: { st_on: "Вкл", st_off: "Выкл", tab_other: "Другое",
+        weather_place: "Местоположение погоды", weather_place_hint: "Погода в приветствии и на заставке берётся отсюда.",
         g_builtin_more: "Встроенные и ещё",
         backup_h: "Резервная копия", backup_export: "Экспорт копии", backup_import: "Импорт копии",
         pin_back: "Удалить",
@@ -1304,6 +1304,7 @@ const EXTRA = {
         backup_packing: "Собираем копию, подождите…", backup_save: "Сохранить копию", backup_pack_fail: "Не удалось собрать копию — попробуйте снова",
         backup_no_reply: "Телевизор не сообщил результат", backup_link_lost: "Связь с телевизором прервалась" },
   uk: { st_on: "Увімк", st_off: "Вимк", tab_other: "Інше",
+        weather_place: "Місце погоди", weather_place_hint: "Погода у вітанні та на заставці береться звідси.",
         g_builtin_more: "Вбудовані та інші",
         backup_h: "Резервна копія", backup_export: "Експорт копії", backup_import: "Імпорт копії",
         pin_back: "Видалити",
@@ -1320,6 +1321,7 @@ const EXTRA = {
         backup_packing: "Збираємо копію, зачекайте…", backup_save: "Зберегти копію", backup_pack_fail: "Не вдалося зібрати копію — спробуйте ще раз",
         backup_no_reply: "Телевізор не повідомив результат", backup_link_lost: "Зв'язок із телевізором обірвався" },
   kk: { st_on: "Қосулы", st_off: "Өшірулі", tab_other: "Басқа",
+        weather_place: "Ауа райы орны", weather_place_hint: "Сәлемдеу жолы мен экран сақтағыштағы ауа райы осы жерден алынады.",
         g_builtin_more: "Кіріктірілген және тағы басқа",
         backup_h: "Сақтық көшірме", backup_export: "Көшірмені шығару", backup_import: "Көшірмені қалпына келтіру",
         pin_back: "Жою",
