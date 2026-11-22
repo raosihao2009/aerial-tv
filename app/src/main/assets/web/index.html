@@ -458,6 +458,8 @@
   </div>
 
   <div id="prefsFamily" class="pgroup" data-g="family" hidden></div>
+  <!-- 其他: 关于 Aerial(含这台电视)、备份与恢复、反馈问题、关机→待机, 单独一个分类。 -->
+  <div class="pgroup" id="prefsOther" data-g="other" hidden>
   <div id="prefsAbout"></div>
 
   <h2 data-i18n="this_tv"></h2>
@@ -488,6 +490,7 @@
   </div>
 
   <p class="foot" data-i18n="feedback_hint"></p>
+  </div>
 </section>
 </main>
 
@@ -1246,7 +1249,7 @@ const TEXTS = {
 const LANGS = Object.keys(TEXTS);
 // 后加的文案单独放: KEYS 与 TEXTS 是按位置对齐的老表, 往里插一条就会把后面所有文案错位。
 const EXTRA = {
-  zh: { st_on: "开", st_off: "关",
+  zh: { st_on: "开", st_off: "关", tab_other: "其他",
         g_builtin_more: "内置与更多",
         backup_h: "备份与恢复", backup_export: "导出备份", backup_import: "导入备份",
         pin_back: "删除",
@@ -1265,7 +1268,7 @@ const EXTRA = {
         ss_sleep: "待机", hint_sleep: "不播屏保: 到时间直接待机, 等同按电源键。多数电视之后只能用遥控器电源键唤醒。",
         sw_saver_place: "屏保显示地点", sw_saver_place_sub: "航拍屏保左下角的地名, 照片屏保的图片标题。",
         power_off: "关机", power_off_confirm: "现在就关掉这台电视?", power_off_done: "已关机", power_off_fail: "关机失败" },
-  en: { st_on: "On", st_off: "Off",
+  en: { st_on: "On", st_off: "Off", tab_other: "Other",
         g_builtin_more: "Built-in & more",
         backup_h: "Backup & restore", backup_export: "Export backup", backup_import: "Import backup",
         pin_back: "Delete",
@@ -1284,7 +1287,7 @@ const EXTRA = {
         ss_sleep: "Standby", hint_sleep: "No screensaver: when the time comes the TV goes to standby, as with its power button.",
         sw_saver_place: "Place on the screensaver", sw_saver_place_sub: "The place name bottom left on the aerial screensaver, and the picture's title on the photo screensaver.",
         power_off: "Shut Down", power_off_confirm: "Turn this TV off now?", power_off_done: "Turned off", power_off_fail: "Could not turn it off" },
-  ru: { st_on: "Вкл", st_off: "Выкл",
+  ru: { st_on: "Вкл", st_off: "Выкл", tab_other: "Другое",
         g_builtin_more: "Встроенные и ещё",
         backup_h: "Резервная копия", backup_export: "Экспорт копии", backup_import: "Импорт копии",
         pin_back: "Удалить",
@@ -1300,7 +1303,7 @@ const EXTRA = {
         backup_locked: "Включён детский режим — сначала разблокируйте PIN-кодом на ТВ",
         backup_packing: "Собираем копию, подождите…", backup_save: "Сохранить копию", backup_pack_fail: "Не удалось собрать копию — попробуйте снова",
         backup_no_reply: "Телевизор не сообщил результат", backup_link_lost: "Связь с телевизором прервалась" },
-  uk: { st_on: "Увімк", st_off: "Вимк",
+  uk: { st_on: "Увімк", st_off: "Вимк", tab_other: "Інше",
         g_builtin_more: "Вбудовані та інші",
         backup_h: "Резервна копія", backup_export: "Експорт копії", backup_import: "Імпорт копії",
         pin_back: "Видалити",
@@ -1316,7 +1319,7 @@ const EXTRA = {
         backup_locked: "Увімкнено дитячий режим — спочатку розблокуйте PIN-кодом на ТБ",
         backup_packing: "Збираємо копію, зачекайте…", backup_save: "Зберегти копію", backup_pack_fail: "Не вдалося зібрати копію — спробуйте ще раз",
         backup_no_reply: "Телевізор не повідомив результат", backup_link_lost: "Зв'язок із телевізором обірвався" },
-  kk: { st_on: "Қосулы", st_off: "Өшірулі",
+  kk: { st_on: "Қосулы", st_off: "Өшірулі", tab_other: "Басқа",
         g_builtin_more: "Кіріктірілген және тағы басқа",
         backup_h: "Сақтық көшірме", backup_export: "Көшірмені шығару", backup_import: "Көшірмені қалпына келтіру",
         pin_back: "Жою",
@@ -2069,6 +2072,15 @@ function groupIcon(key) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 -960 960 960');
   svg.setAttribute('fill', 'currentColor');
+  if (key === 'other') {
+    // 三个点, 和底部「更多」那颗一致。
+    for (const cx of [300, 480, 660]) {
+      const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      c.setAttribute('cx', cx); c.setAttribute('cy', -480); c.setAttribute('r', 64);
+      svg.appendChild(c);
+    }
+    return svg;
+  }
   const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
   path.setAttribute('d', GROUP_ICONS[key] || GROUP_ICONS.home);
   svg.appendChild(path);
@@ -2082,9 +2094,11 @@ function renderTabs() {
   const bar = $('#gtabs'); if (!bar) return;
   bar.replaceChildren();
   // 壁纸与屏保不是电视个性化面板里的组(它的内容在网页上自己画), 排在最前, 和电视的次序一致。
-  const all = [{ key: 'wallpaper', title: SAVER_TAB[LANG] || SAVER_TAB.en }].concat((prefs && prefs.groups) || []);
+  const all = [{ key: 'wallpaper', title: SAVER_TAB[LANG] || SAVER_TAB.en }]
+    .concat((prefs && prefs.groups) || [])
+    .concat([{ key: 'other', title: t('tab_other') }]);
   for (const g of all) {
-    if (!GROUP_ICONS[g.key]) continue;
+    if (!GROUP_ICONS[g.key] && g.key !== 'other') continue;
     const b = el('button', ''); b.type = 'button';
     b.setAttribute('role', 'tab');
     b.setAttribute('aria-checked', g.key === prefsTab ? 'true' : 'false');
