@@ -87,8 +87,9 @@ object SaverPanel {
             true
         }
         "aerialQuality" -> {
-            if (!AerialFormats.supported(context).contains(AerialQuality.of(value))) false
-            else { AerialSettings.chooseAerialQuality(AerialQuality.of(value)); true }
+            // 自动档不在 supported 里(那里只列电视真能放的档位), 不能拿它去查; 页面给的选项本来就
+            // 是筛过的, 认得出就存, 放不了由 AerialFormats.resolve 在播放时降到能放的档。
+            AerialSettings.chooseAerialQuality(AerialQuality.of(value)); true
         }
         "saverMinutes" -> {
             val minutes = value.toIntOrNull() ?: -1
