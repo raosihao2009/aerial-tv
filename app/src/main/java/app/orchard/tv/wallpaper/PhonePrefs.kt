@@ -11,6 +11,7 @@ import app.orchard.tv.settings.ClockHours
 import app.orchard.tv.settings.FocusStyle
 import app.orchard.tv.settings.Effects
 import app.orchard.tv.settings.KidsTime
+import app.orchard.tv.settings.ModeRules
 import app.orchard.tv.settings.Restricted
 import app.orchard.tv.settings.RestrictedKind
 import app.orchard.tv.settings.UiSounds
@@ -50,6 +51,7 @@ object PhonePrefs {
         options: List<Pair<String, String>> = emptyList(),
         min: Int? = null, max: Int? = null, muted: Boolean? = null,
         custom: Boolean? = null, clock: Boolean? = null, arrows: Boolean? = null,
+        rows: List<List<String>>? = null,
     ): JSONObject {
         val o = JSONObject().put("key", key).put("kind", kind).put("label", label).put("value", value)
         if (!hint.isNullOrBlank()) o.put("hint", hint)
@@ -62,6 +64,7 @@ object PhonePrefs {
         custom?.let { o.put("custom", it) }
         clock?.let { o.put("clock", it) }
         arrows?.let { o.put("arrows", it) }
+        rows?.let { r -> o.put("rows", JSONArray().apply { r.forEach { line -> put(JSONArray(line)) } }) }
         return o
     }
 
@@ -133,6 +136,8 @@ object PhonePrefs {
                         "off" to s(R.string.jank_off), "low" to s(R.string.jank_low),
                         "medium" to s(R.string.jank_medium), "high" to s(R.string.jank_high),
                     ),
+                    // 用户口径: 上面一排低/中/高, 「关闭」单独一整排放在下面。
+                    rows = listOf(listOf("low", "medium", "high"), listOf("off")),
                 ),
             )
         }))
@@ -255,7 +260,7 @@ object PhonePrefs {
                 )
             }
         }
-        val appLocks = kidsLocks(allowed, appCards, liveCards)
+        val appLocks = kidsLocks(allowed)
         val kids = JSONObject()
             .put("title", s(R.string.kids_title))
             .put("hint", s(R.string.kids_hint))
@@ -374,15 +379,8 @@ object PhonePrefs {
      * 手机页按下的那一项: 写进对应的设置, 和电视面板上按它是同一条代码路径。
      * 返回 false 表示这个值电视不接受(比如密码没设却想关掉, 或者时间规则不成立)。
      */
-    /** 和电视同一套必选规矩: 央视网快看必选; 选了别的直播卡片时, 直播预览应用卡片也必选。 */
-    private fun kidsLocks(allowedSet: Set<String>, apps: List<AppEntry>, live: List<AppEntry>): Set<String> {
-        val required = "live:preset_2"
-        val extraLive = live.any { it.key != required && it.key in allowedSet }
-        val preview = apps.filter { it.key in AerialSettings.liveAppPackages }
-            .filter { it.key in allowedSet }
-            .ifEmpty { if (extraLive) apps.filter { it.key in AerialSettings.liveAppPackages }.take(1) else emptyList() }
-        return (listOf(required) + preview.map { it.key }).toSet()
-    }
+    /** 和电视同一套必选规矩, 见 [ModeRules]: 央视网快看必选; 只有选了别的直播卡片, 直播预览应用才必选。 */
+    private fun kidsLocks(allowedSet: Set<String>): Set<String> = ModeRules.locks(allowed = allowedSet)
 
     fun set(key: String, value: String): Boolean {
         val on = value == "1"
@@ -486,9 +484,8 @@ object PhonePrefs {
                 val known = candidates.map { it.key }.toSet()
                 val list = value.split('\n').map { it.trim() }.filter { it in known }.distinct()
                 if (list.isEmpty()) false else {
-                    val locks = kidsLocks(list.toSet(), candidates.filterNot { it.key.startsWith(LIVE_KEY_PREFIX) },
-                        candidates.filter { it.key.startsWith(LIVE_KEY_PREFIX) })
-                    Restricted.chooseAllowed((locks + list).distinct())
+                    // 必选卡片补齐、该撤的预览卡片撤掉, 都在 ModeRules 里, 与电视设置页一致。
+                    ModeRules.apply(list, candidates)
                     true
                 }
             }

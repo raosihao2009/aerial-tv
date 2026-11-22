@@ -171,6 +171,12 @@ object Restricted {
     var allowed by mutableStateOf<List<String>>(emptyList()); private set
 
     /**
+     * 为了配直播卡片自动补进来的预览应用卡片(见 [ModeRules]); 用户自己勾的不在这里。
+     * 直播卡片撤掉时按这份名单撤, 不会误删用户本来就要的卡片。
+     */
+    var autoPreview by mutableStateOf<Set<String>>(emptySet()); private set
+
+    /**
      * The packages behind [allowed] (an input's player, a shortcut's app), kept so that Home Guard
      * knows them without Home's app list. Written by HomeViewModel whenever it arranges.
      */
@@ -213,6 +219,7 @@ object Restricted {
         kind = RestrictedKind.of(p.getString("kind", null))
         allowed = p.getString("allowed", null)?.split('\n')?.filter { it.isNotEmpty() } ?: emptyList()
         allowedPackages = p.getStringSet("allowed_packages", null)?.toSet() ?: emptySet()
+        autoPreview = p.getStringSet("auto_preview", null)?.toSet() ?: emptySet()
         sourcePlayers = p.getStringSet("source_players", null)?.toSet() ?: emptySet()
         blockOthers = p.getBoolean("block_others", true)
         rules = RestrictedRules(
@@ -245,6 +252,12 @@ object Restricted {
     fun chooseKind(k: RestrictedKind) {
         kind = k
         prefs().edit { putString("kind", k.key) }
+    }
+
+    fun chooseAutoPreview(keys: Set<String>) {
+        if (keys == autoPreview) return
+        autoPreview = keys
+        prefs().edit { putStringSet("auto_preview", keys) }
     }
 
     fun chooseAllowed(keys: List<String>) {

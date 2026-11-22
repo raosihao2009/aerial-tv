@@ -58,6 +58,7 @@ import app.orchard.tv.guard.KidsWatch
 import app.orchard.tv.settings.KidsLock
 import app.orchard.tv.settings.AerialSettings
 import app.orchard.tv.settings.KidsTime
+import app.orchard.tv.settings.ModeRules
 import app.orchard.tv.settings.Restricted
 import app.orchard.tv.settings.RestrictedKind
 import app.orchard.tv.system.Sounds
@@ -112,39 +113,11 @@ fun durationText(ms: Long): String {
 private fun clockText(ms: Long): String =
     Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).toLocalTime().let { "%d:%02d".format(it.hour, it.minute) }
 
-/** 必选的直播卡片: 央视网快看(内置 preset_2)。 */
-private const val REQUIRED_LIVE_KEY = "live:preset_2"
+/** 必选的直播卡片与自动补的预览应用卡片: 规矩写在 [ModeRules] 里, 手机页用的是同一份。 */
+private fun modeLocks(candidates: List<AppEntry>): Set<String> = ModeRules.locks(candidates)
 
-/**
- * 模式里两张不能取消的卡片:
- * 1. 央视网快看是必选卡片, 一直在模式里;
- * 2. 只要选了别的直播卡片, 就必须有一张能放直播预览的应用卡片(被标成「直播预览」的应用),
- *    有它模式桌面才有直播画面。
- */
-private fun modeLocks(candidates: List<AppEntry>): Set<String> {
-    val live = candidates.filter { it.key.startsWith(LIVE_KEY_PREFIX) }
-    val previewApps = candidates.filter { !it.key.startsWith(LIVE_KEY_PREFIX) && it.key in AerialSettings.liveAppPackages }
-    val required = live.filter { it.key == REQUIRED_LIVE_KEY }.map { it.key }
-    val extraLive = live.any { it.key != REQUIRED_LIVE_KEY && it.key in Restricted.allowed }
-    val previewAllowed = previewApps.filter { it.key in Restricted.allowed }.map { it.key }
-    val previewLock = when {
-        !extraLive -> emptyList()
-        previewAllowed.isNotEmpty() -> previewAllowed
-        else -> previewApps.take(1).map { it.key }
-    }
-    return (required + previewLock).toSet()
-}
-
-/** 把上面两条规矩落进选中的卡片里: 缺的补上, 必选的排在最前。 */
-private fun enforceModeRules(candidates: List<AppEntry>) {
-    val locks = modeLocks(candidates)
-    if (locks.isEmpty()) return
-    val missing = locks.filter { it !in Restricted.allowed }
-    if (missing.isEmpty()) return
-    val head = listOf(REQUIRED_LIVE_KEY).filter { it in missing }
-    val rest = missing.filter { it != REQUIRED_LIVE_KEY }
-    Restricted.chooseAllowed(head + rest + Restricted.allowed.filter { it !in missing })
-}
+/** 把上面的规矩落进选中的卡片里: 该补的补, 该撤的撤。 */
+private fun enforceModeRules(candidates: List<AppEntry>) = ModeRules.apply(Restricted.allowed, candidates)
 
 /**
  * Setting up Kids and Elders mode, reached from Personalize behind the PIN: who it is for, the
