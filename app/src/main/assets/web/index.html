@@ -85,11 +85,12 @@
   .gtabs button .glabel { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .gtabs svg { width: 18px; height: 18px; flex: none; }
   /* 其他页的三颗选项卡: 都带图标和名字, 平分一行; 选中的那颗白底染一个字色。 */
+  #otabs { margin: 22px 0 6px; }
   .otabs button, .otabs button[aria-checked="true"] {
     flex: 1 1 0; width: auto; min-width: 0; padding: 0 6px; font-weight: 500;
     box-shadow: none; background: none; color: var(--secondary);
   }
-  .otabs button[aria-checked="true"] { background: var(--card); color: var(--tint); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .otabs button[aria-checked="true"] { background: var(--card); color: var(--label); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
   .otabs button span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* 壁纸那四颗只有字的小选项卡: 不带图标, 平分一行, 选中的白底染字色。 */
   .wtabs button, .wtabs button[aria-checked="true"] {
@@ -1780,7 +1781,7 @@ function renderWallpapers() {
   // 一排: 标题、可能有的添加按钮或小字, 再一条左右翻的卡片带。
   const row = (title, items, opts) => {
     opts = opts || {};
-    root.appendChild(el('h2', 'big', title));
+    // 名字已经在上面那排小选项卡上, 这里不再画黑体标题。
     if (!items.length) { if (opts.empty) root.appendChild(el('p', 'empty', opts.empty)); }
     else {
       const strip = el('div', 'wrow');
@@ -2176,7 +2177,8 @@ function renderOtherTabs() {
     b.setAttribute('aria-checked', key === otherPane ? 'true' : 'false');
     b.appendChild(oticon(key));
     b.appendChild(el('span', '', names[key]));
-    b.onclick = () => { if (otherPane === key) return; otherPane = key; applyOtherPane(); renderOtherTabs(); window.scrollTo({ top: 0, behavior: scrollBehavior() }); };
+    // 切换只在原地换内容, 不把页面滚回顶部。
+    b.onclick = () => { if (otherPane === key) return; otherPane = key; applyOtherPane(); renderOtherTabs(); };
     bar.appendChild(b);
   }
   applyOtherPane();
