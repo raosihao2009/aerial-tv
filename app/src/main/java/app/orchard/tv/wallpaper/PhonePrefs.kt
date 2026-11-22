@@ -48,6 +48,7 @@ object PhonePrefs {
         key: String, kind: String, label: String, hint: String?, value: String,
         options: List<Pair<String, String>> = emptyList(),
         min: Int? = null, max: Int? = null, muted: Boolean? = null,
+        custom: Boolean? = null, clock: Boolean? = null, arrows: Boolean? = null,
     ): JSONObject {
         val o = JSONObject().put("key", key).put("kind", kind).put("label", label).put("value", value)
         if (!hint.isNullOrBlank()) o.put("hint", hint)
@@ -57,6 +58,9 @@ object PhonePrefs {
         min?.let { o.put("min", it) }
         max?.let { o.put("max", it) }
         muted?.let { o.put("muted", it) }
+        custom?.let { o.put("custom", it) }
+        clock?.let { o.put("clock", it) }
+        arrows?.let { o.put("arrows", it) }
         return o
     }
 
@@ -187,18 +191,16 @@ object PhonePrefs {
         val rules = Restricted.rules
         val allowed = Restricted.allowed.toSet()
         val kindLabel = s(if (Restricted.kind == RestrictedKind.Kids) R.string.kids_kind_kids else R.string.kids_kind_elders)
-        val kidsState = if (Restricted.enabled) {
-            listOf(s(R.string.st_on), kindLabel, s(R.string.kids_apps, allowed.size)).joinToString(" · ")
-        } else s(R.string.st_off)
         groups.put(JSONObject().put("title", s(R.string.per_family)).put("items", JSONArray().apply {
             put(
                 item(
                     "pin", "seg", s(R.string.st_pin), s(R.string.st_pin_hint),
                     if (AerialSettings.pinSet) "1" else "0",
                     listOf("1" to s(R.string.st_pin_on), "0" to s(R.string.st_pin_off)),
+                    arrows = AerialSettings.pinArrows,
                 ),
             )
-            put(item("kids", "open", s(R.string.st_kids), kidsState, ""))
+            put(item("kids", "open", s(R.string.st_kids), s(R.string.st_kids_hint), ""))
         }))
 
         // ---- 关于: 就一项, 版本与更新状态合成一行, 点一下查更新 ----
@@ -220,15 +222,17 @@ object PhonePrefs {
         val candidates = AppCatalog.kidsCandidates
         val liveCards = candidates.filter { it.key.startsWith(LIVE_KEY_PREFIX) }
         val appCards = candidates.filterNot { it.key.startsWith(LIVE_KEY_PREFIX) }
-        fun cards(list: List<AppEntry>): JSONArray = JSONArray().apply {
+        fun cards(list: List<AppEntry>, locks: Set<String>): JSONArray = JSONArray().apply {
             list.forEach { e ->
                 put(
                     JSONObject().put("value", e.key).put("label", e.label)
                         .put("art", "kids/art/" + URLEncoder.encode(e.key, "UTF-8"))
-                        .put("checked", e.key in allowed),
+                        .put("checked", e.key in allowed || e.key in locks)
+                        .put("locked", e.key in locks),
                 )
             }
         }
+        val appLocks = kidsLocks(allowed, appCards, liveCards)
         val kids = JSONObject()
             .put("title", s(R.string.kids_title))
             .put("hint", s(R.string.kids_hint))
@@ -237,9 +241,14 @@ object PhonePrefs {
             .put("appsHint", s(R.string.kids_apps_hint))
             .put("emptyApps", s(R.string.kids_loading))
             .put("emptyLive", s(R.string.kw_live_none))
-            .put("apps", cards(appCards))
-            .put("live", cards(liveCards))
-            .put("allowed", JSONArray().apply { Restricted.allowed.forEach { put(it) } })
+            .put("enabled", Restricted.enabled)
+            .put("kind", Restricted.kind.key)
+            .put("pinSet", AerialSettings.pinSet)
+            .put("pinArrows", AerialSettings.pinArrows)
+            .put("apps", cards(appCards, appLocks))
+            .put("live", cards(liveCards, appLocks))
+            // 必选的算进列表里: 手机页按这份顺序编号, 与电视补齐后的顺序一致。
+            .put("allowed", JSONArray().apply { (appLocks + Restricted.allowed).distinct().forEach { put(it) } })
             .put("items", JSONArray().apply {
                 put(
                     item(
@@ -270,12 +279,20 @@ object PhonePrefs {
                     item(
                         "kidsWeekday", "minutes", s(R.string.kids_weekday), s(R.string.kids_minutes_hint),
                         rules.weekdayMinutes.toString(), min = 0, max = 1440,
+                        options = listOf(0, 30, 60, 90, 120).map { v ->
+                            v.toString() to (if (v == 0) s(R.string.kids_no_limit) else v.toString())
+                        },
+                        custom = true,
                     ),
                 )
                 put(
                     item(
                         "kidsWeekend", "minutes", s(R.string.kids_weekend), s(R.string.kids_minutes_hint),
                         rules.weekendMinutes.toString(), min = 0, max = 1440,
+                        options = listOf(0, 30, 60, 90, 120).map { v ->
+                            v.toString() to (if (v == 0) s(R.string.kids_no_limit) else v.toString())
+                        },
+                        custom = true,
                     ),
                 )
                 put(
@@ -290,6 +307,7 @@ object PhonePrefs {
                             22 * 60 to KidsTime.clock(22 * 60),
                             23 * 60 to KidsTime.clock(23 * 60),
                         ).map { (v, l) -> v.toString() to l },
+                        custom = true, clock = true,
                     ),
                 )
                 put(
@@ -298,6 +316,7 @@ object PhonePrefs {
                         c.getString(R.string.kids_break_hint, rules.breakMinutes),
                         rules.breakEvery.toString(),
                         listOf(0, 30, 45, 60).map { v -> v.toString() to (if (v == 0) s(R.string.st_off) else v.toString()) },
+                        custom = true,
                     ),
                 )
             })
@@ -332,6 +351,16 @@ object PhonePrefs {
      * 手机页按下的那一项: 写进对应的设置, 和电视面板上按它是同一条代码路径。
      * 返回 false 表示这个值电视不接受(比如密码没设却想关掉, 或者时间规则不成立)。
      */
+    /** 和电视同一套必选规矩: 央视网快看必选; 选了别的直播卡片时, 直播预览应用卡片也必选。 */
+    private fun kidsLocks(allowedSet: Set<String>, apps: List<AppEntry>, live: List<AppEntry>): Set<String> {
+        val required = "live:preset_2"
+        val extraLive = live.any { it.key != required && it.key in allowedSet }
+        val preview = apps.filter { it.key in AerialSettings.liveAppPackages }
+            .filter { it.key in allowedSet }
+            .ifEmpty { if (extraLive) apps.filter { it.key in AerialSettings.liveAppPackages }.take(1) else emptyList() }
+        return (listOf(required) + preview.map { it.key }).toSet()
+    }
+
     fun set(key: String, value: String): Boolean {
         val on = value == "1"
         fun int(): Int? = value.trim().toIntOrNull()
@@ -374,17 +403,27 @@ object PhonePrefs {
             }
             "update" -> { Updates.checkIfStale(force = true); true }
             // 家长密码: "set:1234" 立一个新密码, "off:1234" 用现有密码关掉(顺带关掉模式)。
+            // 家长密码: 4 位数字或 4 个方向键(UDLR), 与电视那只是同一份。
+            // set: 立一个新密码, off: 输现有的关掉, check: 只核对(手机点「前往设置」前先验一次)。
             "pin" -> {
                 val pin = value.substringAfter(':', "")
+                val digits = pin.matches(Regex("\\d{4,8}"))
+                val arrows = pin.matches(Regex("[UDLRudlr]{4}"))
                 when {
-                    !pin.matches(Regex("\\d{4,8}")) -> false
-                    value.startsWith("off:") && !AerialSettings.pinMatches(pin) -> false
+                    !digits && !arrows -> false
+                    value.startsWith("check:") -> AerialSettings.pinMatches(if (arrows) pin.uppercase() else pin)
                     value.startsWith("off:") -> {
-                        AerialSettings.choosePin(null)
-                        Restricted.chooseEnabled(false)
-                        true
+                        if (!AerialSettings.pinMatches(if (arrows) pin.uppercase() else pin)) false
+                        else {
+                            AerialSettings.choosePin(null)
+                            Restricted.chooseEnabled(false)
+                            true
+                        }
                     }
-                    else -> { AerialSettings.choosePin(pin); true }
+                    arrows -> { AerialSettings.choosePin(pin.uppercase(), arrows = true); true }
+                    // 新设的密码是 4 位(电视那只也只收 4 位); 关掉时放宽到 4~8 位, 免得旧机上设的 5~8 位没法取消。
+                    pin.length == 4 -> { AerialSettings.choosePin(pin); true }
+                    else -> false
                 }
             }
             "kidsEnabled" -> {
@@ -418,9 +457,15 @@ object PhonePrefs {
                 if (r.valid) { Restricted.chooseRules(r); true } else false
             } ?: false
             "kidsAllowed" -> {
-                val known = AppCatalog.kidsCandidates.map { it.key }.toSet()
+                val candidates = AppCatalog.kidsCandidates
+                val known = candidates.map { it.key }.toSet()
                 val list = value.split('\n').map { it.trim() }.filter { it in known }.distinct()
-                if (list.isEmpty()) false else { Restricted.chooseAllowed(list); true }
+                if (list.isEmpty()) false else {
+                    val locks = kidsLocks(list.toSet(), candidates.filterNot { it.key.startsWith(LIVE_KEY_PREFIX) },
+                        candidates.filter { it.key.startsWith(LIVE_KEY_PREFIX) })
+                    Restricted.chooseAllowed((locks + list).distinct())
+                    true
+                }
             }
             else -> false
         }

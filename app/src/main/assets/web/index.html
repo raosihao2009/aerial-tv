@@ -63,14 +63,30 @@
   .pcard .popt { justify-content: space-between; }
   .pcard .popt .tick { font-size: 17px; font-weight: 600; }
   .pcard .popt[aria-checked="true"] { color: var(--tint); }
+  .pcard .popen { color: var(--tint); }
+  .pcard .popen:active { background: var(--fill); }
+  .pin-dots { display: flex; gap: 12px; justify-content: center; margin: 12px 0 4px; }
+  .pin-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--fill); transition: background-color .15s ease; }
+  .pin-dot.on { background: var(--tint); }
+  .pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0 6px; }
+  .pin-pad .pinkey {
+    appearance: none; border: 0; border-radius: 10px; padding: 14px 0; font-size: 22px; font-weight: 600;
+    background: var(--fill); color: inherit; cursor: pointer;
+  }
+  .pin-pad .pinkey:active { background: var(--tint); color: #fff; }
   .pnum { justify-content: flex-end; gap: 8px; }
   .pnum .pref-num { width: 84px; }
   .pnum .unit { color: var(--secondary); font-size: 13px; flex: none; }
   .psld { gap: 10px; }
   .psld input[type=range] {
-    -webkit-appearance: none; appearance: none; flex: 1; min-width: 0; height: 30px; background: none; margin: 0;
+    -webkit-appearance: none; appearance: none; flex: 1; min-width: 0; height: 30px; margin: 0;
+    /* 左侧走主题蓝: 两条细线叠出来, 上面那条宽度跟着滑块走。 */
+    background-image: linear-gradient(var(--tint), var(--tint)), linear-gradient(var(--fill), var(--fill));
+    background-size: var(--p, 0%) 4px, 100% 4px;
+    background-position: 0 50%, 0 50%;
+    background-repeat: no-repeat;
   }
-  .psld input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--fill); }
+  .psld input[type=range]::-webkit-slider-runnable-track { height: 30px; background: none; }
   .psld input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none; width: 24px; height: 24px; margin-top: -10px; border-radius: 50%;
     background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.28), 0 0 0 .5px rgba(0,0,0,.12);
@@ -94,6 +110,11 @@
   .kgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .kcard { position: relative; padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: var(--fill); aspect-ratio: 16 / 10; }
   .kcard img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: .5; }
+  .kcard[disabled] img { opacity: .35; }
+  .kcard .klock {
+    position: absolute; top: 4px; right: 4px; padding: 1px 5px; border-radius: 7px;
+    background: rgba(0,0,0,.55); color: #fff; font-size: 10px; line-height: 14px;
+  }
   .kcard[aria-checked="true"] img { opacity: 1; }
   .kcard[aria-checked="true"] { outline: 2px solid var(--tint); outline-offset: -2px; }
   .knum {
@@ -103,7 +124,7 @@
   .knum:empty { display: none; }
   .kc {
     position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 4px 3px; font-size: 11px; line-height: 1.2;
-    color: #fff; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    color: #fff; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     background: linear-gradient(transparent, rgba(0,0,0,.75));
   }
   .pref-num {
@@ -1203,8 +1224,12 @@ const LANGS = Object.keys(TEXTS);
 // 后加的文案单独放: KEYS 与 TEXTS 是按位置对齐的老表, 往里插一条就会把后面所有文案错位。
 const EXTRA = {
   zh: { backup_h: "备份与恢复", backup_export: "导出备份", backup_import: "导入备份",
+        pin_digits: "4 位数字", pin_arrows: "4 个方向键", pin_digits_hint: "输入 4 位数字。",
+        pin_arrows_hint: "依次按 4 下方向键。", pin_verify_title: "输入家长密码", pin_wrong: "密码不对，请重试。",
+        custom: "自定义", custom_time: "自定义时间", must_keep: "必选",
+        kids_row_off: "已关闭·前往设置", kids_row_kids: "处于儿童模式·前往设置", kids_row_elders: "处于长辈模式·前往设置",
         mute: "静音", unmute: "恢复声音", unit_min: "分钟", kids_open: "打开设置",
-        pin_new: "设置家长密码", pin_off_title: "关闭家长密码", pin_ph: "4~8 位数字",
+        pin_new: "设置家长密码", pin_off_title: "关闭家长密码", pin_ph: "4 位数字",
         backup_hint: "备份包含所有设置、直播源、壁纸与照片影片。导入会覆盖这台电视上的全部设置，随后自动重启。",
         backup_confirm: "导入会覆盖这台电视上的全部设置，确定继续？", backup_restoring: "正在导入…",
         backup_restored: "已导入，电视正在重启", backup_failed: "导入失败，文件可能不完整",
@@ -1215,8 +1240,12 @@ const EXTRA = {
         sw_saver_place: "屏保显示地点", sw_saver_place_sub: "航拍屏保左下角的地名, 照片屏保的图片标题。",
         power_off: "关机", power_off_confirm: "现在就关掉这台电视?", power_off_done: "已关机", power_off_fail: "关机失败" },
   en: { backup_h: "Backup & restore", backup_export: "Export backup", backup_import: "Import backup",
+        pin_digits: "4 digits", pin_arrows: "4 arrow keys", pin_digits_hint: "Type the 4 digits.",
+        pin_arrows_hint: "Press four arrows in order.", pin_verify_title: "Enter the parental PIN", pin_wrong: "Wrong PIN — try again.",
+        custom: "Custom", custom_time: "Custom time", must_keep: "Required",
+        kids_row_off: "Off · Open settings", kids_row_kids: "Kids mode · Open settings", kids_row_elders: "Elders mode · Open settings",
         mute: "Mute", unmute: "Sound on", unit_min: "min", kids_open: "Open settings",
-        pin_new: "Set the parental PIN", pin_off_title: "Turn off the parental PIN", pin_ph: "4–8 digits",
+        pin_new: "Set the parental PIN", pin_off_title: "Turn off the parental PIN", pin_ph: "4 digits",
         backup_hint: "The backup holds every setting, live source, wallpaper, photo and video. Importing replaces all settings on this TV and restarts it.",
         backup_confirm: "Importing replaces all settings on this TV. Continue?", backup_restoring: "Importing…",
         backup_restored: "Imported. The TV is restarting", backup_failed: "Import failed — the file may be incomplete",
@@ -1227,8 +1256,12 @@ const EXTRA = {
         sw_saver_place: "Place on the screensaver", sw_saver_place_sub: "The place name bottom left on the aerial screensaver, and the picture's title on the photo screensaver.",
         power_off: "Shut Down", power_off_confirm: "Turn this TV off now?", power_off_done: "Turned off", power_off_fail: "Could not turn it off" },
   ru: { backup_h: "Резервная копия", backup_export: "Экспорт копии", backup_import: "Импорт копии",
+        pin_digits: "4 цифры", pin_arrows: "4 стрелки", pin_digits_hint: "Введите 4 цифры.",
+        pin_arrows_hint: "Нажмите четыре стрелки по порядку.", pin_verify_title: "Введите родительский PIN", pin_wrong: "PIN неверный — попробуйте снова.",
+        custom: "Вручную", custom_time: "Своё время", must_keep: "Обязательно",
+        kids_row_off: "Выключено · Настройки", kids_row_kids: "Детский режим · Настройки", kids_row_elders: "Режим для старших · Настройки",
         mute: "Без звука", unmute: "Включить звук", unit_min: "мин", kids_open: "Открыть настройки",
-        pin_new: "Задать родительский PIN", pin_off_title: "Отключить родительский PIN", pin_ph: "4–8 цифр",
+        pin_new: "Задать родительский PIN", pin_off_title: "Отключить родительский PIN", pin_ph: "4 цифры",
         backup_hint: "Копия содержит все настройки, источники трансляций, обои, фото и видео. Импорт заменит все настройки на этом телевизоре и перезапустит его.",
         backup_confirm: "Импорт заменит все настройки на этом телевизоре. Продолжить?", backup_restoring: "Импорт…",
         backup_restored: "Импортировано. Телевизор перезапускается", backup_failed: "Импорт не удался — файл может быть повреждён",
@@ -1236,8 +1269,12 @@ const EXTRA = {
         backup_packing: "Собираем копию, подождите…", backup_save: "Сохранить копию", backup_pack_fail: "Не удалось собрать копию — попробуйте снова",
         backup_no_reply: "Телевизор не сообщил результат", backup_link_lost: "Связь с телевизором прервалась" },
   uk: { backup_h: "Резервна копія", backup_export: "Експорт копії", backup_import: "Імпорт копії",
+        pin_digits: "4 цифри", pin_arrows: "4 стрілки", pin_digits_hint: "Введіть 4 цифри.",
+        pin_arrows_hint: "Натисніть чотири стрілки по черзі.", pin_verify_title: "Введіть батьківський PIN", pin_wrong: "PIN неправильний — спробуйте ще раз.",
+        custom: "Вручну", custom_time: "Свій час", must_keep: "Обов’язково",
+        kids_row_off: "Вимкнено · Налаштування", kids_row_kids: "Дитячий режим · Налаштування", kids_row_elders: "Режим для старших · Налаштування",
         mute: "Без звуку", unmute: "Увімкнути звук", unit_min: "хв", kids_open: "Відкрити налаштування",
-        pin_new: "Задати батьківський PIN", pin_off_title: "Вимкнути батьківський PIN", pin_ph: "4–8 цифр",
+        pin_new: "Задати батьківський PIN", pin_off_title: "Вимкнути батьківський PIN", pin_ph: "4 цифры",
         backup_hint: "Копія містить усі налаштування, джерела трансляцій, шпалери, фото й відео. Імпорт замінить усі налаштування на цьому телевізорі та перезапустить його.",
         backup_confirm: "Імпорт замінить усі налаштування на цьому телевізорі. Продовжити?", backup_restoring: "Імпорт…",
         backup_restored: "Імпортовано. Телевізор перезапускається", backup_failed: "Імпорт не вдався — файл може бути пошкоджений",
@@ -1245,8 +1282,12 @@ const EXTRA = {
         backup_packing: "Збираємо копію, зачекайте…", backup_save: "Зберегти копію", backup_pack_fail: "Не вдалося зібрати копію — спробуйте ще раз",
         backup_no_reply: "Телевізор не повідомив результат", backup_link_lost: "Зв'язок із телевізором обірвався" },
   kk: { backup_h: "Сақтық көшірме", backup_export: "Көшірмені шығару", backup_import: "Көшірмені қалпына келтіру",
+        pin_digits: "4 сан", pin_arrows: "4 бағыттағы перне", pin_digits_hint: "4 санды енгізіңіз.",
+        pin_arrows_hint: "Төрт бағыт пернесін ретімен басыңыз.", pin_verify_title: "Ата-ана PIN-ін енгізіңіз", pin_wrong: "PIN дұрыс емес — қайталап көріңіз.",
+        custom: "Өзіңіз", custom_time: "Өз уақыты", must_keep: "Міндетті",
+        kids_row_off: "Өшірулі · Параметрлер", kids_row_kids: "Балалар режимі · Параметрлер", kids_row_elders: "Қариялар режимі · Параметрлер",
         mute: "Дыбысты өшіру", unmute: "Дыбысты қосу", unit_min: "мин", kids_open: "Параметрлерді ашу",
-        pin_new: "Ата-ана PIN-ін орнату", pin_off_title: "Ата-ана PIN-ін өшіру", pin_ph: "4–8 сан",
+        pin_new: "Ата-ана PIN-ін орнату", pin_off_title: "Ата-ана PIN-ін өшіру", pin_ph: "4 сан",
         backup_hint: "Көшірмеде барлық параметрлер, эфир көздері, тұсқағаздар, фото және бейнелер бар. Қалпына келтіру осы теледидардағы барлық параметрлерді ауыстырып, оны қайта іске қосады.",
         backup_confirm: "Қалпына келтіру осы теледидардағы барлық параметрлерді ауыстырады. Жалғастыру керек пе?", backup_restoring: "Қалпына келтірілуде…",
         backup_restored: "Қалпына келтірілді. Теледидар қайта іске қосылуда", backup_failed: "Қалпына келтіру сәтсіз — файл бүлінген болуы мүмкін",
@@ -1787,22 +1828,43 @@ async function loadPrefs() {
     if (r.ok) { prefs = await r.json(); renderPrefs(); }
   } catch (e) {}
 }
-async function setPref(key, value, after) {
+async function setPref(key, value, after, quiet) {
   try {
     const r = await api('api/prefs', { key: key, value: value });
     if (!r.ok) throw new Error('not saved');
-    toast(t('toast_tv_updated'));
+    if (!quiet) toast(t('toast_tv_updated'));
     await loadPrefs();
     if (after) after();
     return true;
   } catch (e) {
-    toast(t('toast_set_fail'));
+    if (!quiet) toast(t('toast_set_fail'));
     await loadPrefs();
     if (after) after();
     return false;
   }
 }
 function prefTick() { return el('span', 'tick', '✓'); }
+
+const hhmm = m => String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+const toMinutes = v => { const p = String(v || '').split(':'); return Math.max(0, Math.min(1440, (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0))); };
+
+/* 「自定义」那一行: 分钟数直接填, 最晚到那个时间是 HH:MM。 */
+function customRow(it, changed) {
+  const row = el('div', 'item pnum');
+  row.appendChild(el('span', 'unit', it.clock ? t('custom_time') : t('custom')));
+  let inp;
+  if (it.clock) {
+    inp = el('input', 'pref-num'); inp.type = 'time'; inp.value = hhmm(parseInt(it.value, 10) || 0);
+    inp.onchange = () => changed(it.key, String(toMinutes(inp.value)));
+  } else {
+    inp = el('input', 'pref-num'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.value = it.value;
+    if (it.min !== undefined) inp.min = it.min;
+    if (it.max !== undefined) inp.max = it.max;
+    inp.onchange = () => changed(it.key, String(Math.max(0, parseInt(inp.value, 10) || 0)));
+  }
+  row.appendChild(inp);
+  return row;
+}
 
 /* 一项设置一张圆角卡: 标题和说明在上, 选项一排一个, 选中的那行打勾并染成主题色。 */
 function prefCard(it, after) {
@@ -1813,7 +1875,7 @@ function prefCard(it, after) {
   if (it.hint) txt.appendChild(el('span', 'sub', it.hint));
   head.appendChild(txt);
   card.appendChild(head);
-  const changed = (k, v) => { setPref(k, v, after); };
+  const changed = (k, v) => setPref(k, v, after);
 
   if (it.kind === 'seg') {
     for (const o of it.options || []) {
@@ -1829,15 +1891,20 @@ function prefCard(it, after) {
       };
       card.appendChild(row);
     }
-  } else if (it.kind === 'num' || it.kind === 'minutes') {
-    const row = el('div', 'item pnum');
-    const inp = el('input', 'pref-num'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.value = it.value;
-    if (it.min !== undefined) inp.min = it.min;
-    if (it.max !== undefined) inp.max = it.max;
-    inp.onchange = () => changed(it.key, String(Math.max(0, parseInt(inp.value, 10) || 0)));
-    if (it.kind === 'minutes') row.appendChild(el('span', 'unit', t('unit_min')));
-    row.appendChild(inp);
-    card.appendChild(row);
+    if (it.custom) card.appendChild(customRow(it, changed));
+  } else if (it.kind === 'minutes') {
+    for (const o of it.options || []) {
+      const row = el('button', 'item popt', o.label);
+      row.type = 'button';
+      const on = o.value === it.value;
+      row.setAttribute('aria-checked', on ? 'true' : 'false');
+      row.appendChild(prefTick());
+      row.onclick = () => { if (on) return; row.disabled = true; changed(it.key, o.value); };
+      card.appendChild(row);
+    }
+    card.appendChild(customRow(it, changed));
+  } else if (it.kind === 'num') {
+    card.appendChild(customRow(it, changed));
   } else if (it.kind === 'slider') {
     const row = el('div', 'item psld');
     if (it.muted) row.classList.add('muted');
@@ -1846,11 +1913,14 @@ function prefCard(it, after) {
     mute.setAttribute('aria-checked', it.muted ? 'true' : 'false');
     mute.setAttribute('aria-label', it.muted ? t('unmute') : t('mute'));
     mute.onclick = () => changed(it.key + 'Muted', it.muted ? '0' : '1');
-    const rg = el('input', ''); rg.type = 'range'; rg.min = it.min ?? 0; rg.max = it.max ?? 100; rg.value = it.value;
+    const min = it.min ?? 0, max = it.max ?? 100;
+    const rg = el('input', ''); rg.type = 'range'; rg.min = min; rg.max = max; rg.value = it.value;
     rg.setAttribute('aria-label', it.label);
     const val = el('span', 'val', it.value);
-    rg.oninput = () => val.textContent = rg.value;
+    const paint = () => rg.style.setProperty('--p', Math.round((parseInt(rg.value, 10) - min) / (max - min) * 100) + '%');
+    rg.oninput = () => { val.textContent = rg.value; paint(); };
     rg.onchange = () => changed(it.key, rg.value);
+    paint();
     row.append(mute, rg, val);
     card.appendChild(row);
   } else if (it.kind === 'action') {
@@ -1859,15 +1929,18 @@ function prefCard(it, after) {
     row.onclick = async () => { row.disabled = true; await changed(it.key, '1'); row.disabled = false; };
     card.appendChild(row);
   } else if (it.kind === 'open') {
-    const row = el('button', 'item');
+    const k = (prefs && prefs.kids) || {};
+    const label = !k.enabled ? t('kids_row_off')
+      : (k.kind === 'elders' ? t('kids_row_elders') : t('kids_row_kids'));
+    const row = el('button', 'item popen');
     row.type = 'button';
-    row.appendChild(el('span', 'txt', t('kids_open')));
+    row.appendChild(el('span', 'txt', label));
     const chev = el('svg', 'chev'); chev.setAttribute('width', '8'); chev.setAttribute('height', '13');
     chev.setAttribute('viewBox', '0 0 8 13'); chev.setAttribute('fill', 'none'); chev.setAttribute('stroke', 'currentColor');
     chev.setAttribute('stroke-width', '2.2'); chev.setAttribute('stroke-linecap', 'round');
     chev.innerHTML = '<path d="M1.5 1.5l5 5-5 5"/>';
     row.appendChild(chev);
-    row.onclick = () => openKids();
+    row.onclick = () => openKidsGate();
     card.appendChild(row);
   }
   return card;
@@ -1882,7 +1955,14 @@ function renderPrefs() {
   }
 }
 
-/* 儿童与长辈: 细则和两页卡片都放进窗口, 卡片带封面、勾选后左上角标编号。 */
+/* 进儿童与长辈窗口前先验密码: 没设过就先设一个, 设过就核对一次。 */
+function openKidsGate() {
+  const k = (prefs && prefs.kids) || {};
+  if (!k.pinSet) { pinSheet('create', false, () => openKids()); return; }
+  pinSheet('verify', !!k.pinArrows, () => openKids());
+}
+
+/* 儿童与长辈窗口: 上面是细则, 下面是两页卡片(应用 / 直播), 每页带封面与勾选编号。 */
 let kidsTab = 0;
 function openKids() {
   openSheet(body => {
@@ -1890,6 +1970,8 @@ function openKids() {
     body.appendChild(el('h3', '', k.title));
     if (k.hint) body.appendChild(el('p', 'meta', k.hint));
     const refresh = () => openKids();
+    for (const it of k.items || []) body.appendChild(prefCard(it, refresh));
+
     const tabs = el('div', 'ptabs');
     [k.appsTitle, k.liveTitle].forEach((label, i) => {
       const b = el('button', '', label); b.type = 'button';
@@ -1898,53 +1980,104 @@ function openKids() {
       tabs.appendChild(b);
     });
     body.appendChild(tabs);
+    if (k.appsHint) body.appendChild(el('p', 'foot', k.appsHint));
+
     const list = kidsTab === 0 ? (k.apps || []) : (k.live || []);
     const allowed = k.allowed || [];
     const inPage = allowed.filter(v => list.some(c => c.value === v));
     if (!list.length) body.appendChild(el('p', 'meta', kidsTab === 0 ? (k.emptyApps || '') : (k.emptyLive || '')));
-    if (k.appsHint) body.appendChild(el('p', 'foot', kidsTab === 0 ? k.appsHint : ''));
     const grid = el('div', 'kgrid');
     for (const c of list) {
-      const t2 = el('button', 'kcard'); t2.type = 'button';
+      const tile = el('button', 'kcard'); tile.type = 'button';
       const pos = inPage.indexOf(c.value);
-      t2.setAttribute('aria-checked', pos >= 0 ? 'true' : 'false');
+      tile.setAttribute('aria-checked', pos >= 0 ? 'true' : 'false');
       const img = el('img'); img.src = base + (c.art || ''); img.alt = ''; img.loading = 'lazy';
       const num = el('span', 'knum', pos >= 0 ? String(pos + 1) : '');
       const cap = el('span', 'kc', c.label || c.value);
-      t2.append(img, num, cap);
-      t2.onclick = () => {
-        const now = allowed.slice();
-        const next = pos >= 0 ? now.filter(v => v !== c.value) : now.concat([c.value]);
-        t2.disabled = true;
-        setPref('kidsAllowed', next.join('\n'), refresh);
-      };
-      grid.appendChild(t2);
+      tile.append(img, num, cap);
+      if (c.locked) {
+        tile.disabled = true;
+        tile.appendChild(el('span', 'klock', t('must_keep')));
+      } else {
+        tile.onclick = () => {
+          const now = allowed.slice();
+          const next = pos >= 0 ? now.filter(v => v !== c.value) : now.concat([c.value]);
+          tile.disabled = true;
+          setPref('kidsAllowed', next.join('\n'), refresh);
+        };
+      }
+      grid.appendChild(tile);
     }
     body.appendChild(grid);
-    for (const it of k.items || []) body.appendChild(prefCard(it, refresh));
   });
 }
 
-/* 家长密码: 开要立刻给一个 4~8 位数字, 关要先验证现有的。 */
-function pinPick(on) {
+/* 家长密码弹层: 4 位数字或 4 个方向键。create 设新的, verify 只核对, off 用现有密码关掉。 */
+function pinSheet(mode, arrowsDefault, done) {
+  let arrows = !!arrowsDefault;
+  let typed = '';
   openSheet(body => {
-    const h = el('h3', '', on ? t('pin_new') : t('pin_off_title'));
-    const f = el('form', 'item field');
-    const inp = el('input', ''); inp.type = 'tel'; inp.inputMode = 'numeric'; inp.maxLength = 8;
-    inp.placeholder = t('pin_ph'); inp.autocomplete = 'off';
-    const ok = el('button', 'link', t('save')); ok.type = 'submit';
-    f.append(inp, ok);
-    f.onsubmit = async e => {
-      e.preventDefault();
-      const pin = inp.value.replace(/[^0-9]/g, '');
-      if (pin.length < 4) { inp.value = ''; inp.placeholder = t('pin_ph'); return; }
-      const done = await setPref('pin', (on ? 'set:' : 'off:') + pin);
-      if (done) closeSheet();
+    const title = mode === 'off' ? t('pin_off_title') : mode === 'create' ? t('pin_new') : t('pin_verify_title');
+    body.appendChild(el('h3', '', title));
+    body.appendChild(el('p', 'meta', arrows ? t('pin_arrows_hint') : t('pin_digits_hint')));
+    const tabs = el('div', 'ptabs');
+    if (mode === 'create') {
+      [t('pin_digits'), t('pin_arrows')].forEach((label, i) => {
+        const b = el('button', '', label); b.type = 'button';
+        b.setAttribute('aria-checked', (!arrows) === (i === 0) ? 'true' : 'false');
+        b.onclick = () => { if (arrows !== (i === 1)) { arrows = i === 1; typed = ''; reopen(); } };
+        tabs.appendChild(b);
+      });
+      body.appendChild(tabs);
+    }
+    const dots = el('div', 'pin-dots');
+    const paintDots = () => {
+      dots.replaceChildren();
+      for (let i = 0; i < 4; i++) dots.appendChild(el('span', 'pin-dot' + (i < typed.length ? ' on' : '')));
     };
-    body.append(h, f);
-    setTimeout(() => inp.focus(), 120);
+    paintDots();
+    body.appendChild(dots);
+    const submit = async () => {
+      if (typed.length !== 4) return;
+      const prefix = mode === 'create' ? 'set:' : mode === 'off' ? 'off:' : 'check:';
+      const ok = await setPref('pin', prefix + typed, null, mode === 'verify');
+      if (!ok) { if (mode === 'verify' || mode === 'off') toast(t('pin_wrong')); typed = ''; paintDots(); return; }
+      closeSheet();
+      if (done) done();
+    };
+    if (arrows) {
+      const pad = el('div', 'pin-pad');
+      const cell = (dir, cls) => {
+        const b = el('button', 'pinkey ' + cls, { U: '↑', D: '↓', L: '←', R: '→' }[dir]);
+        b.type = 'button';
+        b.onclick = () => { if (typed.length < 4) { typed += dir; paintDots(); if (typed.length === 4) submit(); } };
+        pad.appendChild(b);
+      };
+      cell('U', 'u'); pad.appendChild(el('span')); cell('R', 'r');
+      cell('L', 'l'); pad.appendChild(el('span')); pad.appendChild(el('span'));
+      pad.appendChild(el('span')); cell('D', 'd'); pad.appendChild(el('span'));
+      body.appendChild(pad);
+    } else {
+      const f = el('form', 'item field');
+      const inp = el('input', ''); inp.type = 'tel'; inp.inputMode = 'numeric'; inp.maxLength = 4;
+      inp.placeholder = t('pin_ph'); inp.autocomplete = 'off';
+      const ok = el('button', 'link', t('save')); ok.type = 'submit';
+      f.append(inp, ok);
+      f.onsubmit = e => { e.preventDefault(); typed = inp.value.replace(/[^0-9]/g, '').slice(0, 4); paintDots(); if (typed.length === 4) submit(); };
+      body.appendChild(f);
+      setTimeout(() => inp.focus(), 120);
+    }
   });
+  const reopen = () => pinSheet(mode, arrows, done);
 }
+
+/* 密码那一项: 打开就设一个新的, 关闭要先输现有的。 */
+function pinPick(on) {
+  if (on) { pinSheet('create', false, null); return; }
+  const k = (prefs && prefs.kids) || {};
+  pinSheet('off', !!k.pinArrows, null);
+}
+
 function renderInputs() {
   const inputs = state.inputs || [];
   $('#inputsBox').hidden = !inputs.length || arrView !== null;

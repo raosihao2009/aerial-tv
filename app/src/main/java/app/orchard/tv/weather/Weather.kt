@@ -81,7 +81,9 @@ object Weather {
         place = prefs.getString("place_custom", null) ?: prefs.getString("place", null)
         chosen = prefs.getBoolean("chosen", false)
         lastRefreshKey = dayKey()
-        if (System.currentTimeMillis() - prefs.getLong("fetched_at", 0) < STALE_MS) {
+        // 读数一直留到 SHOWN_MS: 关机一晚再开, 缓存还在一小时内的老条件会把它整行抹掉,
+        // 看上去就像天气坏了; 留到 12 小时内至少还能带「几小时前」显示。
+        if (System.currentTimeMillis() - prefs.getLong("fetched_at", 0) < SHOWN_MS) {
             val kind = runCatching { WeatherKind.valueOf(prefs.getString("kind", null) ?: "") }.getOrNull()
             if (kind != null) {
                 val cachedHigh = prefs.getInt("high", NONE).takeIf { it != NONE }
@@ -172,7 +174,9 @@ object Weather {
         // 跨天那一刻强制刷新一次; 平时只在 00/10/20/30/40/50 分、且距上次满 10 分钟才刷。
         val today = dayKey()
         val crossedDay = lastRefreshKey.isNotEmpty() && today != lastRefreshKey
-        if (crossedDay || (minute % 10 == 0 && since >= REFRESH_MS)) {
+        // 整十分那一下优先; 但秒表不一定正好落在 :00 的边界上(每分钟一跳也可能错过),
+        // 拖过 10 分钟再给两分钟宽限, 免得一次错过就干等下一个整十分。
+        if (crossedDay || (since >= REFRESH_MS && (minute % 10 == 0 || since >= REFRESH_MS + 2 * 60_000L))) {
             refresh()
         }
     }
