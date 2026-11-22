@@ -91,6 +91,13 @@
   }
   .otabs button[aria-checked="true"] { background: var(--card); color: var(--tint); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
   .otabs button span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* 壁纸那四颗只有字的小选项卡: 不带图标, 平分一行, 选中的白底染字色。 */
+  .wtabs button, .wtabs button[aria-checked="true"] {
+    flex: 1 1 0; width: auto; min-width: 0; padding: 0 6px; font-weight: 500;
+    box-shadow: none; background: none; color: var(--secondary); font-size: 14px;
+  }
+  .wtabs button[aria-checked="true"] { background: var(--card); color: var(--tint); font-weight: 600; }
+  .wtabs button span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .wxlist { margin-top: 10px; }
   .pcard .popen { color: var(--tint); justify-content: center; }
   .pcard .popen .txt { flex: 0 1 auto; font-weight: 600; text-align: center; }
@@ -435,6 +442,8 @@
        照电视的顺序: 先大图当前壁纸, 再四排左右翻的壁纸, 最后是屏保那四行。 -->
   <div class="pgroup" id="prefsWallpaper" data-g="wallpaper" hidden>
     <div class="hero" id="hero"><img id="heroImg" alt=""><div class="cap"><small data-i18n="current_wp"></small><b id="heroTitle"></b></div></div>
+    <!-- 我的照片 / 动态 / 每日精选 / 更多: 四颗只有字的小选项卡, 选谁就显示谁那一排。 -->
+    <div class="gtabs wtabs" id="wtabs" role="tablist"></div>
     <div id="sections"></div>
     <h2 class="big" data-i18n="screensaver_short"></h2>
     <div id="saverItems"></div>
@@ -465,11 +474,10 @@
   </div>
 
   <div id="prefsFamily" class="pgroup" data-g="family" hidden></div>
-</section>
 
-<!-- Other: 关于 Aerial、备份与恢复、反馈问题, 单独一页, 页内三颗选项卡 -->
-<section data-tab="other" hidden>
+  <!-- 六个分类的下面再挂一排选项卡: 关于 Aerial、备份与恢复、反馈问题。 -->
   <div class="gtabs otabs" id="otabs" role="tablist"></div>
+
 
   <!-- 关于 Aerial: 版本/检查更新, 下面接关机(待机)。 -->
   <div class="ogroup" data-o="about">
@@ -501,13 +509,13 @@
     <p class="foot" data-i18n="feedback_hint"></p>
   </div>
 </section>
+
 </main>
 
 <nav role="tablist">
   <button role="tab" data-go="home"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="7" height="6" rx="1.8"/><rect x="13.5" y="4.5" width="7" height="6" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="6" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="6" rx="1.8"/></svg><span data-i18n="tab_home"></span></button>
   <button role="tab" data-go="live"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M10 9.5l5 2.5-5 2.5z" fill="currentColor" stroke="none"/><path d="M8 21h8"/></svg><span data-i18n="tab_live"></span></button>
-  <button role="tab" data-go="more"><svg width="26" height="26" viewBox="0 -960 960 960" fill="currentColor"><path d="M480-280q-83 0-141.5-58.5T280-480q0-83 58.5-141.5T480-680q83 0 141.5 58.5T680-480q0 83-58.5 141.5T480-280ZM70-450q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32Q57.25-510 70-510h100q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H70Zm720 0q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h100q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H790ZM479.82-760q-12.82 0-21.32-8.63-8.5-8.62-8.5-21.37v-100q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v100q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63Zm0 720Q467-40 458.5-48.63 450-57.25 450-70v-100q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v100q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63ZM240-678l-57-56q-9-9-8.63-21.6.37-12.61 8.53-21.5 8.89-8.9 21.5-8.9 12.6 0 21.6 9l56 57q8 9 8 21t-8 20.5q-8 8.5-20.5 8.5t-21.5-8Zm494 495-56-57q-8-9-8-21.38 0-12.37 8.5-20.62 8.5-9 20.5-9t21 9l57 56q9 9 8.63 21.6-.37 12.61-8.53 21.5-8.89 8.9-21.5 8.9-12.6 0-21.6-9Zm-56-495q-9-9-9-21t9-21l56-57q9-9 21.6-8.63 12.61.37 21.5 8.53 8.9 8.89 8.9 21.5 0 12.6-9 21.6l-57 56q-8 8-20.36 8-12.37 0-21.64-8ZM182.9-182.9q-8.9-8.89-8.9-21.5 0-12.6 9-21.6l57-56q8.8-9 20.9-9 12.1 0 20.71 9 9.39 9 9.39 21t-9 21l-56 57q-9 9-21.6 8.63-12.61-.37-21.5-8.53Z"/></svg><span data-i18n="tab_more"></span></button>
-  <button role="tab" data-go="other"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="6.6" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="17.4" cy="12" r="2"/></svg><span data-i18n="tab_other"></span></button>
+  <button role="tab" data-go="more"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17.5 7H20"/><circle cx="15" cy="7" r="2.1"/><path d="M4 12h2.5M11 12h9"/><circle cx="8.7" cy="12" r="2.1"/><path d="M4 17h10.5M18.5 17H20"/><circle cx="16.4" cy="17" r="2.1"/></svg><span data-i18n="tab_more"></span></button>
 </nav>
 
 <div class="sheet-wrap" id="sheet" hidden>
@@ -1261,7 +1269,7 @@ const LANGS = Object.keys(TEXTS);
 const EXTRA = {
   zh: { st_on: "开", st_off: "关", tab_other: "其他", tab_more: "个性化", tab_other_about: "关于 Aerial", tab_other_backup: "备份与恢复", tab_other_feedback: "反馈问题",
         weather_place: "天气位置", weather_place_hint: "顶部问候行和屏保显示的就是这里的天气。",
-        g_builtin_more: "内置与更多",
+        g_builtin_more: "更多",
         backup_h: "备份与恢复", backup_export: "导出备份", backup_import: "导入备份",
         pin_back: "删除",
         pin_digits: "4 位数字", pin_arrows: "4 个方向键", pin_digits_hint: "输入 4 位数字。",
@@ -1281,7 +1289,7 @@ const EXTRA = {
         power_off: "关机", power_off_confirm: "现在就关掉这台电视?", power_off_done: "已关机", power_off_fail: "关机失败" },
   en: { st_on: "On", st_off: "Off", tab_other: "Other", tab_more: "Personalise", tab_other_about: "About Aerial", tab_other_backup: "Backup & restore", tab_other_feedback: "Feedback",
         weather_place: "Weather location", weather_place_hint: "The weather in the greeting row and on the screensaver comes from here.",
-        g_builtin_more: "Built-in & more",
+        g_builtin_more: "More",
         backup_h: "Backup & restore", backup_export: "Export backup", backup_import: "Import backup",
         pin_back: "Delete",
         pin_digits: "4 digits", pin_arrows: "4 arrow keys", pin_digits_hint: "Type the 4 digits.",
@@ -1301,7 +1309,7 @@ const EXTRA = {
         power_off: "Shut Down", power_off_confirm: "Turn this TV off now?", power_off_done: "Turned off", power_off_fail: "Could not turn it off" },
   ru: { st_on: "Вкл", st_off: "Выкл", tab_other: "Другое", tab_more: "Персонализация", tab_other_about: "О Aerial", tab_other_backup: "Резервная копия", tab_other_feedback: "Обратная связь",
         weather_place: "Местоположение погоды", weather_place_hint: "Погода в приветствии и на заставке берётся отсюда.",
-        g_builtin_more: "Встроенные и ещё",
+        g_builtin_more: "Ещё",
         backup_h: "Резервная копия", backup_export: "Экспорт копии", backup_import: "Импорт копии",
         pin_back: "Удалить",
         pin_digits: "4 цифры", pin_arrows: "4 стрелки", pin_digits_hint: "Введите 4 цифры.",
@@ -1318,7 +1326,7 @@ const EXTRA = {
         backup_no_reply: "Телевизор не сообщил результат", backup_link_lost: "Связь с телевизором прервалась" },
   uk: { st_on: "Увімк", st_off: "Вимк", tab_other: "Інше", tab_more: "Персоналізація", tab_other_about: "Про Aerial", tab_other_backup: "Резервна копія", tab_other_feedback: "Зворотний зв'язок",
         weather_place: "Місце погоди", weather_place_hint: "Погода у вітанні та на заставці береться звідси.",
-        g_builtin_more: "Вбудовані та інші",
+        g_builtin_more: "Ще",
         backup_h: "Резервна копія", backup_export: "Експорт копії", backup_import: "Імпорт копії",
         pin_back: "Видалити",
         pin_digits: "4 цифри", pin_arrows: "4 стрілки", pin_digits_hint: "Введіть 4 цифри.",
@@ -1335,7 +1343,7 @@ const EXTRA = {
         backup_no_reply: "Телевізор не повідомив результат", backup_link_lost: "Зв'язок із телевізором обірвався" },
   kk: { st_on: "Қосулы", st_off: "Өшірулі", tab_other: "Басқа", tab_more: "Жекешелендіру", tab_other_about: "Aerial туралы", tab_other_backup: "Сақтық көшірме", tab_other_feedback: "Кері байланыс",
         weather_place: "Ауа райы орны", weather_place_hint: "Сәлемдеу жолы мен экран сақтағыштағы ауа райы осы жерден алынады.",
-        g_builtin_more: "Кіріктірілген және тағы басқа",
+        g_builtin_more: "Тағы",
         backup_h: "Сақтық көшірме", backup_export: "Көшірмені шығару", backup_import: "Көшірмені қалпына келтіру",
         pin_back: "Жою",
         pin_digits: "4 сан", pin_arrows: "4 бағыттағы перне", pin_digits_hint: "4 санды енгізіңіз.",
@@ -1419,8 +1427,8 @@ async function api(path, body) {
 function take(next) { state = next; stateJson = ''; render(); }
 
 /* Tabs. The tab is kept in the address (#home) and on the phone, and each tab keeps its own scroll. */
-const TABS = ['home', 'live', 'more', 'other'];
-const TITLES = { home: 'tab_home', live: 'tab_live', more: 'tab_more', other: 'tab_other' };
+const TABS = ['home', 'live', 'more'];
+const TITLES = { home: 'tab_home', live: 'tab_live', more: 'tab_more' };
 // The four tabs of 1.46 and 1.47's first builds.
 const OLD_TABS = { wallpaper: 'more', screensaver: 'more', looks: 'more' };
 const scrolls = {};
@@ -1448,8 +1456,7 @@ function show(next, keepScroll) {
   if (tab === 'live') renderLive();
   if (prefsTimer) { clearInterval(prefsTimer); prefsTimer = 0; }
   // 这一页要跟着电视走: 电视面板上改了, 手机上三秒内就该看到。
-  if (tab === 'other') renderOtherTabs();
-  if (tab === 'more' || tab === 'other') { loadPrefs(); prefsTimer = setInterval(loadPrefs, 3000); }
+  if (tab === 'more') { loadPrefs(); renderOtherTabs(); prefsTimer = setInterval(loadPrefs, 3000); }
   window.scrollTo(0, scrolls[tab] || 0);
   try { localStorage.setItem('aerial-tab', tab); } catch (e) {}
   history.replaceState(null, '', '#' + tab);
@@ -1750,11 +1757,26 @@ function post(path, data, cb) {
     .then(s => { state = s; if (cb) cb(); else refresh(); });
 }
 
+/* 壁纸与屏保里的四颗小选项卡: 我的照片 / 动态 / 每日精选 / 更多, 只有字。 */
+const WTABS = [['photos', 'g_photo'], ['live', 'g_live'], ['daily', 'g_daily'], ['more', 'g_builtin_more']];
+let wpTab = 'photos';
+function renderWpTabs() {
+  const bar = $('#wtabs'); if (!bar) return;
+  bar.replaceChildren();
+  for (const [key, labelKey] of WTABS) {
+    const b = el('button', ''); b.type = 'button';
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-checked', key === wpTab ? 'true' : 'false');
+    b.appendChild(el('span', '', t(labelKey)));
+    b.onclick = () => { if (wpTab === key) return; wpTab = key; renderWallpapers(); };
+    bar.appendChild(b);
+  }
+}
 function renderWallpapers() {
   $('#heroImg').src = `${base}thumb/${encodeURIComponent(state.selected)}`;
   $('#heroTitle').textContent = titleOf(state.selected);
+  renderWpTabs();
   const root = $('#sections'); root.replaceChildren();
-  const wp = state.wallpapers || [];
   // 一排: 标题、可能有的添加按钮或小字, 再一条左右翻的卡片带。
   const row = (title, items, opts) => {
     opts = opts || {};
@@ -1772,44 +1794,53 @@ function renderWallpapers() {
     if (opts.foot) root.appendChild(el('p', 'foot', opts.foot));
   };
 
-  // 我的照片: 两张以上先给一张轮流播放的卡, 和电视一样。
-  let photos = wp.filter(w => w.kind === 'photo');
-  if (photos.length > 1) photos = [{ id: state.rotatePhotos, kind: 'photos', title: t('rotate_title'), caption: t('rotate_caption') }].concat(photos);
-  row(t('g_photo'), photos, { photoAdd: true, empty: t('empty_photos'), foot: photos.length === 1 ? t('add_second') : '' });
+  const wp = state.wallpapers || [];
 
-  // 动态: 航拍影片和你的视频; 三段视频以上才多一张轮流播放的卡 (#762, 同电视)。
-  let moving = wp.filter(w => w.kind === 'live' || w.kind === 'video');
-  if (moving.filter(w => w.kind === 'video').length < 3 && state.selected !== 'videos:mine') moving = moving.filter(w => w.id !== 'videos:mine');
-  row(t('g_live'), moving, { videoAdd: true, lead: t('videos_hint') });
-  // 按键停不停自己的视频, 和电视一样; 航拍影片一直动。
-  if (/^videos?:/.test(state.selected)) {
-    const card2 = el('div', 'list pcard');
-    const head = el('div', 'item phead');
-    const txt = el('span', 'txt');
-    txt.appendChild(el('span', '', t('sw_always')));
-    txt.appendChild(el('span', 'sub', t('sw_always_sub')));
-    head.appendChild(txt);
-    card2.appendChild(head);
-    const wrap = el('div', 'prows'); const row2 = el('div', 'prow');
-    [['1', t('st_on')], ['0', t('st_off')]].forEach(([v, label]) => {
-      const b = el('button', 'pbtn', label); b.type = 'button';
-      b.setAttribute('aria-checked', !!state.wallpaperAlwaysMoves === (v === '1') ? 'true' : 'false');
-      b.onclick = () => { if (b.getAttribute('aria-checked') === 'true') return; setting({ dataset: { setting: 'wallpaperAlwaysMoves' }, checked: v === '1' }); };
-      row2.appendChild(b);
-    });
-    wrap.appendChild(row2); card2.appendChild(wrap);
-    root.appendChild(card2);
+  if (wpTab === 'photos') {
+    // 我的照片: 两张以上先给一张轮流播放的卡, 和电视一样。
+    let photos = wp.filter(w => w.kind === 'photo');
+    if (photos.length > 1) photos = [{ id: state.rotatePhotos, kind: 'photos', title: t('rotate_title'), caption: t('rotate_caption') }].concat(photos);
+    row(t('g_photo'), photos, { photoAdd: true, empty: t('empty_photos'), foot: photos.length === 1 ? t('add_second') : '' });
+    return;
   }
 
-  let daily = wp.filter(w => w.kind === 'daily');
-  if (daily.length) {
-    daily = [{ id: state.latestDaily, kind: 'daily', title: t('daily_title'), caption: t('daily_caption') }].concat(daily);
-    row(t('g_daily'), daily, {});
+  if (wpTab === 'live') {
+    // 动态: 航拍影片和你的视频; 三段视频以上才多一张轮流播放的卡 (#762, 同电视)。
+    let moving = wp.filter(w => w.kind === 'live' || w.kind === 'video');
+    if (moving.filter(w => w.kind === 'video').length < 3 && state.selected !== 'videos:mine') moving = moving.filter(w => w.id !== 'videos:mine');
+    row(t('g_live'), moving, { videoAdd: true, lead: t('videos_hint') });
+    // 按键停不停自己的视频, 和电视一样; 航拍影片一直动。
+    if (/^videos?:/.test(state.selected)) {
+      const card2 = el('div', 'list pcard');
+      const head = el('div', 'item phead');
+      const txt = el('span', 'txt');
+      txt.appendChild(el('span', '', t('sw_always')));
+      txt.appendChild(el('span', 'sub', t('sw_always_sub')));
+      head.appendChild(txt);
+      card2.appendChild(head);
+      const wrap = el('div', 'prows'); const row2 = el('div', 'prow');
+      [['1', t('st_on')], ['0', t('st_off')]].forEach(([v, label]) => {
+        const b = el('button', 'pbtn', label); b.type = 'button';
+        b.setAttribute('aria-checked', !!state.wallpaperAlwaysMoves === (v === '1') ? 'true' : 'false');
+        b.onclick = () => { if (b.getAttribute('aria-checked') === 'true') return; setting({ dataset: { setting: 'wallpaperAlwaysMoves' }, checked: v === '1' }); };
+        row2.appendChild(b);
+      });
+      wrap.appendChild(row2); card2.appendChild(wrap);
+      root.appendChild(card2);
+    }
+    return;
   }
 
-  // 内置与更多合成一排。
-  const built = wp.filter(w => w.kind === 'builtin' || w.kind === 'auto');
-  if (built.length) row(t('g_builtin_more'), built, {});
+  if (wpTab === 'daily') {
+    let daily = wp.filter(w => w.kind === 'daily');
+    if (daily.length) daily = [{ id: state.latestDaily, kind: 'daily', title: t('daily_title'), caption: t('daily_caption') }].concat(daily);
+    row(t('g_daily'), daily, { empty: t('daily_caption') });
+    return;
+  }
+
+  // 更多 = 内置与更多, 合成一排。
+  const built = wp.filter(w => w.kind === 'builtin' || w.kind === 'auto' || w.kind === 'gradient');
+  row(t('g_builtin_more'), built, { empty: t('empty_photos') });
 }
 
 function photoAddBtn() {
@@ -2151,7 +2182,7 @@ function renderOtherTabs() {
   applyOtherPane();
 }
 function applyOtherPane() {
-  document.querySelectorAll('section[data-tab="other"] .ogroup').forEach(g => { g.hidden = g.dataset.o !== otherPane; });
+  document.querySelectorAll('section[data-tab="more"] .ogroup').forEach(g => { g.hidden = g.dataset.o !== otherPane; });
 }
 function renderTabs() {
   const bar = $('#gtabs'); if (!bar) return;
