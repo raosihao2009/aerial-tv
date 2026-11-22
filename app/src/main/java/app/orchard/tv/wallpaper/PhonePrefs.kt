@@ -48,13 +48,20 @@ object PhonePrefs {
     private fun item(
         key: String, kind: String, label: String, hint: String?, value: String,
         options: List<Pair<String, String>> = emptyList(),
+        optionHints: List<String?> = emptyList(),
         min: Int? = null, max: Int? = null, muted: Boolean? = null,
         custom: Boolean? = null, clock: Boolean? = null, arrows: Boolean? = null,
     ): JSONObject {
         val o = JSONObject().put("key", key).put("kind", kind).put("label", label).put("value", value)
         if (!hint.isNullOrBlank()) o.put("hint", hint)
         if (options.isNotEmpty()) {
-            o.put("options", JSONArray().apply { options.forEach { (v, l) -> put(JSONObject().put("value", v).put("label", l)) } })
+            o.put("options", JSONArray().apply {
+                options.forEachIndexed { i, (v, l) ->
+                    val one = JSONObject().put("value", v).put("label", l)
+                    optionHints.getOrNull(i)?.takeIf { it.isNotBlank() }?.let { one.put("hint", it) }
+                    put(one)
+                }
+            })
         }
         min?.let { o.put("min", it) }
         max?.let { o.put("max", it) }
@@ -147,6 +154,7 @@ object PhonePrefs {
                     listOf(
                         "high_contrast" to s(R.string.st_focus_high), "standard" to s(R.string.st_focus_standard),
                     ),
+                    optionHints = listOf(s(R.string.st_focus_high_hint), s(R.string.st_focus_standard_hint)),
                 ),
             )
             put(
@@ -178,13 +186,16 @@ object PhonePrefs {
                     ),
                 ),
             )
-            put(
-                item(
-                    "keyVolume", "slider", s(R.string.st_key_volume), s(R.string.st_key_volume_hint),
-                    AerialSettings.keyVolume.toString(), min = 0, max = 100,
-                    muted = AerialSettings.keyVolumeMuted,
-                ),
-            )
+            // 电视只在自己发声时才给「按键音量」; 按键声音选电视或关闭时这一项不存在。
+            if (AerialSettings.uiSounds == UiSounds.Aerial) {
+                put(
+                    item(
+                        "keyVolume", "slider", s(R.string.st_key_volume), s(R.string.st_key_volume_hint),
+                        AerialSettings.keyVolume.toString(), min = 0, max = 100,
+                        muted = AerialSettings.keyVolumeMuted,
+                    ),
+                )
+            }
         }))
 
         // ---- 天气与时钟 ----

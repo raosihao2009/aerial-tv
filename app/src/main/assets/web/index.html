@@ -87,14 +87,20 @@
   /* 滑块: 轨道和蓝色进度各画一条, 圆点自己画, 位置按圆点半径收进去, 两头才对得上。 */
   .psld .rg { position: relative; flex: 1; min-width: 0; height: 30px; }
   .psld .rg .track { position: absolute; left: 12px; right: 12px; top: 13px; height: 4px; border-radius: 2px; background: var(--fill); }
+  /* 进度条和圆点用同一个百分比、同一段可走宽度算位置, 所以蓝条末端永远压在圆点中心上。
+     系统自带的圆点只在下面留作拖拽用, 看不见(opacity 0), 看得见的是自己画的那颗。 */
   .psld .rg .fill { position: absolute; left: 12px; top: 13px; height: 4px; border-radius: 2px; background: var(--tint); width: 0; }
+  .psld .rg .knob {
+    position: absolute; top: 3px; left: 0; width: 24px; height: 24px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.28), 0 0 0 .5px rgba(0,0,0,.12); pointer-events: none;
+  }
   .psld .rg input[type=range] {
     -webkit-appearance: none; appearance: none; position: absolute; inset: 0; width: 100%; height: 30px; margin: 0; background: none;
   }
-  .psld .rg input[type=range]::-webkit-slider-runnable-track { height: 30px; background: none; }
+  .psld .rg input[type=range]::-webkit-slider-runnable-track { height: 4px; background: none; }
   .psld input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none; width: 24px; height: 24px; margin-top: -10px; border-radius: 50%;
-    background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.28), 0 0 0 .5px rgba(0,0,0,.12);
+    background: transparent; box-shadow: none; opacity: 0;
   }
   .psld input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--fill); }
   .psld input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border: 0; border-radius: 50%; background: #fff; }
@@ -415,7 +421,10 @@
 
 <!-- More -->
 <section data-tab="more" hidden>
-  <!-- 天气这一块由 renderPrefs 塞进「天气与时钟」那张分组里, 不再自成一节。 -->
+  <!-- 电视个性化面板: 天气之前的组(主屏幕 / 直播 / 外观 / 时钟)排在这里。 -->
+  <div id="prefsA"></div>
+
+  <!-- 天气这几行是「天气与时钟」那张分组的一部分: 夹在上面那段和下面那段中间, 由页面直接摆好, 不再搬节点。 -->
   <div id="wxBlock" hidden>
   <div class="list">
     <label class="item"><span class="txt" data-i18n="sw_weather"></span><input class="switch" type="checkbox" id="swWeather" data-setting="showWeather"></label>
@@ -434,8 +443,8 @@
   <p class="foot" id="wxHint"></p>
   </div>
 
-  <!-- 电视个性化面板里其余的选项, 由服务端按电视的 strings.xml 发过来(groups/items)。 -->
-  <div id="prefs"></div>
+  <!-- 天气之后的组(家庭守护 / 关于)排在这里。 -->
+  <div id="prefsB"></div>
 
   <h2 data-i18n="this_tv"></h2>
   <div class="list">
@@ -1393,7 +1402,9 @@ function show(next, keepScroll) {
   setTitle();
   if (tab === 'home') placeShelves();   // measured while the tab shows
   if (tab === 'live') renderLive();
-  if (tab === 'more') loadPrefs();
+  if (prefsTimer) { clearInterval(prefsTimer); prefsTimer = 0; }
+  // 这一页要跟着电视走: 电视面板上改了, 手机上三秒内就该看到。
+  if (tab === 'more') { loadPrefs(); prefsTimer = setInterval(loadPrefs, 3000); }
   window.scrollTo(0, scrolls[tab] || 0);
   try { localStorage.setItem('aerial-tab', tab); } catch (e) {}
   history.replaceState(null, '', '#' + tab);
@@ -1826,11 +1837,17 @@ function renderMore() {
   } else hint.textContent = w.place ? t('wx_guessed', { place: w.place }) : t('wx_none');
 }
 /* ---- 个性化设置: 服务端发来的那一份(和电视面板一一对应) ---- */
-let prefs = null;
+let prefs = null, prefsJson = '', prefsTimer = 0;
 async function loadPrefs() {
   try {
     const r = await fetch(base + 'api/prefs?lang=' + LANG);
-    if (r.ok) { prefs = await r.json(); renderPrefs(); }
+    if (!r.ok) return;
+    const text = await r.text();
+    // 和上次一模一样就不重画: 电视那边改了设置才换, 免得轮询把正在拖的滑块打断。
+    if (text === prefsJson) return;
+    prefsJson = text;
+    prefs = JSON.parse(text);
+    renderPrefs();
   } catch (e) {}
 }
 async function setPref(key, value, after, quiet) {
@@ -1884,8 +1901,12 @@ function prefCard(it, after) {
 
   if (it.kind === 'seg') {
     for (const o of it.options || []) {
-      const row = el('button', 'item popt', o.label);
+      const row = el('button', 'item popt');
       row.type = 'button';
+      const txt = el('span', 'txt');
+      txt.appendChild(el('span', '', o.label));
+      if (o.hint) txt.appendChild(el('span', 'sub', o.hint));
+      row.appendChild(txt);
       const on = o.value === it.value;
       row.setAttribute('aria-checked', on ? 'true' : 'false');
       row.appendChild(prefTick());
@@ -1899,8 +1920,12 @@ function prefCard(it, after) {
     if (it.custom) card.appendChild(customRow(it, changed));
   } else if (it.kind === 'minutes') {
     for (const o of it.options || []) {
-      const row = el('button', 'item popt', o.label);
+      const row = el('button', 'item popt');
       row.type = 'button';
+      const txt = el('span', 'txt');
+      txt.appendChild(el('span', '', o.label));
+      if (o.hint) txt.appendChild(el('span', 'sub', o.hint));
+      row.appendChild(txt);
       const on = o.value === it.value;
       row.setAttribute('aria-checked', on ? 'true' : 'false');
       row.appendChild(prefTick());
@@ -1922,20 +1947,24 @@ function prefCard(it, after) {
     const wrap = el('div', 'rg');
     const track = el('span', 'track');
     const fill = el('span', 'fill');
+    const knob = el('span', 'knob');
     const rg = el('input', ''); rg.type = 'range'; rg.min = min; rg.max = max; rg.value = it.value;
     rg.setAttribute('aria-label', it.label);
     const val = el('span', 'val', it.value);
     const paint = () => {
-      const p = (parseInt(rg.value, 10) - min) / (max - min);
-      const w = wrap.clientWidth || 0;
-      fill.style.width = Math.max(0, p * Math.max(0, w - 24)) + 'px';
+      const p = Math.max(0, Math.min(1, (parseInt(rg.value, 10) - min) / (max - min)));
+      const travel = Math.max(0, wrap.clientWidth - 24);   // 圆点中心能走的那一段
+      knob.style.left = (p * travel) + 'px';
+      fill.style.width = (p * travel + 12) + 'px';          // 蓝条一路铺到圆点中心, 不是铺到圆点左边缘
     };
     rg.oninput = () => { val.textContent = rg.value; paint(); };
     rg.onchange = () => changed(it.key, rg.value);
-    wrap.append(track, fill, rg);
+    wrap.append(track, fill, knob, rg);
     row.append(mute, wrap, val);
-    // 卡片刚进 DOM 时宽度还是 0, 等一帧再按真实宽度摆蓝色段。
+    // 刚进 DOM 时宽还是 0, 等布局出来再摆一次; 之后屏幕转过来/宽度变了也重摆。
+    paint();
     requestAnimationFrame(paint);
+    if (window.ResizeObserver) new ResizeObserver(paint).observe(wrap);
     card.appendChild(row);
   } else if (it.kind === 'action') {
     const row = el('button', 'item tint center', it.value || it.label);
@@ -1961,17 +1990,16 @@ function prefCard(it, after) {
 }
 
 function renderPrefs() {
-  const host = $('#prefs'); if (!host || !prefs) return;
-  host.replaceChildren();
+  const a = $('#prefsA'), b = $('#prefsB'), wx = $('#wxBlock');
+  if (!a || !b || !prefs) return;
+  a.replaceChildren(); b.replaceChildren();
+  wx.hidden = true;
   for (const g of prefs.groups || []) {
+    // 天气之后的组(家庭守护 / 关于)排到天气那块下面去; 位置在页面上是固定的, 不搬节点。
+    const host = g.key === 'family' || g.key === 'about' ? b : a;
     host.appendChild(el('h2', '', g.title));
     for (const it of g.items || []) host.appendChild(prefCard(it));
-    if (g.key === 'weather') {
-      const wx = $('#wxBlock');
-      wx.hidden = false;
-      wx.classList.add('wxgroup');
-      host.appendChild(wx);
-    }
+    if (g.key === 'weather') wx.hidden = false;
   }
 }
 
@@ -2089,7 +2117,7 @@ function pinSheet(mode, arrowsDefault, done) {
     } else {
       const pad = el('div', 'pin-num');
       for (const n of ['1', '2', '3', '4', '5', '6', '7', '8', '9']) pad.appendChild(key(n, () => enter(n)));
-      pad.appendChild(key('⌫', back, 'del'));
+      pad.appendChild(key(t('pin_back'), back, 'del'));
       pad.appendChild(key('0', () => enter('0')));
       pad.appendChild(el('span'));
       body.appendChild(pad);

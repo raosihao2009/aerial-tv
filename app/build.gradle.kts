@@ -19,8 +19,8 @@ android {
         // Android 5.0. Compose 1.10 and later need 6.0, so the Compose BOM below stays on 1.9.
         minSdk = 21
         targetSdk = 34
-        versionCode = 1094
-        versionName = "3.94"
+        versionCode = 1095
+        versionName = "3.95"
         // 只保留中文和英文, 删掉其他语言资源减小包体
         resourceConfigurations += setOf("zh", "en")
         // `./gradlew -Pdiag ...`: a build for one reporter's TV whose logcat shows no app lines;
