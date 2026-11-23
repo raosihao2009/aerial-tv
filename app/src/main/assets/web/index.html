@@ -73,12 +73,14 @@
   /* 不出选项、只有一颗按钮的(扫码登录、打开登录页、立即开始): 与上面那排选项同一个形状, 只占一排一颗。
      以前这些是纯文字链接, 看着不像按钮, 也不好按。 */
   .pcard .pact {
-    appearance: none; border: 0; border-radius: 10px; background: var(--fill); color: var(--tint);
+    appearance: none; border: 0; border-radius: 10px; background: var(--card); color: var(--tint);
     display: block; box-sizing: border-box; width: 100%; padding: 12px 10px;
     font-size: 15px; font-weight: 600; text-align: center; line-height: 1.25;
-    text-decoration: none; cursor: pointer; transition: background-color .15s ease;
+    text-decoration: none; cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,.10);
+    transition: background-color .15s ease, box-shadow .15s ease;
   }
-  .pcard .pact:active { background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.10); }
+  .pcard .pact:active { background: var(--fill); box-shadow: none; }
   .pcard .pact:disabled { opacity: .55; }
   /* 分类选项卡: 没选中的只留图标, 选中的那颗长出图标+名字。 */
   .gtabs { display: flex; gap: 4px; align-items: center; background: var(--fill); border-radius: 10px; padding: 3px; margin: 6px 0 4px; max-width: 100%; overflow: hidden; }
@@ -550,7 +552,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1114;
+const PAGE_VER = 1115;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
