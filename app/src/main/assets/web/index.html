@@ -98,6 +98,35 @@
   /* 隐藏卡: 标题、说明、按钮同在一张气泡里。 */
   .pcard .ptitle { padding: 15px 16px 0; font-size: 17px; font-weight: 600; color: var(--label); }
   .pcard .pdesc { margin: 0; padding: 6px 16px 0; color: var(--secondary); font-size: 13px; line-height: 1.45; }
+  /* 气泡里的内容区(卡片网格、按钮组): 左右留出与标题一致的边。 */
+  .pcard .pbody { padding: 10px 12px 12px; }
+  /* 气泡里的输入行: 浅灰输入框 + 右边一颗蓝色保存按钮。 */
+  .pcard .pfield { display: flex; align-items: center; gap: 8px; padding: 12px 12px 12px; }
+  .pcard .pfield input {
+    flex: 1; min-width: 0; font: inherit; font-size: 16px; color: var(--label);
+    background: var(--fill); border: 0; outline: none; border-radius: 9px; padding: 10px 12px;
+    transition: background-color .15s ease, box-shadow .15s ease;
+  }
+  .pcard .pfield input:focus { background: var(--card); box-shadow: 0 0 0 1.5px var(--tint), 0 1px 3px rgba(0,0,0,.10); }
+  .pcard .pfield input:disabled { opacity: .6; }
+  .pcard .pfield .psave {
+    appearance: none; border: 0; border-radius: 9px; padding: 10px 18px; flex: none;
+    font-size: 15px; font-weight: 600; color: #fff; background: var(--tint);
+    box-shadow: 0 1px 3px rgba(0,0,0,.12); cursor: pointer;
+  }
+  .pcard .pfield .psave:disabled { background: var(--fill); color: var(--tertiary); box-shadow: none; }
+  /* 白色气泡里的按钮用浅灰底, 才看得出是一颗按钮。 */
+  .pcard .pact.soft { background: var(--fill); color: var(--tint); box-shadow: none; }
+  .pcard .pact.soft:active { background: var(--fill-solid); }
+  .pcard .pact.soft.danger { color: var(--danger); }
+  /* 不放进气泡的按钮(详情页的取消): 白底一块, 单独一条。 */
+  .sheet .psolo {
+    appearance: none; border: 0; border-radius: 10px; background: var(--card); color: var(--tint);
+    display: block; width: 100%; margin-top: 10px; padding: 12px 10px;
+    font-size: 15px; font-weight: 600; text-align: center; cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,.10);
+  }
+  .sheet .psolo:active { background: var(--fill); box-shadow: none; }
   /* 一行两颗按钮时与上面那排同款, 左右平分。 */
   .pcard .row .pact { flex: 1 1 0; width: auto; min-width: 0; }
   .pcard .prow .pact { flex: 1 1 0; width: auto; min-width: 0; }
@@ -342,6 +371,8 @@
     position: relative; display: grid; grid-template-columns: repeat(var(--cols, 5), minmax(0, 1fr)); gap: 14px 7px;
     padding: 12px 10px 14px; background: var(--card); border-radius: 14px;
   }
+  /* 网格放进气泡里时, 自己不再是一张白卡(气泡已经是一张了)。 */
+  .agrid.incard { background: none; border-radius: 0; padding: 0; }
   .agrid .shelf { position: absolute; left: 4px; right: 4px; top: 4px; border-radius: 11px; background: var(--fill); pointer-events: none; }
   .atile {
     position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; cursor: grab;
@@ -449,24 +480,24 @@
      底色不透明并且左右铺到屏幕边(内容横向溢出时不会从两侧漏出来), 下缘不留渐隐 ——
      过渡层放在分类选项卡的下方。 */
   header {
-    position: sticky; top: 0; z-index: 12; padding-bottom: 10px;
-    display: flex; align-items: center; gap: 10px;
-    background: var(--bg); isolation: isolate;
+    position: sticky; top: 0; z-index: 12; padding-bottom: 6px;
+    display: block; background: var(--bg); isolation: isolate;
   }
-  header .ticon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: 0; flex: none; color: var(--secondary); }
-  header h1 { display: block; margin: 0; }
-  header .ticon[hidden] { display: none; }
-  /* overflow 必须可见: 容器自己带圆角, hidden 会把垫底裁到圆角以内, 四个角就又透出下面的图片 */
-  #gtabs { position: sticky; top: var(--headh, 84px); z-index: 11; isolation: isolate; overflow: visible; }
-  /* 选项卡自己垫一块不透明的底(左右铺满), 免得下面的卡片从缝里透出来 */
-  #gtabs::before { content: ''; position: absolute; inset: -6px 0 0; z-index: -1; background: var(--bg); }
-  /* 过渡层放在选项卡下方: 卡片从下面滑上来时是渐隐, 大标题与选项卡之间是硬边 */
-  #gtabs::after {
+  /* 第一行: 返回箭头 / 图标 / 大标题。分类选项卡也在 header 里, 两个吸顶就不会互相顶着抖。 */
+  header .hrow { display: flex; align-items: center; gap: 10px; }
+  /* 过渡层: 所有页面通用, 内容从大标题下面滑过去时下缘渐隐。 */
+  header::after {
     content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 24px; z-index: -1;
     background: var(--bg);
     -webkit-mask-image: linear-gradient(180deg, #000 0, #000 40%, transparent); mask-image: linear-gradient(180deg, #000 0, #000 40%, transparent);
     pointer-events: none;
   }
+  header .ticon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: 0; flex: none; color: var(--secondary); }
+  header h1 { display: block; margin: 0; }
+  header .ticon[hidden] { display: none; }
+  /* 选项卡在 header 里, 跟着 header 一起吸顶; 底色由 header 提供, 这里只管自己这一行。 */
+  #gtabs { margin: 6px 0 0; overflow: visible; }
+  #gtabs[hidden] { display: none; }
   @media (prefers-reduced-motion: reduce) {
     .sheet, .sheet-wrap.open .sheet { transition: none; }
     .view.push, .view.pop { animation: none; }
@@ -478,9 +509,12 @@
 <body>
 <main>
 <header>
-  <button class="link back" id="homeBack" hidden><svg width="11" height="18" viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2L2 10l8 8"/></svg><span data-i18n="tab_home"></span></button>
-  <span class="ticon" id="titleIcon" hidden></span>
-  <h1 id="title"></h1>
+  <div class="hrow">
+    <button class="link back" id="homeBack" hidden><svg width="11" height="18" viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2L2 10l8 8"/></svg><span data-i18n="tab_home"></span></button>
+    <span class="ticon" id="titleIcon" hidden></span>
+    <h1 id="title"></h1>
+  </div>
+  <div class="gtabs" id="gtabs" role="tablist"></div>
 </header>
 
 <!-- Home screen: the TV's tiles, arranged here -->
@@ -501,8 +535,6 @@
 
 <!-- More -->
 <section data-tab="more" hidden>
-  <div class="gtabs" id="gtabs" role="tablist"></div>
-
   <!-- 壁纸与屏保: 原来是底部一个单独的 Tab, 现在收进「更多」的分类选项卡里 -->
   <!-- 壁纸与屏保: 原来是底部一个单独的 Tab, 现在收进「更多」的分类选项卡里。
        照电视的顺序: 先大图当前壁纸, 再四排左右翻的壁纸, 最后是屏保那四行。 -->
@@ -610,7 +642,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1123;
+const PAGE_VER = 1124;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -751,7 +783,7 @@ const TEXTS = {
   "文件夹已解散",
   "壁纸与屏保",
   "壁纸与屏保",
-  "显示在菜单上",
+  "在应用菜单显示",
   "接入的设备",
   "默认",
   "选一个设备，电视上这个信号源的图标会换成它的样子，名字也跟着变；自己起的名字会被替换。",
@@ -895,7 +927,7 @@ const TEXTS = {
   "Folder ungrouped",
   "Wallpaper",
   "Wallpaper & Screensaver",
-  "Show on Home",
+  "Show in app menu",
   "Connected Device",
   "Default",
   "Pick a device and the tile on the TV takes its look and its name; a name you typed is replaced.",
@@ -1503,6 +1535,15 @@ Object.assign(EXTRA.zh, {
   hidden_pin_show: '输入密码查看',
   wx_city_h: '设置城市',
   wx_place_h: '设置城市的显示名称',
+  app_grid_h: '应用卡片',
+  live_grid_h: '直播卡片',
+  sheet_name_h: '卡片名称',
+  sheet_name_desc: '改成你想在电视上看到的名字，留空恢复「{name}」。',
+  sheet_name_desc_live: '改成你想在电视上看到的名字。',
+  sheet_addr_h: '直播地址',
+  sheet_addr_desc: '直播源地址, 支持B站短链接或m3u8直链。',
+  live_hide: '从直播菜单隐藏',
+  live_show: '在直播菜单显示',
 });
 Object.assign(EXTRA.en, {
   tab_other_more: 'More',
@@ -1527,6 +1568,15 @@ Object.assign(EXTRA.en, {
   hidden_pin_show: 'Enter PIN to view',
   wx_city_h: 'City to show',
   wx_place_h: 'Display name for the city',
+  app_grid_h: 'App cards',
+  live_grid_h: 'Live cards',
+  sheet_name_h: 'Card name',
+  sheet_name_desc: 'The name shown on the TV. Leave it empty to restore “{name}”.',
+  sheet_name_desc_live: 'The name shown on the TV.',
+  sheet_addr_h: 'Stream address',
+  sheet_addr_desc: 'Stream URL — a Bilibili short link or an m3u8 address.',
+  live_hide: 'Hide from live menu',
+  live_show: 'Show in live menu',
 });
 const I18N = {};
 for (const l of LANGS) { I18N[l] = {}; KEYS.forEach((k, i) => I18N[l][k] = TEXTS[l][i]); }
@@ -1596,15 +1646,18 @@ const TITLE_ICONS = {
   more: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17.5 7H20"/><circle cx="15" cy="7" r="2.1"/><path d="M4 12h2.5M11 12h9"/><circle cx="8.7" cy="12" r="2.1"/><path d="M4 17h10.5M18.5 17H20"/><circle cx="16.4" cy="17" r="2.1"/></svg>',
 };
 function setTitle() {
-  const icon = $('#titleIcon');
-  if (icon) {
-    icon.innerHTML = TITLE_ICONS[tab] || '';
-    icon.hidden = !TITLE_ICONS[tab];
-  }
   const L = (state && state.layout) || {};
   const folder = tab === 'home' && arrView !== null ? (L.home || []).find(e => e.id === arrView) : null;
-  $('#title').textContent = folder ? folder.label : t(TITLES[tab]);
+  const icon = $('#titleIcon');
+  if (icon) {
+    // 文件夹页只要一条返回箭头, 不要大标题和图标。
+    icon.innerHTML = folder ? '' : (TITLE_ICONS[tab] || '');
+    icon.hidden = folder ? true : !TITLE_ICONS[tab];
+  }
+  $('#title').textContent = folder ? '' : t(TITLES[tab]);
   $('#homeBack').hidden = !folder;
+  // 分类选项卡只属于「个性化」这一页, 它现在住在 header 里, 换页时要跟着显隐。
+  const bar = $('#gtabs'); if (bar) bar.hidden = tab !== 'more';
   measureHead();
 }
 function show(next, keepScroll) {
@@ -1788,7 +1841,7 @@ function renderLive() {
   const hidden = sources.filter(s => s.hidden);
 
   // 可见源网格(照主屏幕: tileGrid + sortableGrid)
-  const grid = el('div', 'agrid');
+  const grid = el('div', 'agrid incard');
   grid.style.setProperty('--cols', homeCols());
   grid.onselectstart = e => e.preventDefault();
   grid.addEventListener('contextmenu', e => e.preventDefault());
@@ -1809,13 +1862,15 @@ function renderLive() {
     tile.append(pic, el('span', 'n', s.name));
     grid.appendChild(tile);
   });
-  box.appendChild(grid);
-  box.appendChild(el('p', 'foot', '和电视上的排列一样。按住图标拖到想放的位置；点一下可以改名、换图标、隐藏、配置直播地址等。'));
-
-  // 添加按钮(网格下方): 和「添加照片」同一款白底按钮, 不再套一层气泡。
-  const addBtn = el('button', 'btn plain add', '+ 添加直播卡片');
-  addBtn.type = 'button';
-  box.appendChild(addBtn);
+  // 直播卡片: 一张气泡 — 标题、说明、卡片网格, 网格下面跟「添加直播卡片」。
+  const gc = el('div', 'list pcard'); box.appendChild(gc);
+  gc.appendChild(el('div', 'ptitle', t('live_grid_h')));
+  gc.appendChild(el('p', 'pdesc', '和电视上的排列一样。按住图标拖到想放的位置；点一下可以改名、换图标、隐藏、配置直播地址等。'));
+  const gb = el('div', 'pbody'); gc.appendChild(gb);
+  gb.appendChild(grid);
+  const addBtn = el('button', 'pact soft', '+ 添加直播卡片');
+  addBtn.type = 'button'; addBtn.style.marginTop = '10px';
+  gb.appendChild(addBtn);
   
   addBtn.onclick = async () => {
     try {
@@ -1859,7 +1914,7 @@ function renderLive() {
     row.appendChild(thumb);
     row.appendChild(el('span', 'txt', s.name));
     const b = el('button', 'link act', '显示');
-    b.style.color = '#007aff';
+    b.style.color = '#007aff'; b.style.fontWeight = '600';
     b.onclick = ev => { ev.stopPropagation(); b.disabled = true; api('api/live-source/hide', { id: s.id, hide: '0' }).then(take).catch(() => {}); };
     row.appendChild(b); hl.appendChild(row);
   });
@@ -1880,6 +1935,12 @@ function hiddenGateCard(title, desc, label, onclick) {
 
 function liveSheet(s) {
   const protected_ = s.id === 'preset_2';
+  // 气泡里的按钮: 浅灰底 + 蓝字, danger 红色。
+  const put = (label, danger, fn) => {
+    const b = el('button', 'pact soft' + (danger ? ' danger' : ''), label);
+    b.type = 'button'; b.onclick = fn;
+    return b;
+  };
   openSheet(body => {
     const pic = el('div', 'pic');
     {
@@ -1890,64 +1951,62 @@ function liveSheet(s) {
     body.appendChild(pic);
     body.appendChild(el('h3', '', s.name));
 
-    // 名称
-    const nl = el('div', 'list'); body.appendChild(nl);
-    const f = el('form', 'item field');
+    // 卡片名称: 标题 + 说明 + 输入框(右边一颗保存按钮)。
+    const nm = el('div', 'list pcard'); body.appendChild(nm);
+    nm.appendChild(el('div', 'ptitle', t('sheet_name_h')));
+    nm.appendChild(el('p', 'pdesc', protected_ ? '央视网快看不允许修改。' : t('sheet_name_desc_live')));
+    const nf = el('form', 'pfield');
     const input = el('input'); input.type = 'text'; input.value = s.name; input.maxLength = 24;
     input.placeholder = '名称'; input.disabled = protected_;
-    const save = el('button', 'link', '保存'); save.disabled = protected_;
-    f.append(input, save); nl.appendChild(f);
-    body.appendChild(el('p', 'meta', protected_ ? '央视网快看不允许修改。' : '改成你想在电视上看到的名字。'));
+    const save = el('button', 'psave', t('save')); save.type = 'submit';
+    const syncN = () => save.disabled = protected_ || input.value.trim() === s.name;
+    input.oninput = syncN; syncN();
+    nf.append(input, save); nm.appendChild(nf);
 
-    // 地址
-    const ul2 = el('div', 'list'); body.appendChild(ul2);
-    const uf = el('form', 'item field');
+    // 直播地址: 同一套气泡。
+    const ad = el('div', 'list pcard'); body.appendChild(ad);
+    ad.appendChild(el('div', 'ptitle', t('sheet_addr_h')));
+    ad.appendChild(el('p', 'pdesc', t('sheet_addr_desc')));
+    const af = el('form', 'pfield');
     const uinput = el('input'); uinput.type = 'text'; uinput.value = s.url; uinput.placeholder = 'B站链接或m3u8地址'; uinput.disabled = protected_;
-    const usave = el('button', 'link', '保存'); usave.disabled = protected_;
-    uf.append(uinput, usave); ul2.appendChild(uf);
-    const meta1 = el('p', 'meta', '直播源地址, 支持B站短链接或m3u8直链。'); meta1.style.textAlign = 'left'; body.appendChild(meta1);
-    const meta0 = body.querySelectorAll('p.meta')[0]; if (meta0) meta0.style.textAlign = 'left';
+    const usave = el('button', 'psave', t('save')); usave.type = 'submit';
+    const syncU = () => usave.disabled = protected_ || uinput.value.trim() === (s.url || '');
+    uinput.oninput = syncU; syncU();
+    af.append(uinput, usave); ad.appendChild(af);
 
-    f.onsubmit = async ev => {
-      ev.preventDefault(); closeSheet();
+    // 名称和地址一起提交, 和电视端一样是同一个接口。
+    const submit = async () => {
+      closeSheet();
       try { take(await api('api/live-source', { id: s.id, name: input.value, url: uinput.value })); } catch (e) {}
     };
-    uf.onsubmit = async ev => {
-      ev.preventDefault(); closeSheet();
-      try { take(await api('api/live-source', { id: s.id, name: input.value, url: uinput.value })); } catch (e) {}
-    };
+    nf.onsubmit = ev => { ev.preventDefault(); submit(); };
+    af.onsubmit = ev => { ev.preventDefault(); submit(); };
 
     if (!protected_) {
-      // 选一张图片(蓝色)
-      const il = el('div', 'list'); body.appendChild(il);
-      il.appendChild(el('div', 'item tint center', '选一张图片')).onclick = () => {
+      /* 图片 / 隐藏 / 删除: 一张气泡。 */
+      const op = el('div', 'list pcard'); body.appendChild(op);
+      const rows = el('div', 'prows'); rows.style.paddingTop = '12px'; op.appendChild(rows);
+      rows.appendChild(put('选一张图片', false, () => {
         const fi = el('input'); fi.type = 'file'; fi.accept = 'image/*';
-        fi.onchange = () => { if (!fi.files[0]) return; const fd = new FormData(); fd.append('file', fi.files[0]);
-          fetch(base + 'live-icon/' + encodeURIComponent(s.id), { method: 'POST', body: fd }).then(r => r.json()).then(s2 => { take(s2); const ns = (s2.liveSources||[]).find(x=>x.id===s.id) || s; closeSheet(); liveSheet(ns); }); };
+        fi.onchange = () => {
+          if (!fi.files[0]) return; const fd = new FormData(); fd.append('file', fi.files[0]);
+          fetch(base + 'live-icon/' + encodeURIComponent(s.id), { method: 'POST', body: fd }).then(r => r.json()).then(s2 => { take(s2); const ns = (s2.liveSources||[]).find(x=>x.id===s.id) || s; closeSheet(); liveSheet(ns); });
+        };
         fi.click();
-      };
-      il.lastChild.style.color = '#007aff';
-
-      // 隐藏(红色)
-      const hdl = el('div', 'list'); body.appendChild(hdl);
-      const hideBtn = el('div', 'item tint center');
-      hideBtn.style.color = '#ff3b30';
-      hideBtn.textContent = s.hidden ? '从直播预览显示' : '从直播预览隐藏';
-      hideBtn.onclick = async () => { closeSheet(); try { take(await api('api/live-source/hide', { id: s.id, hide: s.hidden ? '0' : '1' })); } catch (e) {} };
-      hdl.appendChild(hideBtn);
-
-      // 删除(红色)
-      const dl = el('div', 'list'); body.appendChild(dl);
-      const del = el('div', 'item tint center');
-      del.style.color = '#ff3b30';
-      del.textContent = '删除';
-      del.onclick = async () => { closeSheet(); if (!await confirmSheet('删除「' + s.name + '」？')) return; try { take(await api('api/live-source/delete', { id: s.id })); } catch (e) {} };
-      dl.appendChild(del);
+      }));
+      rows.appendChild(put(s.hidden ? t('live_show') : t('live_hide'), !s.hidden, async () => {
+        closeSheet();
+        try { take(await api('api/live-source/hide', { id: s.id, hide: s.hidden ? '0' : '1' })); } catch (e) {}
+      }));
+      rows.appendChild(put('删除', true, async () => {
+        closeSheet();
+        if (!await confirmSheet('删除「' + s.name + '」？')) return;
+        try { take(await api('api/live-source/delete', { id: s.id })); } catch (e) {}
+      }));
     }
 
-    // 取消
-    const cl = el('div', 'list'); body.appendChild(cl);
-    cl.appendChild(el('div', 'item tint center', '取消')).onclick = closeSheet;
+    // 取消不放进气泡。
+    const cxl = el('button', 'psolo', '取消'); cxl.type = 'button'; cxl.onclick = closeSheet; body.appendChild(cxl);
   });
 }
 
@@ -1960,7 +2019,21 @@ function post(path, data, cb) {
 
 /* 壁纸与屏保里的四颗小选项卡: 我的照片 / 动态 / 每日精选 / 更多, 只有字。 */
 const WTABS = [['photos', 'g_photo'], ['live', 'g_live'], ['daily', 'g_daily'], ['more', 'g_builtin_more']];
-let wpTab = 'photos';
+let wpTab = null;
+/* 第一次进来时, 选中「正在使用的壁纸」所在的那一颗。 */
+function guessWpTab() {
+  const w = ((state && state.wallpapers) || []).find(x => x.id === (state && state.selected));
+  if (w) {
+    if (w.kind === 'photo' || w.kind === 'photos') return 'photos';
+    if (w.kind === 'live' || w.kind === 'video') return 'live';
+    if (w.kind === 'daily') return 'daily';
+    if (w.kind === 'builtin' || w.kind === 'plain') return 'more';
+  }
+  const sel = (state && state.selected) || '';
+  if (/^photos?:/.test(sel)) return 'photos';
+  if (/^(aerial|videos?):/.test(sel)) return 'live';
+  return 'photos';
+}
 function renderWpTabs() {
   const bar = $('#wtabs'); if (!bar) return;
   bar.replaceChildren();
@@ -1974,6 +2047,7 @@ function renderWpTabs() {
   }
 }
 function renderWallpapers() {
+  if (!wpTab) wpTab = guessWpTab();
   $('#heroImg').src = `${base}thumb/${encodeURIComponent(state.selected)}`;
   $('#heroTitle').textContent = titleOf(state.selected);
   renderWpTabs();
@@ -3109,11 +3183,15 @@ function buildHomeView(view, L) {
     hiddenRetry = false;
     api('api/state').then(take).catch(() => {});
   }
-  const grid = tileGrid(L.home, true); grid.style.marginTop = '14px'; view.appendChild(grid);
+  // 应用卡片: 一张气泡 — 标题、说明、卡片网格。
+  const gc = el('div', 'list pcard'); view.appendChild(gc);
+  gc.appendChild(el('div', 'ptitle', t('app_grid_h')));
+  gc.appendChild(el('p', 'pdesc', t('arrange_hint')));
+  const gb = el('div', 'pbody'); gc.appendChild(gb);
+  const grid = tileGrid(L.home, true); grid.classList.add('incard'); gb.appendChild(grid);
   sortableGrid(grid, L.home.map(e => e.key),
     (key, target) => lay({ op: 'move', key, target }),
     i => { const e = L.home[i]; e.kind === 'folder' ? (arrView = e.id, renderArrange(true)) : tileSheet(e, null); });
-  view.appendChild(el('p', 'foot', t('arrange_hint')));
 
   // 设过密码的机器: 隐藏的卡片先验一次密码, 验过才列出来、才按得动。标题/说明/按钮同一张气泡。
   const hiddenKey = (prefs && prefs.kids) || {};
@@ -3132,7 +3210,7 @@ function buildHomeView(view, L) {
   for (const e of L.hidden) {
     const row = el('div', 'item arow'); row.setAttribute('role', 'button'); row.tabIndex = 0;
     row.append(tileImg(e), el('span', 'txt', e.label));
-    const b = el('button', 'link act', t('show_app'));
+    const b = el('button', 'link act', t('show_app')); b.style.fontWeight = '600';
     b.onclick = ev => { ev.stopPropagation(); b.disabled = true; lay({ op: 'unhide', key: e.key }, () => toast(t('toast_shown'))); };
     row.onclick = () => tileSheet(e, null, true);
     row.appendChild(b); hl.appendChild(row);
@@ -3205,23 +3283,31 @@ function tileSheet(e, inFolder, hidden) {
   const a = (state.apps || []).find(x => x.key === e.key) || { key: e.key, label: e.label, default: e.label, name: '' };
   const L = state.layout || {};
   const folders = (L.home || []).filter(x => x.kind === 'folder' && (!inFolder || x.id !== inFolder.id));
+  // 气泡里的按钮: 浅灰底 + 蓝字; danger 换成红色。
+  const put = (label, danger, fn) => {
+    const b = el('button', 'pact soft' + (danger ? ' danger' : ''), label);
+    b.type = 'button'; b.onclick = fn;
+    return b;
+  };
   openSheet(body => {
     const pic = el('div', 'pic'); const img = el('img'); img.src = `${base}tile/${encodeURIComponent(e.key)}?v=${e.stamp}`; pic.appendChild(img); body.appendChild(pic);
     body.appendChild(el('h3', '', e.label));
     const meta = [a.source ? (a.label === a.port ? t('tag_source') : a.port) : a.name ? t('was_named', { name: a.default }) : '', inFolder ? inFolder.label : ''].filter(Boolean).join(' · ');
-    body.appendChild(el('p', 'meta', meta));
+    if (meta) body.appendChild(el('p', 'meta', meta));
 
-    // Name.
-    const nl = el('div', 'list'); body.appendChild(nl);
-    const f = el('form', 'item field');
+    /* 卡片名称: 一张气泡 — 标题、说明、输入框(右边一颗保存按钮)。 */
+    const nm = el('div', 'list pcard'); body.appendChild(nm);
+    nm.appendChild(el('div', 'ptitle', t('sheet_name_h')));
+    nm.appendChild(el('p', 'pdesc', a.source ? t('rename_hint') : t('sheet_name_desc', { name: a.default || a.label })));
+    const nf = el('form', 'pfield');
     const input = el('input'); input.type = 'text'; input.value = a.name || ''; input.maxLength = 24;
     input.placeholder = a.source ? t('name_ph') : (a.default || a.label);
     input.setAttribute('enterkeyhint', 'done'); input.autocomplete = 'off'; input.setAttribute('aria-label', t('aria_rename'));
-    const save = el('button', 'link', t('save'));
+    const save = el('button', 'psave', t('save')); save.type = 'submit';
     const sync = () => save.disabled = input.value.trim() === (a.name || '');
     input.oninput = sync; sync();
-    f.append(input, save); nl.appendChild(f);
-    f.onsubmit = async ev => {
+    nf.append(input, save); nm.appendChild(nf);
+    nf.onsubmit = async ev => {
       ev.preventDefault(); const name = input.value; closeSheet();
       try {
         const next = await api('api/app/name', { app: a.key, name });
@@ -3229,20 +3315,19 @@ function tileSheet(e, inFolder, hidden) {
         take(next); toast(t(name.trim() ? 'toast_renamed' : 'toast_name_reset'));
       } catch (err) { toast(t('toast_rename_fail')); }
     };
-    body.appendChild(el('p', 'foot', a.source ? t('rename_hint') : t('rename_hint_app', { name: a.default || a.label }))).style.marginBottom = '12px';
 
-    // Picture: for an input, the device plugged into it first (as in its menu on the TV).
-    const il = el('div', 'list'); body.appendChild(il);
+    /* 卡片图标: 一张气泡 — 上面是图标来源, 下面是「选一张图片 / 恢复默认图标」。 */
+    const ic = el('div', 'list pcard'); body.appendChild(ic);
+    const ib = el('div', 'pbody'); ic.appendChild(ib);
     if (a.source) {
       const cur = (state.devices || []).find(d => d.key === a.device);
       const b = el('button', 'item');
       b.append(el('span', 'txt', t('source_device')), el('span', 'val', cur ? cur.label : t('source_plain')));
       b.insertAdjacentHTML('beforeend', ICON.chev);
       b.onclick = () => deviceChooser(a, e);
-      il.appendChild(b);
+      ib.appendChild(b);
     }
-    // Where the picture comes from, when the icon library has one for this app: one of its
-    // pictures (each named by where it came from), the app's own art, or the one sent from this phone.
+    // 图标库里有这个应用的图: 每一张按来源命名, 另有应用自带的图、或从这里手机发过去的图。
     if (!a.source && a.library) {
       const lib = `${base}library/${encodeURIComponent(a.key)}`;
       const from = by => (by && (by[LANG] || by.name)) || '';
@@ -3254,12 +3339,11 @@ function tileSheet(e, inFolder, hidden) {
         { pick: 'own', on: a.icon === 'own', label: t('icon_own'), src: `${base}tile/${encodeURIComponent(a.key)}?art=own&v=${a.stamp}` },
       ];
       if (a.custom) choices.push({ pick: 'custom', on: true, label: t('icon_custom'), src: `${base}tile/${encodeURIComponent(a.key)}?v=${a.stamp}` });
-      const cl = el('div', 'list'); cl.setAttribute('role', 'radiogroup'); cl.setAttribute('aria-label', t('icon_h'));
-      il.before(cl); cl.style.marginBottom = '10px';
+      const cl = el('div', ''); cl.setAttribute('role', 'radiogroup'); cl.setAttribute('aria-label', t('icon_h'));
       for (const c of choices) {
         const b = el('button', 'item'); b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', String(c.on));
-        const img = el('img', 'ithumb'); img.alt = ''; img.src = c.src;
-        b.append(img, el('span', 'txt', c.label));
+        const img2 = el('img', 'ithumb'); img2.alt = ''; img2.src = c.src;
+        b.append(img2, el('span', 'txt', c.label));
         if (c.by) b.append(el('span', 'val', c.by));
         b.insertAdjacentHTML('beforeend', ICON.tick);
         if (c.pick !== 'custom') b.onclick = async () => {
@@ -3273,27 +3357,28 @@ function tileSheet(e, inFolder, hidden) {
         };
         cl.appendChild(b);
       }
+      ib.appendChild(cl);
     }
-    // Any picture in the icon library, for an app it has none of or not the right one (#1486).
-    if (!a.source) action(il, t('icon_more'), 'tint', () => libraryChooser(a));
-    // The picker opens from this tap, so iOS treats it as the user's own gesture.
-    action(il, t('change_icon'), 'tint', () => { iconFor = a; $('#iconFile').click(); closeSheet(); });
-    if (a.custom) action(il, t('aria_reset_icon'), 'tint', async () => {
+    const ibr = el('div', 'prows'); ic.appendChild(ibr);
+    ibr.appendChild(put(t('change_icon'), false, () => { iconFor = a; $('#iconFile').click(); closeSheet(); }));
+    if (a.custom) ibr.appendChild(put(t('aria_reset_icon'), false, async () => {
       closeSheet();
       try { take(await api('api/icon/reset', { app: a.key })); toast(t('toast_icon_reset')); } catch (err) { toast(t('toast_set_fail')); }
-    });
+    }));
 
-    // Place on Home.
-    const pl = el('div', 'list'); pl.style.marginTop = '12px'; body.appendChild(pl);
+    /* 放在哪儿: 一张气泡 — 放进文件夹 / 从应用菜单隐藏 / 在应用菜单显示。 */
+    const pc = el('div', 'list pcard'); body.appendChild(pc);
+    const pr = el('div', 'prows'); pr.style.paddingTop = '12px'; pc.appendChild(pr);
     if (hidden) {
-      action(pl, t('show_on_home'), 'tint', () => { closeSheet(); lay({ op: 'unhide', key: e.key }, () => toast(t('toast_shown'))); });
+      pr.appendChild(put(t('show_on_home'), false, () => { closeSheet(); lay({ op: 'unhide', key: e.key }, () => toast(t('toast_shown'))); }));
     } else {
-      action(pl, t('to_folder'), 'tint', () => folderChooser(e, folders));
-      if (inFolder) action(pl, t('out_of_folder'), 'tint', () => { closeSheet(); lay({ op: 'unfolder', key: e.key }, () => toast(t('toast_out_folder'))); });
-      action(pl, t('hide_app'), 'danger', () => { closeSheet(); lay({ op: 'hide', key: e.key }, () => toast(t('toast_hidden'))); });
+      pr.appendChild(put(t('to_folder'), false, () => folderChooser(e, folders)));
+      if (inFolder) pr.appendChild(put(t('out_of_folder'), false, () => { closeSheet(); lay({ op: 'unfolder', key: e.key }, () => toast(t('toast_out_folder'))); }));
+      pr.appendChild(put(t('hide_app'), true, () => { closeSheet(); lay({ op: 'hide', key: e.key }, () => toast(t('toast_hidden'))); }));
     }
-    const c = el('div', 'list'); c.style.marginTop = '12px'; body.appendChild(c);
-    action(c, t('cancel'), 'tint', closeSheet).style.fontWeight = '600';
+
+    // 取消不放进气泡。
+    const cxl = el('button', 'psolo', t('cancel')); cxl.type = 'button'; cxl.onclick = closeSheet; body.appendChild(cxl);
   });
 }
 /* The device on an input: its mark and colours on the tile, its name on the caption (as on the TV). */
