@@ -430,15 +430,16 @@
     .toast { bottom: 28px; left: calc(50% + var(--side) / 2); }
   }
   /* 大标题与分类选项卡常驻: 贴着屏幕顶部, 下缘一条渐隐的过渡层, 内容从它下面滑过去。 */
+  /* 弹层(sheet-wrap, z20)要盖住大标题, 所以这边压在 20 以下, 只要高过正文就够。 */
   header {
-    position: sticky; top: 0; z-index: 30; padding-bottom: 8px;
+    position: sticky; top: 0; z-index: 12; padding-bottom: 14px;
     display: flex; align-items: center; gap: 10px;
-    background: linear-gradient(180deg, var(--bg) calc(100% - 12px), rgba(255,255,255,0));
+    background: linear-gradient(180deg, var(--bg) calc(100% - 6px), rgba(255,255,255,0));
   }
   header .ticon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: 0; flex: none; color: var(--secondary); }
   header h1 { display: block; margin: 0; }
   header .ticon[hidden] { display: none; }
-  #gtabs { position: sticky; top: var(--headh, 84px); z-index: 26; isolation: isolate; }
+  #gtabs { position: sticky; top: var(--headh, 84px); z-index: 11; isolation: isolate; }
   #gtabs::before {
     content: ''; position: absolute; inset: -8px -100vw -8px; z-index: -1;
     background: var(--bg);
@@ -584,7 +585,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1119;
+const PAGE_VER = 1120;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1575,6 +1576,7 @@ function setTitle() {
   const folder = tab === 'home' && arrView !== null ? (L.home || []).find(e => e.id === arrView) : null;
   $('#title').textContent = folder ? folder.label : t(TITLES[tab]);
   $('#homeBack').hidden = !folder;
+  measureHead();
 }
 function show(next, keepScroll) {
   next = OLD_TABS[next] || next;
@@ -2573,9 +2575,15 @@ function wireUpdate() {
 function measureHead() {
   const h = document.querySelector('header');
   if (!h) return;
-  document.documentElement.style.setProperty('--headh', Math.round(h.getBoundingClientRect().height) + 'px');
+  // 只量一次会拿到空标题时的高度(28px 内边距 + 4px), 选项卡就贴着屏幕顶被大标题吞掉;
+  // 所以换标题、字体到位、尺寸变化都要重量。
+  const hh = Math.round(h.getBoundingClientRect().height);
+  document.documentElement.style.setProperty('--headh', hh + 'px');
 }
 window.addEventListener('resize', measureHead);
+window.addEventListener('orientationchange', measureHead);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(measureHead);
+if (window.ResizeObserver) { const h = document.querySelector('header'); if (h) new ResizeObserver(measureHead).observe(h); }
 
 /* 进儿童与长辈窗口前先验密码: 没设过就先设一个, 设过就核对一次。 */
 function openKidsGate() {
