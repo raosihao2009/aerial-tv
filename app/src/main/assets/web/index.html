@@ -70,6 +70,16 @@
   }
   .pcard .pbtn[aria-checked="true"] { background: var(--card); color: var(--tint); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.10); }
   .pcard .pbtn:disabled { opacity: .55; }
+  /* 不出选项、只有一颗按钮的(扫码登录、打开登录页、立即开始): 与上面那排选项同一个形状, 只占一排一颗。
+     以前这些是纯文字链接, 看着不像按钮, 也不好按。 */
+  .pcard .pact {
+    appearance: none; border: 0; border-radius: 10px; background: var(--fill); color: var(--tint);
+    display: block; box-sizing: border-box; width: 100%; padding: 12px 10px;
+    font-size: 15px; font-weight: 600; text-align: center; line-height: 1.25;
+    text-decoration: none; cursor: pointer; transition: background-color .15s ease;
+  }
+  .pcard .pact:active { background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.10); }
+  .pcard .pact:disabled { opacity: .55; }
   /* 分类选项卡: 没选中的只留图标, 选中的那颗长出图标+名字。 */
   .gtabs { display: flex; gap: 4px; align-items: center; background: var(--fill); border-radius: 10px; padding: 3px; margin: 6px 0 4px; max-width: 100%; overflow: hidden; }
   .gtabs button {
@@ -107,7 +117,8 @@
   .pinfo { display: flex; align-items: center; padding: 2px 14px 12px; }
   .pinfo .val { font-size: 14px; color: var(--secondary); }
   .pqr { padding: 0 14px 12px; }
-  .pqr img { width: 180px; height: 180px; display: block; margin: 0 auto; border-radius: 8px; background: #fff; }
+  /* 二维码必须是方的: 圆角会把三个角上的定位块啃掉, 手机上就认不出来了。 */
+  .pqr img { width: 180px; height: 180px; display: block; margin: 0 auto; border-radius: 0; background: #fff; }
   .pqr .foot.center { text-align: center; margin: 8px 0 2px; }
   .link.center.wide { display: block; width: 100%; text-align: center; margin: 6px 0 4px; }
   .pin-dots { display: flex; gap: 12px; justify-content: center; margin: 12px 0 4px; }
@@ -2042,26 +2053,23 @@ function customRow(it, changed) {
 // after: 存完以后要做的事; save: 自己那份保存接口, 不给就走 /api/prefs(个性化面板那份)。
 /* B 站账号: 与电视面板同一套扫码登录; 手机上点一下就在这张卡里画二维码并轮询状态。 */
 function biliCard(card) {
-  const btn = el('button', 'item tint center');
+  const btn = el('button', 'pact');
   btn.type = 'button';
   const stat = el('p', 'foot', '');
   const qrBox = el('div', 'pqr'); qrBox.hidden = true;
   const img = el('img', 'qimg'); img.alt = 'QR'; img.decoding = 'async';
   const qrTip = el('p', 'foot center', '');
-  const qrOpen = el('button', 'link center wide', '');
-  qrOpen.type = 'button';
+  // 二维码下面那颗「用这台手机打开登录页」: 真链接(<a href>), 由手机自己决定用浏览器还是 B 站 App 打开。
+  // 以前点它走的是 window.open, 在带外壳的浏览器里会开成空白窗口、跳去外壳自己的地址页(报"地址格式不对")。
+  const qrOpen = el('a', 'pact');
+  qrOpen.setAttribute('rel', 'noopener');
   qrOpen.hidden = true;
-  // 二维码画在手机自己屏上: 手机上长按可识别, 或直接把这个登录链接交给手机打开(B 站 App 会接)。
-  const openLogin = async () => {
-    try {
-      const r = await (await fetch(base + 'api/bili/qr-url')).json();
-      if (r && r.url) window.open(r.url, '_blank');
-    } catch (e) {}
-  };
-  img.onclick = openLogin;
-  qrOpen.onclick = openLogin;
-  qrBox.append(img, qrTip, qrOpen);
-  card.append(btn, stat, qrBox);
+  const openRow = el('div', 'prow');
+  openRow.append(qrOpen);
+  qrBox.append(img, qrTip, openRow);
+  const rows = el('div', 'prows');
+  rows.append(btn);
+  card.append(rows, stat, qrBox);
 
   let timer = 0, shownQr = '';
   const stop = () => { if (timer) { clearInterval(timer); timer = 0; } };
@@ -2096,6 +2104,8 @@ function biliCard(card) {
         img.src = base + 'api/bili/qr?v=' + Date.now();
         qrTip.textContent = t('bili_longpress');
         qrOpen.textContent = t('bili_open');
+        /* 链接跟着二维码一起换: 电视那边换了码, 这颗按钮打开的也得是新码那一页。 */
+        qrOpen.href = (r.url || '') || base;
         qrOpen.hidden = false;
       }
       stat.textContent = r.phase === 'confirm' ? t('bili_confirm') : t('bili_wait');
@@ -2214,10 +2224,13 @@ function prefCard(it, after, save) {
     if (window.ResizeObserver) new ResizeObserver(paint).observe(wrap);
     card.appendChild(row);
   } else if (it.kind === 'action') {
-    const row = el('button', 'item tint center', it.value || it.label);
-    row.type = 'button';
-    row.onclick = async () => { row.disabled = true; await changed(it.key, '1'); row.disabled = false; };
-    card.appendChild(row);
+    // 一颗按钮也按选项那排的样式画(灰底圆角、蓝字加粗), 只占一排一颗: 和上面那些选项看着是一家。
+    const wrap = el('div', 'prows');
+    const row = el('div', 'prow');
+    const btn = el('button', 'pact', it.value || it.label);
+    btn.type = 'button';
+    btn.onclick = async () => { btn.disabled = true; await changed(it.key, '1'); btn.disabled = false; };
+    row.append(btn); wrap.append(row); card.appendChild(wrap);
   } else if (it.kind === 'info') {
     // 只读一行: 系统屏保的开始时间由固件定, 改不了, 照电视那样只显示值。
     const row = el('div', 'item pinfo');

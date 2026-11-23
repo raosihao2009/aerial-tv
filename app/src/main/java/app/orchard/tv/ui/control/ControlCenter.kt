@@ -366,8 +366,8 @@ private fun MainPage(vm: HomeViewModel, now: LocalDateTime, takeFocus: Boolean, 
         }
         // How Home looks (wallpaper, screensaver, focus style, hidden apps, weather) lives in one place.
         MenuRow(
-            // 铅笔太细, 远看就是一根小棍; 人像粗、和上面的系统设置齿轮也不撞。
-            Glyph.Person,
+            // 与手机页底部那颗同一个字形(三根滑块); 铅笔太细远看是一根小棍, 人像又被用户换掉了。
+            Glyph.Sliders,
             stringResource(R.string.cc_personalize),
             // 设了家长密码就得先输密码: 这里面能关儿童模式的限制、也能把卡片放回来,
             // 以前是直接进的, 等于密码形同虚设。

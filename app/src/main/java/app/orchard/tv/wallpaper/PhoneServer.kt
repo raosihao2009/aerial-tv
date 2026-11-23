@@ -183,7 +183,9 @@ class PhoneServer private constructor(private val context: Context, private val 
                     .put("loggedIn", BiliAccount.loggedIn)
                     .put("uid", BiliAccount.uid ?: "")
                     .put("phase", BiliPhone.phase)
-                    .put("hasQr", BiliPhone.qrUrl != null))
+                    .put("hasQr", BiliPhone.qrUrl != null)
+                    // 顺手把二维码里那条链接也带上: 手机页的「打开登录页」直接挂成 <a href>, 不用再问一次。
+                    .put("url", BiliPhone.qrUrl ?: ""))
                 session.method == Method.POST && path == "/api/bili" -> {
                     when (form(session)["action"]) {
                         "logout" -> {

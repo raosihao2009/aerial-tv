@@ -298,7 +298,7 @@ fun WallpaperSheet(
                     },
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    GlyphIcon(Glyph.Person, Palette.Label, 26.dp)
+                    GlyphIcon(Glyph.Sliders, Palette.Label, 26.dp)
                     Spacer(Modifier.width(14.dp))
                     BasicText(stringResource(R.string.wp_title), style = Type.LargeTitle)
                 }

@@ -33,7 +33,7 @@ import kotlin.math.roundToInt
  * closest to SF Symbols among icons an Android app may ship (SF Symbols are licensed for Apple
  * platforms only). Vector paths, rasterized at each UI size, in a square box.
  */
-enum class Glyph { Folder, Pencil, Wifi, Ethernet, Offline, Gear, Input, Speaker, SpeakerMuted, Switches, EyeSlash, Move, Info, Trash, ChevronRight, ChevronLeft, Check, Hdmi, Antenna, Av, Sun, Photo, Play, Bag, CloudSun, Calendar, Cast, Shield, Globe, Moon, Cloud, CloudRain, CloudLightRain, CloudHeavyRain, CloudStorm, CloudSnow, CloudFog, CloudBolt, Download, Power, Usb, Home, Kids, Person }
+enum class Glyph { Folder, Pencil, Wifi, Ethernet, Offline, Gear, Input, Speaker, SpeakerMuted, Switches, EyeSlash, Move, Info, Trash, ChevronRight, ChevronLeft, Check, Hdmi, Antenna, Av, Sun, Photo, Play, Bag, CloudSun, Calendar, Cast, Shield, Globe, Moon, Cloud, CloudRain, CloudLightRain, CloudHeavyRain, CloudStorm, CloudSnow, CloudFog, CloudBolt, Download, Power, Usb, Home, Kids, Sliders }
 
 @Composable
 fun GlyphIcon(glyph: Glyph, color: Color, size: Dp, modifier: Modifier = Modifier, level: Float = 1f) {
@@ -68,7 +68,7 @@ private fun glyphPath(glyph: Glyph, level: Float): String? {
         }
         Glyph.SpeakerMuted -> GlyphPaths.VOLUME_OFF
         Glyph.Switches -> SPECIAL_SWITCHES
-        Glyph.Person -> SPECIAL_PERSON
+        Glyph.Sliders -> SPECIAL_SLIDERS
         Glyph.EyeSlash -> GlyphPaths.VISIBILITY_OFF
         Glyph.Move -> GlyphPaths.OPEN_WITH
         Glyph.Folder -> GlyphPaths.FOLDER
@@ -109,7 +109,7 @@ private fun glyphPath(glyph: Glyph, level: Float): String? {
 
 /** Drawn geometry, not a Material path: these are laid out at the final pixel size. */
 private const val SPECIAL_SWITCHES = "@switches"
-private const val SPECIAL_PERSON = "@person"
+private const val SPECIAL_SLIDERS = "@sliders"
 
 private fun DrawScope.drawGlyph(data: String?, color: Color) {
     val s = size.minDimension
@@ -118,8 +118,8 @@ private fun DrawScope.drawGlyph(data: String?, color: Color) {
             drawPath(switches.getOrPut(s) { switchesPath(s) }, color)
             return
         }
-        SPECIAL_PERSON -> {
-            drawPath(persons.getOrPut(s) { personPath(s) }, color)
+        SPECIAL_SLIDERS -> {
+            drawPath(sliders.getOrPut(s) { slidersPath(s) }, color)
             return
         }
         null -> return
@@ -156,7 +156,7 @@ private val glyphImages = object : LruCache<Triple<String?, Int, Int>, ImageBitm
 // Tiles are drawn off the main thread while the UI draws glyphs on it.
 private val parsed = java.util.concurrent.ConcurrentHashMap<String, Path>()
 private val switches = java.util.concurrent.ConcurrentHashMap<Float, Path>()
-private val persons = java.util.concurrent.ConcurrentHashMap<Float, Path>()
+private val sliders = java.util.concurrent.ConcurrentHashMap<Float, Path>()
 
 /**
  * Two toggles, the Control Center glyph, as SF Symbols' switch.2 draws it (Material has no close
@@ -191,25 +191,38 @@ private fun switchesPath(s: Float): Path {
 }
 
 /**
- * 个性化的图标: 一个人像(肩胸 + 头), 和 Material 的 person 一样是实心的, 边缘按最终尺寸对齐整像素。
- * 换掉铅笔是因为铅笔在电视上远看就是一根细棍; 齿轮和"设置"那颗按钮撞, 太阳和面板里"外观与声音"
- * 撞, 图片和"壁纸"撞 —— 人像在这两处都不冲突。
+ * 个性化的图标, 和手机页底部那颗是同一个字形: 三根横条, 每根上面各一颗滑钮(分别在 15/8.7/16.4 的
+ * 位置, 从 24 格设计稿原样搬来)。原来画的是人像, 用户比对手机页后要求换成这个滑块。
+ * 细横条在电视上必须落在整像素、并且留得住厚度, 否则远看就是一段虚线, 所以厚度与半径先按最终
+ * 像素取整, 不用浮点。
  */
-private fun personPath(s: Float): Path {
-    val headR = kotlin.math.round(s * 0.21f)
-    val cx = kotlin.math.round(s * 0.5f)
-    val cy = kotlin.math.round(s * 0.30f)
-    val head = Path().apply {
-        addOval(androidx.compose.ui.geometry.Rect(cx - headR, cy - headR, cx + headR, cy + headR))
-    }
-    val shoulders = Path().apply {
-        addRoundRect(
-            androidx.compose.ui.geometry.RoundRect(
-                kotlin.math.round(s * 0.17f), kotlin.math.round(s * 0.58f),
-                kotlin.math.round(s * 0.83f), s,
-                CornerRadius(kotlin.math.round(s * 0.20f)),
-            ),
+private fun slidersPath(s: Float): Path {
+    val line = kotlin.math.max(2f, kotlin.math.round(s * 0.075f))   // 横条厚度 1.8/24
+    val knobR = kotlin.math.max(line, kotlin.math.round(s * 0.092f)) // 滑钮半径 2.2/24
+    // 滑钮两侧让开的空要比钮自己的半径再多 1px, 否则横条正好贴到钮上, 远看就是一个"十"字。
+    val gap = knobR + kotlin.math.max(1f, kotlin.math.round(s * 0.03f))
+    val left = kotlin.math.round(s * 0.167f)                        // 4/24
+    val right = kotlin.math.round(s * 0.833f)                       // 20/24
+    val rows = listOf(
+        kotlin.math.round(s * 0.292f) to kotlin.math.round(s * 0.625f),   // y=7, 钮在 15
+        kotlin.math.round(s * 0.500f) to kotlin.math.round(s * 0.363f),   // y=12, 钮在 8.7
+        kotlin.math.round(s * 0.708f) to kotlin.math.round(s * 0.683f),   // y=17, 钮在 16.4
+    )
+    val path = Path()
+    for ((cy, kx) in rows) {
+        // 滑钮两侧各留一段横条, 中间的钮单独一颗: 三段互不重叠, 直接拼进一条路径。
+        for (range in listOf(left to (kx - gap), (kx + gap) to right)) {
+            val (x0, x1) = range
+            if (x1 - x0 < line) continue
+            path.addRoundRect(
+                androidx.compose.ui.geometry.RoundRect(
+                    x0, cy - line / 2f, x1, cy + line / 2f, CornerRadius(line / 2f),
+                ),
+            )
+        }
+        path.addOval(
+            androidx.compose.ui.geometry.Rect(kx - knobR, cy - knobR, kx + knobR, cy + knobR),
         )
     }
-    return Path.combine(PathOperation.Union, head, shoulders)
+    return path
 }
