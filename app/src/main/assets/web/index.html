@@ -33,7 +33,7 @@
 
   main { max-width: 720px; margin: 0 auto; padding: env(safe-area-inset-top) 16px calc(var(--tabbar) + 32px); }
   header { padding: 28px 4px 4px; }
-  header h1 { font-size: 34px; font-weight: 700; letter-spacing: -.02em; margin: 0; }
+  header h1 { display: inline-block; vertical-align: middle; font-size: 34px; font-weight: 700; letter-spacing: -.02em; margin: 0; }
   header p { margin: 2px 0 0; color: var(--secondary); font-size: 15px; }
 
   h2 { font-size: 13px; font-weight: 400; color: var(--secondary); margin: 28px 16px 7px; }
@@ -429,6 +429,14 @@
     .grab { display: none; }
     .toast { bottom: 28px; left: calc(50% + var(--side) / 2); }
   }
+  /* 大标题与分类选项卡常驻: 贴着屏幕顶部, 下缘一条渐隐的过渡层, 内容从它下面滑过去。 */
+  header {
+    position: sticky; top: 0; z-index: 30; padding-bottom: 10px;
+    background: linear-gradient(180deg, var(--bg) calc(100% - 16px), rgba(255,255,255,0));
+  }
+  header .ticon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: 0 9px 2px 0; color: var(--secondary); vertical-align: -3px; }
+  header .ticon[hidden] { display: none; }
+  #gtabs { position: sticky; top: var(--headh, 84px); z-index: 26; }
   @media (prefers-reduced-motion: reduce) {
     .sheet, .sheet-wrap.open .sheet { transition: none; }
     .view.push, .view.pop { animation: none; }
@@ -441,6 +449,7 @@
 <main>
 <header>
   <button class="link back" id="homeBack" hidden><svg width="11" height="18" viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2L2 10l8 8"/></svg><span data-i18n="tab_home"></span></button>
+  <span class="ticon" id="titleIcon" hidden></span>
   <h1 id="title"></h1>
 </header>
 
@@ -503,32 +512,35 @@
 
   <div id="prefsFamily" class="pgroup" data-g="family" hidden></div>
 
-  <!-- 六个分类的下面再挂一排选项卡: 关于 Aerial、备份与恢复、反馈问题。 -->
-  <div class="gtabs otabs" id="otabs" role="tablist"></div>
+  <!-- 更多: 关于 / 备份与恢复 / 反馈问题, 一张气泡一项, 标题写在气泡里 -->
+  <div id="prefsOther" class="pgroup" data-g="other" hidden>
 
+    <!-- 关于 Aerial: 版本、检查更新、下载安装, 最下面是电视待机 -->
+    <div class="list pcard" id="aboutCard">
+      <div class="item phead"><span class="txt"><span data-i18n="tab_other_about"></span><span class="sub" id="upHint"></span></span></div>
+      <div class="item pver"><b id="upNow">—</b><span class="val" id="upState"></span></div>
+      <div class="prows">
+        <button class="pact" id="upCheck" type="button"></button>
+        <button class="pact" id="upInstall" type="button" hidden></button>
+      </div>
+      <div class="prows">
+        <button class="pact" id="powerOff" data-i18n="power_off" hidden></button>
+      </div>
+    </div>
 
-  <!-- 关于 Aerial: 版本/检查更新, 下面接关机(待机)。 -->
-  <div class="ogroup" data-o="about">
-    <div id="prefsAbout"></div>
-    <button class="pact" id="powerOff" data-i18n="power_off" hidden></button>
-  </div>
-
-  <!-- 备份与恢复: 标题就是上面那颗选项卡, 卡里不再重复一遍 -->
-  <div class="ogroup" data-o="backup" hidden>
+    <!-- 备份与恢复 -->
     <div class="list pcard">
-      <p class="pnote" data-i18n="backup_hint"></p>
+      <div class="item phead"><span class="txt"><span data-i18n="tab_other_backup"></span><span class="sub" data-i18n="backup_hint"></span></span></div>
       <div class="prows">
         <a class="pact" id="backupBtn" data-i18n="backup_export"></a>
         <button class="pact" id="restoreBtn" data-i18n="backup_import"></button>
       </div>
     </div>
     <input type="file" id="restoreFile" accept=".zip,application/zip,application/octet-stream" hidden>
-  </div>
 
-  <!-- 反馈问题 -->
-  <div class="ogroup" data-o="feedback" hidden>
+    <!-- 反馈问题 -->
     <div class="list pcard">
-      <p class="pnote" data-i18n="feedback_hint"></p>
+      <div class="item phead"><span class="txt"><span data-i18n="tab_other_feedback"></span><span class="sub" data-i18n="feedback_hint"></span></span></div>
       <div class="prows">
         <button class="pact" id="diagBtn" data-i18n="diag_show"></button>
         <button class="pact" id="logBtn" data-i18n="diag_export"></button>
@@ -564,7 +576,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1117;
+const PAGE_VER = 1118;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1433,6 +1445,43 @@ const NAMES = { zh: '中文', en: 'English', ru: 'Русский', uk: 'Укра
 // 选项卡上面那句小字(不塞进 KEYS, 免得动到现有语言表的下标)。
 const SAVER_TAB = { zh: '壁纸与屏保', en: 'Wallpaper & Screensaver', ru: 'Обои и заставка', uk: 'Шпалери та заставка', kk: 'Түсқағаз және экран сақтағыш' };
 const PREFS_LEAD = { zh: '个性化选项', en: 'Personalisation', ru: 'Персонализация', uk: 'Персоналізація', kk: 'Жеке параметрлер' };
+// 新文案(更多页的更新卡、隐藏卡片闸门)不塞进 KEYS/TEXTS: 那张表按语言对齐好下标, 插一行就全错位。
+Object.assign(EXTRA.zh, {
+  tab_other_more: '更多',
+  up_cur: '当前版本 {v}（{c}）',
+  up_check: '检查更新',
+  up_checking: '检查中…',
+  up_latest: '已是最新',
+  up_new: '发现新版本 {v}',
+  up_fail: '检查更新失败',
+  up_install: '下载并安装 {v}',
+  up_dl: '下载中 {p}%',
+  up_wait: '下载完成，正在交给安装器…',
+  up_opened: '安装器已打开，按电视上的提示确认',
+  up_perm: '需要先在电视上允许安装，已打开对应设置',
+  up_fail_dl: '下载失败，再点一下重试',
+  up_hint: '和电视面板同一套更新源：查到新版本才会出现「下载并安装」。',
+  hidden_pin_hint: '隐藏的卡片需要输一次密码才能查看。',
+  hidden_pin_show: '输入密码查看',
+});
+Object.assign(EXTRA.en, {
+  tab_other_more: 'More',
+  up_cur: 'Version {v} ({c})',
+  up_check: 'Check for updates',
+  up_checking: 'Checking…',
+  up_latest: 'Up to date',
+  up_new: 'New version {v}',
+  up_fail: 'Check failed',
+  up_install: 'Download and install {v}',
+  up_dl: 'Downloading {p}%',
+  up_wait: 'Downloaded, handing to the installer…',
+  up_opened: 'Installer open, confirm it on the TV',
+  up_perm: 'Allow installs on the TV first — the setting is open',
+  up_fail_dl: 'Download failed, tap to retry',
+  up_hint: 'Same update source as the TV panel; “Download and install” appears only when a newer version is found.',
+  hidden_pin_hint: 'Hidden cards need one PIN entry to view.',
+  hidden_pin_show: 'Enter PIN to view',
+});
 const I18N = {};
 for (const l of LANGS) { I18N[l] = {}; KEYS.forEach((k, i) => I18N[l][k] = TEXTS[l][i]); }
 function t(key, vars) {
@@ -1495,7 +1544,17 @@ const TITLES = { home: 'tab_home', live: 'tab_live', more: 'tab_more' };
 const OLD_TABS = { wallpaper: 'more', screensaver: 'more', looks: 'more' };
 const scrolls = {};
 let tab = null;
+const TITLE_ICONS = {
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="7" height="6" rx="1.8"/><rect x="13.5" y="4.5" width="7" height="6" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="6" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="6" rx="1.8"/></svg>',
+  live: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M10 9.5l5 2.5-5 2.5z" fill="currentColor" stroke="none"/><path d="M8 21h8"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17.5 7H20"/><circle cx="15" cy="7" r="2.1"/><path d="M4 12h2.5M11 12h9"/><circle cx="8.7" cy="12" r="2.1"/><path d="M4 17h10.5M18.5 17H20"/><circle cx="16.4" cy="17" r="2.1"/></svg>',
+};
 function setTitle() {
+  const icon = $('#titleIcon');
+  if (icon) {
+    icon.innerHTML = TITLE_ICONS[tab] || '';
+    icon.hidden = !TITLE_ICONS[tab];
+  }
   const L = (state && state.layout) || {};
   const folder = tab === 'home' && arrView !== null ? (L.home || []).find(e => e.id === arrView) : null;
   $('#title').textContent = folder ? folder.label : t(TITLES[tab]);
@@ -1518,12 +1577,21 @@ function show(next, keepScroll) {
   if (tab === 'live') renderLive();
   if (prefsTimer) { clearInterval(prefsTimer); prefsTimer = 0; }
   // 这一页要跟着电视走: 电视面板上改了, 手机上三秒内就该看到。
-  if (tab === 'more') { loadPrefs(); renderOtherTabs(); prefsTimer = setInterval(loadPrefs, 3000); }
+  if (tab === 'more') { loadPrefs(); wireUpdate(); prefsTimer = setInterval(loadPrefs, 3000); }
   window.scrollTo(0, scrolls[tab] || 0);
   try { localStorage.setItem('aerial-tab', tab); } catch (e) {}
   history.replaceState(null, '', '#' + tab);
 }
-document.querySelectorAll('nav button').forEach(b => b.onclick = () => show(b.dataset.go));
+/* 个性化里有家长锁的东西, 设过密码就先核对一次; 同一会话核对过就不再问。 */
+let moreUnlocked = false;
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  const go = b.dataset.go;
+  if (go === 'more' && !moreUnlocked) {
+    const k = (prefs && prefs.kids) || {};
+    if (k.pinSet) { pinSheet('verify', !!k.pinArrows, () => { moreUnlocked = true; show('more'); }); return; }
+  }
+  show(go);
+});
 $('#homeBack').onclick = () => { arrView = null; renderArrange('back'); };
 
 const reducedMotion = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
@@ -1948,7 +2016,6 @@ async function setSaver(key, value) {
   try {
     const r = await api('api/saver', { key: key, value: value });
     if (r && r.saved === false) throw new Error('not saved');
-    toast(t('toast_tv_updated'));
   } catch (e) { toast(t('toast_set_fail')); }
   saverJson = ''; await loadSaver(); refresh();
 }
@@ -2040,14 +2107,17 @@ async function loadPrefs() {
     if (text === prefsJson) return;
     prefsJson = text;
     prefs = JSON.parse(text);
+    // 家长密码开没开决定「隐藏的卡片」要不要先验密码: 一变就重画主屏那一段。
+    const pinNow = !!((prefs.kids || {}).pinSet);
     renderPrefs();
+    // state 还没到的时候不能重画主屏: 首次进页面这两件事是并发的。
+    if (pinNow !== prefsPinSeen) { prefsPinSeen = pinNow; if (state) renderArrange(false); }
   } catch (e) {}
 }
 async function setPref(key, value, after, quiet) {
   try {
     const r = await api('api/prefs', { key: key, value: value });
     if (!r.ok) throw new Error('not saved');
-    if (!quiet) toast(t('toast_tv_updated'));
     await loadPrefs();
     if (after) after();
     return true;
@@ -2196,7 +2266,6 @@ function photoEveryCard() {
       try {
         const r = await fetch(base + 'api/setting', { method: 'POST', body: new URLSearchParams({ key: 'photoMinutes', value: String(m) }) });
         take(await r.json());
-        toast(t('toast_tv_updated'));
       } catch (e) { toast(t('toast_set_fail')); }
       b.disabled = false;
     };
@@ -2322,21 +2391,16 @@ function groupIcon(key) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 -960 960 960');
   svg.setAttribute('fill', 'currentColor');
-  if (key === 'other') {
-    // 三个点, 和底部「更多」那颗一致。
-    for (const cx of [300, 480, 660]) {
-      const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      c.setAttribute('cx', cx); c.setAttribute('cy', -480); c.setAttribute('r', 64);
-      svg.appendChild(c);
-    }
-    return svg;
-  }
+  // 「更多」用「关于」那颗圆圈 i, 和气泡里的标题对得上。
+  if (key === 'other') return oticon('about');
   const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
   path.setAttribute('d', GROUP_ICONS[key] || GROUP_ICONS.home);
   svg.appendChild(path);
   return svg;
 }
-let prefsTab = 'home';
+let prefsTab = 'wallpaper';
+// 上次读到的「家长密码有没有设」: 从「没读到」到「设了/没设」也算一次变化, 主屏那段要重画。
+let prefsPinSeen = null;
 function applyPrefsTab() {
   document.querySelectorAll('[data-tab="more"] .pgroup').forEach(g => { g.hidden = g.dataset.g !== prefsTab; });
 }
@@ -2393,9 +2457,10 @@ function renderTabs() {
   bar.replaceChildren();
   // 壁纸与屏保不是电视个性化面板里的组(它的内容在网页上自己画), 排在最前, 和电视的次序一致。
   const all = [{ key: 'wallpaper', title: SAVER_TAB[LANG] || SAVER_TAB.en }]
-    .concat((prefs && prefs.groups) || []);
+    .concat((prefs && prefs.groups) || [])
+    .concat([{ key: 'other', title: t('tab_other_more') }]);
   for (const g of all) {
-    if (!GROUP_ICONS[g.key]) continue;
+    if (!GROUP_ICONS[g.key] && g.key !== 'other') continue;
     const b = el('button', ''); b.type = 'button';
     b.setAttribute('role', 'tab');
     b.setAttribute('aria-checked', g.key === prefsTab ? 'true' : 'false');
@@ -2406,26 +2471,82 @@ function renderTabs() {
   }
   applyPrefsTab();
 }
-const PREFS_HOST = { home: '#prefsHome', live: '#prefsLive', look: '#prefsLook', weather: '#wxItems', family: '#prefsFamily', about: '#prefsAbout' };
+const PREFS_HOST = { home: '#prefsHome', live: '#prefsLive', look: '#prefsLook', weather: '#wxItems', family: '#prefsFamily' };
 function renderPrefs() {
   if (!prefs) return;
   const about = $('#prefsAbout');
   for (const sel of Object.values(PREFS_HOST)) { const h = $(sel); if (h) h.replaceChildren(); }
   for (const g of prefs.groups || []) {
-    const host = $(PREFS_HOST[g.key] || '#prefsAbout');
+    // 关于那组电视给的是一行「版本 + 检查更新」, 手机页自己画(要看进度、要能下载), 不用它。
+    if (g.key === 'about') continue;
+    const host = $(PREFS_HOST[g.key]);
     if (!host || !g.items) continue;
     // 分类名字都在选项卡上, 正文不再重复标题。
     for (const it of g.items) host.appendChild(prefCard(it));
   }
-  // 「电视待机」跟着版本那张气泡走: 接在「检查更新」下面, 不再是外面另外一张卡。
-  const power = $('#powerOff');
-  const aboutCard = $('#prefsAbout .pcard');
-  if (power && aboutCard) {
-    const rows = aboutCard.querySelector('.prows');
-    if (rows) rows.appendChild(power);
-  }
   renderTabs();
 }
+
+/* 关于 Aerial: 和电视面板同一套更新逻辑(Updates), 手机上只负责显示状态、按下这两颗按钮。
+   检查中/下载中要有进度, 所以是轮询 /api/update, 而不是等一次响应。 */
+let upData = null, upTimer = 0, upWired = false;
+async function loadUpdate() {
+  try {
+    upData = await (await fetch(base + 'api/update', { cache: 'no-store' })).json();
+    paintUpdate();
+  } catch (e) {}
+}
+function paintUpdate() {
+  const d = upData; if (!d) return;
+  const now = $('#upNow'); if (now) now.textContent = t('up_cur', { v: d.current, c: d.code });
+  const hint = $('#upHint'); if (hint) hint.textContent = t('up_hint');
+  const phase = d.phase || 'idle', pct = d.percent || 0;
+  let text = '';
+  // 进度只画在「下载并安装」那颗按钮上, 状态那行说人话, 不重复一个百分比。
+  if (d.checking) text = t('up_checking');
+  else if (phase === 'opened') text = t('up_opened');
+  else if (phase === 'perm' || phase === 'storage') text = t('up_perm');
+  else if (phase === 'failed') text = t('up_fail_dl');
+  else if (phase === 'waiting') text = t('up_wait');
+  else if (d.available) text = t('up_new', { v: d.available });
+  else if (d.failed) text = t('up_fail');
+  else if (d.upToDate) text = t('up_latest');
+  const st = $('#upState'); if (st) st.textContent = text;
+  const ck = $('#upCheck');
+  if (ck) { ck.disabled = !!d.checking || phase === 'download'; ck.textContent = d.checking ? t('up_checking') : t('up_check'); }
+  const inst = $('#upInstall');
+  if (inst) {
+    const show = !!d.available && phase !== 'opened';
+    inst.hidden = !show;
+    if (show) inst.textContent = phase === 'download' ? t('up_dl', { p: pct }) : t('up_install', { v: d.available });
+  }
+  const busy = !!d.checking || phase === 'download';
+  if (busy && !upTimer) upTimer = setInterval(loadUpdate, 1500);
+  if (!busy && upTimer) { clearInterval(upTimer); upTimer = 0; }
+}
+function wireUpdate() {
+  if (upWired) { loadUpdate(); return; }
+  upWired = true;
+  const ck = $('#upCheck');
+  if (ck) ck.onclick = async () => {
+    try { upData = await (await fetch(base + 'api/update/check', { method: 'POST' })).json(); paintUpdate(); } catch (e) {}
+    loadUpdate();
+  };
+  const inst = $('#upInstall');
+  if (inst) inst.onclick = async () => {
+    try { upData = await (await fetch(base + 'api/update/install', { method: 'POST' })).json(); paintUpdate(); } catch (e) {}
+    loadUpdate();
+  };
+  loadUpdate();
+}
+
+/* 大标题是吸顶的, 分类选项卡要贴在它下面: 量一次高度写进 CSS 变量, 换语言/转屏再量。 */
+function measureHead() {
+  const h = document.querySelector('header');
+  if (!h) return;
+  document.documentElement.style.setProperty('--headh', Math.round(h.getBoundingClientRect().height) + 'px');
+}
+window.addEventListener('resize', measureHead);
 
 /* 进儿童与长辈窗口前先验密码: 没设过就先设一个, 设过就核对一次。 */
 function openKidsGate() {
@@ -2584,7 +2705,7 @@ async function setting(sw) {
   try {
     const next = await api('api/setting', { key: sw.dataset.setting, on: on ? '1' : '0' });
     if (!next.saved) throw new Error('not saved');
-    take(next); toast(t('toast_tv_updated'));
+    take(next);
   } catch (e) { sw.checked = !on; toast(t('toast_set_fail')); }
   sw.disabled = false;
 }
@@ -2646,7 +2767,8 @@ $('#iconFile').onchange = async e => {
 /* More tab: diagnostics. */
 // 显示日志文件: 只把最近 24 小时的日志拉到页面里显示, 不弹下载框 —— 想存到手机上走下面的「下载」。
 $('#logBtn').onclick = async () => {
-  const b = $('#logBtn'); b.disabled = true;
+  const b = $('#logBtn'); const label = b.textContent;
+  b.disabled = true; b.textContent = t('diag_collecting');
   try {
     const r = await fetch(base + 'api/log', { cache: 'no-store' });
     if (!r.ok) throw new Error(r.status);
@@ -2655,7 +2777,7 @@ $('#logBtn').onclick = async () => {
     shown = 'api/log';
   } catch (e) {
     toast(t('toast_diag_fail'));
-  } finally { b.disabled = false; }
+  } finally { b.disabled = false; b.textContent = label; }
 };
 /* More tab: backup. 浏览器要等电视那头把 zip 打完、回了响应头, 才肯弹下载框; 这段十几秒里
    下载框会先冒出来再干等, 看着就像卡死。所以先在这一页把打包跑起来, 全程显示用时, 打完之后
@@ -2891,6 +3013,7 @@ function renderArrange(push) {
   if (push) window.scrollTo(0, 0);
 }
 
+let hiddenUnlocked = false;
 function buildHomeView(view, L) {
   const grid = tileGrid(L.home, true); grid.style.marginTop = '14px'; view.appendChild(grid);
   sortableGrid(grid, L.home.map(e => e.key),
@@ -2899,6 +3022,18 @@ function buildHomeView(view, L) {
   view.appendChild(el('p', 'foot', t('arrange_hint')));
 
   view.appendChild(el('h2', '', t('hidden_h')));
+  // 设过密码的机器: 隐藏的卡片先验一次密码, 验过才列出来、才按得动。
+  const hiddenKey = (prefs && prefs.kids) || {};
+  if (hiddenKey.pinSet && !hiddenUnlocked && L.hidden.length) {
+    view.appendChild(el('p', 'foot', t('hidden_pin_hint')));
+    const gwrap = el('div', 'list pcard');
+    const gpr = el('div', 'prows');
+    const gateBtn = el('button', 'pact', t('hidden_pin_show'));
+    gateBtn.type = 'button';
+    gateBtn.onclick = () => pinSheet('verify', !!hiddenKey.pinArrows, () => { hiddenUnlocked = true; renderArrange(); });
+    gpr.appendChild(gateBtn); gwrap.appendChild(gpr); view.appendChild(gwrap);
+    return;
+  }
   if (L.locked && L.hiddenCount) { view.appendChild(el('p', 'foot', t('hidden_locked', { n: L.hiddenCount }))); return; }
   if (!L.hidden.length) { view.appendChild(el('p', 'foot', t('hidden_none'))); return; }
   const hl = el('div', 'list'); view.appendChild(hl);
@@ -3118,7 +3253,7 @@ function deviceChooser(a, e) {
       try {
         const next = await api('api/source/device', { app: a.key, device: d.key });
         if (!next.saved) throw new Error('not saved');
-        take(next); toast(t('toast_tv_updated'));
+        take(next);
       } catch (err) { toast(t('toast_set_fail')); }
     };
     l.appendChild(b);
@@ -3272,9 +3407,9 @@ function render() {
   renderLive();
 }
 
-renderOtherTabs();
 initLangSwitch();
 applyI18n();
+measureHead();
 show((location.hash || '').slice(1) || (() => { try { return localStorage.getItem('aerial-tab'); } catch (e) { return null; } })(), true);
 async function refresh() { try { state = await api('api/state'); render(); loadSaver(); } catch (e) {} }
 refresh();

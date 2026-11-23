@@ -42,6 +42,7 @@ import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import fi.iki.elonen.NanoHTTPD
+import app.orchard.tv.update.Updates
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
@@ -169,6 +170,17 @@ class PhoneServer private constructor(private val context: Context, private val 
                     val id = form(session)["id"].orEmpty()
                     onMain { Wallpapers.select(id) }
                     json(state())
+                }
+                // 手机端的检查更新: 和电视面板是同一套东西(Updates), 手机上只显示状态、按按钮;
+                // 下载与安装仍在电视那头走包安装会话, 手机只轮询进度。
+                path == "/api/update" && session.method == Method.GET -> json(updateState())
+                session.method == Method.POST && path == "/api/update/check" -> {
+                    onMain { Updates.checkIfStale(force = true) }
+                    json(updateState())
+                }
+                session.method == Method.POST && path == "/api/update/install" -> {
+                    onMain { Updates.install(context) }
+                    json(updateState())
                 }
                 // Turn the TV off from the phone (issue #1615): standby through the guard, as the
                 // power key; where the guard cannot, the page does not offer it ("canSleep").
@@ -495,6 +507,31 @@ class PhoneServer private constructor(private val context: Context, private val 
 
     private fun page(): String = context.assets.open("web/index.html").bufferedReader().use { it.readText() }
         .replace("{{DEVICE}}", Build.MODEL.replace("_", " "))
+
+    /** 手机页「关于 Aerial」那张卡要看的东西: 版本、有没有新版、检查中、下载到哪一步。 */
+    private fun updateState(): JSONObject {
+        val inst = Updates.install
+        val phase = when (inst) {
+            is Updates.Install.Downloading -> "download"
+            Updates.Install.Waiting -> "waiting"
+            Updates.Install.Opened -> "opened"
+            Updates.Install.NeedsPermission -> "perm"
+            Updates.Install.NeedsStoragePermission -> "storage"
+            is Updates.Install.Failed -> "failed"
+            else -> "idle"
+        }
+        val pct = ((inst as? Updates.Install.Downloading)?.fraction ?: 0f) * 100f
+        return JSONObject()
+            .put("current", Updates.current)
+            .put("code", app.orchard.tv.BuildConfig.VERSION_CODE)
+            .put("available", Updates.available ?: "")
+            .put("checking", Updates.checking)
+            .put("upToDate", Updates.upToDate)
+            .put("failed", Updates.checkFailed)
+            .put("freshAt", Updates.freshAt)
+            .put("phase", phase)
+            .put("percent", pct.toInt())
+    }
 
     private fun state(): JSONObject {
         val list = JSONArray()
