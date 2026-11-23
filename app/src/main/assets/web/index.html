@@ -82,6 +82,10 @@
   }
   .pcard .pact:active { background: var(--fill); box-shadow: none; }
   .pcard .pact:disabled { opacity: .55; }
+  /* 诊断正文和那排「复制 / 下载」现在都在同一张气泡里, 左右留出和按钮一致的边。 */
+  .pcard .diag { margin: 0 12px 10px; }
+  .pcard .row { padding: 0 12px 12px; margin-top: 0; }
+  .pcard .row .btn { border-radius: 10px; }
   /* 分类选项卡: 没选中的只留图标, 选中的那颗长出图标+名字。 */
   .gtabs { display: flex; gap: 4px; align-items: center; background: var(--fill); border-radius: 10px; padding: 3px; margin: 6px 0 4px; max-width: 100%; overflow: hidden; }
   .gtabs button {
@@ -502,31 +506,35 @@
   <!-- 关于 Aerial: 版本/检查更新, 下面接关机(待机)。 -->
   <div class="ogroup" data-o="about">
     <div id="prefsAbout"></div>
-    <div class="list" id="powerBox" hidden style="margin-top:10px"><button class="item tint center" id="powerOff" data-i18n="power_off"></button></div>
+    <button class="pact" id="powerOff" data-i18n="power_off" hidden></button>
   </div>
 
   <!-- 备份与恢复 -->
   <div class="ogroup" data-o="backup" hidden>
-    <div class="list">
-      <a class="item tint center" id="backupBtn" data-i18n="backup_export"></a>
-      <button class="item tint center" id="restoreBtn" data-i18n="backup_import"></button>
+    <div class="list pcard">
+      <div class="item phead"><span class="txt"><span data-i18n="backup_h"></span><span class="sub" data-i18n="backup_hint"></span></span></div>
+      <div class="prows">
+        <a class="pact" id="backupBtn" data-i18n="backup_export"></a>
+        <button class="pact" id="restoreBtn" data-i18n="backup_import"></button>
+      </div>
     </div>
-    <p class="foot" data-i18n="backup_hint"></p>
     <input type="file" id="restoreFile" accept=".zip,application/zip,application/octet-stream" hidden>
   </div>
 
   <!-- 反馈问题 -->
   <div class="ogroup" data-o="feedback" hidden>
-    <div class="list">
-      <button class="item tint center" id="diagBtn" data-i18n="diag_show"></button>
-      <button class="item tint center" id="logBtn" data-i18n="diag_export"></button>
+    <div class="list pcard">
+      <div class="item phead"><span class="txt"><span data-i18n="feedback_h"></span><span class="sub" data-i18n="feedback_hint"></span></span></div>
+      <div class="prows">
+        <button class="pact" id="diagBtn" data-i18n="diag_show"></button>
+        <button class="pact" id="logBtn" data-i18n="diag_export"></button>
+      </div>
+      <pre class="diag" id="diag" hidden></pre>
+      <div class="row" id="diagActions" hidden>
+        <button class="btn plain" id="diagCopy" data-i18n="diag_copy"></button>
+        <button class="btn plain" id="diagDownload" data-i18n="diag_github"></button>
+      </div>
     </div>
-    <pre class="diag" id="diag" hidden></pre>
-    <div class="row" id="diagActions" hidden>
-      <button class="btn" id="diagCopy" data-i18n="diag_copy"></button>
-      <button class="btn plain" id="diagDownload" data-i18n="diag_github"></button>
-    </div>
-    <p class="foot" data-i18n="feedback_hint"></p>
   </div>
 </section>
 
@@ -552,7 +560,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1115;
+const PAGE_VER = 1116;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -584,7 +592,7 @@ const TEXTS = {
   "设置",
   "添加照片",
   "反馈问题",
-  "这台电视上 Aerial 有问题，或者想让 Aerial 适配它：复制或下载下面的诊断信息贴进反馈里。里面是机型、系统版本、桌面接管状态、信号源和 Aerial 最近 24 小时的日志，不含账号、Wi-Fi 名称、IP 地址和照片。",
+  "这台电视上 Aerial 有问题或想让 Aerial 适配它：把下面的诊断信息贴上或下载即可。只含机型、系统版本与最近 24 小时日志，不含账号、Wi-Fi 名称和照片。",
   "显示诊断信息",
   "复制",
   "下载",
@@ -729,7 +737,7 @@ const TEXTS = {
   "Set",
   "Add Photos",
   "Report a Problem",
-  "Something is wrong with Aerial on this TV, or you want Aerial to support it: copy or download the diagnostics below and attach them to your report. They hold the model, the system version, the Home takeover status, the inputs and Aerial’s log of the last 24 hours, and no accounts, Wi-Fi names, IP addresses or photos.",
+  "Something is wrong with Aerial on this TV, or you want it supported: attach the diagnostics below to your report. They hold the model, the system version and the last 24 hours of the log — no accounts, Wi-Fi names or photos.",
   "Show Diagnostics",
   "Copy",
   "Download",
@@ -874,7 +882,7 @@ const TEXTS = {
   "Задать",
   "Добавить фото",
   "Сообщить о проблеме",
-  "С Aerial на этом телевизоре что-то не так, или вы хотите, чтобы Aerial его поддерживал: скопируйте диагностику и вставьте её в обращение GitHub о моделях. В ней модель, версия системы, статус перехвата главного экрана, источники и журнал Aerial, без учётных записей, названий Wi-Fi, IP-адресов и фото.",
+  "С Aerial на этом телевизоре что-то не так или вы хотите, чтобы он его поддерживал: приложите диагностику ниже к отчёту. В ней модель, версия системы и журнал за последние 24 часа — без аккаунтов, имён Wi-Fi и фото.",
   "Показать диагностику",
   "Копировать",
   "Сообщить на GitHub",
@@ -1019,7 +1027,7 @@ const TEXTS = {
   "Задати",
   "Додати фото",
   "Повідомити про проблему",
-  "З Aerial на цьому телевізорі щось не так, або ви хочете, щоб Aerial його підтримував: скопіюйте діагностику й вставте її в звернення GitHub про моделі. У ній модель, версія системи, статус перехоплення головного екрана, джерела та журнал Aerial, без облікових записів, назв Wi-Fi, IP-адрес і фото.",
+  "З Aerial на цьому телевізорі щось не так або ви хочете, щоб він його підтримував: додайте діагностику нижче до звіту. У ній модель, версія системи й журнал за останні 24 години — без акаунтів, назв Wi-Fi і фото.",
   "Показати діагностику",
   "Копіювати",
   "Повідомити на GitHub",
@@ -1164,7 +1172,7 @@ const TEXTS = {
   "Орнату",
   "Фото қосу",
   "Мәселе туралы хабарлау",
-  "Осы теледидардағы Aerial-де ақау бар немесе Aerial-дің оны қолдағанын қалайсыз: диагностиканы көшіріп, GitHub-тағы құрылғы туралы өтінішке қойыңыз. Онда модель, жүйе нұсқасы, басты экранды басып алу күйі, көздер және Aerial журналы бар, есептік жазбалар, Wi-Fi атаулары, IP мекенжайлар және фотолар жоқ.",
+  "Осы теледидардағы Aerial-де ақау бар немесе оны қолдауын қалайсыз: төмендегі диагностиканы есепке тіркеңіз. Онда үлгі, жүйе нұсқасы және соңғы 24 сағаттық журнал бар — аккаунттар, Wi-Fi атаулары мен фотолар жоқ.",
   "Диагностиканы көрсету",
   "Көшіру",
   "GitHub-та хабарлау",
@@ -1313,7 +1321,7 @@ const EXTRA = {
         kids_row_off: "已关闭·前往设置", kids_row_kids: "处于儿童模式·前往设置", kids_row_elders: "处于长辈模式·前往设置",
         mute: "静音", unmute: "恢复声音", unit_min: "分钟", kids_open: "打开设置",
         pin_new: "设置家长密码", pin_off_title: "关闭家长密码", pin_ph: "4 位数字",
-        backup_hint: "备份包含所有设置、直播源、壁纸与照片影片。导入会覆盖这台电视上的全部设置，随后自动重启。",
+        backup_hint: "含全部设置、直播源、壁纸与照片影片；导入会覆盖本机设置并自动重启。",
         backup_confirm: "导入会覆盖这台电视上的全部设置，确定继续？", backup_restoring: "正在导入…",
         backup_restored: "已导入，电视正在重启", backup_failed: "导入失败，文件可能不完整",
         backup_locked: "儿童/长辈模式已开启，需先在电视上输入家长密码",
@@ -1321,7 +1329,7 @@ const EXTRA = {
         backup_no_reply: "电视没有回报结果", backup_link_lost: "与电视的连接中断",
         ss_sleep: "待机", hint_sleep: "不播屏保: 到时间直接待机, 等同按电源键。多数电视之后只能用遥控器电源键唤醒。",
         sw_saver_place: "屏保显示地点", sw_saver_place_sub: "航拍屏保左下角的地名, 照片屏保的图片标题。",
-        power_off: "关机", power_off_confirm: "现在就关掉这台电视?", power_off_done: "已关机", power_off_fail: "关机失败" },
+        power_off: "电视待机", power_off_confirm: "现在就让这台电视待机?", power_off_done: "已待机", power_off_fail: "没能待机" },
   en: { st_on: "On", st_off: "Off", tab_other: "Other", tab_more: "Personalise", tab_other_about: "About Aerial", tab_other_backup: "Backup & restore", tab_other_feedback: "Feedback",
         weather_place: "Weather location", weather_place_hint: "The weather in the greeting row and on the screensaver comes from here.",
         bili_login: "Sign in", bili_logout: "Sign out", bili_scan: "Scan with the Bilibili app",
@@ -1336,7 +1344,7 @@ const EXTRA = {
         kids_row_off: "Off · Open settings", kids_row_kids: "Kids mode · Open settings", kids_row_elders: "Elders mode · Open settings",
         mute: "Mute", unmute: "Sound on", unit_min: "min", kids_open: "Open settings",
         pin_new: "Set the parental PIN", pin_off_title: "Turn off the parental PIN", pin_ph: "4 digits",
-        backup_hint: "The backup holds every setting, live source, wallpaper, photo and video. Importing replaces all settings on this TV and restarts it.",
+        backup_hint: "Holds every setting, live source, wallpaper, photo and video. Importing replaces all settings on this TV and restarts it.",
         backup_confirm: "Importing replaces all settings on this TV. Continue?", backup_restoring: "Importing…",
         backup_restored: "Imported. The TV is restarting", backup_failed: "Import failed — the file may be incomplete",
         backup_locked: "Kids/elders mode is on — unlock with the parental PIN on the TV first",
@@ -1344,7 +1352,7 @@ const EXTRA = {
         backup_no_reply: "The TV did not report a result", backup_link_lost: "The connection to the TV dropped",
         ss_sleep: "Standby", hint_sleep: "No screensaver: when the time comes the TV goes to standby, as with its power button.",
         sw_saver_place: "Place on the screensaver", sw_saver_place_sub: "The place name bottom left on the aerial screensaver, and the picture's title on the photo screensaver.",
-        power_off: "Shut Down", power_off_confirm: "Turn this TV off now?", power_off_done: "Turned off", power_off_fail: "Could not turn it off" },
+        power_off: "TV standby", power_off_confirm: "Put this TV into standby now?", power_off_done: "In standby", power_off_fail: "Could not switch to standby" },
   ru: { st_on: "Вкл", st_off: "Выкл", tab_other: "Другое", tab_more: "Персонализация", tab_other_about: "О Aerial", tab_other_backup: "Резервная копия", tab_other_feedback: "Обратная связь",
         weather_place: "Местоположение погоды", weather_place_hint: "Погода в приветствии и на заставке берётся отсюда.",
         bili_login: "Войти", bili_logout: "Выйти", bili_scan: "Сканируйте приложением Bilibili",
@@ -1359,7 +1367,8 @@ const EXTRA = {
         kids_row_off: "Выключено · Настройки", kids_row_kids: "Детский режим · Настройки", kids_row_elders: "Режим для старших · Настройки",
         mute: "Без звука", unmute: "Включить звук", unit_min: "мин", kids_open: "Открыть настройки",
         pin_new: "Задать родительский PIN", pin_off_title: "Отключить родительский PIN", pin_ph: "4 цифры",
-        backup_hint: "Копия содержит все настройки, источники трансляций, обои, фото и видео. Импорт заменит все настройки на этом телевизоре и перезапустит его.",
+        backup_hint: "Все настройки, источники трансляций, обои, фото и видео. Импорт заменит все настройки на этом телевизоре и перезапустит его.",
+        power_off: "Режим ожидания", power_off_confirm: "Перевести телевизор в режим ожидания?", power_off_done: "В режиме ожидания", power_off_fail: "Не удалось перевести в режим ожидания",
         backup_confirm: "Импорт заменит все настройки на этом телевизоре. Продолжить?", backup_restoring: "Импорт…",
         backup_restored: "Импортировано. Телевизор перезапускается", backup_failed: "Импорт не удался — файл может быть повреждён",
         backup_locked: "Включён детский режим — сначала разблокируйте PIN-кодом на ТВ",
@@ -1379,7 +1388,8 @@ const EXTRA = {
         kids_row_off: "Вимкнено · Налаштування", kids_row_kids: "Дитячий режим · Налаштування", kids_row_elders: "Режим для старших · Налаштування",
         mute: "Без звуку", unmute: "Увімкнути звук", unit_min: "хв", kids_open: "Відкрити налаштування",
         pin_new: "Задати батьківський PIN", pin_off_title: "Вимкнути батьківський PIN", pin_ph: "4 цифры",
-        backup_hint: "Копія містить усі налаштування, джерела трансляцій, шпалери, фото й відео. Імпорт замінить усі налаштування на цьому телевізорі та перезапустить його.",
+        power_off: "Режим очікування", power_off_confirm: "Перевести телевізор у режим очікування?", power_off_done: "У режимі очікування", power_off_fail: "Не вдалося перевести в режим очікування",
+        backup_hint: "Усі налаштування, джерела трансляцій, шпалери, фото й відео. Імпорт замінить усі налаштування на цьому телевізорі та перезапустить його.",
         backup_confirm: "Імпорт замінить усі налаштування на цьому телевізорі. Продовжити?", backup_restoring: "Імпорт…",
         backup_restored: "Імпортовано. Телевізор перезапускається", backup_failed: "Імпорт не вдався — файл може бути пошкоджений",
         backup_locked: "Увімкнено дитячий режим — спочатку розблокуйте PIN-кодом на ТБ",
@@ -1398,8 +1408,9 @@ const EXTRA = {
         custom: "Өзіңіз", custom_time: "Өз уақыты", must_keep: "Міндетті",
         kids_row_off: "Өшірулі · Параметрлер", kids_row_kids: "Балалар режимі · Параметрлер", kids_row_elders: "Қариялар режимі · Параметрлер",
         mute: "Дыбысты өшіру", unmute: "Дыбысты қосу", unit_min: "мин", kids_open: "Параметрлерді ашу",
+        power_off: "Күту режимі", power_off_confirm: "Теледидарды күту режиміне ауыстыру керек пе?", power_off_done: "Күту режимінде", power_off_fail: "Күту режиміне ауыстыру мүмкін болмады",
         pin_new: "Ата-ана PIN-ін орнату", pin_off_title: "Ата-ана PIN-ін өшіру", pin_ph: "4 сан",
-        backup_hint: "Көшірмеде барлық параметрлер, эфир көздері, тұсқағаздар, фото және бейнелер бар. Қалпына келтіру осы теледидардағы барлық параметрлерді ауыстырып, оны қайта іске қосады.",
+        backup_hint: "Барлық параметрлер, эфир көздері, тұсқағаздар, фото және бейнелер. Қалпына келтіру осы теледидардағы барлық параметрлерді ауыстырып, оны қайта іске қосады.",
         backup_confirm: "Қалпына келтіру осы теледидардағы барлық параметрлерді ауыстырады. Жалғастыру керек пе?", backup_restoring: "Қалпына келтірілуде…",
         backup_restored: "Қалпына келтірілді. Теледидар қайта іске қосылуда", backup_failed: "Қалпына келтіру сәтсіз — файл бүлінген болуы мүмкін",
         backup_locked: "Балалар режимі қосулы — алдымен ТВ-да PIN-кодпен ашу керек",
@@ -2002,7 +2013,7 @@ window.addEventListener('drop', e => {
 /* More tab: focus style and weather. */
 const weatherNames = { clear: t('wx_clear'), partlycloudy: t('wx_partlycloudy'), cloudy: t('wx_cloudy'), fog: t('wx_fog'), rain: t('wx_rain'), snow: t('wx_snow'), thunder: t('wx_thunder') };
 function renderMore() {
-  if ($('#powerBox')) $('#powerBox').hidden = !state.canSleep;
+  if ($('#powerOff')) $('#powerOff').hidden = !state.canSleep;
   const w = state.weather || {};
   $('#wxNow').textContent = w.celsius !== undefined ? `${w.celsius}° ${weatherNames[w.kind] || ''}` : '—';
   $('#wxPlace').textContent = w.place || '';
@@ -2192,7 +2203,7 @@ function photoEveryCard() {
 function prefCard(it, after, save) {
   const card = el('div', 'list pcard');
   // 一颗按钮就是一整张卡时(比如「立即开始」), 标题和按钮字样一样, 不再重复画一遍标题。
-  if (!(it.kind === 'action' && it.label === it.value)) {
+  if (!(it.kind === 'action' && it.label === it.value && !it.hint)) {
     const head = el('div', 'item phead');
     const txt = el('span', 'txt');
     txt.appendChild(el('span', '', it.label));
@@ -2399,6 +2410,13 @@ function renderPrefs() {
     if (!host || !g.items) continue;
     // 分类名字都在选项卡上, 正文不再重复标题。
     for (const it of g.items) host.appendChild(prefCard(it));
+  }
+  // 「电视待机」跟着版本那张气泡走: 接在「检查更新」下面, 不再是外面另外一张卡。
+  const power = $('#powerOff');
+  const aboutCard = $('#prefsAbout .pcard');
+  if (power && aboutCard) {
+    const rows = aboutCard.querySelector('.prows');
+    if (rows) rows.appendChild(power);
   }
   renderTabs();
 }

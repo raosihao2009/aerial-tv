@@ -61,7 +61,8 @@ object SaverPanel {
         // 电视上「立即开始」是屏保类型那格左边的播放按钮, 手机页单独一张卡, 放在最上面。
         items.put(
             JSONObject().put("key", "saverStart").put("kind", "action")
-                .put("label", s(R.string.ss_start)).put("value", s(R.string.ss_start)),
+                .put("label", s(R.string.ss_start)).put("hint", s(R.string.ss_start_hint))
+                .put("value", s(R.string.ss_start)),
         )
         items.put(
             item("saverKind", s(R.string.ss_kind), null, mode.key, kinds.map { it.first.key to s(it.second) }),
