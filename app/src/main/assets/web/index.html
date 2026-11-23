@@ -576,7 +576,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1118;
+const PAGE_VER = 1119;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1462,6 +1462,8 @@ Object.assign(EXTRA.zh, {
   up_fail_dl: '下载失败，再点一下重试',
   up_hint: '和电视面板同一套更新源：查到新版本才会出现「下载并安装」。',
   hidden_pin_hint: '隐藏的卡片需要输一次密码才能查看。',
+  hidden_live_h: '隐藏的直播卡片',
+  hidden_live_none: '没有隐藏的直播卡片。',
   hidden_pin_show: '输入密码查看',
 });
 Object.assign(EXTRA.en, {
@@ -1480,6 +1482,8 @@ Object.assign(EXTRA.en, {
   up_fail_dl: 'Download failed, tap to retry',
   up_hint: 'Same update source as the TV panel; “Download and install” appears only when a newer version is found.',
   hidden_pin_hint: 'Hidden cards need one PIN entry to view.',
+  hidden_live_h: 'Hidden live cards',
+  hidden_live_none: 'No hidden live cards.',
   hidden_pin_show: 'Enter PIN to view',
 });
 const I18N = {};
@@ -1732,7 +1736,8 @@ function card(w) {
 }
 function renderLive() {
   const box = $('#liveBody');
-  if (!box) return;
+  if (!box || !state) return;   // state 还没到就等 render() 再来一次
+
   const sources = (state && state.liveSources) || [];
   box.innerHTML = '';
 
@@ -1790,12 +1795,24 @@ function renderLive() {
     },
     i => liveSheet(visible[i]));
 
-  // 已隐藏列表(照主屏幕: 图标+名称+显示按钮)
-  box.appendChild(el('h2', '', '隐藏的直播卡片'));
-  if (!hidden.length) { box.appendChild(el('p', 'foot', '没有隐藏的直播卡片。')); return; }
+  // 已隐藏列表(照主屏幕: 图标+名称+显示按钮); 设过家长密码的要先验一次, 验过才列出来、才放得回去。
+  box.appendChild(el('h2', '', t('hidden_live_h')));
+  const lk = (prefs && prefs.kids) || {};
+  if (lk.pinSet && !hiddenUnlocked && hidden.length) {
+    box.appendChild(el('p', 'foot', t('hidden_pin_hint')));
+    const hw = el('div', 'list pcard'), hp = el('div', 'prows');
+    const gate = el('button', 'pact', t('hidden_pin_show'));
+    gate.type = 'button';
+    gate.onclick = () => pinSheet('verify', !!lk.pinArrows, () => { hiddenUnlocked = true; renderLive(); });
+    hp.appendChild(gate); hw.appendChild(hp); box.appendChild(hw);
+    return;
+  }
+  if (!hidden.length) { box.appendChild(el('p', 'foot', t('hidden_live_none'))); return; }
   const hl = el('div', 'list'); box.appendChild(hl);
   hidden.forEach(s => {
     const row = el('div', 'item'); row.style.alignItems = 'center'; row.style.gap = '14px';
+    row.setAttribute('role', 'button'); row.tabIndex = 0; row.setAttribute('aria-label', s.name);
+    row.onclick = () => liveSheet(s);
     const thumb = el('div', 'thumb'); thumb.style.overflow = 'hidden';
     if (s.preset || s.id.startsWith('custom_')) { const img = el('img'); img.src = `${base}live-icon/${encodeURIComponent(s.id)}?v=${Date.now()}`; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; img.onerror = () => { thumb.style.background='linear-gradient(135deg,#667eea,#764ba2)'; thumb.style.display='grid'; thumb.style.placeItems='center'; thumb.style.color='#fff'; thumb.innerHTML='<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>'; img.remove(); }; thumb.appendChild(img); }
     else { thumb.style.background = 'linear-gradient(135deg,#667eea,#764ba2)'; thumb.style.display='grid'; thumb.style.placeItems='center'; thumb.style.color='#fff'; thumb.innerHTML='<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>'; }
@@ -2111,7 +2128,7 @@ async function loadPrefs() {
     const pinNow = !!((prefs.kids || {}).pinSet);
     renderPrefs();
     // state 还没到的时候不能重画主屏: 首次进页面这两件事是并发的。
-    if (pinNow !== prefsPinSeen) { prefsPinSeen = pinNow; if (state) renderArrange(false); }
+    if (pinNow !== prefsPinSeen) { prefsPinSeen = pinNow; if (state) { renderArrange(false); renderLive(); } }
   } catch (e) {}
 }
 async function setPref(key, value, after, quiet) {
@@ -2999,7 +3016,7 @@ function folderNameOf(next, key) {
 /* push: true going into a folder, 'back' coming out of one, false for no motion. */
 function renderArrange(push) {
   if (arrDragging) { arrPending = true; return; }
-  const L = state.layout || { home: [], folders: {}, hidden: [] };
+  const L = (state && state.layout) || { home: [], folders: {}, hidden: [] };
   if (arrView !== null && !(L.folders || {})[arrView]) arrView = null;   // ungrouped, or emptied
   const folderTile = arrView !== null ? L.home.find(e => e.id === arrView) : null;
   const view = el('div', 'view' + (push === 'back' ? ' pop' : push ? ' push' : ''));
@@ -3093,7 +3110,7 @@ function tileGrid(entries, shelf) {
   return grid;
 }
 /* Apps a row on the TV's Home. */
-function homeCols() { return (state.layout && state.layout.columns) || 5; }
+function homeCols() { return (state && state.layout && state.layout.columns) || 5; }
 /* The shelf sits behind Home's first row, as the glass plate does on the TV. */
 function placeShelves() {
   document.querySelectorAll('#homeBody .agrid').forEach(g => {
