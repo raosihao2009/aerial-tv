@@ -101,6 +101,29 @@
   .pcard .pdesc { margin: 0; padding: 6px 16px 0; color: var(--secondary); font-size: 13px; line-height: 1.45; }
   /* 气泡里的内容区(卡片网格、按钮组): 左右留出与标题一致的边。 */
   .pcard .pbody { padding: 10px 12px 12px; }
+  /* 隐藏卡片: 一张气泡, 标题下面一行一颗行按钮, 右边是「显示」。 */
+  .pcard .hrow {
+    appearance: none; border: 0; display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box;
+    padding: 8px; border-radius: 10px; background: var(--fill); text-align: left;
+    cursor: pointer; transition: background-color .15s ease;
+  }
+  .pcard .hrow + .hrow { margin-top: 8px; }
+  .pcard .hrow:active { background: var(--fill-solid); }
+  .pcard .hrow .thumb {
+    width: 52px; height: 34px; border-radius: 7px; flex: none; overflow: hidden;
+    object-fit: cover; background: var(--fill-solid);
+  }
+  .pcard .hrow .hname {
+    flex: 1; min-width: 0; font-size: 15px; font-weight: 500; color: var(--label);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .pcard .hrow .hshow {
+    flex: none; padding: 6px 13px; border-radius: 8px; background: var(--card); color: var(--tint);
+    font-size: 14px; font-weight: 600; cursor: pointer; -webkit-user-select: none; user-select: none;
+    box-shadow: inset 0 0 0 .5px rgba(60,60,67,.10), 0 1px 2px rgba(0,0,0,.06), 0 3px 8px rgba(0,0,0,.07);
+  }
+  .pcard .hrow .hshow:active { background: var(--fill); box-shadow: none; }
+  .pcard .hrow .hshow[disabled] { opacity: .5; }
   /* 气泡里的输入行: 浅灰输入框 + 右边一颗蓝色保存按钮。 */
   .pcard .pfield { display: flex; align-items: center; gap: 8px; padding: 12px 12px 12px; }
   .pcard .pfield input {
@@ -1909,22 +1932,49 @@ function renderLive() {
     return;
   }
   if (!hidden.length) { box.appendChild(el('p', 'foot', t('hidden_live_none'))); return; }
-  box.appendChild(el('h2', '', t('hidden_live_h')));
-  const hl = el('div', 'list'); box.appendChild(hl);
-  hidden.forEach(s => {
-    const row = el('div', 'item'); row.style.alignItems = 'center'; row.style.gap = '14px';
-    row.setAttribute('role', 'button'); row.tabIndex = 0; row.setAttribute('aria-label', s.name);
-    row.onclick = () => liveSheet(s);
-    const thumb = el('div', 'thumb'); thumb.style.overflow = 'hidden';
-    if (s.preset || s.id.startsWith('custom_')) { const img = el('img'); img.src = `${base}live-icon/${encodeURIComponent(s.id)}?v=${Date.now()}`; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; img.onerror = () => { thumb.style.background='linear-gradient(135deg,#667eea,#764ba2)'; thumb.style.display='grid'; thumb.style.placeItems='center'; thumb.style.color='#fff'; thumb.innerHTML='<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>'; img.remove(); }; thumb.appendChild(img); }
-    else { thumb.style.background = 'linear-gradient(135deg,#667eea,#764ba2)'; thumb.style.display='grid'; thumb.style.placeItems='center'; thumb.style.color='#fff'; thumb.innerHTML='<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>'; }
-    row.appendChild(thumb);
-    row.appendChild(el('span', 'txt', s.name));
-    const b = el('button', 'link act', '显示');
-    b.style.color = '#007aff'; b.style.fontWeight = '600';
-    b.onclick = ev => { ev.stopPropagation(); b.disabled = true; api('api/live-source/hide', { id: s.id, hide: '0' }).then(take).catch(() => {}); };
-    row.appendChild(b); hl.appendChild(row);
+  box.appendChild(hiddenListCard(t('hidden_live_h'), hidden.map(s => ({
+    thumb: liveThumb(s), label: s.name,
+    onTap: () => liveSheet(s),
+    onShow: () => api('api/live-source/hide', { id: s.id, hide: '0' }).then(take).catch(() => {}),
+  })), '显示'));
+}
+
+/* 隐藏的卡片: 一张气泡, 标题下面一行一颗, 右边是新样式的「显示」。 */
+function hiddenListCard(title, rows, label) {
+  const card = el('div', 'list pcard');
+  card.appendChild(el('div', 'ptitle', title));
+  const body = el('div', 'pbody'); card.appendChild(body);
+  rows.forEach(r => {
+    // 一行是「打开详情」, 右边的「显示」自己带一次点击, 不用嵌套按钮。
+    const row = el('div', 'hrow');
+    row.setAttribute('role', 'button'); row.tabIndex = 0;
+    row.appendChild(r.thumb);
+    row.appendChild(el('span', 'hname', r.label));
+    const sb = el('span', 'hshow', label);
+    sb.onclick = ev => { ev.stopPropagation(); sb.disabled = true; r.onShow(); };
+    row.appendChild(sb);
+    row.onclick = r.onTap;
+    body.appendChild(row);
   });
+  return card;
+}
+
+/* 直播卡片的缩略图(自定义源没有图就用紫色播放符号)。 */
+function liveThumb(s) {
+  const thumb = el('div', 'thumb');
+  if (s.preset || s.id.startsWith('custom_')) {
+    const img = el('img');
+    img.src = `${base}live-icon/${encodeURIComponent(s.id)}?v=${Date.now()}`;
+    img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover';
+    img.onerror = () => { img.remove(); playFallback(); };
+    thumb.appendChild(img);
+  } else playFallback();
+  function playFallback() {
+    thumb.style.background = 'linear-gradient(135deg,#667eea,#764ba2)';
+    thumb.style.display = 'grid'; thumb.style.placeItems = 'center'; thumb.style.color = '#fff';
+    thumb.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+  }
+  return thumb;
 }
 
 /* 隐藏卡片的气泡: 标题 + 说明 + 一颗按钮, 应用菜单和直播菜单共用。 */
@@ -3212,16 +3262,11 @@ function buildHomeView(view, L) {
      电视端的锁只在"还没设手机侧密码、名单也没发下来"时才需要人去电视操作。 */
   if (!L.hidden.length && L.locked && L.hiddenCount) { view.appendChild(el('p', 'foot', t('hidden_locked', { n: L.hiddenCount }))); return; }
   if (!L.hidden.length) { view.appendChild(el('p', 'foot', t('hidden_none'))); return; }
-  view.appendChild(el('h2', '', t('hidden_h')));
-  const hl = el('div', 'list'); view.appendChild(hl);
-  for (const e of L.hidden) {
-    const row = el('div', 'item arow'); row.setAttribute('role', 'button'); row.tabIndex = 0;
-    row.append(tileImg(e), el('span', 'txt', e.label));
-    const b = el('button', 'link act', t('show_app')); b.style.fontWeight = '600';
-    b.onclick = ev => { ev.stopPropagation(); b.disabled = true; lay({ op: 'unhide', key: e.key }, () => toast(t('toast_shown'))); };
-    row.onclick = () => tileSheet(e, null, true);
-    row.appendChild(b); hl.appendChild(row);
-  }
+  view.appendChild(hiddenListCard(t('hidden_h'), L.hidden.map(e => ({
+    thumb: tileImg(e), label: e.label,
+    onTap: () => tileSheet(e, null, true),
+    onShow: () => lay({ op: 'unhide', key: e.key }, () => toast(t('toast_shown'))),
+  })), t('show_app')));
 }
 
 function buildFolderView(view, folder, apps) {
