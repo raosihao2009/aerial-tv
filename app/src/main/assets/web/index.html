@@ -247,7 +247,7 @@
   .hero .cap b { font-size: 20px; font-weight: 600; }
   /* Cells start at the top: a button centres its content, so a tile without a caption sat lower than its neighbour. */
   /* 壁纸一排一排左右翻：卡片定宽, 一屏两三张, 手指横划。 */
-  .wrow { display: flex; gap: 12px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; padding: 8px 6px 6px; margin: 0 -6px; }
+  .wrow { display: flex; gap: 12px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; padding: 8px 0 6px; margin: 0; }
   .wrow::-webkit-scrollbar { display: none; }
   .wrow .wp { flex: 0 0 38vw; max-width: 180px; scroll-snap-align: start; align-self: flex-start; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px 12px; align-items: start; }
@@ -443,16 +443,15 @@
     display: flex; align-items: center; gap: 10px;
     background: var(--bg); isolation: isolate;
   }
-  header::before { content: ''; position: absolute; top: 0; bottom: 0; left: -100vw; right: -100vw; background: var(--bg); z-index: -1; }
   header .ticon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: 0; flex: none; color: var(--secondary); }
   header h1 { display: block; margin: 0; }
   header .ticon[hidden] { display: none; }
   #gtabs { position: sticky; top: var(--headh, 84px); z-index: 11; isolation: isolate; }
   /* 选项卡自己垫一块不透明的底(左右铺满), 免得下面的卡片从缝里透出来 */
-  #gtabs::before { content: ''; position: absolute; inset: -6px -100vw 0; z-index: -1; background: var(--bg); }
+  #gtabs::before { content: ''; position: absolute; inset: -6px 0 0; z-index: -1; background: var(--bg); }
   /* 过渡层放在选项卡下方: 卡片从下面滑上来时是渐隐, 大标题与选项卡之间是硬边 */
   #gtabs::after {
-    content: ''; position: absolute; left: -100vw; right: -100vw; top: 100%; height: 16px; z-index: -1;
+    content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 16px; z-index: -1;
     background: var(--bg); -webkit-mask-image: linear-gradient(180deg, #000, transparent); mask-image: linear-gradient(180deg, #000, transparent);
     pointer-events: none;
   }
@@ -600,7 +599,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1121;
+const PAGE_VER = 1122;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
