@@ -75,7 +75,7 @@
   .pcard .pbtn:disabled { opacity: .55; }
   /* 不出选项、只有一颗按钮的(扫码登录、打开登录页、立即开始): 与上面那排选项同一个形状, 只占一排一颗。
      以前这些是纯文字链接, 看着不像按钮, 也不好按。 */
-  .pcard .pact {
+  .pact {
     appearance: none; border: 0; border-radius: 10px; background: var(--card); color: var(--tint);
     display: block; box-sizing: border-box; width: 100%; padding: 12px 10px;
     font-size: 15px; font-weight: 600; text-align: center; line-height: 1.25;
@@ -83,8 +83,9 @@
     box-shadow: 0 1px 3px rgba(0,0,0,.10);
     transition: background-color .15s ease, box-shadow .15s ease;
   }
-  .pcard .pact:active { background: var(--fill); box-shadow: none; }
-  .pcard .pact:disabled { opacity: .55; }
+  .pact:active { background: var(--fill); box-shadow: none; }
+  .pact:disabled { opacity: .55; }
+  .pact.danger { color: var(--danger); }
   /* 诊断正文和那排「复制 / 下载」现在都在同一张气泡里, 左右留出和按钮一致的边。 */
   .pcard .diag { margin: 0 12px 10px; }
   .pcard .row { padding: 0 12px 12px; margin-top: 0; }
@@ -109,16 +110,22 @@
   }
   .pcard .pfield input:focus { background: var(--card); box-shadow: 0 0 0 1.5px var(--tint), 0 1px 3px rgba(0,0,0,.10); }
   .pcard .pfield input:disabled { opacity: .6; }
+  /* 保存: 白底 + 一道内描边加两层浅投影, 挨着浅灰输入框也立得起来; 没改动时依旧白, 只是字淡。 */
   .pcard .pfield .psave {
-    appearance: none; border: 0; border-radius: 9px; padding: 10px 18px; flex: none;
-    font-size: 15px; font-weight: 600; color: #fff; background: var(--tint);
-    box-shadow: 0 1px 3px rgba(0,0,0,.12); cursor: pointer;
+    appearance: none; border: 0; border-radius: 10px; padding: 11px 18px; flex: none;
+    font-size: 15px; font-weight: 600; color: var(--tint); background: var(--card); cursor: pointer;
+    box-shadow: inset 0 0 0 .5px rgba(60,60,67,.12), 0 1px 2px rgba(0,0,0,.06), 0 3px 8px rgba(0,0,0,.07);
+    transition: background-color .15s ease, box-shadow .15s ease, color .15s ease;
   }
-  .pcard .pfield .psave:disabled { background: var(--fill); color: var(--tertiary); box-shadow: none; }
+  .pcard .pfield .psave:active { background: var(--fill); box-shadow: inset 0 0 0 .5px rgba(60,60,67,.12); }
+  .pcard .pfield .psave:disabled {
+    background: var(--card); color: rgba(0,122,255,.55); cursor: default;
+    box-shadow: inset 0 0 0 .5px rgba(60,60,67,.10), 0 1px 2px rgba(0,0,0,.05), 0 3px 8px rgba(0,0,0,.05);
+  }
   /* 白色气泡里的按钮用浅灰底, 才看得出是一颗按钮。 */
-  .pcard .pact.soft { background: var(--fill); color: var(--tint); box-shadow: none; }
-  .pcard .pact.soft:active { background: var(--fill-solid); }
-  .pcard .pact.soft.danger { color: var(--danger); }
+  .pact.soft { background: var(--fill); color: var(--tint); box-shadow: none; }
+  .pact.soft:active { background: var(--fill-solid); }
+  .pact.soft.danger { color: var(--danger); }
   /* 不放进气泡的按钮(详情页的取消): 白底一块, 单独一条。 */
   .sheet .psolo {
     appearance: none; border: 0; border-radius: 10px; background: var(--card); color: var(--tint);
@@ -642,7 +649,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1124;
+const PAGE_VER = 1125;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1726,14 +1733,14 @@ function confirmSheet(message, okLabel, danger) {
     };
     openSheet(body => {
       body.appendChild(el('h3', '', message));
-      const list = el('div', 'list');
-      const okB = el('button', danger === false ? 'item center tint' : 'item center danger', okLabel || '删除');
-      if (danger === false) okB.style.fontWeight = '600';
+      // 和卡片详情页同一套: 白底一块, 阴影立起来; 取消同样是一块白。
+      const okB = el('button', 'pact' + (danger === false ? '' : ' danger'), okLabel || '删除');
+      okB.style.marginTop = '16px';
       okB.onclick = () => finish(true);
-      const cancel = el('button', 'item center tint', t('cancel')); cancel.style.fontWeight = '600';
+      body.appendChild(okB);
+      const cancel = el('button', 'psolo', t('cancel'));
       cancel.onclick = () => finish(false);
-      list.append(okB, cancel);
-      body.appendChild(list);
+      body.appendChild(cancel);
     });
     $('#scrim').onclick = () => finish(false);
   });
