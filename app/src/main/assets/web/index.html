@@ -2108,18 +2108,20 @@ function biliCard(card) {
       prefsJson = ''; loadPrefs(); refresh();
     } else if (r.hasQr && (r.phase === 'qr' || r.phase === 'wait' || r.phase === 'confirm')) {
       qrBox.hidden = false;
+      /* 链接先落地再挂到按钮上。以前是先取 href 后赋 qrUrl, 首帧只拿到空串, 只能退回 '#':
+         点下去不是跳转, 而是把页面滚回顶部, 那颗按钮实际上一直是死的。 */
+      qrUrl = r.url || '';
       if (shownQr !== String(r.qrStamp || 'a')) {
         shownQr = String(r.qrStamp || 'a');
         img.src = base + 'api/bili/qr?v=' + Date.now();
         qrTip.textContent = t('bili_longpress');
-        qrApp.textContent = t('bili_open');
-        qrApp.href = qrUrl || '#';
-        qrApp.hidden = false;
         qrOpen.textContent = t('bili_copy');
-        /* 链接跟着二维码一起换: 电视那边换了码, 复制出去的也得是新码那一条。 */
-        qrUrl = r.url || '';
         qrOpen.hidden = false;
       }
+      /* 有链接才挂按钮: 没链接就干脆不画, 不留一颗点了只会滚回顶部的空按钮。 */
+      qrApp.textContent = t('bili_open');
+      if (qrUrl) { qrApp.href = qrUrl; qrApp.hidden = false; }
+      else { qrApp.removeAttribute('href'); qrApp.hidden = true; }
       stat.textContent = r.phase === 'confirm' ? t('bili_confirm') : t('bili_wait');
     } else if (r.phase === 'expired' || r.phase === 'failed') {
       stop(); qrBox.hidden = true; shownQr = '';
