@@ -216,7 +216,8 @@ private fun PinPanel(mode: PinMode, onDone: () -> Unit, onCancel: () -> Unit) {
             }
             if (arrows == true) return@Column
             Spacer(Modifier.height(22.dp))
-            val keys = listOf("123", "456", "789", " 0<")
+            // 不要「删除」键(按错了只能整遍重来): 0 单独一排, 左右留空。
+            val keys = listOf("123", "456", "789", " 0 ")
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 keys.forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

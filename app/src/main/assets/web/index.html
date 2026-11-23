@@ -33,7 +33,7 @@
 
   main { max-width: 720px; margin: 0 auto; padding: env(safe-area-inset-top) 16px calc(var(--tabbar) + 32px); }
   header { padding: 28px 4px 4px; }
-  header h1 { display: inline-block; vertical-align: middle; font-size: 34px; font-weight: 700; letter-spacing: -.02em; margin: 0; }
+  header h1 { display: block; vertical-align: middle; font-size: 34px; font-weight: 700; letter-spacing: -.02em; margin: 0; }
   header p { margin: 2px 0 0; color: var(--secondary); font-size: 15px; }
 
   h2 { font-size: 13px; font-weight: 400; color: var(--secondary); margin: 28px 16px 7px; }
@@ -431,12 +431,20 @@
   }
   /* 大标题与分类选项卡常驻: 贴着屏幕顶部, 下缘一条渐隐的过渡层, 内容从它下面滑过去。 */
   header {
-    position: sticky; top: 0; z-index: 30; padding-bottom: 10px;
-    background: linear-gradient(180deg, var(--bg) calc(100% - 16px), rgba(255,255,255,0));
+    position: sticky; top: 0; z-index: 30; padding-bottom: 8px;
+    display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(180deg, var(--bg) calc(100% - 12px), rgba(255,255,255,0));
   }
-  header .ticon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: 0 9px 2px 0; color: var(--secondary); vertical-align: -3px; }
+  header .ticon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: 0; flex: none; color: var(--secondary); }
+  header h1 { display: block; margin: 0; }
   header .ticon[hidden] { display: none; }
-  #gtabs { position: sticky; top: var(--headh, 84px); z-index: 26; }
+  #gtabs { position: sticky; top: var(--headh, 84px); z-index: 26; isolation: isolate; }
+  #gtabs::before {
+    content: ''; position: absolute; inset: -8px -100vw -8px; z-index: -1;
+    background: var(--bg);
+    /* 上缘接大标题的渐隐, 下缘也留一条渐隐, 卡片从下面滑过时不会一刀切 */
+    box-shadow: 0 8px 0 -4px var(--bg);
+  }
   @media (prefers-reduced-motion: reduce) {
     .sheet, .sheet-wrap.open .sheet { transition: none; }
     .view.push, .view.pop { animation: none; }
@@ -1461,6 +1469,8 @@ Object.assign(EXTRA.zh, {
   up_perm: '需要先在电视上允许安装，已打开对应设置',
   up_fail_dl: '下载失败，再点一下重试',
   up_hint: '和电视面板同一套更新源：查到新版本才会出现「下载并安装」。',
+  pin_confirm: '再输入一遍确认',
+  pin_mismatch: '两次输入不一致，请重新设置',
   hidden_pin_hint: '隐藏的卡片需要输一次密码才能查看。',
   hidden_live_h: '隐藏的直播卡片',
   hidden_live_none: '没有隐藏的直播卡片。',
@@ -1481,6 +1491,8 @@ Object.assign(EXTRA.en, {
   up_perm: 'Allow installs on the TV first — the setting is open',
   up_fail_dl: 'Download failed, tap to retry',
   up_hint: 'Same update source as the TV panel; “Download and install” appears only when a newer version is found.',
+  pin_confirm: 'Type the PIN again to confirm',
+  pin_mismatch: 'The two entries differ — start again',
   hidden_pin_hint: 'Hidden cards need one PIN entry to view.',
   hidden_live_h: 'Hidden live cards',
   hidden_live_none: 'No hidden live cards.',
@@ -2627,11 +2639,19 @@ function openKids() {
 function pinSheet(mode, arrowsDefault, done) {
   let arrows = !!arrowsDefault;
   let typed = '';
+  let first = null;   // create 要输两遍: 第一遍存这里, 第二遍核对(和电视面板一样)
   const reopen = () => pinSheet(mode, arrows, done);
   openSheet(body => {
-    const title = mode === 'off' ? t('pin_off_title') : mode === 'create' ? t('pin_new') : t('pin_verify_title');
-    body.appendChild(el('h3', '', title));
-    body.appendChild(el('p', 'meta', arrows ? t('pin_arrows_hint') : t('pin_digits_hint')));
+    const titleEl = el('h3', '', '');
+    const metaEl = el('p', 'meta', '');
+    const paintTitle = () => {
+      titleEl.textContent = mode === 'off' ? t('pin_off_title')
+        : mode === 'verify' ? t('pin_verify_title')
+        : (first === null ? t('pin_new') : t('pin_confirm'));
+      metaEl.textContent = arrows ? t('pin_arrows_hint') : t('pin_digits_hint');
+    };
+    paintTitle();
+    body.append(titleEl, metaEl);
     if (mode === 'create') {
       const tabs = el('div', 'ptabs');
       [t('pin_digits'), t('pin_arrows')].forEach((label, i) => {
@@ -2651,6 +2671,13 @@ function pinSheet(mode, arrowsDefault, done) {
     body.appendChild(dots);
     const submit = async () => {
       if (typed.length !== 4) return;
+      if (mode === 'create') {
+        if (first === null) { first = typed; typed = ''; paintDots(); paintTitle(); return; }
+        if (first !== typed) {
+          toast(t('pin_mismatch'));
+          first = null; typed = ''; paintDots(); paintTitle(); return;
+        }
+      }
       const prefix = mode === 'create' ? 'set:' : mode === 'off' ? 'off:' : 'check:';
       const ok = await setPref('pin', prefix + typed, null, mode === 'verify');
       if (!ok) { if (mode !== 'create') toast(t('pin_wrong')); typed = ''; paintDots(); return; }
@@ -2676,12 +2703,12 @@ function pinSheet(mode, arrowsDefault, done) {
       pad.append(key('←', () => enter('L'), 'l'), el('span'), key('→', () => enter('R'), 'r'));
       pad.append(el('span'), key('↓', () => enter('D'), 'd'), el('span'));
       body.appendChild(pad);
-      body.appendChild(key(t('pin_back'), back, 'wide'));
     } else {
       const pad = el('div', 'pin-num');
       for (const n of ['1', '2', '3', '4', '5', '6', '7', '8', '9']) pad.appendChild(key(n, () => enter(n)));
-      pad.appendChild(key(t('pin_back'), back, 'del'));
-      pad.appendChild(key('0', () => enter('0')));
+      // 下排只有 0: 左右各留空格, 0 落在中间那一列
+      pad.appendChild(el('span'));
+      pad.appendChild(key('0', () => enter('0'), 'zero'));
       pad.appendChild(el('span'));
       body.appendChild(pad);
     }
