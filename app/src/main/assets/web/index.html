@@ -86,6 +86,10 @@
   .pcard .diag { margin: 0 12px 10px; }
   .pcard .row { padding: 0 12px 12px; margin-top: 0; }
   .pcard .row .btn { border-radius: 10px; }
+  /* 只有说明、没有标题的一块: 顶在气泡最上面, 与选项卡名字不重复。 */
+  .pcard .pnote { color: var(--secondary); font-size: 13px; line-height: 1.45; margin: 0; padding: 13px 16px 3px; }
+  /* 一行两颗按钮时与上面那排同款, 左右平分。 */
+  .pcard .row .pact { flex: 1 1 0; width: auto; min-width: 0; }
   /* 分类选项卡: 没选中的只留图标, 选中的那颗长出图标+名字。 */
   .gtabs { display: flex; gap: 4px; align-items: center; background: var(--fill); border-radius: 10px; padding: 3px; margin: 6px 0 4px; max-width: 100%; overflow: hidden; }
   .gtabs button {
@@ -296,7 +300,7 @@
     display: block; height: 220px; margin: 10px 0 0; overflow: auto; -webkit-overflow-scrolling: touch;
     font: 12px/1.4 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-word;
     -webkit-user-select: text; user-select: text;
-    color: var(--label); background: var(--card); border-radius: 12px; padding: 10px;
+    color: var(--label); background: var(--fill); border-radius: 10px; padding: 12px;
   }
 
   /* Tab bar. */
@@ -509,10 +513,10 @@
     <button class="pact" id="powerOff" data-i18n="power_off" hidden></button>
   </div>
 
-  <!-- 备份与恢复 -->
+  <!-- 备份与恢复: 标题就是上面那颗选项卡, 卡里不再重复一遍 -->
   <div class="ogroup" data-o="backup" hidden>
     <div class="list pcard">
-      <div class="item phead"><span class="txt"><span data-i18n="backup_h"></span><span class="sub" data-i18n="backup_hint"></span></span></div>
+      <p class="pnote" data-i18n="backup_hint"></p>
       <div class="prows">
         <a class="pact" id="backupBtn" data-i18n="backup_export"></a>
         <button class="pact" id="restoreBtn" data-i18n="backup_import"></button>
@@ -524,15 +528,15 @@
   <!-- 反馈问题 -->
   <div class="ogroup" data-o="feedback" hidden>
     <div class="list pcard">
-      <div class="item phead"><span class="txt"><span data-i18n="feedback_h"></span><span class="sub" data-i18n="feedback_hint"></span></span></div>
+      <p class="pnote" data-i18n="feedback_hint"></p>
       <div class="prows">
         <button class="pact" id="diagBtn" data-i18n="diag_show"></button>
         <button class="pact" id="logBtn" data-i18n="diag_export"></button>
       </div>
       <pre class="diag" id="diag" hidden></pre>
       <div class="row" id="diagActions" hidden>
-        <button class="btn plain" id="diagCopy" data-i18n="diag_copy"></button>
-        <button class="btn plain" id="diagDownload" data-i18n="diag_github"></button>
+        <button class="pact" id="diagCopy" data-i18n="diag_copy"></button>
+        <button class="pact" id="diagDownload" data-i18n="diag_github"></button>
       </div>
     </div>
   </div>
@@ -560,7 +564,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1116;
+const PAGE_VER = 1117;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -592,7 +596,7 @@ const TEXTS = {
   "设置",
   "添加照片",
   "反馈问题",
-  "这台电视上 Aerial 有问题或想让 Aerial 适配它：把下面的诊断信息贴上或下载即可。只含机型、系统版本与最近 24 小时日志，不含账号、Wi-Fi 名称和照片。",
+  "有问题或想让 Aerial 适配这台电视：把下面的诊断信息贴上或下载即可。只含机型、系统版本与最近 24 小时日志。",
   "显示诊断信息",
   "复制",
   "下载",
@@ -1542,7 +1546,7 @@ function closeSheet() {
 $('#scrim').onclick = closeSheet;
 
 // Replace the browser's native confirm() with a sheet styled like the rest of the page.
-function confirmSheet(message, okLabel) {
+function confirmSheet(message, okLabel, danger) {
   return new Promise(resolve => {
     let done = false;
     const oldScrim = $('#scrim').onclick;
@@ -1555,7 +1559,8 @@ function confirmSheet(message, okLabel) {
     openSheet(body => {
       body.appendChild(el('h3', '', message));
       const list = el('div', 'list');
-      const okB = el('button', 'item center danger', okLabel || '删除');
+      const okB = el('button', danger === false ? 'item center tint' : 'item center danger', okLabel || '删除');
+      if (danger === false) okB.style.fontWeight = '600';
       okB.onclick = () => finish(true);
       const cancel = el('button', 'item center tint', t('cancel')); cancel.style.fontWeight = '600';
       cancel.onclick = () => finish(false);
@@ -1986,7 +1991,8 @@ async function sendVideos(files, btn) {
   toast(t('toast_videos_added', { n: added, failed: files.length - added }));
 }
 $('#powerOff').onclick = async () => {
-  if (!confirm(t('power_off_confirm'))) return;
+  // 系统原生 confirm 会在标题里带上「网址为 https://… 的网页显示」, 与页面风格也不搭, 改用页面自己的弹层。
+  if (!(await confirmSheet(t('power_off_confirm'), t('power_off'), false))) return;
   try { const next = await api('api/power/off', {}); toast(t(next.saved ? 'power_off_done' : 'power_off_fail')); } catch (e) { toast(t('power_off_fail')); }
 };
 
