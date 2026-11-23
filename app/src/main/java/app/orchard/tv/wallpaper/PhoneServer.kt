@@ -61,6 +61,8 @@ import java.security.SecureRandom
  */
 class PhoneServer private constructor(private val context: Context, private val token: String, port: Int = PORT) : NanoHTTPD(port) {
     @Volatile var isSecure = false
+    // 上一次报上来的手机页版本: 同版本只记一条, 免得每 1.5 秒的轮询都把日志刷满。
+    @Volatile private var lastPageVersion = -1
     var httpsError: String? = null
 
     override fun serve(session: IHTTPSession): Response {
@@ -179,13 +181,32 @@ class PhoneServer private constructor(private val context: Context, private val 
                     json(state())
                 }
                 // B 站账号: 手机上扫码登录, 与电视面板共用 BiliLogin / BiliAccount。
-                path == "/api/bili" && session.method == Method.GET -> json(JSONObject()
-                    .put("loggedIn", BiliAccount.loggedIn)
-                    .put("uid", BiliAccount.uid ?: "")
-                    .put("phase", BiliPhone.phase)
-                    .put("hasQr", BiliPhone.qrUrl != null)
-                    // 顺手把二维码里那条链接也带上: 手机页的「打开登录页」直接挂成 <a href>, 不用再问一次。
-                    .put("url", BiliPhone.qrUrl ?: ""))
+                path == "/api/bili" && session.method == Method.GET -> {
+                    // 页面版本握手: 手机那头可能还开着上一版 index.html, 那份旧代码不是电视能改的,
+                    // 只能告诉它「本机已经换了版本」, 让它自己重载一次, 换成本机包里这一份。
+                    val pv = queryOf(session.queryParameterString, "pv").toIntOrNull()
+                    val ver = app.orchard.tv.BuildConfig.VERSION_CODE
+                    if (pv != null && pv != ver && pv != lastPageVersion) {
+                        lastPageVersion = pv
+                        app.orchard.tv.system.DiagLog.i("手机页版本 $pv 与本机 $ver 不一致, 已请手机页重载")
+                    }
+                    json(JSONObject()
+                        .put("loggedIn", BiliAccount.loggedIn)
+                        .put("uid", BiliAccount.uid ?: "")
+                        .put("phase", BiliPhone.phase)
+                        .put("hasQr", BiliPhone.qrUrl != null)
+                        .put("ver", ver)
+                        // 顺手把二维码里那条链接也带上: 手机页的「打开登录页」直接挂成 <a href>, 不用再问一次。
+                        .put("url", BiliPhone.qrUrl ?: ""))
+                }
+                // 手机页点了「打开 B 站登录页」: 只记一条日志, 用来分清「点没点到新页面」和「外壳有没有真跳」。
+                session.method == Method.POST && path == "/api/bili/open" -> {
+                    val f = form(session)
+                    app.orchard.tv.system.DiagLog.i(
+                        "手机页点了打开登录页: 页面版本 ${f["pv"] ?: "未知"}, 地址 ${(f["url"] ?: "").take(120).ifEmpty { "(空)" }}"
+                    )
+                    json(JSONObject().put("ok", true))
+                }
                 session.method == Method.POST && path == "/api/bili" -> {
                     when (form(session)["action"]) {
                         "logout" -> {

@@ -548,6 +548,18 @@
 
 <script>
 const base = location.pathname.replace(/\/?$/, '/');
+/* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
+   (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
+const PAGE_VER = 1114;
+const pageVerCheck = (r) => {
+  if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
+  try {
+    const k = 'pvReload', last = +sessionStorage.getItem(k) || 0;
+    if (Date.now() - last < 60000) return;
+    sessionStorage.setItem(k, String(Date.now()));
+  } catch (e) {}
+  location.reload();
+};
 const $ = s => document.querySelector(s);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 let state = null, stateJson = '';
@@ -2073,6 +2085,12 @@ function biliCard(card) {
   const qrApp = el('a', 'pact');
   qrApp.setAttribute('rel', 'noopener');
   qrApp.hidden = true;
+  // 点下去整页就要交给系统了, 这里先留一条记录再走: 万一还是不跳, 电视日志里能看清点到的是哪一版、
+  // 哪个地址、有没有真的触发跳转, 不用再靠猜。
+  qrApp.onclick = (e) => {
+    if (!qrUrl) { e.preventDefault(); toast(t('bili_copy_manual')); return; }
+    try { fetch(base + 'api/bili/open', { method: 'POST', body: new URLSearchParams({ url: qrUrl, pv: PAGE_VER }), keepalive: true }); } catch (e2) {}
+  };
   const openRow = el('div', 'prow');
   openRow.append(qrApp, qrOpen);
   qrBox.append(img, qrTip, openRow);
@@ -2131,7 +2149,8 @@ function biliCard(card) {
   };
   async function load() {
     try {
-      const r = await (await fetch(base + 'api/bili')).json();
+      const r = await (await fetch(base + 'api/bili?pv=' + PAGE_VER)).json();
+      pageVerCheck(r);
       apply(r);
     } catch (e) {}
   }
