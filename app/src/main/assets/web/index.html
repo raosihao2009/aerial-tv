@@ -61,6 +61,8 @@
   .item .chev { color: var(--tertiary); flex-shrink: 0; }
   /* 个性化设置: 一项设置一张圆角卡, 卡里选项一排一个, 当前值打勾并染成主题色。 */
   .pcard { margin-top: 10px; }
+  /* 吸顶标题下面那道 24px 渐隐会压住页面第一张气泡, 让它整体往下站一点。 */
+  #homeBody > .pcard:first-child, #liveBody > .pcard:first-child { margin-top: 28px; }
   .pcard .phead { cursor: default; }
   .pcard .phead:active { background: none; }
   /* 选项一排按钮: 一排摆满, 文字左右居中; 选中不画勾, 直接染主题色。 */
@@ -142,21 +144,22 @@
   }
   .pcard .pfield .psave:active { background: var(--fill); box-shadow: inset 0 0 0 .5px rgba(60,60,67,.12); }
   .pcard .pfield .psave:disabled {
-    background: var(--card); color: rgba(0,122,255,.55); cursor: default;
+    background: var(--card); color: var(--tint); -webkit-text-fill-color: var(--tint); opacity: .72; cursor: default;
     box-shadow: inset 0 0 0 .5px rgba(60,60,67,.10), 0 1px 2px rgba(0,0,0,.05), 0 3px 8px rgba(0,0,0,.05);
   }
   /* 白色气泡里的按钮用浅灰底, 才看得出是一颗按钮。 */
   .pact.soft { background: var(--fill); color: var(--tint); box-shadow: none; }
   .pact.soft:active { background: var(--fill-solid); }
   .pact.soft.danger { color: var(--danger); }
-  /* 不放进气泡的按钮(详情页的取消): 白底一块, 单独一条。 */
-  .sheet .psolo {
+  /* 不放进气泡的按钮(详情页的取消、解散文件夹): 白底一块, 单独一条。 */
+  .psolo {
     appearance: none; border: 0; border-radius: 10px; background: var(--card); color: var(--tint);
     display: block; width: 100%; margin-top: 10px; padding: 12px 10px;
     font-size: 15px; font-weight: 600; text-align: center; cursor: pointer;
     box-shadow: 0 1px 3px rgba(0,0,0,.10);
   }
-  .sheet .psolo:active { background: var(--fill); box-shadow: none; }
+  .psolo:active { background: var(--fill); box-shadow: none; }
+  .psolo.danger { color: var(--danger); }
   /* 一行两颗按钮时与上面那排同款, 左右平分。 */
   .pcard .row .pact { flex: 1 1 0; width: auto; min-width: 0; }
   .pcard .prow .pact { flex: 1 1 0; width: auto; min-width: 0; }
@@ -403,6 +406,7 @@
   }
   /* 网格放进气泡里时, 自己不再是一张白卡(气泡已经是一张了)。 */
   .agrid.incard { background: none; border-radius: 0; padding: 0; }
+  .agrid.incard .shelf { left: 0; right: 0; top: 0; }
   .agrid .shelf { position: absolute; left: 4px; right: 4px; top: 4px; border-radius: 11px; background: var(--fill); pointer-events: none; }
   .atile {
     position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; cursor: grab;
@@ -413,7 +417,7 @@
     box-shadow: 0 1px 2px rgba(0,0,0,.14); transition: transform .16s var(--ease-out), box-shadow .2s ease;
   }
   .atile .tpic img { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; -webkit-user-drag: none; }
-  .atile .n { width: 100%; font-size: 10.5px; line-height: 1.25; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .atile .n { display: block; width: 100%; font-size: 10.5px; line-height: 1.25; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .atile:active .tpic { transform: scale(.95); }
   .agrid.sorting .atile:not(.lift) { transition: transform .26s var(--ease-out); }
   .atile.lift { z-index: 3; cursor: grabbing; }
@@ -672,7 +676,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1125;
+const PAGE_VER = 1126;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -3270,34 +3274,38 @@ function buildHomeView(view, L) {
 }
 
 function buildFolderView(view, folder, apps) {
-  // The folder's name, edited in place.
-  view.appendChild(el('h2', '', t('folder_ph')));
-  const nl = el('div', 'list'); view.appendChild(nl);
-  const form = el('form', 'item field');
+  // 文件夹名字: 一张气泡, 浅灰输入框 + 白底「保存」。
+  const c1 = el('div', 'list pcard'); view.appendChild(c1);
+  c1.appendChild(el('div', 'ptitle', t('folder_ph')));
+  const b1 = el('div', 'pbody'); c1.appendChild(b1);
+  const form = el('form', 'pfield');
   const input = el('input'); input.type = 'text'; input.value = folder.label; input.maxLength = 24; input.placeholder = t('folder_ph');
   input.setAttribute('enterkeyhint', 'done'); input.autocomplete = 'off'; input.setAttribute('aria-label', t('folder_ph'));
-  const save = el('button', 'link', t('save'));
+  const save = el('button', 'psave', t('save'));
   const sync = () => save.disabled = !input.value.trim() || input.value.trim() === folder.label;
-  input.oninput = sync; sync(); form.append(input, save); nl.appendChild(form);
+  input.oninput = sync; sync(); form.append(input, save); b1.appendChild(form);
   form.onsubmit = async e => {
     e.preventDefault(); const name = input.value.trim(); if (!name) return; input.blur();
     try { const next = await api('api/folder/name', { id: folder.id, name }); take(next); toast(t(next.saved ? 'toast_folder_renamed' : 'toast_rename_fail')); }
     catch (err) { toast(t('toast_rename_fail')); }
   };
 
-  view.appendChild(el('h2', '', t('folder_count', { n: apps.length })));
-  const grid = tileGrid(apps, false); view.appendChild(grid);
+  // 卡片: 一张气泡, 标题 + 说明 + 卡片网格。
+  const c2 = el('div', 'list pcard'); view.appendChild(c2);
+  c2.appendChild(el('div', 'ptitle', t('folder_count', { n: apps.length })));
+  c2.appendChild(el('p', 'pdesc', t('folder_hint')));
+  const b2 = el('div', 'pbody'); c2.appendChild(b2);
+  const grid = tileGrid(apps, false); grid.classList.add('incard'); b2.appendChild(grid);
   sortableGrid(grid, apps.map(e => e.key), (key, target) => lay({ op: 'movein', key, target }), i => tileSheet(apps[i], folder));
-  view.appendChild(el('p', 'foot', t('folder_hint')));
 
-  const al = el('div', 'list'); al.style.marginTop = '28px'; view.appendChild(al);
-  action(al, t('ungroup'), 'danger', () => openSheet(body => {
-    body.appendChild(el('h3', '', t('ungroup_confirm', { name: folder.label }))).style.marginBottom = '16px';
-    const l = el('div', 'list'); body.appendChild(l);
-    action(l, t('ungroup'), 'danger', () => { closeSheet(); lay({ op: 'ungroup', folder: folder.id }, () => toast(t('toast_ungrouped'))); });
-    const c = el('div', 'list'); body.appendChild(c);
-    action(c, t('cancel'), 'tint', closeSheet).style.fontWeight = '600';
-  }));
+  // 解散文件夹: 卡外一块白, 红字。
+  const dz = el('button', 'psolo danger', t('ungroup'));
+  dz.type = 'button'; dz.style.marginTop = '22px';
+  dz.onclick = async () => {
+    const ok = await confirmSheet(t('ungroup_confirm', { name: folder.label }), t('ungroup'), true);
+    if (ok) lay({ op: 'ungroup', folder: folder.id }, () => toast(t('toast_ungrouped')));
+  };
+  view.appendChild(dz);
 }
 
 function tileGrid(entries, shelf) {
