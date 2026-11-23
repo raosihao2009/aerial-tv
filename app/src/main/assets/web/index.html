@@ -10,6 +10,8 @@
   :root {
     --bg: #f2f2f7; --card: #ffffff; --label: #000; --secondary: rgba(60,60,67,.6); --tertiary: rgba(60,60,67,.3);
     --sep: rgba(60,60,67,.18); --tint: #007aff; --fill: rgba(118,118,128,.12); --danger: #ff3b30;
+    /* --fill 是半透明的, 挂在吸顶条上会透出下面的内容; 这个是它压在页面底色上合成出的实色。 */
+    --fill-solid: #e4e4e9;
     --bar: rgba(249,249,249,.82); --bar-line: rgba(0,0,0,.14); --scrim: rgba(0,0,0,.32); --sheet: #f2f2f7;
     --ease-out: cubic-bezier(.23,1,.32,1); --ease-drawer: cubic-bezier(.32,.72,0,1);
     --tabbar: calc(50px + env(safe-area-inset-bottom));
@@ -18,6 +20,7 @@
     :root {
       --bg: #000; --card: #1c1c1e; --label: #fff; --secondary: rgba(235,235,245,.6); --tertiary: rgba(235,235,245,.3);
       --sep: rgba(84,84,88,.6); --tint: #0a84ff; --fill: rgba(118,118,128,.24); --danger: #ff453a;
+      --fill-solid: #1c1c1f;
       --bar: rgba(22,22,22,.82); --bar-line: rgba(255,255,255,.12); --scrim: rgba(0,0,0,.5); --sheet: #1c1c1e;
     }
   }
@@ -92,11 +95,14 @@
   .pcard .pver b { font-weight: 400; }
   /* 只有说明、没有标题的一块: 顶在气泡最上面, 与选项卡名字不重复。 */
   .pcard .pnote { color: var(--secondary); font-size: 13px; line-height: 1.45; margin: 0; padding: 13px 16px 3px; }
+  /* 隐藏卡: 标题、说明、按钮同在一张气泡里。 */
+  .pcard .ptitle { padding: 15px 16px 0; font-size: 17px; font-weight: 600; color: var(--label); }
+  .pcard .pdesc { margin: 0; padding: 6px 16px 0; color: var(--secondary); font-size: 13px; line-height: 1.45; }
   /* 一行两颗按钮时与上面那排同款, 左右平分。 */
   .pcard .row .pact { flex: 1 1 0; width: auto; min-width: 0; }
   .pcard .prow .pact { flex: 1 1 0; width: auto; min-width: 0; }
   /* 分类选项卡: 没选中的只留图标, 选中的那颗长出图标+名字。 */
-  .gtabs { display: flex; gap: 4px; align-items: center; background: var(--fill); border-radius: 10px; padding: 3px; margin: 6px 0 4px; max-width: 100%; overflow: hidden; }
+  .gtabs { display: flex; gap: 4px; align-items: center; background: var(--fill-solid); border-radius: 10px; padding: 3px; margin: 6px 0 4px; max-width: 100%; overflow: hidden; }
   .gtabs button {
     appearance: none; border: 0; background: none; border-radius: 8px; height: 36px;
     display: flex; align-items: center; justify-content: center; gap: 6px;
@@ -295,8 +301,12 @@
   .wx span { color: var(--secondary); font-size: 15px; }
   .field { display: flex; align-items: center; gap: 8px; }
   .field input {
-    flex: 1; min-width: 0; font: inherit; font-size: 17px; color: var(--label); background: none; border: 0; outline: none; padding: 0;
+    flex: 1; min-width: 0; font: inherit; font-size: 17px; color: var(--label);
+    background: var(--fill); border: 0; outline: none; border-radius: 9px; padding: 9px 12px;
+    transition: background-color .15s ease, box-shadow .15s ease;
   }
+  /* 输入框要能看出是能打字的地方: 浅灰底, 聚焦时白底 + 主题色描边。 */
+  .field input:focus { background: var(--card); box-shadow: 0 0 0 1.5px var(--tint), 0 1px 3px rgba(0,0,0,.10); }
   .field input::placeholder { color: var(--tertiary); }
   .field .link { font-weight: 600; }
   .field .link[disabled] { opacity: .4; }
@@ -446,13 +456,15 @@
   header .ticon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: 0; flex: none; color: var(--secondary); }
   header h1 { display: block; margin: 0; }
   header .ticon[hidden] { display: none; }
-  #gtabs { position: sticky; top: var(--headh, 84px); z-index: 11; isolation: isolate; }
+  /* overflow 必须可见: 容器自己带圆角, hidden 会把垫底裁到圆角以内, 四个角就又透出下面的图片 */
+  #gtabs { position: sticky; top: var(--headh, 84px); z-index: 11; isolation: isolate; overflow: visible; }
   /* 选项卡自己垫一块不透明的底(左右铺满), 免得下面的卡片从缝里透出来 */
   #gtabs::before { content: ''; position: absolute; inset: -6px 0 0; z-index: -1; background: var(--bg); }
   /* 过渡层放在选项卡下方: 卡片从下面滑上来时是渐隐, 大标题与选项卡之间是硬边 */
   #gtabs::after {
-    content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 16px; z-index: -1;
-    background: var(--bg); -webkit-mask-image: linear-gradient(180deg, #000, transparent); mask-image: linear-gradient(180deg, #000, transparent);
+    content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 24px; z-index: -1;
+    background: var(--bg);
+    -webkit-mask-image: linear-gradient(180deg, #000 0, #000 40%, transparent); mask-image: linear-gradient(180deg, #000 0, #000 40%, transparent);
     pointer-events: none;
   }
   @media (prefers-reduced-motion: reduce) {
@@ -485,7 +497,6 @@
 <!-- Live preview sources -->
 <section data-tab="live" hidden>
   <div id="liveBody"></div>
-  <p class="foot" data-i18n="live_hint"></p>
 </section>
 
 <!-- More -->
@@ -599,7 +610,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1122;
+const PAGE_VER = 1123;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1801,9 +1812,10 @@ function renderLive() {
   box.appendChild(grid);
   box.appendChild(el('p', 'foot', '和电视上的排列一样。按住图标拖到想放的位置；点一下可以改名、换图标、隐藏、配置直播地址等。'));
 
-  // 添加按钮(网格下方)
-  const addRow = el('div', 'list'); box.appendChild(addRow);
-  const addBtn = el('div', 'item tint center', '+ 添加直播卡片');
+  // 添加按钮(网格下方): 和「添加照片」同一款白底按钮, 不再套一层气泡。
+  const addBtn = el('button', 'btn plain add', '+ 添加直播卡片');
+  addBtn.type = 'button';
+  box.appendChild(addBtn);
   
   addBtn.onclick = async () => {
     try {
@@ -1814,7 +1826,7 @@ function renderLive() {
       if (ns) liveSheet(ns);
     } catch (e) {}
   };
-  addRow.appendChild(addBtn);
+
 
   // 拖拽+点击
   sortableGrid(grid, visible.map(s => s.id),
@@ -1828,18 +1840,14 @@ function renderLive() {
     i => liveSheet(visible[i]));
 
   // 已隐藏列表(照主屏幕: 图标+名称+显示按钮); 设过家长密码的要先验一次, 验过才列出来、才放得回去。
-  box.appendChild(el('h2', '', t('hidden_live_h')));
   const lk = (prefs && prefs.kids) || {};
   if (lk.pinSet && !hiddenUnlocked && hidden.length) {
-    box.appendChild(el('p', 'foot', t('hidden_pin_hint')));
-    const hw = el('div', 'list pcard'), hp = el('div', 'prows');
-    const gate = el('button', 'pact', t('hidden_pin_show'));
-    gate.type = 'button';
-    gate.onclick = () => pinSheet('verify', !!lk.pinArrows, () => { hiddenUnlocked = true; renderLive(); });
-    hp.appendChild(gate); hw.appendChild(hp); box.appendChild(hw);
+    box.appendChild(hiddenGateCard(t('hidden_live_h'), t('hidden_pin_hint'), t('hidden_pin_show'),
+      () => pinSheet('verify', !!lk.pinArrows, () => { hiddenUnlocked = true; renderLive(); })));
     return;
   }
   if (!hidden.length) { box.appendChild(el('p', 'foot', t('hidden_live_none'))); return; }
+  box.appendChild(el('h2', '', t('hidden_live_h')));
   const hl = el('div', 'list'); box.appendChild(hl);
   hidden.forEach(s => {
     const row = el('div', 'item'); row.style.alignItems = 'center'; row.style.gap = '14px';
@@ -1855,6 +1863,19 @@ function renderLive() {
     b.onclick = ev => { ev.stopPropagation(); b.disabled = true; api('api/live-source/hide', { id: s.id, hide: '0' }).then(take).catch(() => {}); };
     row.appendChild(b); hl.appendChild(row);
   });
+}
+
+/* 隐藏卡片的气泡: 标题 + 说明 + 一颗按钮, 应用菜单和直播菜单共用。 */
+function hiddenGateCard(title, desc, label, onclick) {
+  const card = el('div', 'list pcard');
+  card.appendChild(el('div', 'ptitle', title));
+  card.appendChild(el('p', 'pdesc', desc));
+  const pr = el('div', 'prows');
+  const btn = el('button', 'pact', label);
+  btn.type = 'button';
+  btn.onclick = onclick;
+  pr.appendChild(btn); card.appendChild(pr);
+  return card;
 }
 
 function liveSheet(s) {
@@ -3094,21 +3115,19 @@ function buildHomeView(view, L) {
     i => { const e = L.home[i]; e.kind === 'folder' ? (arrView = e.id, renderArrange(true)) : tileSheet(e, null); });
   view.appendChild(el('p', 'foot', t('arrange_hint')));
 
-  view.appendChild(el('h2', '', t('hidden_h')));
-  // 设过密码的机器: 隐藏的卡片先验一次密码, 验过才列出来、才按得动。
+  // 设过密码的机器: 隐藏的卡片先验一次密码, 验过才列出来、才按得动。标题/说明/按钮同一张气泡。
   const hiddenKey = (prefs && prefs.kids) || {};
   if (hiddenKey.pinSet && !hiddenUnlocked && (L.hidden.length || (L.locked && L.hiddenCount))) {
-    view.appendChild(el('p', 'foot', t('hidden_pin_hint')));
-    const gwrap = el('div', 'list pcard');
-    const gpr = el('div', 'prows');
-    const gateBtn = el('button', 'pact', t('hidden_pin_show'));
-    gateBtn.type = 'button';
-    gateBtn.onclick = () => pinSheet('verify', !!hiddenKey.pinArrows, () => { hiddenUnlocked = true; hiddenRetry = true; renderArrange(); });
-    gpr.appendChild(gateBtn); gwrap.appendChild(gpr); view.appendChild(gwrap);
+    view.appendChild(hiddenGateCard(t('hidden_h'), t('hidden_pin_hint'), t('hidden_pin_show'),
+      () => pinSheet('verify', !!hiddenKey.pinArrows, () => { hiddenUnlocked = true; hiddenRetry = true; renderArrange(); })));
     return;
   }
-  if (L.locked && L.hiddenCount) { view.appendChild(el('p', 'foot', t('hidden_locked', { n: L.hiddenCount }))); return; }
+  /* 原来这里不看名单就有没有, 只要电视还锁着就直接让人去电视上输入密码 ——
+     手机上刚验过密码也会被这一条挡住, 名单明明已经发下来了却看不到。
+     电视端的锁只在"还没设手机侧密码、名单也没发下来"时才需要人去电视操作。 */
+  if (!L.hidden.length && L.locked && L.hiddenCount) { view.appendChild(el('p', 'foot', t('hidden_locked', { n: L.hiddenCount }))); return; }
   if (!L.hidden.length) { view.appendChild(el('p', 'foot', t('hidden_none'))); return; }
+  view.appendChild(el('h2', '', t('hidden_h')));
   const hl = el('div', 'list'); view.appendChild(hl);
   for (const e of L.hidden) {
     const row = el('div', 'item arow'); row.setAttribute('role', 'button'); row.tabIndex = 0;
