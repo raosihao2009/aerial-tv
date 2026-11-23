@@ -668,12 +668,14 @@ class PhoneServer private constructor(private val context: Context, private val 
             .apply { e.folder?.let { put("id", it.id) }; e.source?.let { put("port", it.label) } }
         val folders = JSONObject()
         AppCatalog.folderApps.forEach { (id, apps) -> folders.put(id, JSONArray().apply { apps.forEach { put(tile(it)) } }) }
-        // With the parental PIN on, hidden apps stay hidden from here: on the TV, seeing them takes the PIN.
+        // The phone shows its own PIN gate in front of the hidden list and only asks for the
+        // layout once the PIN has been checked, so the names are sent even while the TV is locked
+        // (4.21: the phone could not see or bring back a hidden app at all before).
         val locked = AerialSettings.locked
         return JSONObject()
             .put("home", JSONArray().apply { AppCatalog.home.forEach { put(tile(it)) } })
             .put("folders", folders)
-            .put("hidden", JSONArray().apply { if (!locked) AppCatalog.hiddenApps.forEach { put(tile(it)) } })
+            .put("hidden", JSONArray().apply { AppCatalog.hiddenApps.forEach { put(tile(it)) } })
             .put("hiddenCount", AppCatalog.hiddenApps.size)
             .put("columns", AerialSettings.homeColumns)
             .put("locked", locked)
@@ -695,7 +697,7 @@ class PhoneServer private constructor(private val context: Context, private val 
             "move" -> if (key in known && target in known) ({ ops.move(key, target) }) else null
             "movein" -> if (key in known && target in known) ({ ops.moveInFolder(key, target) }) else null
             "hide" -> if (key in known) ({ ops.hide(key) }) else null
-            "unhide" -> if (key in known && !AerialSettings.locked) ({ ops.unhide(key) }) else null
+            "unhide" -> if (key in known) ({ ops.unhide(key) }) else null
             "folder" -> if (key in known && !key.startsWith(FOLDER_KEY_PREFIX)) ({ ops.toFolder(key, folder.ifEmpty { null }) }) else null
             "unfolder" -> if (key in known) ({ ops.outOfFolder(key) }) else null
             "ungroup" -> if (folder in AppCatalog.folderApps) ({ ops.ungroup(folder) }) else null

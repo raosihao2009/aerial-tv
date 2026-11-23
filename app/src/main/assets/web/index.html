@@ -86,10 +86,15 @@
   .pcard .diag { margin: 0 12px 10px; }
   .pcard .row { padding: 0 12px 12px; margin-top: 0; }
   .pcard .row .btn { border-radius: 10px; }
+  /* 气泡里的小节标题(设置城市 / 设置城市的显示名称): 只做分组, 不加分隔线。 */
+  .pcard .psub { padding: 14px 16px 2px; font-size: 13px; color: var(--secondary); }
+  /* 当前版本那一行只是信息, 不加粗。 */
+  .pcard .pver b { font-weight: 400; }
   /* 只有说明、没有标题的一块: 顶在气泡最上面, 与选项卡名字不重复。 */
   .pcard .pnote { color: var(--secondary); font-size: 13px; line-height: 1.45; margin: 0; padding: 13px 16px 3px; }
   /* 一行两颗按钮时与上面那排同款, 左右平分。 */
   .pcard .row .pact { flex: 1 1 0; width: auto; min-width: 0; }
+  .pcard .prow .pact { flex: 1 1 0; width: auto; min-width: 0; }
   /* 分类选项卡: 没选中的只留图标, 选中的那颗长出图标+名字。 */
   .gtabs { display: flex; gap: 4px; align-items: center; background: var(--fill); border-radius: 10px; padding: 3px; margin: 6px 0 4px; max-width: 100%; overflow: hidden; }
   .gtabs button {
@@ -430,21 +435,26 @@
     .toast { bottom: 28px; left: calc(50% + var(--side) / 2); }
   }
   /* 大标题与分类选项卡常驻: 贴着屏幕顶部, 下缘一条渐隐的过渡层, 内容从它下面滑过去。 */
-  /* 弹层(sheet-wrap, z20)要盖住大标题, 所以这边压在 20 以下, 只要高过正文就够。 */
+  /* 弹层(sheet-wrap, z20)要盖住大标题, 所以这边压在 20 以下, 只要高过正文就够。
+     底色不透明并且左右铺到屏幕边(内容横向溢出时不会从两侧漏出来), 下缘不留渐隐 ——
+     过渡层放在分类选项卡的下方。 */
   header {
-    position: sticky; top: 0; z-index: 12; padding-bottom: 14px;
+    position: sticky; top: 0; z-index: 12; padding-bottom: 10px;
     display: flex; align-items: center; gap: 10px;
-    background: linear-gradient(180deg, var(--bg) calc(100% - 6px), rgba(255,255,255,0));
+    background: var(--bg); isolation: isolate;
   }
+  header::before { content: ''; position: absolute; top: 0; bottom: 0; left: -100vw; right: -100vw; background: var(--bg); z-index: -1; }
   header .ticon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: 0; flex: none; color: var(--secondary); }
   header h1 { display: block; margin: 0; }
   header .ticon[hidden] { display: none; }
   #gtabs { position: sticky; top: var(--headh, 84px); z-index: 11; isolation: isolate; }
-  #gtabs::before {
-    content: ''; position: absolute; inset: -8px -100vw -8px; z-index: -1;
-    background: var(--bg);
-    /* 上缘接大标题的渐隐, 下缘也留一条渐隐, 卡片从下面滑过时不会一刀切 */
-    box-shadow: 0 8px 0 -4px var(--bg);
+  /* 选项卡自己垫一块不透明的底(左右铺满), 免得下面的卡片从缝里透出来 */
+  #gtabs::before { content: ''; position: absolute; inset: -6px -100vw 0; z-index: -1; background: var(--bg); }
+  /* 过渡层放在选项卡下方: 卡片从下面滑上来时是渐隐, 大标题与选项卡之间是硬边 */
+  #gtabs::after {
+    content: ''; position: absolute; left: -100vw; right: -100vw; top: 100%; height: 16px; z-index: -1;
+    background: var(--bg); -webkit-mask-image: linear-gradient(180deg, #000, transparent); mask-image: linear-gradient(180deg, #000, transparent);
+    pointer-events: none;
   }
   @media (prefers-reduced-motion: reduce) {
     .sheet, .sheet-wrap.open .sheet { transition: none; }
@@ -505,18 +515,23 @@
     <div class="list pcard wxlist">
       <div class="item phead"><span class="txt"><span data-i18n="weather_place"></span><span class="sub" data-i18n="weather_place_hint"></span></span></div>
       <div class="item wx"><b id="wxNow">—</b><span id="wxPlace"></span></div>
+      <div class="psub" data-i18n="wx_city_h"></div>
       <form class="item field" id="cityForm">
         <input id="city" type="text" data-i18n-placeholder="city_ph" enterkeyhint="done" autocomplete="off">
         <button class="link" id="cityBtn" data-i18n="set" disabled></button>
       </form>
+      <div class="psub" data-i18n="wx_place_h"></div>
       <form class="item field" id="placeForm">
         <input id="placeName" type="text" placeholder="显示名（可选）" autocomplete="off">
         <button class="link" id="placeBtn" data-i18n="set"></button>
       </form>
-      <button class="item tint center" id="netBtn" type="button">按网络定位</button>
-      <button class="item tint center" id="satBtn" type="button">按卫星定位</button>
+      <div class="prows"><div class="prow">
+        <button class="pact" id="netBtn" type="button">按网络定位</button>
+        <button class="pact" id="satBtn" type="button">按卫星定位</button>
+      </div></div>
+      <!-- 最后那句「显示 南昌县 的天气」原来落在气泡外面, 现在收进气泡底部 -->
+      <p class="pnote" id="wxHint"></p>
     </div>
-    <p class="foot" id="wxHint"></p>
   </div>
 
   <div id="prefsFamily" class="pgroup" data-g="family" hidden></div>
@@ -585,7 +600,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1120;
+const PAGE_VER = 1121;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1476,6 +1491,8 @@ Object.assign(EXTRA.zh, {
   hidden_live_h: '隐藏的直播卡片',
   hidden_live_none: '没有隐藏的直播卡片。',
   hidden_pin_show: '输入密码查看',
+  wx_city_h: '设置城市',
+  wx_place_h: '设置城市的显示名称',
 });
 Object.assign(EXTRA.en, {
   tab_other_more: 'More',
@@ -1498,6 +1515,8 @@ Object.assign(EXTRA.en, {
   hidden_live_h: 'Hidden live cards',
   hidden_live_none: 'No hidden live cards.',
   hidden_pin_show: 'Enter PIN to view',
+  wx_city_h: 'City to show',
+  wx_place_h: 'Display name for the city',
 });
 const I18N = {};
 for (const l of LANGS) { I18N[l] = {}; KEYS.forEach((k, i) => I18N[l][k] = TEXTS[l][i]); }
@@ -2391,19 +2410,16 @@ function prefCard(it, after, save) {
   } else if (it.kind === 'bili') {
     biliCard(card);
   } else if (it.kind === 'open') {
+    // 与「按网络定位」那两颗同一款按钮, 不再是一条带箭头的列表行。
     const k = (prefs && prefs.kids) || {};
     const label = !k.enabled ? t('kids_row_off')
       : (k.kind === 'elders' ? t('kids_row_elders') : t('kids_row_kids'));
-    const row = el('button', 'item popen');
-    row.type = 'button';
-    row.appendChild(el('span', 'txt', label));
-    const chev = el('svg', 'chev'); chev.setAttribute('width', '8'); chev.setAttribute('height', '13');
-    chev.setAttribute('viewBox', '0 0 8 13'); chev.setAttribute('fill', 'none'); chev.setAttribute('stroke', 'currentColor');
-    chev.setAttribute('stroke-width', '2.2'); chev.setAttribute('stroke-linecap', 'round');
-    chev.innerHTML = '<path d="M1.5 1.5l5 5-5 5"/>';
-    row.appendChild(chev);
-    row.onclick = () => openKidsGate();
-    card.appendChild(row);
+    const wrap = el('div', 'prows');
+    const row = el('div', 'prow');
+    const btn = el('button', 'pact', label);
+    btn.type = 'button';
+    btn.onclick = () => openKidsGate();
+    row.appendChild(btn); wrap.appendChild(row); card.appendChild(wrap);
   }
   return card;
 }
@@ -3066,7 +3082,13 @@ function renderArrange(push) {
 }
 
 let hiddenUnlocked = false;
+/* 验过密码后要重拉一次 state: 电视被家长锁着时, 隐藏卡名单原来一条都不下发, 光重画是空的。 */
+let hiddenRetry = false;
 function buildHomeView(view, L) {
+  if (hiddenRetry && hiddenUnlocked && !L.hidden.length && L.hiddenCount) {
+    hiddenRetry = false;
+    api('api/state').then(take).catch(() => {});
+  }
   const grid = tileGrid(L.home, true); grid.style.marginTop = '14px'; view.appendChild(grid);
   sortableGrid(grid, L.home.map(e => e.key),
     (key, target) => lay({ op: 'move', key, target }),
@@ -3076,13 +3098,13 @@ function buildHomeView(view, L) {
   view.appendChild(el('h2', '', t('hidden_h')));
   // 设过密码的机器: 隐藏的卡片先验一次密码, 验过才列出来、才按得动。
   const hiddenKey = (prefs && prefs.kids) || {};
-  if (hiddenKey.pinSet && !hiddenUnlocked && L.hidden.length) {
+  if (hiddenKey.pinSet && !hiddenUnlocked && (L.hidden.length || (L.locked && L.hiddenCount))) {
     view.appendChild(el('p', 'foot', t('hidden_pin_hint')));
     const gwrap = el('div', 'list pcard');
     const gpr = el('div', 'prows');
     const gateBtn = el('button', 'pact', t('hidden_pin_show'));
     gateBtn.type = 'button';
-    gateBtn.onclick = () => pinSheet('verify', !!hiddenKey.pinArrows, () => { hiddenUnlocked = true; renderArrange(); });
+    gateBtn.onclick = () => pinSheet('verify', !!hiddenKey.pinArrows, () => { hiddenUnlocked = true; hiddenRetry = true; renderArrange(); });
     gpr.appendChild(gateBtn); gwrap.appendChild(gpr); view.appendChild(gwrap);
     return;
   }
