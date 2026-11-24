@@ -4,7 +4,7 @@ import android.content.Context
 import android.os.Build
 import android.util.Base64
 import app.orchard.tv.system.DiagLog
-import app.orchard.tv.system.online
+import app.orchard.tv.system.SystemProbe
 import app.orchard.tv.wallpaper.PhoneServer
 import org.json.JSONArray
 import org.json.JSONObject
@@ -82,7 +82,7 @@ object RelayClient {
         while (running) {
             try {
                 // 开机阶段网络接口可能还没就绪: 此时不要发请求, 避免卡在半通不通的黑洞连接上。
-                if (!online(context)) {
+                if (!SystemProbe.online(context)) {
                     if (connected) {
                         DiagLog.i("远程中继: 网络已断开, 等待网络恢复")
                         connected = false
