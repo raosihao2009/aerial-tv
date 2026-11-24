@@ -41,8 +41,12 @@ curl localhost:8799/healthz
 执行超时 `60` 秒（长轮询挂 20 秒，必须 > 20）；**单实例并发度设为 1**（状态在实例内存，
 多实例会丢队列）；HTTP 触发器选无需认证、保留公网 URL。逐步说明见 `fc/README.md`。
 
-部署到 `https://<随机串>.<地域>.fcapp.run` 后，把基址回填到电视端
-`RelayClient.DEFAULT_RELAY_URL` 和手机端配对页默认值，并访问 `/healthz` 验收。
+当前线上中继（华东1·杭州）：
+`https://aerial-relay-pwmyuzhaef.cn-hangzhou.fcapp.run`，健康检查 `/healthz`。
+电视端 `RelayClient.DEFAULT_RELAY_URL` 和手机端配对页默认值都已回填该基址。
+
+> 该地址是 FC 公共共享默认域名，控制台提示不建议生产长期使用；自用调试阶段可用，
+> 后续若要稳定长期挂，再绑定自定义域名。
 
 ### 历史路线：Cloudflare Worker（国内不可达，留档）
 

@@ -23,7 +23,7 @@ import java.security.SecureRandom
 object RelayClient {
     private const val PREFS = "remote_relay"
     /** 中继公网地址；留空表示远程通道关闭。 */
-    private const val DEFAULT_RELAY_URL = "https://relay.qust.me"
+    private const val DEFAULT_RELAY_URL = "https://aerial-relay-pwmyuzhaef.cn-hangzhou.fcapp.run"
 
     private const val HELLO_INTERVAL_MS = 30_000L
     private const val POLL_TIMEOUT_MS = 25_000
