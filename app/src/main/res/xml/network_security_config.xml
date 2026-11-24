@@ -29,4 +29,12 @@
         <domain includeSubdomains="true">d4.weather.com.cn</domain>
         <domain includeSubdomains="true">wgeo.weather.com.cn</domain>
     </domain-config>
+
+    <!-- 中继远程控制时, 电视端回环到本机手机服务 http://127.0.0.1:8790, 流量不出设备,
+         必须放行本机回环的明文; 公网地址仍走上面的限定与默认 HTTPS 策略。 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">::1</domain>
+    </domain-config>
 </network-security-config>
