@@ -25,6 +25,9 @@
     }
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  /* 滑到顶/底继续拖时, 浏览器默认会做一段回弹(带下拉刷新), 安卓 WebView 还会把整页拉伸。
+     这里两层一起关: CSS 这层管浏览器和 WebView 的页面侧, 遥控器里另外把 View 的 overscroll 也关了。 */
+  html, body { overscroll-behavior: none; overscroll-behavior-y: none; }
   html { -webkit-text-size-adjust: 100%; }
   body {
     margin: 0; background: var(--bg); color: var(--label);
@@ -684,7 +687,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1129;
+const PAGE_VER = 1130;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
