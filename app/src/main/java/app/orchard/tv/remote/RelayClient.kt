@@ -4,11 +4,13 @@ import android.content.Context
 import android.os.Build
 import android.util.Base64
 import app.orchard.tv.system.DiagLog
+import app.orchard.tv.system.online
 import app.orchard.tv.wallpaper.PhoneServer
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.io.IOException
 import java.security.SecureRandom
 
 /**
@@ -76,24 +78,42 @@ object RelayClient {
     private fun loop(context: Context, url: String, id: String, secret: String) {
         var backoff = 2_000L
         var lastHello = 0L
+        var connected = false
         while (running) {
             try {
+                // 开机阶段网络接口可能还没就绪: 此时不要发请求, 避免卡在半通不通的黑洞连接上。
+                if (!online(context)) {
+                    if (connected) {
+                        DiagLog.i("远程中继: 网络已断开, 等待网络恢复")
+                        connected = false
+                    }
+                    sleep(backoff)
+                    backoff = (backoff * 2).coerceAtMost(MAX_BACKOFF_MS)
+                    lastHello = 0L
+                    continue
+                }
                 if (System.currentTimeMillis() - lastHello > HELLO_INTERVAL_MS) {
                     hello(url, id, secret, deviceName())
                     lastHello = System.currentTimeMillis()
                 }
                 val reqs = poll(context, url, id, secret)
                 backoff = 2_000L
+                if (!connected) {
+                    DiagLog.i("远程中继: 中继已连接 id=$id")
+                    connected = true
+                }
                 for (req in reqs) handleRequest(context, url, id, secret, req)
             } catch (t: Throwable) {
                 if (!running) break
-                DiagLog.e("远程中继: 连接失败, ${backoff / 1000}s 后重试", t)
+                connected = false
+                val kind = t.javaClass.simpleName ?: t.javaClass.name
+                DiagLog.e("远程中继: 连接失败($kind: ${t.message}), ${backoff / 1000}s 后重试", t)
                 sleep(backoff)
                 backoff = (backoff * 2).coerceAtMost(MAX_BACKOFF_MS)
                 lastHello = 0L
             }
         }
-        DiagLog.i("远程中继: 已停止")
+        DiagLog.i("远程中继: 线程结束")
     }
 
     private fun hello(url: String, id: String, secret: String, name: String) {
@@ -186,12 +206,17 @@ object RelayClient {
             doOutput = true
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
         }
-        conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-        val status = conn.responseCode
-        val stream = if (status >= 400) conn.errorStream else conn.inputStream
-        val text = stream?.bufferedReader()?.use { it.readText() } ?: ""
-        conn.disconnect()
-        return runCatching { JSONObject(text) }.getOrNull()
+        try {
+            conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            val status = conn.responseCode
+            val stream = if (status >= 400) conn.errorStream else conn.inputStream
+            val text = stream?.bufferedReader()?.use { it.readText() } ?: ""
+            // 非 2xx 不能当成成功: 网关 401/502 之类要记进日志, 走正常退避重试。
+            if (status !in 200..299) throw IOException("HTTP $status: ${text.take(120)}")
+            return runCatching { JSONObject(text) }.getOrNull()
+        } finally {
+            conn.disconnect()
+        }
     }
 
     private fun deviceName(): String {
