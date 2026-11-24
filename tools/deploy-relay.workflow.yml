@@ -1,0 +1,30 @@
+name: Deploy Relay Worker
+
+# 把 relay/ 目录的中继 Worker 部署到 Cloudflare。
+# 这是模板: 复制到 .github/workflows/deploy-relay.yml 后才会被 Actions 识别。
+# 需要仓库 Secrets 里先配 CLOUDFLARE_API_TOKEN（可选 Variables 配 CLOUDFLARE_ACCOUNT_ID）。
+# Token 权限: Account - Workers Scripts:Edit; Zone - DNS:Edit、Workers Routes:Edit。
+
+on:
+  workflow_dispatch:
+  # 配好 Secret 后可放开: 推送到分支且改动 relay/ 时自动部署
+  # push:
+  #   branches: [merge/upstream-1.75]
+  #   paths: [relay/**]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Deploy relay Worker
+        working-directory: relay
+        run: npx wrangler@4 deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Health check
+        run: sleep 5 && curl -fsS https://relay.qust.me/healthz

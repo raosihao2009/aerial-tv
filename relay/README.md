@@ -41,7 +41,13 @@ cd relay
 npx wrangler@4 deploy
 ```
 
-部署需要本机 Cloudflare 登录态或 `CLOUDFLARE_API_TOKEN` 环境变量；首次绑自定义域时 wrangler 会在 `qust.me` 下自动配 DNS。
+也可以走仓库 Actions：模板在 `tools/deploy-relay.workflow.yml`，需要 CI 部署时复制到 `.github/workflows/deploy-relay.yml`：
+
+1. 仓库 Settings → Secrets and variables → Actions，新增 Secret `CLOUDFLARE_API_TOKEN`；多账号时再加 Variable `CLOUDFLARE_ACCOUNT_ID`。
+2. Token 权限：Account 级 Workers Scripts:Edit；Zone 级 DNS:Edit、Workers Routes:Edit，区域选 `qust.me`。
+3. Actions 页面手动运行 "Deploy Relay Worker"，部署后会自动请求 `/healthz` 校验。
+
+部署需要 Cloudflare 登录态或上面的 API Token；首次绑自定义域时 wrangler 会在 `qust.me` 下自动配 DNS。
 
 - 电视端默认中继地址写在 `RelayClient.DEFAULT_RELAY_URL`，当前为 `https://relay.qust.me`；手机端配对页填同一基址。
 - Worker 内存是 isolate 级，多实例之间不共享；MVP 单用户够用，后续要横向扩展再上 Durable Objects。
