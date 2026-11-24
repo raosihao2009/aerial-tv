@@ -7,7 +7,6 @@ import app.orchard.tv.system.DiagLog
 import app.orchard.tv.wallpaper.PhoneServer
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.SecureRandom
@@ -60,6 +59,12 @@ object RelayClient {
         running = false
         thread?.interrupt()
         thread = null
+    }
+
+    /** 供电视界面展示的配对信息: 设备码 + 密钥; 不存在时就地生成并持久化。 */
+    fun pairingInfo(context: Context): Pair<String, String> {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return deviceId(prefs) to deviceSecret(prefs)
     }
 
     private fun loop(context: Context, url: String, id: String, secret: String) {
