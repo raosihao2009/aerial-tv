@@ -1302,6 +1302,9 @@ return "http://$ip:$PORT/"
          * Kept from one start to the next, so the address can be bookmarked on a computer and the
          * phone's tab still works the next day.
          */
+        /** Exposed for the relay loopback: same 8-char token the local page uses. */
+        fun currentToken(context: Context): String = token(context)
+
         private fun token(context: Context): String {
             val prefs = context.getSharedPreferences("phone_page", Context.MODE_PRIVATE)
             prefs.getString("token", null)?.takeIf { it.length == 8 }?.let { return it }
