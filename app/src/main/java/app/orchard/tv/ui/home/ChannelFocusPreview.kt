@@ -247,6 +247,16 @@ fun ChannelFocusPreview(
                 // 就永远等不到确认, 只能一直转圈。恢复中由 recovering 挡。
                 !st.disposed && !st.paused && !recovering.get() && playingSourceId == id
             },
+            // 守卫不满足时写明是哪一项, 下次日志能直接定性看门狗为什么不再判定
+            isActiveReason = {
+                when {
+                    st.disposed -> "disposed"
+                    st.paused -> "paused"
+                    recovering.get() -> "recovering"
+                    playingSourceId != id -> "source 不符($playingSourceId)"
+                    else -> null
+                }
+            },
             frozenOnly = sens == AerialSettings.JankSensitivity.Off,
             onJank = { sid -> onJankHandler(sid) },
             // 画面一停就先顶加载图; 判明只是短暂停顿(复核通过/异常消失)再收掉
