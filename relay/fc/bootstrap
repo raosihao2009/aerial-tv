@@ -1,0 +1,4 @@
+#!/bin/sh
+# 阿里云 FC 自定义运行时入口（未在控制台配置启动命令时，FC 默认执行 /code/bootstrap）。
+cd "$(dirname "$0")"
+exec node server.js

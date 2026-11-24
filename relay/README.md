@@ -29,32 +29,30 @@ curl localhost:8799/healthz
 - 内存状态：重启后电视重新 hello 即可，不持久化。
 - MVP 限制：请求体上限 8MB；整机备份、大批量照片仍走局域网，不走中继。
 
-## 部署：Cloudflare Worker（已选定）
+## 部署：阿里云函数计算 FC（当前路线，国内可达）
 
-中继独立成一个 Worker，和既有静态站点 Worker 分开：
+中继打包成 **Web 函数 · 自定义运行时**，代码在 `fc/` 子目录，协议字段与本文一致：
 
-- `worker.js`：ES Module 入口，协议和 Node 版一致。
-- `wrangler.jsonc`：Worker 名 `aerial-relay`，自定义域 `relay.qust.me`。
+- `fc/server.js`：监听容器内 `0.0.0.0:9000`，关闭 keep-alive/超时打断。
+- `fc/bootstrap`：未在控制台配置启动命令时的默认入口。
+- 打包结果：`aerial-relay-fc.zip`（包根目录直接是 `server.js`）。
 
-```bash
-cd relay
-npx wrangler@4 deploy
-```
+控制台要点：运行环境选自定义运行时 Node.js；启动命令 `node server.js`；监听端口 `9000`；
+执行超时 `60` 秒（长轮询挂 20 秒，必须 > 20）；**单实例并发度设为 1**（状态在实例内存，
+多实例会丢队列）；HTTP 触发器选无需认证、保留公网 URL。逐步说明见 `fc/README.md`。
 
-也可以走仓库 Actions：模板在 `tools/deploy-relay.workflow.yml`，需要 CI 部署时复制到 `.github/workflows/deploy-relay.yml`：
+部署到 `https://<随机串>.<地域>.fcapp.run` 后，把基址回填到电视端
+`RelayClient.DEFAULT_RELAY_URL` 和手机端配对页默认值，并访问 `/healthz` 验收。
 
-1. 仓库 Settings → Secrets and variables → Actions，新增 Secret `CLOUDFLARE_API_TOKEN`；多账号时再加 Variable `CLOUDFLARE_ACCOUNT_ID`。
-2. Token 权限：Account 级 Workers Scripts:Edit；Zone 级 DNS:Edit、Workers Routes:Edit，区域选 `qust.me`。
-3. Actions 页面手动运行 "Deploy Relay Worker"，部署后会自动请求 `/healthz` 校验。
+### 历史路线：Cloudflare Worker（国内不可达，留档）
 
-部署需要 Cloudflare 登录态或上面的 API Token；首次绑自定义域时 wrangler 会在 `qust.me` 下自动配 DNS。
-
-- 电视端默认中继地址写在 `RelayClient.DEFAULT_RELAY_URL`，当前为 `https://relay.qust.me`；手机端配对页填同一基址。
-- Worker 内存是 isolate 级，多实例之间不共享；MVP 单用户够用，后续要横向扩展再上 Durable Objects。
+- `worker.js`：ES Module 入口；`wrangler.jsonc`：Worker 名 `aerial-relay`。
+- 实测 `*.workers.dev` 默认域名在国内被墙/污染；自定义域 `relay.qust.me` 属上游作者账号，
+  当前账号无该区域，无法绑定。仅作代码留档，不要再用这条路线部署。
 
 ### 备选：自托管 Node
 
-`server.js` 是零依赖 Node（≥18）实现，协议字段不变。任选一种 Node 能跑的托管或自有 VPS：
+`server.js` 是零依赖 Node 实现，协议字段不变。任选 Node 能跑的托管或自有 VPS：
 
 1. 上传本目录，启动命令 `node server.js`，端口读环境变量 `PORT`。
 2. 平台分配公开 HTTPS 地址后，把电视端默认地址和手机端配对页基址改成该地址。
