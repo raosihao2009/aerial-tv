@@ -182,9 +182,13 @@ object RelayClient {
             val v = headers.optString(key, "")
             if (v.isNotEmpty()) conn.setRequestProperty(key, v)
         }
-        if (body != null) {
+        // POST/PUT/DELETE 等方法: Android 的 HttpURLConnection 在没开输出流时, 空 body 的 POST
+        // 会发出畸形请求行, 本机 NanoHTTPD 解析不出方法(回 400 "verb unhandled"); 这里统一开启
+        // 输出流, body 为空就写零字节, 走正常的请求输出路径。
+        val writesBody = method != "GET" && method != "HEAD"
+        if (writesBody) {
             conn.doOutput = true
-            conn.outputStream.use { it.write(body) }
+            conn.outputStream.use { it.write(body ?: ByteArray(0)) }
         }
         val status = conn.responseCode
         val stream = if (status >= 400) conn.errorStream else conn.inputStream
