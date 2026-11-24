@@ -61,10 +61,11 @@
   .item .chev { color: var(--tertiary); flex-shrink: 0; }
   /* 个性化设置: 一项设置一张圆角卡, 卡里选项一排一个, 当前值打勾并染成主题色。 */
   .pcard { margin-top: 10px; }
-  /* 吸顶标题下面那道 24px 渐隐会压住页面第一张气泡, 让它整体往下站一点。
-     注意气泡外面还套了一层 .view(#homeBody 里 replaceChildren 的那个), 少写这一层
-     选择器就整条不生效 —— 之前 28px 一直没落地, 第一张气泡顶上被渐隐削掉一截。 */
-  #homeBody > .view > .pcard:first-child, #liveBody > .view > .pcard:first-child { margin-top: 32px; }
+  /* 吸顶标题下面那道 24px 渐隐会压住页面第一张气泡, 正文整体往下站一点。
+     别再按容器名字一条条列选择器了 —— 应用菜单是 #homeBody > .view > .pcard,
+     直播菜单是 #liveBody > .pcard, 个性化是 .pgroup > .pcard, 「更多」里还有 .hero,
+     只要漏掉一种就还是削顶。直接按页签给正文留这段空档, 第一张不管是卡还是大图都站得住。 */
+  main > section[data-tab] { padding-top: 22px; }
   .pcard .phead { cursor: default; }
   .pcard .phead:active { background: none; }
   /* 选项一排按钮: 一排摆满, 文字左右居中; 选中不画勾, 直接染主题色。 */
@@ -683,7 +684,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1128;
+const PAGE_VER = 1129;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
