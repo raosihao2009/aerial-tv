@@ -1,0 +1,9 @@
+// 远程中继 Worker（relay/worker.js）。部署：在 relay/ 目录下 npx wrangler@4 deploy
+{
+	"name": "aerial-relay",
+	"compatibility_date": "2026-10-13",
+	"main": "worker.js",
+	"routes": [
+		{ "pattern": "relay.qust.me", "custom_domain": true }
+	]
+}

@@ -107,6 +107,7 @@ import app.orchard.tv.apps.BiliAccount
 import app.orchard.tv.apps.BiliLogin
 import app.orchard.tv.apps.BiliLoginState
 import app.orchard.tv.settings.AerialSettings
+import app.orchard.tv.remote.RelayClient
 import app.orchard.tv.settings.Restricted
 import app.orchard.tv.settings.KidsTime
 import app.orchard.tv.guard.KidsWatch
@@ -2145,6 +2146,10 @@ private fun biliStatusText(state: BiliLoginState?): String? = when (state) {
 private fun PhoneCard(url: String?, qr: ImageBitmap?, bili: BiliMirror? = null) {
     val biliScan = bili != null && !bili.loggedIn && bili.focused && bili.qr != null
     val picture = if (biliScan) bili.qr else qr
+    val context = LocalContext.current
+    val remotePair = remember {
+        if (RelayClient.isConfigured(context)) RelayClient.pairingInfo(context) else null
+    }
     Column(Modifier.width(220.dp).padding(top = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier.size(176.dp).smoothBackground(Color.White, 18.dp).padding(14.dp),
@@ -2174,6 +2179,11 @@ private fun PhoneCard(url: String?, qr: ImageBitmap?, bili: BiliMirror? = null) 
             Spacer(Modifier.height(6.dp))
             // The whole address, token and all, to type into a computer's browser.
             BasicText(url.removePrefix("http://"), style = Type.Caption.copy(color = Palette.SecondaryLabel))
+        }
+        if (remotePair != null) {
+            Spacer(Modifier.height(6.dp))
+            BasicText(stringResource(R.string.wp_remote_code, remotePair.first), style = Type.Caption.copy(color = Palette.SecondaryLabel))
+            BasicText(stringResource(R.string.wp_remote_secret, remotePair.second), style = Type.Caption.copy(color = Palette.SecondaryLabel))
         }
     }
 }

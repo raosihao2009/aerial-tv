@@ -91,6 +91,8 @@
     <string name="wp_phone_title">用手机或电脑设置</string>
     <string name="wp_phone_body">扫码，或在电脑浏览器打开下面的地址，可以发照片和视频、更换卡片图标、设置天气城市。需要和电视连接同一网络。</string>
     <string name="wp_phone_offline">电视联网后即可用手机或电脑设置。</string>
+    <string name="wp_remote_code">设备码 %1$s</string>
+    <string name="wp_remote_secret">密钥 %1$s</string>
     <string name="ss_start">立即开始</string>
     <string name="ss_start_hint">马上在这台电视上播放一遍屏保，看看效果。</string>
     <string name="ss_delay">开始时间</string>

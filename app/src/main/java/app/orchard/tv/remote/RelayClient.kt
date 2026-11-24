@@ -22,8 +22,8 @@ import java.security.SecureRandom
  */
 object RelayClient {
     private const val PREFS = "remote_relay"
-    /** 中继公网地址，部署后填入；空字符串表示远程通道关闭。 */
-    private const val DEFAULT_RELAY_URL = ""
+    /** 中继公网地址；留空表示远程通道关闭。 */
+    private const val DEFAULT_RELAY_URL = "https://relay.qust.me"
 
     private const val HELLO_INTERVAL_MS = 30_000L
     private const val POLL_TIMEOUT_MS = 25_000
@@ -65,6 +65,12 @@ object RelayClient {
     fun pairingInfo(context: Context): Pair<String, String> {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         return deviceId(prefs) to deviceSecret(prefs)
+    }
+
+    /** 远程通道是否配了中继地址(未被用户改成空)。 */
+    fun isConfigured(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return !prefs.getString("relay_url", DEFAULT_RELAY_URL).isNullOrEmpty()
     }
 
     private fun loop(context: Context, url: String, id: String, secret: String) {
