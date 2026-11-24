@@ -61,8 +61,10 @@
   .item .chev { color: var(--tertiary); flex-shrink: 0; }
   /* 个性化设置: 一项设置一张圆角卡, 卡里选项一排一个, 当前值打勾并染成主题色。 */
   .pcard { margin-top: 10px; }
-  /* 吸顶标题下面那道 24px 渐隐会压住页面第一张气泡, 让它整体往下站一点。 */
-  #homeBody > .pcard:first-child, #liveBody > .pcard:first-child { margin-top: 28px; }
+  /* 吸顶标题下面那道 24px 渐隐会压住页面第一张气泡, 让它整体往下站一点。
+     注意气泡外面还套了一层 .view(#homeBody 里 replaceChildren 的那个), 少写这一层
+     选择器就整条不生效 —— 之前 28px 一直没落地, 第一张气泡顶上被渐隐削掉一截。 */
+  #homeBody > .view > .pcard:first-child, #liveBody > .view > .pcard:first-child { margin-top: 32px; }
   .pcard .phead { cursor: default; }
   .pcard .phead:active { background: none; }
   /* 选项一排按钮: 一排摆满, 文字左右居中; 选中不画勾, 直接染主题色。 */
@@ -408,9 +410,10 @@
     position: relative; display: grid; grid-template-columns: repeat(var(--cols, 5), minmax(0, 1fr)); gap: 14px 7px;
     padding: 12px 10px 14px; background: var(--card); border-radius: 14px;
   }
-  /* 网格放进气泡里时, 自己不再是一张白卡(气泡已经是一张了)。 */
-  .agrid.incard { background: none; border-radius: 0; padding: 0; }
-  .agrid.incard .shelf { left: 0; right: 0; top: 0; }
+  /* 网格放进气泡里时, 自己不再是一张白卡(气泡已经是一张了)。
+     但第一排下面还垫着灰槽, 顶上/底下/左右都要留出呼吸位, 否则图标会贴着槽边, 看着挤。 */
+  .agrid.incard { background: none; border-radius: 0; padding: 6px 0 6px; }
+  .agrid.incard .shelf { left: -6px; right: -6px; top: 0; }
   .agrid .shelf { position: absolute; left: 4px; right: 4px; top: 4px; border-radius: 11px; background: var(--fill); pointer-events: none; }
   .atile {
     position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; cursor: grab;
@@ -680,7 +683,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1127;
+const PAGE_VER = 1128;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -3334,7 +3337,8 @@ function placeShelves() {
     const shelf = g.querySelector('.shelf'); if (!shelf) return;
     const first = [...g.querySelectorAll('.atile')].slice(0, homeCols());
     const bottom = Math.max(...first.map(t => t.offsetTop + t.offsetHeight));
-    shelf.style.height = (bottom + 6 - 4) + 'px';
+    // 槽顶不一定是 0(气泡里的网格给第一排让过位), 按它自己的 offsetTop 算, 底边多留 6px。
+    shelf.style.height = Math.max(0, bottom + 6 - shelf.offsetTop) + 'px';
   });
 }
 addEventListener('resize', placeShelves);
