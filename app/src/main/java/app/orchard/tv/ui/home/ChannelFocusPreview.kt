@@ -123,6 +123,12 @@ fun ChannelFocusPreview(
     var errorTick by remember { mutableStateOf(0) }
     // 恢复中"网络已断开"提示只弹一次, 免得每秒刷新
     val netHint = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
+    // 原地重载连续未成功的次数: 退避重试的指数间隔按它算, 真出画面才清零
+    val recoverAttempt = remember { java.util.concurrent.atomic.AtomicInteger(0) }
+    // 心跳兜底的跨轮快照: 位置/渲染帧计数, 以及连续无进展的 tick 数
+    var hbLastPos by remember { mutableStateOf(-1L) }
+    var hbLastRendered by remember { mutableStateOf(-1L) }
+    var hbDeadTicks by remember { mutableStateOf(0) }
     // 当前已在播放的源名称(用于切换失败时提示继续观看谁)
     var currentPlayingName by remember { mutableStateOf<String?>(null) }
     // 上一个正在播放的源 id(切换失败时回退焦点)
@@ -301,6 +307,7 @@ fun ChannelFocusPreview(
             var startAt = android.os.SystemClock.elapsedRealtime()
             var loaded = false
             var handBack = false
+            var selfRetry = false
             var rounds = 0
             try {
                 while (!st.disposed && !loaded &&
@@ -372,6 +379,7 @@ fun ChannelFocusPreview(
                                 .coerceAtLeast(p.currentPosition.coerceAtLeast(0L))
                         )
                         StreamHealth.markGood(url)
+                        recoverAttempt.set(0)
                         DiagLog.i("直播预览: ${stalled.id} 原地重载就绪(第 $rounds 轮)")
                         loaded = true
                         // 看门狗触发后已经 break 结束, 原地重载没换 player, 这里必须重新挂上看门狗,
@@ -385,13 +393,23 @@ fun ChannelFocusPreview(
                     }
                 }
                 if (!loaded && !st.disposed) {
-                    // 全部候选轮完还没起来: 撤转圈, 只弹一次真正的失败, 再交回救场流程
-                    DiagLog.event("直播预览: ${stalled.id} 恢复 ${RECOVER_MAX_MS / 1000}s 未成功, 交回救场流程")
-                    st.loading = false
-                    showToast("「${stalled.name}」暂时无法播放，请稍后再试")
-                    // 交给救场流程前先把看门狗挂回去: 否则之后又断网时没人盯着, 不会有任何反应
-                    startWatchdog(p, stalled.id, RELOAD_WARMUP_MS)
-                    handBack = true
+                    // 全部候选轮完还没起来: 先再探一次网络和下播状态。有网且源仍在开播就不退壁纸,
+                    // 退避后自己再来一轮; 真断网/已下播才撤转圈, 交回救场流程换源或等网络恢复。
+                    val onlineNow = withContext(Dispatchers.IO) { SystemProbe.online(context) }
+                    val offlineNow = if (onlineNow) {
+                        withContext(Dispatchers.IO) { checkIfOffline(stalled, context) }
+                    } else true
+                    if (!onlineNow || offlineNow) {
+                        DiagLog.event("直播预览: ${stalled.id} 恢复 ${RECOVER_MAX_MS / 1000}s 未成功(网=${onlineNow} 下播=${offlineNow}), 交回救场流程")
+                        st.loading = false
+                        showToast("「${stalled.name}」暂时无法播放，请稍后再试")
+                        // 交给救场流程前先把看门狗挂回去: 否则之后又断网时没人盯着, 不会有任何反应
+                        startWatchdog(p, stalled.id, RELOAD_WARMUP_MS)
+                        handBack = true
+                    } else {
+                        DiagLog.event("直播预览: ${stalled.id} 本轮恢复未成功, 有网且未下播, 进入退避重试")
+                        selfRetry = true
+                    }
                 }
             } catch (t: Throwable) {
                 DiagLog.event("直播预览: 原地重载异常: ${t.message}")
@@ -402,7 +420,19 @@ fun ChannelFocusPreview(
                 if (loaded || handBack) hintShown.set(false)
                 reloadBusy.set(false)
             }
-            if (handBack) retryStall(stalled.id)
+            when {
+                handBack -> retryStall(stalled.id)
+                selfRetry && !st.disposed -> {
+                    // 退避指数增长: 5s → 10s → 20s, 封顶 30s; 期间保持加载图, 不弹失败提示。
+                    val attempt = recoverAttempt.incrementAndGet()
+                    val backoff = minOf(RECOVER_BACKOFF_BASE_MS * (1L shl (attempt - 1)), RECOVER_BACKOFF_MAX_MS)
+                    DiagLog.event("直播预览: ${stalled.id} 第 $attempt 次退避重试, 等待 ${backoff / 1000}s")
+                    scope.launch {
+                        kotlinx.coroutines.delay(backoff)
+                        if (!st.disposed) reloadInPlace(stalled)
+                    }
+                }
+            }
         }
     }
 
@@ -893,6 +923,56 @@ fun ChannelFocusPreview(
         }
     }
 
+    // 心跳兜底: 与看门狗所在的 scope 分开跑, 看门狗协程万一被取消/停摆, 这条独立轮询还能
+    // 发现播放器无进展并交给同一条救场链路。节奏比看门狗慢(5s 一 tick), 连续 3 个 tick 无新帧
+    // 且位置不动(或一直 IDLE)才判死, 避开缓冲抖动。重载/恢复/等待网络期间全部跳过, 不抢流程。
+    LaunchedEffect(source?.id) {
+        hbLastPos = -1L; hbLastRendered = -1L; hbDeadTicks = 0
+        while (true) {
+            kotlinx.coroutines.delay(HEARTBEAT_INTERVAL_MS)
+            val s = source ?: continue
+            if (st.disposed || st.paused) continue
+            if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) continue
+            val p = player ?: continue
+            if (playingSourceId != s.id) continue
+            if (reloadBusy.get() || recovering.get() || stallBusy.get() || netWaitBusy.get() || st.loading) continue
+            if (!BootVeil.revealed) continue
+            if (p.isLoading) {
+                hbDeadTicks = 0
+                continue
+            }
+            var idle = false
+            var posDelta = 1000L
+            var rendDelta = 0L
+            var readOk = true
+            try {
+                val c = p.videoDecoderCounters
+                c?.ensureUpdated()
+                val rendered = (c?.renderedOutputBufferCount ?: 0L).toLong()
+                val pos = p.currentPosition
+                idle = p.playbackState == Player.STATE_IDLE
+                posDelta = if (hbLastPos < 0) 1000L else pos - hbLastPos
+                rendDelta = if (hbLastRendered < 0) 0L else rendered - hbLastRendered
+                hbLastPos = pos
+                hbLastRendered = rendered
+            } catch (t: Throwable) { readOk = false }
+            if (!readOk) continue
+            if (posDelta < 0L) { hbDeadTicks = 0; continue }
+            val dead = idle || (posDelta < HEARTBEAT_POS_MIN_MS && rendDelta <= 0L)
+            if (dead) {
+                hbDeadTicks++
+                DiagLog.i("直播预览: 心跳无进展 tick=$hbDeadTicks state=${p.playbackState} pos=$posDelta rendered=$rendDelta")
+                if (hbDeadTicks >= HEARTBEAT_DEAD_TICKS) {
+                    hbDeadTicks = 0
+                    DiagLog.i("直播预览: 心跳兜底判定静默挂死 id=${playingSourceId ?: s.id}, 触发救场")
+                    onJankHandler(playingSourceId ?: s.id)
+                }
+            } else {
+                hbDeadTicks = 0
+            }
+        }
+    }
+
     DisposableEffect(Unit) {
         // HOME回弹(onPause后立刻onResume, 没走onStop)不暂停player: 延迟300ms暂停, onResume则取消
         var pauseJob: kotlinx.coroutines.Job? = null
@@ -1193,3 +1273,18 @@ private const val RECOVER_SEEK_BACK_MS = 2_000L
 
 /** 原地重载救回来之后看门狗的预热: 流已在播, 只留一个采样窗口避开 seek 抖动。 */
 private const val RELOAD_WARMUP_MS = 2_000L
+
+/** 退避重试: 首次等待基数, 之后指数翻倍(5s→10s→20s)。 */
+private const val RECOVER_BACKOFF_BASE_MS = 5_000L
+
+/** 退避重试封顶间隔。 */
+private const val RECOVER_BACKOFF_MAX_MS = 30_000L
+
+/** 心跳兜底轮询间隔。 */
+private const val HEARTBEAT_INTERVAL_MS = 5_000L
+
+/** 连续这么多个心跳 tick 无新帧且位置不动才判死(3×5s=15s)。 */
+private const val HEARTBEAT_DEAD_TICKS = 3
+
+/** 心跳判定位置不动的阈值, 与看门狗一致。 */
+private const val HEARTBEAT_POS_MIN_MS = 100L
