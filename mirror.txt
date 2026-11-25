@@ -1,2 +1,2 @@
-standard https://aka.doubaocdn.com/s/XeYy5MBNVE
-guard https://aka.doubaocdn.com/s/DvwrHyf5WM
+standard https://github.com/raosihao2009/aerial-tv/releases/download/v4.44/AerialTV-standard.apk
+guard https://github.com/raosihao2009/aerial-tv/releases/download/v4.44/AerialTV-guard.apk
