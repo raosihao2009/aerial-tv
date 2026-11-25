@@ -1,2 +1,2 @@
-standard https://github.com/raosihao2009/aerial-tv/releases/download/v4.46/AerialTV-standard.apk
-guard https://github.com/raosihao2009/aerial-tv/releases/download/v4.46/AerialTV-guard.apk
+standard https://github.com/raosihao2009/aerial-tv/releases/download/v4.47/AerialTV-standard.apk
+guard https://github.com/raosihao2009/aerial-tv/releases/download/v4.47/AerialTV-guard.apk
