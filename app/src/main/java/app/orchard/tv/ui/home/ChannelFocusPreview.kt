@@ -1162,15 +1162,11 @@ fun ChannelFocusPreview(
                 }
             },
             update = { iv ->
-                // 动态壁纸(航拍/视频)空窗不盖静态定格帧, 让下层影片与旧台留帧透出;
-                // 只有静态壁纸才用代表帧兜底防黑。
-                if (Wallpapers.moves()) {
-                    iv.alpha = 0f
-                } else {
-                    val still = Wallpapers.backdrop ?: Wallpapers.frosted
-                    if (still != null) iv.setImageBitmap(still.asAndroidBitmap())
-                    iv.alpha = if (st.loading) 1f else 0f
-                }
+                // 动态壁纸的影片层在回桌面重建空窗同样无帧, 透明兜底会露出直播黑层;
+                // 静态/动态壁纸空窗一律用代表帧盖住黑层, 出帧后淡出。
+                val still = Wallpapers.backdrop ?: Wallpapers.frosted
+                if (still != null) iv.setImageBitmap(still.asAndroidBitmap())
+                iv.alpha = if (st.loading) 1f else 0f
             }
         )
         // player 或 surface 变化时重新绑定
