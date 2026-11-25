@@ -664,8 +664,10 @@ fun HomeScreen(
             savedOverlayKey = focusedKey
             savedOverlayIndex = lastFocusedIndex
             // 从直播菜单那颗胶囊进来的不算"从卡片": 焦点明明在按钮上(focusedKey 只是旧值)。
+            // 退回直播菜单那一帧同样不许算"从卡片": ccFromMenu 这一路关掉菜单应回胶囊,
+            // 不是回原卡片; 否则关菜单落点会按卡片处理, 瞬间把那张卡放大。
             overlayFromCard = focusedKey != null && !pillFocused &&
-                !(overlay is Overlay.ControlCenter && ccFromMenu)
+                !(ccFromMenu && (overlay is Overlay.ControlCenter || overlay is Overlay.LiveSourceMenu))
             DiagLog.i(
                 "控制中心调试: 浮层打开 $overlay 快照 key=$savedOverlayKey pill=$pillFocused " +
                     "从卡片=$overlayFromCard 菜单胶囊=$ccFromMenu",

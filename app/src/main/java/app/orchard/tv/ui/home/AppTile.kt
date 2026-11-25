@@ -263,9 +263,10 @@ fun AppTile(
     if (!holdLook) heldActive = wantedActive
     val active = if (forcedIdle) false else if (holdLook) heldActive else wantedActive
     // 只写日志: 浮层打开/关闭那一刻冻结的是什么状态, 下次再报"卡片变大"时能直接对照。
+    // holdLook 为 false(控制中心/面板盖住)时也记一条, 补上这一段的状态盲区。
     LaunchedEffect(holdLook) {
-        if (holdLook && app.key in AerialSettings.liveAppPackages) {
-            DiagLog.i("卡片调试: ${app.key} 浮层保持 冻结=${heldActive} 焦点=$focused 预选=$preFocus 移动=${moving != null}")
+        if (app.key in AerialSettings.liveAppPackages) {
+            DiagLog.i("卡片调试: ${app.key} 浮层保持 冻结=$heldActive 焦点=$focused 预选=$preFocus 移动=$moving")
         }
     }
     val scaleTarget = when {
