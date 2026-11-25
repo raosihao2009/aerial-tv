@@ -667,13 +667,17 @@ fun LiveSourceMenu(
                         // 胶囊上, 再把最后停留的那张卡按选中尺寸画, 就是"打开控制中心瞬间
                         // 二级菜单里那张直播卡变大(白框和名字一起亮)"。而且 snapScale 让这一下
                         // 是瞬间跳到位, 更显眼。
-                        // 两道总闸: 菜单不可见(冷启动/已关闭/正在淡出)一律不预选; 从控制中心
-                        // 退回胶囊的那一段(returning)焦点也不在任何卡上, 同样不预选。alpha<0.99
-                        // 只在正常打开菜单的淡入段才该成立, 淡出/退回段方向相反, 不能靠它判断。
-                        preFocus = visible && !returning && !aboveOpen && !controlCenterOpen &&
+                        // 两道总闸: 菜单不可见(冷启动/已关闭/正在淡出)一律不预选; 焦点停在
+                        // 右上角胶囊上时(从控制中心退回、回胶囊那一段)也不在任何卡上, 同样不预选。
+                        // 不能用 returning/ccWasOpen 做闸门: 那两个一次性标记被 effect 清掉之后
+                        // returning 会提前变回 false, 闸门松开, 退回那一帧当前源卡又被抬亮。
+                        // alpha<0.99 只在正常打开菜单的淡入段才该成立, 淡出/退回段方向相反。
+                        preFocus = visible && !pillHasFocus && !aboveOpen && !controlCenterOpen &&
                             source.id == focusedId && (alpha < 0.99f || menuForId == source.id),
                         // 控制中心/面板盖住期间, 卡片外观冻结在打开前那一帧: 不再有任何尺寸跳变。
-                        holdLook = controlCenterOpen || aboveOpen,
+                        // 关闭菜单的淡出过程同样保持住选中尺寸: 焦点被恢复走之后卡片不该先缩回,
+                        // 而是维持放大态跟着菜单一起淡出(退场帧尺寸跳变另由 snapScale 兜底)。
+                        holdLook = controlCenterOpen || aboveOpen || !visible,
                         // 上下文菜单打开/收起期间缩放直接跳到位, 不演缩小弹簧;
                         // 被面板之类盖住不算"关菜单", 不能借这一下跳到选中尺寸。
                         snapScale = menuForId == source.id || (!visible && !aboveOpen),
