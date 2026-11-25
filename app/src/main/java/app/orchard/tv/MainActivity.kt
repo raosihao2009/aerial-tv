@@ -61,7 +61,6 @@ import app.orchard.tv.apps.StandIn
 import app.orchard.tv.apps.TileArtFactory
 import app.orchard.tv.apps.rewritesLauncher
 import app.orchard.tv.guard.GuardSetup
-import app.orchard.tv.remote.RelayClient
 import app.orchard.tv.guard.HomeGuardService
 import app.orchard.tv.ui.home.FilmAfterInput
 import app.orchard.tv.ui.BootVeil
@@ -515,7 +514,6 @@ class MainActivity : ComponentActivity() {
         DiagLog.i("启动调试: onDestroy 于 +${SystemClock.elapsedRealtime()}ms, locked=$locked")
         if (locked) runCatching { unregisterReceiver(unlocked) }
         runCatching { unregisterReceiver(screenOnReceiver) }
-        RelayClient.stop()
         super.onDestroy()
     }
 
@@ -1096,7 +1094,6 @@ class MainActivity : ComponentActivity() {
         // The phone and computer page, at any time the TV is on (only once unlocked: its token is
         // in credential-protected storage).
         lifecycleScope.launch(Dispatchers.IO) { PhoneServer.listen(this@MainActivity) }
-        RelayClient.start(this)
         GuardSetup.ensureEnabled(this)
         idleHandler.postDelayed({ GuardSetup.rebindIfStalled(this) }, 5_000)
         vm.reloadIfPackagesChanged()

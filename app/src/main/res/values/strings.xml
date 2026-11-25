@@ -95,8 +95,6 @@
     <string name="wp_phone_title">Set up from a phone or computer</string>
     <string name="wp_phone_body">Scan the code, or open the address below in a computer\'s browser, to send photos and videos, change app icons and set the weather\'s city. It must be on the same network as the TV.</string>
     <string name="wp_phone_offline">Connect the TV to a network to set it up from a phone or computer.</string>
-    <string name="wp_remote_code">Pair code %1$s</string>
-    <string name="wp_remote_secret">Key %1$s</string>
     <string name="ss_start">Start Now</string>
     <string name="ss_start_hint">Play the screensaver once on this TV, just to see how it looks.</string>
     <string name="ss_delay">Start after</string>

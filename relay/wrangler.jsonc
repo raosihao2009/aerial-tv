@@ -1,7 +1,0 @@
-// 远程中继 Worker（relay/worker.js）。部署：在 relay/ 目录下 npx wrangler@4 deploy
-// 不绑自定义域名，走账号自带的 workers.dev：https://aerial-relay.<子域>.workers.dev
-{
-	"name": "aerial-relay",
-	"compatibility_date": "2026-10-13",
-	"main": "worker.js"
-}
