@@ -121,6 +121,9 @@ fun ChannelFocusPreview(
     val hintShown = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
     // 播放器报错计数: 重载循环靠它立刻判定这一路起不来, 不必等满 8 秒
     var errorTick by remember { mutableStateOf(0) }
+    // 最近一次播放器错误是否为坏 HTTP 状态(403/404 等): 同批候选共用签名/节点, 单路被拒多半
+    // 整批失效, 这种不需要轮完两路才重取 playinfo, 第一路就该清缓存拿新签名。
+    var lastErrorIsBadHttp by remember { mutableStateOf(false) }
     // 恢复中"网络已断开"提示只弹一次, 免得每秒刷新
     val netHint = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
     // 原地重载连续未成功的次数: 退避重试的指数间隔按它算, 真出画面才清零
@@ -401,6 +404,7 @@ fun ChannelFocusPreview(
                         StreamHealth.markGood(url)
                         recoverAttempt.set(0)
                         consecutiveBad = 0
+                        lastErrorIsBadHttp = false
                         DiagLog.i("直播预览: ${stalled.id} 原地重载就绪(第 $rounds 轮)")
                         loaded = true
                         // 看门狗触发后已经 break 结束, 原地重载没换 player, 这里必须重新挂上看门狗,
@@ -411,14 +415,23 @@ fun ChannelFocusPreview(
                         StreamHealth.markBad(url)
                         consecutiveBad++
                         DiagLog.event("直播预览: ${stalled.id} 第 $rounds 轮未就绪(连续 $consecutiveBad 路), 换下一路")
-                        if (consecutiveBad >= RELOAD_REFETCH_AFTER_BAD) {
+                        if (lastErrorIsBadHttp) {
+                            // 坏 HTTP 状态(403/404): 同批候选共用签名/节点, 往往整批被拒, 不再逐个试
+                            // 剩余旧地址, 直接清缓存重拉 playinfo 拿新签名, 省掉两路坏路试错。
+                            streamCache.remove(key)
+                            consecutiveBad = 0
+                            DiagLog.event("直播预览: ${stalled.id} 遇坏 HTTP 状态, 立即放弃旧候选重新取流")
+                            kotlinx.coroutines.delay(RECOVER_GAP_MS_FAST)
+                        } else if (consecutiveBad >= RELOAD_REFETCH_AFTER_BAD) {
                             // 连续几路都起不来: 这组旧签名/节点整体已失效, 清掉缓存候选,
                             // 下一轮直接重拉 playinfo 拿新签名, 不再把剩下的坏地址挨个试一遍。
                             streamCache.remove(key)
                             consecutiveBad = 0
                             DiagLog.event("直播预览: ${stalled.id} 连续 $RELOAD_REFETCH_AFTER_BAD 路未就绪, 放弃旧候选重新取流")
+                            kotlinx.coroutines.delay(RECOVER_GAP_MS)
+                        } else {
+                            kotlinx.coroutines.delay(RECOVER_GAP_MS)
                         }
-                        kotlinx.coroutines.delay(RECOVER_GAP_MS)
                     }
                 }
                 if (!loaded && !st.disposed) {
@@ -759,6 +772,7 @@ fun ChannelFocusPreview(
             override fun onPlayerError(error: PlaybackException) {
                 if (st.disposed) return  // 组合离开释放player触发的错误, 不处理
                 errorTick++
+                lastErrorIsBadHttp = error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
                 val cause = error.cause?.let { " cause=${it.javaClass.simpleName}: ${it.message}" } ?: ""
                 DiagLog.i("播放器错误: ${error.errorCodeName}(${error.errorCode}) ${error.message ?: ""}$cause, 第 $retryCount 次重试")
                 // 恢复中(正在转圈换地址): 这一路的失败只交回重载循环换下一路,
@@ -889,6 +903,7 @@ fun ChannelFocusPreview(
 
         if (ready) {
             firstRunBadAttempts = 0
+            lastErrorIsBadHttp = false
             DiagLog.i(
                 "直播预览: 就绪 id=${source.id} 耗时=${System.currentTimeMillis() - waitStart}ms " +
                     "state=${exo.playbackState}",
@@ -969,7 +984,12 @@ fun ChannelFocusPreview(
             } else {
                 // 开机首次加载超时：持续重试直到成功
                 firstRunBadAttempts++
-                if (firstRunBadAttempts >= RELOAD_REFETCH_AFTER_BAD) {
+                if (lastErrorIsBadHttp) {
+                    // 坏 HTTP 状态: 同批签名/节点多半整批被拒, 第一路就清缓存重拉, 不空试剩余旧地址。
+                    streamCache.remove(cacheKey)
+                    firstRunBadAttempts = 0
+                    DiagLog.event("直播预览: 首起播遇坏 HTTP 状态, 清旧候选重新取流")
+                } else if (firstRunBadAttempts >= RELOAD_REFETCH_AFTER_BAD) {
                     // 连续两路都起不来: 这组旧签名/节点整体不可用, 清掉缓存候选, 下一轮重拉 playinfo
                     streamCache.remove(cacheKey)
                     firstRunBadAttempts = 0
@@ -1377,6 +1397,9 @@ private const val RECOVER_MAX_MS = 60_000L
 
 /** 换下一路地址之间的间隔, 别把 CDN 打成限流。 */
 private const val RECOVER_GAP_MS = 2_000L
+
+/** 遇坏 HTTP 状态后重取流前的短间隔: 已确定这一批地址被拒, 快速回到重拉签名流程。 */
+private const val RECOVER_GAP_MS_FAST = 500L
 
 /** 就地恢复成功后往回对齐的安全垫: 提到缓冲最末端起播, 下一秒就会再饿一次。 */
 private const val RECOVER_SEEK_BACK_MS = 2_000L
