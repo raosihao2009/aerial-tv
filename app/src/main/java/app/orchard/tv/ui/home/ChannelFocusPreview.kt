@@ -602,13 +602,6 @@ fun ChannelFocusPreview(
 
         DiagLog.i("预览 effect 进入 id=${source.id} url=${source.url} player=${if (player != null) "已绑定" else "无"}")
 
-        // 换到另一路: 旧的一路先停下声音。以前是让它一直播到新流就绪才 release, 那段时间
-        // 旧台的声还在响(用户报的"进了模式还在放旧直播"); 画面靠解码器留在纹理上, 不黑。
-        val switchingFrom = player?.takeIf { source.id != playingSourceId }
-        if (switchingFrom != null && switchingFrom.playWhenReady) {
-            switchingFrom.playWhenReady = false
-            DiagLog.i("预览: 换源, 先停旧源 id=$playingSourceId")
-        }
 
         // 冷启动: 直播预览也是个硬件解码器, 别和开屏动画同时起播(实测首列直播预览+视频壁纸
         // 时过渡一卡一卡; 把预览挪到第≥2列就顺, 就是因为起播时机错开了)。等揭开后再走下面。
@@ -1169,9 +1162,15 @@ fun ChannelFocusPreview(
                 }
             },
             update = { iv ->
-                val still = Wallpapers.backdrop ?: Wallpapers.frosted
-                if (still != null) iv.setImageBitmap(still.asAndroidBitmap())
-                iv.alpha = if (st.loading) 1f else 0f
+                // 动态壁纸(航拍/视频)空窗不盖静态定格帧, 让下层影片与旧台留帧透出;
+                // 只有静态壁纸才用代表帧兜底防黑。
+                if (Wallpapers.moves()) {
+                    iv.alpha = 0f
+                } else {
+                    val still = Wallpapers.backdrop ?: Wallpapers.frosted
+                    if (still != null) iv.setImageBitmap(still.asAndroidBitmap())
+                    iv.alpha = if (st.loading) 1f else 0f
+                }
             }
         )
         // player 或 surface 变化时重新绑定
