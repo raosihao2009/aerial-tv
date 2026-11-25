@@ -132,6 +132,8 @@ fun ChannelFocusPreview(
     var hbDeadTicks by remember { mutableStateOf(0) }
     // 最近一次首帧回调的时刻: 与解码器渲染计数交叉验证"真出帧", 防止旧 player 计数残留导致增量判据失效。
     var lastFirstFrameAt by remember { mutableStateOf(0L) }
+    // 首起播连续未就绪次数: 超过一路就清掉旧候选缓存, 下一轮重拉 playinfo 拿新签名/新节点。
+    var firstRunBadAttempts by remember { mutableStateOf(0) }
     // 当前已在播放的源名称(用于切换失败时提示继续观看谁)
     var currentPlayingName by remember { mutableStateOf<String?>(null) }
     // 上一个正在播放的源 id(切换失败时回退焦点)
@@ -645,6 +647,7 @@ fun ChannelFocusPreview(
             }
         }
         DiagLog.i("直播预览: 取流地址 = $streamUrl")
+        DiagLog.i("直播预览: 候选 ${cands?.index ?: 0}/${cands?.urls?.size ?: 0} 首起播=$firstRun")
 
         if (streamUrl == null) {
             // 解析失败(可能已下播或网络未就绪)
@@ -725,6 +728,7 @@ fun ChannelFocusPreview(
                 DiagLog.i("直播预览: 首帧 id=${source.id} player=${if (player === exo) "已绑定" else "未绑定"}")
             }
             override fun onPlaybackStateChanged(state: Int) {
+                DiagLog.i("直播预览: 状态迁移 id=${source.id} ${playerStateName(state)} loading=${exo.isLoading}")
                 if (state == Player.STATE_READY) {
                     retryCount = 0
                     // 等缓冲够且真出帧再标记ready(主线程轮询, ExoPlayer非线程安全):
@@ -752,7 +756,8 @@ fun ChannelFocusPreview(
             override fun onPlayerError(error: PlaybackException) {
                 if (st.disposed) return  // 组合离开释放player触发的错误, 不处理
                 errorTick++
-                DiagLog.i("播放器错误: ${error.errorCodeName}, 第 $retryCount 次重试")
+                val cause = error.cause?.let { " cause=${it.javaClass.simpleName}: ${it.message}" } ?: ""
+                DiagLog.i("播放器错误: ${error.errorCodeName}(${error.errorCode}) ${error.message ?: ""}$cause, 第 $retryCount 次重试")
                 // 恢复中(正在转圈换地址): 这一路的失败只交回重载循环换下一路,
                 // 不在这里弹提示、不在这里升格切源, 免得一轮几路地址各弹一次"失效"。
                 if (recovering.get()) {
@@ -849,6 +854,7 @@ fun ChannelFocusPreview(
                 }
             }
         }
+        DiagLog.i("直播预览: 开始起流 id=${source.id}")
         exo.addListener(readyListener!!)
         exo.setMediaSource(hls)
         exo.prepare()
@@ -857,14 +863,29 @@ fun ChannelFocusPreview(
 
         // 等待新流READY且缓冲够(至少3秒)
         val waitStart = System.currentTimeMillis()
+        var lastProbe = 0L
         withContext(Dispatchers.Main) {
             val deadline = System.currentTimeMillis() + loadTimeoutMs
             while (!ready && System.currentTimeMillis() < deadline) {
                 kotlinx.coroutines.delay(200)
+                val nowP = System.currentTimeMillis()
+                // 每 2s 记一行起流等待读数: 区分一直 BUFFERING(网络拉不到)、IDLE(源/解码)、READY 但没出帧
+                if (nowP - lastProbe >= 2000L) {
+                    lastProbe = nowP
+                    val renderedP = try {
+                        (exo.videoDecoderCounters?.also { it.ensureUpdated() }?.renderedOutputBufferCount ?: 0L).toLong()
+                    } catch (t: Throwable) { 0L }
+                    DiagLog.i(
+                        "直播预览: 起流等待 id=${source.id} ${playerStateName(exo.playbackState)} " +
+                            "loading=${exo.isLoading} pos=${exo.currentPosition} buf=${exo.bufferedPosition} " +
+                            "span=${exo.bufferedPosition - exo.currentPosition} rendered=$renderedP"
+                    )
+                }
             }
         }
 
         if (ready) {
+            firstRunBadAttempts = 0
             DiagLog.i(
                 "直播预览: 就绪 id=${source.id} 耗时=${System.currentTimeMillis() - waitStart}ms " +
                     "state=${exo.playbackState}",
@@ -925,6 +946,13 @@ fun ChannelFocusPreview(
                 onRevertFail()
             } else {
                 // 开机首次加载超时：持续重试直到成功
+                firstRunBadAttempts++
+                if (firstRunBadAttempts >= RELOAD_REFETCH_AFTER_BAD) {
+                    // 连续两路都起不来: 这组旧签名/节点整体不可用, 清掉缓存候选, 下一轮重拉 playinfo
+                    streamCache.remove(cacheKey)
+                    firstRunBadAttempts = 0
+                    DiagLog.event("直播预览: 首起播连续 $RELOAD_REFETCH_AFTER_BAD 路未就绪, 清旧候选重新取流")
+                }
                 st.loading = true
                 showToast("正在加载直播…")
                 kotlinx.coroutines.delay(2000)
@@ -1265,6 +1293,15 @@ private class StreamCandidates(raw: List<String>) {
 /** 从取流地址解析 B 站签名过期时间(秒级 epoch); 无 expires 参数返回 -1。 */
 private fun parseExpires(url: String): Long =
     Regex("[?&]expires=(\\d+)").find(url)?.groupValues?.getOrNull(1)?.toLongOrNull() ?: -1L
+
+/** 播放器状态码转中文短名, 诊断日志用; 未知状态回退原始数字。 */
+private fun playerStateName(state: Int): String = when (state) {
+    Player.STATE_IDLE -> "IDLE"
+    Player.STATE_BUFFERING -> "BUFFERING"
+    Player.STATE_READY -> "READY"
+    Player.STATE_ENDED -> "ENDED"
+    else -> "STATE_$state"
+}
 
 /** 共用的 HLS 媒体源构造: 初始起播和原地重载走同一套请求头/超时, 避免两处各写一份漂移。 */
 private fun buildHlsMediaSource(url: String, isBili: Boolean, context: android.content.Context): HlsMediaSource {
