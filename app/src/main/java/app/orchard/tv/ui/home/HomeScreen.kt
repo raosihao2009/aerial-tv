@@ -1245,36 +1245,6 @@ fun HomeScreen(
                     onGlobalToast = { msg -> vm.showToast(msg) },
                 )
             }
-            // 直播画面还没出帧时预览层是黑的(回桌面重建、冷启动起流都是这段空窗),
-            // 先盖一层壁纸代表帧, 出帧后再淡出 —— 观感是"直播画面直接覆盖在壁纸上", 不会黑一下。
-            // 照片/视频/航拍壁纸一律兜底: 视频壁纸的代表帧是上次停帧或首帧, 动态影片在直播
-            // 未就绪时本就在播, 这段空窗用静态帧盖住预览黑层, 不让 Amlogic 上清帧后的黑露出来。
-            if (channelPreviewVisible) {
-                val still = Wallpapers.backdrop ?: Wallpapers.frosted
-                LaunchedEffect(still, channelPreviewVisible) {
-                    DiagLog.i(
-                        "壁纸兜底调试: 可见=$channelPreviewVisible 帧=${still != null} " +
-                            "宽=${still?.width ?: 0} 高=${still?.height ?: 0} " +
-                            "backdrop=${Wallpapers.backdrop != null} frosted=${Wallpapers.frosted != null} " +
-                            "ready=${liveReadyState.value} 壁纸=${Wallpapers.selectedId}"
-                    )
-                }
-                val ready by androidx.compose.animation.core.animateFloatAsState(
-                    targetValue = if (liveReadyState.value) 1f else 0f,
-                    animationSpec = androidx.compose.animation.core.tween(320),
-                    label = "previewStillCover",
-                )
-                if (still != null && ready < 0.999f) {
-                    Canvas(Modifier.fillMaxSize().diagLayer("preview-still")) {
-                        drawImage(
-                            still,
-                            dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
-                            alpha = 1f - ready,
-                            filterQuality = FilterQuality.Low,
-                        )
-                    }
-                }
-            }
             // 直播加载图: 盖在壁纸和直播预览影片之上, 出帧后淡出。
             // 抽成小节点读 liveReadyState, 就绪翻转只重组这一层, 不带动整棵树。
             LiveLoadingOverlay(channelPreviewVisible, liveLoadingState)

@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -42,6 +43,7 @@ import app.orchard.tv.LiveSource
 import app.orchard.tv.R
 import app.orchard.tv.ui.BootVeil
 import app.orchard.tv.settings.AerialSettings
+import app.orchard.tv.wallpaper.Wallpapers
 import app.orchard.tv.apps.BiliLiveApi
 import app.orchard.tv.apps.LiveQualityOptions
 import app.orchard.tv.system.DiagLog
@@ -1155,6 +1157,22 @@ fun ChannelFocusPreview(
                 surface = it
             }},
             onRelease = { surface = null },
+        )
+        // 兜底静态帧: 直播未出帧/回桌面重建空窗时盖住预览黑层。必须用原生 ImageView ——
+        // 嵌入的 TextureView 是独立视图层, 普通 Compose Canvas 画在它下层压不住黑帧;
+        // ImageView 排在 TextureView 之后添加, 才能盖在上面(Amlogic/TCL 停解后清帧黑屏)。
+        AndroidView(
+            factory = { ctx ->
+                android.widget.ImageView(ctx).apply {
+                    scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+                    alpha = 0f
+                }
+            },
+            update = { iv ->
+                val still = Wallpapers.backdrop ?: Wallpapers.frosted
+                if (still != null) iv.setImageBitmap(still.asAndroidBitmap())
+                iv.alpha = if (st.loading) 1f else 0f
+            }
         )
         // player 或 surface 变化时重新绑定
         LaunchedEffect(player, surface) {
