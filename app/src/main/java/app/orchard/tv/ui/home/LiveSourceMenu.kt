@@ -667,8 +667,10 @@ fun LiveSourceMenu(
                         // 胶囊上, 再把最后停留的那张卡按选中尺寸画, 就是"打开控制中心瞬间
                         // 二级菜单里那张直播卡变大(白框和名字一起亮)"。而且 snapScale 让这一下
                         // 是瞬间跳到位, 更显眼。
-                        // 回胶囊那一小段也不点亮任何卡: 那正是"回来视线先落在放大的直播卡上"的来源。
-                        preFocus = !aboveOpen && !controlCenterOpen && !returnToPill &&
+                        // 两道总闸: 菜单不可见(冷启动/已关闭/正在淡出)一律不预选; 从控制中心
+                        // 退回胶囊的那一段(returning)焦点也不在任何卡上, 同样不预选。alpha<0.99
+                        // 只在正常打开菜单的淡入段才该成立, 淡出/退回段方向相反, 不能靠它判断。
+                        preFocus = visible && !returning && !aboveOpen && !controlCenterOpen &&
                             source.id == focusedId && (alpha < 0.99f || menuForId == source.id),
                         // 控制中心/面板盖住期间, 卡片外观冻结在打开前那一帧: 不再有任何尺寸跳变。
                         holdLook = controlCenterOpen || aboveOpen,
