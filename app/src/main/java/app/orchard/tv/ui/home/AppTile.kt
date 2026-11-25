@@ -263,11 +263,14 @@ fun AppTile(
     if (!holdLook) heldActive = wantedActive
     val active = if (forcedIdle) false else if (holdLook) heldActive else wantedActive
     // 只写日志: 浮层打开/关闭那一刻冻结的是什么状态, 下次再报"卡片变大"时能直接对照。
-    // holdLook 为 false(控制中心/面板盖住)时也记一条, 补上这一段的状态盲区。
+    // 不再只打直播预览卡: 菜单内预设/自定义卡片不在 liveAppPackages 里, 之前被过滤成盲区,
+    // 放大帧到底来自真实焦点、预选还是冻结值看不到。
     LaunchedEffect(holdLook) {
-        if (app.key in AerialSettings.liveAppPackages) {
-            DiagLog.i("卡片调试: ${app.key} 浮层保持 冻结=$heldActive 焦点=$focused 预选=$preFocus 移动=$moving")
-        }
+        DiagLog.i("卡片调试: ${app.key} 浮层保持 冻结=$heldActive 焦点=$focused 预选=$preFocus 移动=$moving")
+    }
+    // 外观选中态跳变时记录完整状态: 放大帧由哪一项抬起来的, 对照这条就能定位。
+    LaunchedEffect(active) {
+        DiagLog.i("卡片调试: ${app.key} 外观 active=$active 焦点=$focused 预选=$preFocus 冻结=$heldActive 保持=$holdLook 强制空闲=$forcedIdle 移动=$moving")
     }
     val scaleTarget = when {
         reduced -> 1f
