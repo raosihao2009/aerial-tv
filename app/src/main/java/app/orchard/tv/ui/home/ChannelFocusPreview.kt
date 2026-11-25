@@ -128,6 +128,7 @@ fun ChannelFocusPreview(
     // 心跳兜底的跨轮快照: 位置/渲染帧计数, 以及连续无进展的 tick 数
     var hbLastPos by remember { mutableStateOf(-1L) }
     var hbLastRendered by remember { mutableStateOf(-1L) }
+    var hbLastBuf by remember { mutableStateOf(-1L) }
     var hbDeadTicks by remember { mutableStateOf(0) }
     // 当前已在播放的源名称(用于切换失败时提示继续观看谁)
     var currentPlayingName by remember { mutableStateOf<String?>(null) }
@@ -309,6 +310,8 @@ fun ChannelFocusPreview(
             var handBack = false
             var selfRetry = false
             var rounds = 0
+            // 本轮原地重载里连续未就绪的路数: 达到阈值就直接重拉 playinfo, 不把旧候选耗完
+            var consecutiveBad = 0
             try {
                 while (!st.disposed && !loaded &&
                     android.os.SystemClock.elapsedRealtime() - startAt < RECOVER_MAX_MS
@@ -362,13 +365,22 @@ fun ChannelFocusPreview(
                     p.prepare()
                     // 等这一路起流(最多 8s); 播放器一报错立刻换下一路, 不空等
                     val tick = errorTick
+                    // 计数器沿用旧 player, 先记本轮基准: 必须有"新渲染出的帧"才算真起来,
+                    // 不能只看 STATE_READY + 缓冲够 —— 签名过期的流能短暂 READY 进缓冲, 一帧都不出就冻住。
+                    val renderBase = try {
+                        (p.videoDecoderCounters?.also { it.ensureUpdated() }?.renderedOutputBufferCount ?: 0L).toLong()
+                    } catch (t: Throwable) { 0L }
                     var ready = false
                     val deadline = System.currentTimeMillis() + 8_000
                     while (System.currentTimeMillis() < deadline) {
                         kotlinx.coroutines.delay(200)
                         if (errorTick != tick) break
+                        val renderedNow = try {
+                            (p.videoDecoderCounters?.also { it.ensureUpdated() }?.renderedOutputBufferCount ?: 0L).toLong()
+                        } catch (t: Throwable) { renderBase }
                         if (p.playbackState == Player.STATE_READY &&
-                            p.bufferedPosition - p.currentPosition >= 1500L
+                            p.bufferedPosition - p.currentPosition >= 1500L &&
+                            renderedNow > renderBase
                         ) { ready = true; break }
                     }
                     if (ready) {
@@ -380,6 +392,7 @@ fun ChannelFocusPreview(
                         )
                         StreamHealth.markGood(url)
                         recoverAttempt.set(0)
+                        consecutiveBad = 0
                         DiagLog.i("直播预览: ${stalled.id} 原地重载就绪(第 $rounds 轮)")
                         loaded = true
                         // 看门狗触发后已经 break 结束, 原地重载没换 player, 这里必须重新挂上看门狗,
@@ -388,7 +401,15 @@ fun ChannelFocusPreview(
                         startWatchdog(p, stalled.id, RELOAD_WARMUP_MS)
                     } else {
                         StreamHealth.markBad(url)
-                        DiagLog.event("直播预览: ${stalled.id} 第 $rounds 轮未就绪, 换下一路")
+                        consecutiveBad++
+                        DiagLog.event("直播预览: ${stalled.id} 第 $rounds 轮未就绪(连续 $consecutiveBad 路), 换下一路")
+                        if (consecutiveBad >= RELOAD_REFETCH_AFTER_BAD) {
+                            // 连续几路都起不来: 这组旧签名/节点整体已失效, 清掉缓存候选,
+                            // 下一轮直接重拉 playinfo 拿新签名, 不再把剩下的坏地址挨个试一遍。
+                            streamCache.remove(key)
+                            consecutiveBad = 0
+                            DiagLog.event("直播预览: ${stalled.id} 连续 $RELOAD_REFETCH_AFTER_BAD 路未就绪, 放弃旧候选重新取流")
+                        }
                         kotlinx.coroutines.delay(RECOVER_GAP_MS)
                     }
                 }
@@ -698,17 +719,24 @@ fun ChannelFocusPreview(
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_READY) {
                     retryCount = 0
-                    // 等缓冲够再标记ready(主线程轮询, ExoPlayer非线程安全)
+                    // 等缓冲够且真出帧再标记ready(主线程轮询, ExoPlayer非线程安全):
+                    // 只看缓冲会把签名过期、一帧不出的流误判成就绪, 起播即冻住。
                     scope.launch {
                         val deadline = System.currentTimeMillis() + 10_000
+                        var sawFrame = false
                         while (System.currentTimeMillis() < deadline) {
-                            if (exo.bufferedPosition - exo.currentPosition >= 3000L) {
+                            kotlinx.coroutines.delay(200)
+                            val renderedNow = try {
+                                (exo.videoDecoderCounters?.also { it.ensureUpdated() }?.renderedOutputBufferCount ?: 0L).toLong()
+                            } catch (t: Throwable) { 0L }
+                            if (renderedNow > 0L) sawFrame = true
+                            if (exo.bufferedPosition - exo.currentPosition >= 3000L && sawFrame) {
                                 ready = true
                                 break
                             }
-                            kotlinx.coroutines.delay(200)
                         }
-                        if (!ready) ready = true
+                        // 到点已出过帧就算起来(缓冲略欠可续播); 一帧没出不置 ready, 交外层超时兜底切备用源
+                        if (!ready && sawFrame) ready = true
                         onReadyChange(true)
                     }
                 }
@@ -927,7 +955,7 @@ fun ChannelFocusPreview(
     // 发现播放器无进展并交给同一条救场链路。节奏比看门狗慢(5s 一 tick), 连续 3 个 tick 无新帧
     // 且位置不动(或一直 IDLE)才判死, 避开缓冲抖动。重载/恢复/等待网络期间全部跳过, 不抢流程。
     LaunchedEffect(source?.id) {
-        hbLastPos = -1L; hbLastRendered = -1L; hbDeadTicks = 0
+        hbLastPos = -1L; hbLastRendered = -1L; hbLastBuf = -1L; hbDeadTicks = 0
         while (true) {
             kotlinx.coroutines.delay(HEARTBEAT_INTERVAL_MS)
             val s = source ?: continue
@@ -937,12 +965,9 @@ fun ChannelFocusPreview(
             if (playingSourceId != s.id) continue
             if (reloadBusy.get() || recovering.get() || stallBusy.get() || netWaitBusy.get() || st.loading) continue
             if (!BootVeil.revealed) continue
-            if (p.isLoading) {
-                hbDeadTicks = 0
-                continue
-            }
             var idle = false
             var posDelta = 1000L
+            var bufDelta = 1000L
             var rendDelta = 0L
             var readOk = true
             try {
@@ -950,18 +975,24 @@ fun ChannelFocusPreview(
                 c?.ensureUpdated()
                 val rendered = (c?.renderedOutputBufferCount ?: 0L).toLong()
                 val pos = p.currentPosition
+                val buf = p.bufferedPosition
                 idle = p.playbackState == Player.STATE_IDLE
                 posDelta = if (hbLastPos < 0) 1000L else pos - hbLastPos
+                bufDelta = if (hbLastBuf < 0) 1000L else buf - hbLastBuf
                 rendDelta = if (hbLastRendered < 0) 0L else rendered - hbLastRendered
                 hbLastPos = pos
+                hbLastBuf = buf
                 hbLastRendered = rendered
             } catch (t: Throwable) { readOk = false }
             if (!readOk) continue
-            if (posDelta < 0L) { hbDeadTicks = 0; continue }
-            val dead = idle || (posDelta < HEARTBEAT_POS_MIN_MS && rendDelta <= 0L)
+            // 位置/缓冲回退(换流对齐跳变)不是卡死, 只重置基准, 本轮不计异常
+            if (posDelta < 0L || bufDelta < 0L) { hbDeadTicks = 0; continue }
+            // 一直缓冲(isLoading)但位置不走、缓冲不涨、也没新帧, 是"空缓冲干等"的静默挂死,
+            // 不能一见 isLoading 就清零跳过 —— 否则旧签名拉不到切片时心跳永远不判死。
+            val dead = idle || (posDelta < HEARTBEAT_POS_MIN_MS && rendDelta <= 0L && bufDelta <= 0L)
             if (dead) {
                 hbDeadTicks++
-                DiagLog.i("直播预览: 心跳无进展 tick=$hbDeadTicks state=${p.playbackState} pos=$posDelta rendered=$rendDelta")
+                DiagLog.i("直播预览: 心跳无进展 tick=$hbDeadTicks state=${p.playbackState} pos=$posDelta buf=$bufDelta rendered=$rendDelta")
                 if (hbDeadTicks >= HEARTBEAT_DEAD_TICKS) {
                     hbDeadTicks = 0
                     DiagLog.i("直播预览: 心跳兜底判定静默挂死 id=${playingSourceId ?: s.id}, 触发救场")
@@ -1184,24 +1215,32 @@ private const val CCTV_ID = "preset_2"
  *   但不能把留给原地重载的候选一次吃光 —— 实测断网时三次错误重试就把 4 路候选全打光,
  *   真正触发重载时只剩"第 4/4 路")。
  */
-private class StreamCandidates(val urls: List<String>) {
+private class StreamItem(val url: String, val expiresAt: Long) {
+    /** 签名是否已过期(留 [SIGN_EXPIRE_MARGIN_SEC] 余量); expiresAt<0 表示无签名, 永不按过期判。 */
+    fun expired(nowSec: Long): Boolean = expiresAt > 0L && nowSec > expiresAt - SIGN_EXPIRE_MARGIN_SEC
+}
+
+private class StreamCandidates(raw: List<String>) {
+    val items = raw.map { StreamItem(it, parseExpires(it)) }
+    val urls: List<String> get() = items.map { it.url }
     var index = 0
         private set
     private var cycleIndex = 0
 
     /**
-     * 下一路: 已知坏掉的(冷却期内)先跳过, 从还能用的那路开始。
-     * 一轮里全是坏的才回退到全部重来 —— 总比"没有候选"直接判死强。
+     * 下一路: 已知坏掉的(冷却期内)和签名已过期的先跳过, 从还能用的那路开始。
+     * 一轮里全是坏的/过期的才回退到全部重来 —— 总比"没有候选"直接判死强。
      */
     private var ignoringCooling = false
 
     fun pollNext(): String? {
-        while (index < urls.size) {
-            val u = urls[index++]
-            if (ignoringCooling || !StreamHealth.cooling(u)) return u
+        val nowSec = System.currentTimeMillis() / 1000L
+        while (index < items.size) {
+            val it = items[index++]
+            if (ignoringCooling || (!StreamHealth.cooling(it.url) && !it.expired(nowSec))) return it.url
         }
-        // 一轮走完全是坏地址: 不认这个冷却, 从头再来一遍, 让播放器自己去判断
-        if (!ignoringCooling && urls.isNotEmpty()) {
+        // 一轮走完全是坏地址: 不认这个冷却/过期, 从头再来一遍, 让播放器自己去判断
+        if (!ignoringCooling && items.isNotEmpty()) {
             ignoringCooling = true
             index = 0
             return pollNext()
@@ -1209,11 +1248,15 @@ private class StreamCandidates(val urls: List<String>) {
         return null
     }
     fun cycleNext(): String {
-        val u = urls[cycleIndex % urls.size]
+        val u = items[cycleIndex % items.size].url
         cycleIndex++
         return u
     }
 }
+
+/** 从取流地址解析 B 站签名过期时间(秒级 epoch); 无 expires 参数返回 -1。 */
+private fun parseExpires(url: String): Long =
+    Regex("[?&]expires=(\\d+)").find(url)?.groupValues?.getOrNull(1)?.toLongOrNull() ?: -1L
 
 /** 共用的 HLS 媒体源构造: 初始起播和原地重载走同一套请求头/超时, 避免两处各写一份漂移。 */
 private fun buildHlsMediaSource(url: String, isBili: Boolean, context: android.content.Context): HlsMediaSource {
@@ -1288,3 +1331,9 @@ private const val HEARTBEAT_DEAD_TICKS = 3
 
 /** 心跳判定位置不动的阈值, 与看门狗一致。 */
 private const val HEARTBEAT_POS_MIN_MS = 100L
+
+/** 签名过期提前量(秒): 留点余量, 避免边缘刚好过期的地址还送去试播。 */
+private const val SIGN_EXPIRE_MARGIN_SEC = 60L
+
+/** 原地重载连续这么多路未就绪就直接重拉 playinfo 取新签名, 不再把旧候选挨个试完。 */
+private const val RELOAD_REFETCH_AFTER_BAD = 2

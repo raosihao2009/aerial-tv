@@ -133,10 +133,12 @@ class PlaybackWatchdog(
                 val idle = playerState == Player.STATE_IDLE
                 val noFrames = renderedDelta <= 0L
                 val dead = countersOk && (idle || (noFrames && frozen))
-                if (dead) deadStreak++ else deadStreak = 0
+                // 计数做衰减而不是一票清零: 一轮读数抖动(缓冲微涨/位置微跳)不至于打断连续判定,
+                // 但持续正常播放时计数仍会自己退到 0, 不会长期挂着加载图。
+                deadStreak = if (dead) deadStreak + 1 else (deadStreak - 1).coerceAtLeast(0)
 
                 val wasStuck = stuckStreak > 0
-                stuckStreak = if (bad) stuckStreak + 1 else 0
+                stuckStreak = if (bad) stuckStreak + 1 else (stuckStreak - 1).coerceAtLeast(0)
                 if (bad && stuckStreak == 1) {
                     // 第一次采样就判异常: 立刻挂加载图, 别等凑满 streakNeeded 才转圈
                     onSuspect(true)
@@ -215,7 +217,7 @@ class PlaybackWatchdog(
         // 触发前的复核窗口: 同一个 2s 采样长度, 位置推进超过 500ms 就当没卡
         const val RECHECK_MS = 2000L
         const val RECHECK_ADVANCE_MS = 500L
-        // 静默挂死兜底: 连续这么多个(每 2s)窗口无新帧且位置不动, 直接判死救场(10×2s=20s)
-        const val DEAD_FALLBACK_SAMPLES = 10
+        // 静默挂死兜底: 连续这么多个(每 2s)窗口无新帧且位置不动, 直接判死救场(6×2s=12s)
+        const val DEAD_FALLBACK_SAMPLES = 6
     }
 }
