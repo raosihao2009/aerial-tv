@@ -731,8 +731,11 @@ fun ChannelFocusPreview(
                 DiagLog.i("直播预览: 状态迁移 id=${source.id} ${playerStateName(state)} loading=${exo.isLoading}")
                 if (state == Player.STATE_READY) {
                     retryCount = 0
-                    // 等缓冲够且真出帧再标记ready(主线程轮询, ExoPlayer非线程安全):
-                    // 只看缓冲会把签名过期、一帧不出的流误判成就绪, 起播即冻住。
+                    // 注意: 不能把"已经出帧"当成绑定 surface 的前置条件。surface 是在 ready 之后
+                    // 才绑到 player 上的, 没绑 surface 视频渲染器就没有输出目标, rendered 恒为 0,
+                    // 反过来又永远判不成 ready —— 形成"不绑定就不出帧、不出帧就不绑定"的死锁。
+                    // 所以这里只按缓冲跨度先判 ready 开播绑 surface; 绑完若仍不出帧, 交给绑定后的
+                    // 看门狗/心跳和起播出帧观察去判死重载, 不在绑定前卡出帧。
                     scope.launch {
                         val deadline = System.currentTimeMillis() + 10_000
                         var sawFrame = false
@@ -742,13 +745,13 @@ fun ChannelFocusPreview(
                                 (exo.videoDecoderCounters?.also { it.ensureUpdated() }?.renderedOutputBufferCount ?: 0L).toLong()
                             } catch (t: Throwable) { 0L }
                             if (renderedNow > 0L || lastFirstFrameAt > 0L) sawFrame = true
-                            if (exo.bufferedPosition - exo.currentPosition >= 3000L && sawFrame) {
+                            if (exo.bufferedPosition - exo.currentPosition >= 3000L) {
                                 ready = true
                                 break
                             }
                         }
-                        // 到点已出过帧就算起来(缓冲略欠可续播); 一帧没出不置 ready, 交外层超时兜底切备用源
-                        if (!ready && sawFrame) ready = true
+                        // 到点已出过帧, 或缓冲略欠但已出帧, 都算起来; 纯缓冲不足交外层超时兜底
+                        if (!ready && (sawFrame || exo.bufferedPosition - exo.currentPosition >= 1500L)) ready = true
                         onReadyChange(true)
                     }
                 }
@@ -928,6 +931,25 @@ fun ChannelFocusPreview(
                 showToast("已经从「$oldName」切换至「${source.name}」")
             }
             suppressSwitchToast = false
+            // 绑定后出帧观察: surface 已经挂上, 给一小段窗口看是否真出帧。仍一帧不出说明这路
+            // 解码/渲染失败, 不等看门狗慢轮询, 直接交原地重载换下一路(签名过期/坏节点也走这条)。
+            scope.launch {
+                val frameDeadline = System.currentTimeMillis() + FIRST_FRAME_WATCH_MS
+                val baseRendered = try {
+                    (exo.videoDecoderCounters?.also { it.ensureUpdated() }?.renderedOutputBufferCount ?: 0L).toLong()
+                } catch (t: Throwable) { 0L }
+                while (System.currentTimeMillis() < frameDeadline) {
+                    kotlinx.coroutines.delay(500)
+                    if (st.disposed || playingSourceId != source.id) return@launch
+                    val nowRendered = try {
+                        (exo.videoDecoderCounters?.also { it.ensureUpdated() }?.renderedOutputBufferCount ?: 0L).toLong()
+                    } catch (t: Throwable) { baseRendered }
+                    if (nowRendered > baseRendered || lastFirstFrameAt > 0L) return@launch
+                }
+                if (st.disposed || playingSourceId != source.id) return@launch
+                DiagLog.event("直播预览: ${source.id} 绑定后 ${FIRST_FRAME_WATCH_MS / 1000}s 仍未出帧, 判解码失败重载")
+                reloadInPlace(source)
+            }
             // 卡顿探测: 关掉看门狗也照样跑 —— 关掉的是"卡了就自动换源", 不是"卡死了也不管"。
             // 关时只看真冻住(frozenOnly), 触发后走 handleStall 的救场流程(查开播/下播 → 重载或换源)。
             startWatchdog(exo, source.id, null)
@@ -1361,6 +1383,9 @@ private const val RECOVER_SEEK_BACK_MS = 2_000L
 
 /** 原地重载救回来之后看门狗的预热: 流已在播, 只留一个采样窗口避开 seek 抖动。 */
 private const val RELOAD_WARMUP_MS = 2_000L
+
+/** 绑定 surface 后等待首帧的窗口: 超时仍 rendered 无增量就判这路解码失败, 原地重载。 */
+private const val FIRST_FRAME_WATCH_MS = 6_000L
 
 /** 退避重试: 首次等待基数, 之后指数翻倍(5s→10s→20s)。 */
 private const val RECOVER_BACKOFF_BASE_MS = 5_000L
