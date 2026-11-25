@@ -1251,6 +1251,14 @@ fun HomeScreen(
             // 未就绪时本就在播, 这段空窗用静态帧盖住预览黑层, 不让 Amlogic 上清帧后的黑露出来。
             if (channelPreviewVisible) {
                 val still = Wallpapers.backdrop ?: Wallpapers.frosted
+                LaunchedEffect(still, channelPreviewVisible) {
+                    DiagLog.i(
+                        "壁纸兜底调试: 可见=$channelPreviewVisible 帧=${still != null} " +
+                            "宽=${still?.width ?: 0} 高=${still?.height ?: 0} " +
+                            "backdrop=${Wallpapers.backdrop != null} frosted=${Wallpapers.frosted != null} " +
+                            "ready=${liveReadyState.value} 壁纸=${Wallpapers.selectedId}"
+                    )
+                }
                 val ready by androidx.compose.animation.core.animateFloatAsState(
                     targetValue = if (liveReadyState.value) 1f else 0f,
                     animationSpec = androidx.compose.animation.core.tween(320),
