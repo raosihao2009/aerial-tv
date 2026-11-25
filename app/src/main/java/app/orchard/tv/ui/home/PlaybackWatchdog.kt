@@ -57,6 +57,9 @@ class PlaybackWatchdog(
             var stuckStreak = 0
             // 静默挂死兜底计数: 和上面的卡顿 streak 分开累计, 不被间歇回退/读数抖动清零。
             var deadStreak = 0
+            // 最近一次有实质播放进展(位置推进/出新帧/缓冲实质增长)的时刻; 超过 DEAD_WINDOW_MS
+            // 没有任何进展即判静默挂死。用时间窗口而不是单轮 delta 累计, 避免间歇微帧把计数打断。
+            var lastAliveAt = 0L
             var age = 0L
             while (true) {
                 delay(POLL_INTERVAL_MS)
@@ -84,6 +87,7 @@ class PlaybackWatchdog(
                     playerState = exo.playbackState
                     playWhenReady = exo.playWhenReady
                 } catch (t: Throwable) { countersOk = false }
+                val now = System.currentTimeMillis()
                 val droppedDelta = droppedNow - lastDropped
                 val renderedDelta = if (lastRendered == 0L) 0L else renderedNow - lastRendered
                 lastDropped = droppedNow
@@ -101,10 +105,16 @@ class PlaybackWatchdog(
                     if (stuckStreak > 0) onSuspect(false)
                     stuckStreak = 0
                     deadStreak = 0
+                    lastAliveAt = now
                     lastDropped = droppedNow
                     lastRendered = renderedNow
                     continue
                 }
+
+                // 实质进展: 位置推进超阈值 / 出新帧 / 缓冲实质增长, 任一成立即认为流还活着,
+                // 刷新最后进展时刻; 都不成立则保留旧时刻, 交给时间窗口判定是否挂死。
+                val alive = posDelta >= FROZEN_POS_DELTA_MS || renderedDelta > 0L || bufDelta >= BUF_ALIVE_MIN_MS
+                if (lastAliveAt == 0L || alive) lastAliveAt = now
 
                 // 对 10-20fps 低帧率直播(B站/央视常见)：renderedDelta 自然就低，
                 // 不能再用"2s 渲染 <renderedThreshold 帧"直接判 bad。
@@ -126,13 +136,14 @@ class PlaybackWatchdog(
                 // frozenOnly(看门狗关闭): 只认"真冻住", 不把掉帧爆发/低帧率算成卡死。
                 val bad = if (frozenOnly) frozen else frozen || stuckBuffering || dropBurst || lowFps
 
-                // 静默挂死形态: 进了 IDLE 出不来; 或者既没有新帧(rendered<=0)、位置和缓冲也不走。
-                // 这类挂死 ExoPlayer 不会抛 onPlayerError, 普通卡顿 streak 又可能被读数回退清零,
-                // 所以单独累计 deadStreak, 到阈值直接判死救场。读数本身异常(countersOk=false)本轮
-                // 不判死, 只跳过, 避免偶发反射异常误触发重载。
+                // 静默挂死形态: 进了 IDLE 出不来; 或连续 DEAD_WINDOW_MS 没有任何实质进展。
+                // 这类挂死 ExoPlayer 不会抛 onPlayerError, 普通卡顿 streak 又可能被间歇微帧打断,
+                // 所以单独累计 deadStreak, 到阈值复核后直接判死救场。读数本身异常(countersOk=false)
+                // 本轮不判死, 只跳过, 避免偶发反射异常误触发重载。
                 val idle = playerState == Player.STATE_IDLE
-                val noFrames = renderedDelta <= 0L
-                val dead = countersOk && (idle || (noFrames && frozen))
+                // 静默挂死: IDLE 出不来; 或连续 DEAD_WINDOW_MS 没有任何实质进展。
+                // 不按单轮 noFrames&&frozen 判 —— 间歇微帧/缓冲微跳会打断单轮累计, 时间窗口不会。
+                val dead = countersOk && (idle || (lastAliveAt > 0L && now - lastAliveAt > DEAD_WINDOW_MS))
                 // 计数做衰减而不是一票清零: 一轮读数抖动(缓冲微涨/位置微跳)不至于打断连续判定,
                 // 但持续正常播放时计数仍会自己退到 0, 不会长期挂着加载图。
                 deadStreak = if (dead) deadStreak + 1 else (deadStreak - 1).coerceAtLeast(0)
@@ -164,6 +175,7 @@ class PlaybackWatchdog(
                         DiagLog.i("直播预览: 源 $sourceId 静默挂死解除(复核 ${RECHECK_MS}ms 内推进 ${recheckAdvance}ms), 继续播放")
                         deadStreak = 0
                         stuckStreak = 0
+                        lastAliveAt = System.currentTimeMillis()
                         lastPos = posAfter
                         lastBuffered = try { exo.bufferedPosition } catch (t: Throwable) { lastBuffered }
                         lastDropped = try { (exo.videoDecoderCounters?.also { it.ensureUpdated() }?.droppedBufferCount ?: 0).toLong() } catch (t: Throwable) { lastDropped }
@@ -187,6 +199,7 @@ class PlaybackWatchdog(
                         onSuspect(false)
                         DiagLog.i("直播预览: 源 $sourceId 并非真卡(复核 ${RECHECK_MS}ms 内推进 ${recheckAdvance}ms), 继续播放")
                         stuckStreak = 0
+                        lastAliveAt = System.currentTimeMillis()
                         lastPos = posAfter
                         lastBuffered = try { exo.bufferedPosition } catch (t: Throwable) { lastBuffered }
                         lastDropped = try { (exo.videoDecoderCounters?.also { it.ensureUpdated() }?.droppedBufferCount ?: 0).toLong() } catch (t: Throwable) { lastDropped }
@@ -217,7 +230,12 @@ class PlaybackWatchdog(
         // 触发前的复核窗口: 同一个 2s 采样长度, 位置推进超过 500ms 就当没卡
         const val RECHECK_MS = 2000L
         const val RECHECK_ADVANCE_MS = 500L
-        // 静默挂死兜底: 连续这么多个(每 2s)窗口无新帧且位置不动, 直接判死救场(6×2s=12s)
-        const val DEAD_FALLBACK_SAMPLES = 6
+        // 连续这么久没有任何实质进展(位置/新帧/缓冲都不动)即判静默挂死; 用时间窗口而非单轮累计,
+        // 间歇微帧/缓冲微跳撑不满这个窗口, 不会再把计数打断。
+        const val DEAD_WINDOW_MS = 8000L
+        // 缓冲增长超过这个量才算实质进展, 避开几十字节的读数抖动。
+        const val BUF_ALIVE_MIN_MS = 300L
+        // 判死后再连续这么多个(每 2s)窗口确认一次, 复核位置仍不动才救场(2×2s=4s)。
+        const val DEAD_FALLBACK_SAMPLES = 2
     }
 }

@@ -130,6 +130,8 @@ fun ChannelFocusPreview(
     var hbLastRendered by remember { mutableStateOf(-1L) }
     var hbLastBuf by remember { mutableStateOf(-1L) }
     var hbDeadTicks by remember { mutableStateOf(0) }
+    // 最近一次首帧回调的时刻: 与解码器渲染计数交叉验证"真出帧", 防止旧 player 计数残留导致增量判据失效。
+    var lastFirstFrameAt by remember { mutableStateOf(0L) }
     // 当前已在播放的源名称(用于切换失败时提示继续观看谁)
     var currentPlayingName by remember { mutableStateOf<String?>(null) }
     // 上一个正在播放的源 id(切换失败时回退焦点)
@@ -361,12 +363,15 @@ fun ChannelFocusPreview(
                     DiagLog.event("直播预览: ${stalled.id} 原地重载, 第 $rounds 轮 ${cands?.index ?: 0}/${cands?.urls?.size ?: 0} 路候选")
                     val hls = buildHlsMediaSource(url, stalled.isBilibiliStream, context)
                     // 不 release、不暂停: 上一轮最后一帧留在转圈图下面, 新流就绪后直接续播
+                    val prepareAt = System.currentTimeMillis()
+                    lastFirstFrameAt = 0L
                     p.setMediaSource(hls)
                     p.prepare()
                     // 等这一路起流(最多 8s); 播放器一报错立刻换下一路, 不空等
                     val tick = errorTick
                     // 计数器沿用旧 player, 先记本轮基准: 必须有"新渲染出的帧"才算真起来,
                     // 不能只看 STATE_READY + 缓冲够 —— 签名过期的流能短暂 READY 进缓冲, 一帧都不出就冻住。
+                    // 首帧回调时间戳作交叉验证: 计数器残留时以本轮新到的首帧信号为准。
                     val renderBase = try {
                         (p.videoDecoderCounters?.also { it.ensureUpdated() }?.renderedOutputBufferCount ?: 0L).toLong()
                     } catch (t: Throwable) { 0L }
@@ -378,9 +383,10 @@ fun ChannelFocusPreview(
                         val renderedNow = try {
                             (p.videoDecoderCounters?.also { it.ensureUpdated() }?.renderedOutputBufferCount ?: 0L).toLong()
                         } catch (t: Throwable) { renderBase }
+                        val sawNewFrame = renderedNow > renderBase || lastFirstFrameAt > prepareAt
                         if (p.playbackState == Player.STATE_READY &&
                             p.bufferedPosition - p.currentPosition >= 1500L &&
-                            renderedNow > renderBase
+                            sawNewFrame
                         ) { ready = true; break }
                     }
                     if (ready) {
@@ -695,6 +701,7 @@ fun ChannelFocusPreview(
             .build()
         var readyListener: Player.Listener? = null
         try {
+        lastFirstFrameAt = 0L
         val hls = buildHlsMediaSource(streamUrl, source.isBilibiliStream, context)
 
         // 等待新流READY且缓冲足够(至少3秒)再切换，避免开播后卡缓冲
@@ -714,6 +721,7 @@ fun ChannelFocusPreview(
         }
         readyListener = object : Player.Listener {
             override fun onRenderedFirstFrame() {
+                lastFirstFrameAt = System.currentTimeMillis()
                 DiagLog.i("直播预览: 首帧 id=${source.id} player=${if (player === exo) "已绑定" else "未绑定"}")
             }
             override fun onPlaybackStateChanged(state: Int) {
@@ -729,7 +737,7 @@ fun ChannelFocusPreview(
                             val renderedNow = try {
                                 (exo.videoDecoderCounters?.also { it.ensureUpdated() }?.renderedOutputBufferCount ?: 0L).toLong()
                             } catch (t: Throwable) { 0L }
-                            if (renderedNow > 0L) sawFrame = true
+                            if (renderedNow > 0L || lastFirstFrameAt > 0L) sawFrame = true
                             if (exo.bufferedPosition - exo.currentPosition >= 3000L && sawFrame) {
                                 ready = true
                                 break
