@@ -1245,9 +1245,11 @@ fun HomeScreen(
                     onGlobalToast = { msg -> vm.showToast(msg) },
                 )
             }
-            // 静态壁纸: 直播画面还没出帧时 SurfaceView 是黑的, 先盖一层壁纸,
-            // 出帧后再淡出 —— 观感是"直播画面直接覆盖在壁纸上", 不会黑一下。
-            if (channelPreviewVisible && !Wallpapers.moves()) {
+            // 直播画面还没出帧时预览层是黑的(回桌面重建、冷启动起流都是这段空窗),
+            // 先盖一层壁纸代表帧, 出帧后再淡出 —— 观感是"直播画面直接覆盖在壁纸上", 不会黑一下。
+            // 照片/视频/航拍壁纸一律兜底: 视频壁纸的代表帧是上次停帧或首帧, 动态影片在直播
+            // 未就绪时本就在播, 这段空窗用静态帧盖住预览黑层, 不让 Amlogic 上清帧后的黑露出来。
+            if (channelPreviewVisible) {
                 val still = Wallpapers.backdrop ?: Wallpapers.frosted
                 val ready by androidx.compose.animation.core.animateFloatAsState(
                     targetValue = if (liveReadyState.value) 1f else 0f,
