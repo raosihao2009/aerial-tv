@@ -77,7 +77,7 @@ class PhoneServer private constructor(private val context: Context, private val 
             // the network with the address (a child with a phone) could otherwise undo the mode.
             // The page sends it with each change once it is entered (header X-Aerial-Pin).
             // Turning the TV off undoes nothing, and is what a parent away from it may want most.
-            if (session.method == Method.POST && path != "/api/kids/unlock" && path != "/api/power/off" && path != "/api/diag/web" && (Restricted.active || path.startsWith("/api/kids/")) &&
+            if (session.method == Method.POST && path != "/api/kids/unlock" && path != "/api/power/off" && (Restricted.active || path.startsWith("/api/kids/")) &&
                 path != "/api/kids/start" && !pinOk(session.headers["x-aerial-pin"])
             ) return json(state().put("saved", false).put("kidsLocked", true))
             when {
@@ -90,11 +90,6 @@ class PhoneServer private constructor(private val context: Context, private val 
                 session.method == Method.POST && path == "/api/kids/unlock" -> {
                     val ok = pinOk(form(session)["pin"])
                     json(state().put("saved", ok).put("pinRight", ok))
-                }
-                session.method == Method.POST && path == "/api/diag/web" -> {
-                    val f = form(session)
-                    app.orchard.tv.system.DiagLog.i("手机页前端: ${f["msg"].orEmpty()}")
-                    json(JSONObject().put("ok", true))
                 }
                 session.method == Method.POST && path == "/api/kids/allow" -> {
                     val minutes = form(session)["minutes"]?.toIntOrNull()
@@ -111,11 +106,7 @@ class PhoneServer private constructor(private val context: Context, private val 
                     if (can) onMain { Restricted.start(); KidsWatch.poke() }
                     json(state().put("saved", can))
                 }
-                path == "/api/state" -> {
-                    val st = state()
-                    st.put("ver", app.orchard.tv.BuildConfig.VERSION_CODE)
-                    json(st)
-                }
+                path == "/api/state" -> json(state())
                 // 手机端「更多」: 默认把内容回到页面里显示, 带 download=1 才作为附件下载。
                 // 这两种是同一份文本, 区别只在响应头 —— 页面里看和存到手机上下载目录各走一条。
                 path == "/api/diagnostics" -> textFile(Diagnostics.report(context), "aerial-diag",
@@ -284,24 +275,13 @@ class PhoneServer private constructor(private val context: Context, private val 
                 // choose* 写进去。壁纸/屏保/隐藏卡片不在这里, 手机页别的标签页已有。
                 session.method == Method.GET && path == "/api/prefs" -> {
                     val lang = queryOf(session.queryParameterString, "lang") ?: "zh"
-                    val s = PhonePrefs.schema(context, lang)
-                    s.put("ver", app.orchard.tv.BuildConfig.VERSION_CODE)
-                    json(s)
+                    json(PhonePrefs.schema(context, lang))
                 }
                 session.method == Method.POST && path == "/api/prefs" -> {
                     val f = form(session)
-                    val key = f["key"].orEmpty()
-                    val value = f["value"].orEmpty()
                     var ok = false
-                    try {
-                        onMain { ok = PhonePrefs.set(key, value) }
-                    } catch (e: Exception) {
-                        app.orchard.tv.system.DiagLog.e("手机页设置失败: $key=$value", e)
-                    }
-                    app.orchard.tv.system.DiagLog.i("手机页设置: $key=$value -> saved=$ok")
-                    val resp = JSONObject().put("ok", ok).put("saved", ok)
-                    app.orchard.tv.system.DiagLog.i("手机页设置响应: $resp")
-                    json(resp)
+                    onMain { ok = PhonePrefs.set(f["key"].orEmpty(), f["value"].orEmpty()) }
+                    json(JSONObject().put("ok", ok))
                 }
                 session.method == Method.POST && path == "/api/focus" -> {
                     val style = FocusStyle.of(form(session)["style"])

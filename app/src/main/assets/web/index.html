@@ -1766,10 +1766,6 @@ async function api(path, body) {
   if (!r.ok) throw new Error(r.status);
   return r.json();
 }
-/* 把手机页前端的判定结果/异常回传到电视诊断日志, 便于真机排查网页层问题。 */
-function webDiag(msg) {
-  try { fetch(base + 'api/diag/web', { method: 'POST', body: new URLSearchParams({ msg: String(msg) }), keepalive: true }); } catch (e) {}
-}
 function take(next) { state = next; stateJson = ''; render(); if (typeof paintTrigger === 'function') paintTrigger(); }
 
 /* Tabs. The tab is kept in the address (#home) and on the phone, and each tab keeps its own scroll. */
@@ -2453,7 +2449,6 @@ async function loadPrefs() {
     if (text === prefsJson) return;
     prefsJson = text;
     prefs = JSON.parse(text);
-    pageVerCheck(prefs);
     // 家长密码开没开决定「隐藏的卡片」要不要先验密码: 一变就重画主屏那一段。
     const pinNow = !!((prefs.kids || {}).pinSet);
     renderPrefs();
@@ -2464,14 +2459,11 @@ async function loadPrefs() {
 async function setPref(key, value, after, quiet) {
   try {
     const r = await api('api/prefs', { key: key, value: value });
-    if (r && r.kidsLocked) { webDiag(`setPref ${key} 被锁定回拦`); toast(t('backup_locked')); return false; }
-    if (r && (r.ok === false || r.saved === false)) throw new Error('not saved');
+    if (!r.ok) throw new Error('not saved');
     await loadPrefs();
     if (after) after();
-    webDiag(`setPref ${key} 成功`);
     return true;
   } catch (e) {
-    webDiag(`setPref ${key} 失败: ${e && e.message}`);
     if (!quiet) toast(t('toast_set_fail'));
     await loadPrefs();
     if (after) after();
@@ -2929,11 +2921,9 @@ if (window.ResizeObserver) { const h = document.querySelector('header'); if (h) 
 
 /* 进儿童与长辈窗口前先验密码: 没设过就先设一个, 设过就核对一次。 */
 function openKidsGate() {
-  try {
-    const k = (prefs && prefs.kids) || {};
-    if (!k.pinSet) { pinSheet('create', false, () => openKids()); return; }
-    pinSheet('verify', !!k.pinArrows, () => openKids());
-  } catch (err) { toast(t('toast_set_fail')); }
+  const k = (prefs && prefs.kids) || {};
+  if (!k.pinSet) { pinSheet('create', false, () => openKids()); return; }
+  pinSheet('verify', !!k.pinArrows, () => openKids());
 }
 
 /* 儿童与长辈窗口: 上面是细则, 下面是两页卡片(应用 / 直播), 每页带封面与勾选编号。
@@ -2941,7 +2931,7 @@ function openKidsGate() {
 let kidsTab = 0;
 function openKids() {
   openSheet(body => {
-    const k = prefs && prefs.kids; if (!k) { toast(t('toast_set_fail')); return; }
+    const k = prefs && prefs.kids; if (!k) return;
     body.appendChild(el('h3', '', k.title));
     if (k.hint) body.appendChild(el('p', 'meta', k.hint));
     const refresh = () => openKids();
@@ -3510,7 +3500,7 @@ let hiddenRetry = false;
 function buildHomeView(view, L) {
   if (hiddenRetry && hiddenUnlocked && !L.hidden.length && L.hiddenCount) {
     hiddenRetry = false;
-    api('api/state').then(r => { pageVerCheck(r); take(r); }).catch(() => {});
+    api('api/state').then(take).catch(() => {});
   }
   // 应用卡片: 一张气泡 — 标题、说明、卡片网格。
   const gc = el('div', 'list pcard'); view.appendChild(gc);
@@ -3920,7 +3910,7 @@ measureHead();
 // 直接恢复到 more 会绕过 PIN 校验。初始化一律先落在「应用菜单」, 进个性化仍走导航点击的密码核对。
 const startTab = (location.hash || '').slice(1) || (() => { try { return localStorage.getItem('aerial-tab'); } catch (e) { return null; } })();
 show(startTab === 'more' ? 'home' : startTab, true);
-async function refresh() { try { state = await api('api/state'); pageVerCheck(state); render(); loadSaver(); } catch (e) {} }
+async function refresh() { try { state = await api('api/state'); render(); loadSaver(); } catch (e) {} }
 refresh();
 loadPrefs();
 loadSaver();
