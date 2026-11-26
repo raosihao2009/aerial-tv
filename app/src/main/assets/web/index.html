@@ -764,7 +764,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1168;
+const PAGE_VER = 1169;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1765,6 +1765,21 @@ async function api(path, body) {
   const r = await fetch(base + path, opts);
   if (!r.ok) throw new Error(r.status);
   return r.json();
+}
+/* 守护模式专用链路, 不再复用通用 /api/prefs 的逐项兜底。 */
+/* 核对家长密码: 走专用 unlock 端点, 判定只认后端回的 pinRight; 连续错误锁定由后端管。 */
+async function kidsVerifyPin(pin) {
+  try {
+    const r = await api('api/kids/unlock', { pin: pin });
+    return !!(r && r.pinRight === true);
+  } catch (e) { return false; }
+}
+/* 设新密码(set) / 用现有密码关掉(off): 走 prefs 的 pin 分支, 独立按 ok 字段判定。 */
+async function kidsSavePin(action, pin) {
+  try {
+    const r = await api('api/prefs', { key: 'pin', value: action + ':' + pin });
+    return !!(r && r.ok === true);
+  } catch (e) { return false; }
 }
 function take(next) { state = next; stateJson = ''; render(); if (typeof paintTrigger === 'function') paintTrigger(); }
 
@@ -3020,8 +3035,13 @@ function pinSheet(mode, arrowsDefault, done) {
           first = null; typed = ''; paintDots(); paintTitle(); return;
         }
       }
-      const prefix = mode === 'create' ? 'set:' : mode === 'off' ? 'off:' : 'check:';
-      const ok = await setPref('pin', prefix + typed, null, mode === 'verify');
+      let ok = false;
+      if (mode === 'verify') {
+        ok = await kidsVerifyPin(typed);
+      } else {
+        ok = await kidsSavePin(mode === 'create' ? 'set' : 'off', typed);
+        await loadPrefs();
+      }
       if (!ok) { if (mode !== 'create') toast(t('pin_wrong')); typed = ''; paintDots(); return; }
       closeSheet();
       if (done) done();
