@@ -137,6 +137,10 @@ fun ChannelFocusPreview(
     var lastFirstFrameAt by remember { mutableStateOf(0L) }
     // 首起播连续未就绪次数: 超过一路就清掉旧候选缓存, 下一轮重拉 playinfo 拿新签名/新节点。
     var firstRunBadAttempts by remember { mutableStateOf(0) }
+    // 当前在播这一路流地址的签名到期时间(秒级 epoch); -1 表示无签名(普通 m3u8/直链), 不按到期判。
+    var currentExpiresAt by remember { mutableStateOf(-1L) }
+    // 签名主动续签进行中: 与 reloadBusy 类似防重入, 心跳/看门狗不会同时进来抢同一个 player。
+    val renewBusy = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
     // 当前已在播放的源名称(用于切换失败时提示继续观看谁)
     var currentPlayingName by remember { mutableStateOf<String?>(null) }
     // 上一个正在播放的源 id(切换失败时回退焦点)
@@ -405,6 +409,7 @@ fun ChannelFocusPreview(
                         recoverAttempt.set(0)
                         consecutiveBad = 0
                         lastErrorIsBadHttp = false
+                        currentExpiresAt = parseExpires(url)
                         DiagLog.i("直播预览: ${stalled.id} 原地重载就绪(第 $rounds 轮)")
                         loaded = true
                         // 看门狗触发后已经 break 结束, 原地重载没换 player, 这里必须重新挂上看门狗,
@@ -474,6 +479,59 @@ fun ChannelFocusPreview(
                         if (!st.disposed) reloadInPlace(stalled)
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * 签名临近到期前主动续签: 不等服务端 403 断流。同实例换 MediaSource, 不 release、不暂停,
+     * 旧流继续播到新流出帧; 不挂转圈图、不弹提示, 尽量平滑。新流起不来就保持现状,
+     * 交回 onPlayerError / 看门狗 / 心跳的既有兜底。
+     */
+    fun renewSignature(s: LiveSource) {
+        if (!renewBusy.compareAndSet(false, true)) return
+        val p = player
+        if (p == null || playingSourceId != s.id) { renewBusy.set(false); return }
+        scope.launch {
+            try {
+                val fresh = withContext(Dispatchers.IO) { resolveCandidates(s, context) }
+                val next = fresh.firstOrNull() ?: return@launch
+                // 新签名候选入缓存, 供后续原地重载轮换, 不消耗旧的那批快过期地址。
+                streamCache[s.url ?: ""] = StreamCandidates(fresh)
+                val hls = buildHlsMediaSource(next, s.isBilibiliStream, context)
+                val prepareAt = System.currentTimeMillis()
+                lastFirstFrameAt = 0L
+                val renderBase = try {
+                    (p.videoDecoderCounters?.also { it.ensureUpdated() }?.renderedOutputBufferCount ?: 0L).toLong()
+                } catch (t: Throwable) { 0L }
+                p.setMediaSource(hls)
+                p.prepare()
+                var ready = false
+                val deadline = System.currentTimeMillis() + 8_000
+                while (System.currentTimeMillis() < deadline) {
+                    kotlinx.coroutines.delay(200)
+                    if (st.disposed || playingSourceId != s.id) return@launch
+                    val renderedNow = try {
+                        (p.videoDecoderCounters?.also { it.ensureUpdated() }?.renderedOutputBufferCount ?: 0L).toLong()
+                    } catch (t: Throwable) { renderBase }
+                    val sawNewFrame = renderedNow > renderBase || lastFirstFrameAt > prepareAt
+                    if (p.playbackState == Player.STATE_READY &&
+                        p.bufferedPosition - p.currentPosition >= 1500L && sawNewFrame
+                    ) { ready = true; break }
+                }
+                if (ready) {
+                    currentExpiresAt = parseExpires(next)
+                    StreamHealth.markGood(next)
+                    DiagLog.i("直播预览: 签名续签就绪 id=${s.id}")
+                    startWatchdog(p, s.id, RELOAD_WARMUP_MS)
+                } else {
+                    StreamHealth.markBad(next)
+                    DiagLog.event("直播预览: 签名续签未就绪 id=${s.id}")
+                }
+            } catch (t: Throwable) {
+                DiagLog.event("直播预览: 签名续签异常: ${t.message}")
+            } finally {
+                renewBusy.set(false)
             }
         }
     }
@@ -856,6 +914,7 @@ fun ChannelFocusPreview(
                     kotlinx.coroutines.delay(1500L * attempt)
                     val nextUrl = streamCache[source.url ?: ""]?.cycleNext()
                     val nextHls = nextUrl?.let { buildHlsMediaSource(it, source.isBilibiliStream, context) } ?: hls
+                    currentExpiresAt = parseExpires(nextUrl ?: "")
                     runCatching {
                         p.setMediaSource(nextHls)
                         p.prepare()
@@ -932,6 +991,7 @@ fun ChannelFocusPreview(
             onActuallyPlayingChange(true)
             currentPlayingName = source.name
             playingSourceId = source.id
+            currentExpiresAt = parseExpires(streamUrl ?: "")
             onSwitched(source.id)
             // 切换成功提示(有旧源才提示; 看门狗触发的切换不弹这个, 只留"卡顿严重"那条)
             if (oldName != null && oldName != source.name && !suppressSwitchToast) {
@@ -1035,6 +1095,14 @@ fun ChannelFocusPreview(
             if (playingSourceId != s.id) continue
             if (reloadBusy.get() || recovering.get() || stallBusy.get() || netWaitBusy.get() || st.loading) continue
             if (!BootVeil.revealed) continue
+            // 签名临近到期: 主动重拉换新签名地址, 不等服务端 403 断流; 续签进行中跳过本轮。
+            if (renewBusy.get()) continue
+            val nowSec = System.currentTimeMillis() / 1000L
+            if (currentExpiresAt > 0L && nowSec > currentExpiresAt - SIGN_EXPIRE_MARGIN_SEC) {
+                DiagLog.i("直播预览: 签名临近到期, 主动续签 id=${s.id} 剩余=${currentExpiresAt - nowSec}s")
+                renewSignature(s)
+                continue
+            }
             var idle = false
             var posDelta = 1000L
             var bufDelta = 1000L
@@ -1105,6 +1173,7 @@ fun ChannelFocusPreview(
                     playerListenerRef.value?.let { player?.removeListener(it) }
                     player?.release()
                     player = null
+                    currentExpiresAt = -1L
                     st.loading = false
                     onActuallyPlayingChange(false)
                 }
