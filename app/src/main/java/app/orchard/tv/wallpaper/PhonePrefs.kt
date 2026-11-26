@@ -146,8 +146,6 @@ object PhonePrefs {
                         "off" to s(R.string.jank_off), "low" to s(R.string.jank_low),
                         "medium" to s(R.string.jank_medium), "high" to s(R.string.jank_high),
                     ),
-                    // 用户口径: 关闭、低、中、高, 四颗同一排。
-                    rows = listOf(listOf("off", "low", "medium", "high")),
                 ),
             )
         }))

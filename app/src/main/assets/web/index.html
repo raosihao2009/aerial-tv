@@ -83,14 +83,14 @@
   .pcard .prow { display: flex; flex-wrap: wrap; gap: 8px; }
   .pcard .pbtn {
     appearance: none; border: 0; border-radius: 10px; background: var(--fill); color: var(--label);
-    flex: 1 1 0; min-width: 0; padding: 11px 6px; font-size: 14px; text-align: center; line-height: 1.25;
-    white-space: nowrap; cursor: pointer; transition: background-color .15s ease, color .15s ease;
+    flex: 1 1 0; min-width: 0; box-sizing: border-box; padding: 11px 6px; font-size: 14px; text-align: center; line-height: 1.25;
+    white-space: normal; cursor: pointer; transition: background-color .15s ease, color .15s ease;
   }
   .pcard .pbtn[aria-checked="true"] { background: var(--card); color: var(--tint); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.10); }
   .pcard .pbtn:disabled { opacity: .55; }
-  /* 每行个数: cols-2 一行两颗, cols-3 一行三颗; 按内容宽均分, 排不下自动换行。 */
-  .pcard .prow.cols-2 .pbtn { flex: 1 1 50%; }
-  .pcard .prow.cols-3 .pbtn { flex: 1 1 33.333%; }
+  /* 每行个数: cols-2 一行两颗, cols-3 一行三颗; basis 取 0 由 flex 均分, 不用百分比 basis(加 gap 会被挤成单列)。 */
+  .pcard .prow.cols-2 .pbtn { flex: 1 1 0; }
+  .pcard .prow.cols-3 .pbtn { flex: 1 1 0; }
   /* 不出选项、只有一颗按钮的(扫码登录、打开登录页、立即开始): 与上面那排选项同一个形状, 只占一排一颗。
      以前这些是纯文字链接, 看着不像按钮, 也不好按。 */
   .pact {
@@ -431,7 +431,7 @@
     color: var(--secondary); cursor: pointer;
   }
   .region-tabs button[aria-checked="true"] { background: var(--card); color: var(--label); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
-  .region-pick { max-height: 260px; overflow-y: auto; padding: 2px 0; }
+  .region-pick { max-height: 260px; overflow-y: auto; overscroll-behavior: contain; padding: 2px 0; }
   .region-pick button { display: block; width: 100%; border: 0; background: none; font: inherit; font-size: 15px; padding: 10px 12px; border-radius: 8px; text-align: left; color: var(--label); cursor: pointer; }
   .region-pick button.on { color: var(--tint); font-weight: 600; }
   .region-pick button:active { background: var(--fill); }
@@ -763,7 +763,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1163;
+const PAGE_VER = 1164;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1636,7 +1636,8 @@ const PREFS_LEAD = { zh: '个性化选项', en: 'Personalisation', ru: 'Перс
 Object.assign(EXTRA.zh, {
   reg_prov: '选择省份',
   reg_city: '选择城市',
-  reg_county: '选择区/县',
+  reg_county: '选择县区',
+  reg_confirm: '确定',
   reg_pick_hint: '请选择省份 / 城市 / 县区',
   tab_other_more: '更多',
   up_cur: '当前版本 {v}',
@@ -1674,7 +1675,8 @@ Object.assign(EXTRA.zh, {
 Object.assign(EXTRA.en, {
   reg_prov: 'Province',
   reg_city: 'City',
-  reg_county: 'County / District',
+  reg_county: 'County',
+  reg_confirm: 'OK',
   reg_pick_hint: 'Select province / city / county',
   tab_other_more: 'More',
   up_cur: 'Version {v}',
@@ -1800,14 +1802,10 @@ function show(next, keepScroll) {
     if (!keepScroll) window.scrollTo({ top: 0, behavior: scrollBehavior() });
     return;
   }
-  const oldIdx = TABS.indexOf(tab), newIdx = TABS.indexOf(next);
   if (tab) scrolls[tab] = window.scrollY;
   tab = next;
   document.querySelectorAll('section[data-tab]').forEach(s => s.hidden = s.dataset.tab !== tab);
-  // 点击页签切换也播放左右滑动动画: 前进从右入, 后退从左入。
-  const dir = oldIdx < 0 || newIdx > oldIdx ? 'push' : 'pop';
-  const sec = document.querySelector(`section[data-tab="${next}"]`);
-  if (sec) { sec.classList.remove('push', 'pop'); void sec.offsetWidth; sec.classList.add(dir); }
+  // 切页签不再播放左右滑入动画: 低端电视 WebView 上动画期间整页重绘, 会把底部导航带得一闪一闪。
   document.querySelectorAll('nav button').forEach(b => b.setAttribute('aria-selected', b.dataset.go === tab ? 'true' : 'false'));
   setTitle();
   if (tab === 'home') placeShelves();   // measured while the tab shows
@@ -1889,6 +1887,8 @@ function confirmSheet(message, okLabel, danger) {
   const touch = e => [...e.changedTouches].find(t => t.identifier === id);
   panel.addEventListener('touchstart', e => {
     if (id !== null || e.touches.length !== 1 || panel.scrollTop > 0) return;
+    // 可滚动列表(地区选择等)内部自己滚, 不接管下拉关闭, 否则上滑/下拉都会被当成关闭手势。
+    if (e.target.closest('.region-pick')) return;
     const t = e.touches[0];
     id = t.identifier; x0 = t.clientX; y0 = t.clientY; t0 = performance.now(); dy = 0; dragging = false;
   }, { passive: true });
@@ -2916,9 +2916,11 @@ if (window.ResizeObserver) { const h = document.querySelector('header'); if (h) 
 
 /* 进儿童与长辈窗口前先验密码: 没设过就先设一个, 设过就核对一次。 */
 function openKidsGate() {
-  const k = (prefs && prefs.kids) || {};
-  if (!k.pinSet) { pinSheet('create', false, () => openKids()); return; }
-  pinSheet('verify', !!k.pinArrows, () => openKids());
+  try {
+    const k = (prefs && prefs.kids) || {};
+    if (!k.pinSet) { pinSheet('create', false, () => openKids()); return; }
+    pinSheet('verify', !!k.pinArrows, () => openKids());
+  } catch (err) { toast(t('toast_set_fail')); }
 }
 
 /* 儿童与长辈窗口: 上面是细则, 下面是两页卡片(应用 / 直播), 每页带封面与勾选编号。
@@ -2926,7 +2928,7 @@ function openKidsGate() {
 let kidsTab = 0;
 function openKids() {
   openSheet(body => {
-    const k = prefs && prefs.kids; if (!k) return;
+    const k = prefs && prefs.kids; if (!k) { toast(t('toast_set_fail')); return; }
     body.appendChild(el('h3', '', k.title));
     if (k.hint) body.appendChild(el('p', 'meta', k.hint));
     const refresh = () => openKids();
@@ -3114,9 +3116,10 @@ async function loadRegions() {
 const provCities = () => (regionsData && regionsData[regionSel.prov]) || {};
 const countyList = () => (regionsData && regionsData[regionSel.prov] && regionsData[regionSel.prov][regionSel.city]) || [];
 function paintTrigger() {
-  const picked = [regionSel.prov, regionSel.city, regionSel.county].filter(Boolean).join(' / ');
+  const parts = [regionSel.prov, regionSel.city === '市辖区' ? '' : regionSel.city, regionSel.county].filter(Boolean);
+  const picked = parts.join(' ');
   cityTriggerText.textContent = picked || t('reg_pick_hint');
-  cityTrigger.classList.toggle('placeholder', !picked);
+  cityTrigger.classList.toggle('placeholder', !parts.length);
 }
 function openRegionSheet() {
   if (!regionsData) { toast(t('toast_set_fail')); return; }
@@ -3125,7 +3128,7 @@ function openRegionSheet() {
     const tabs = el('div', 'region-tabs');
     const tabsDef = [['prov', t('reg_prov')], ['city', t('reg_city')], ['county', t('reg_county')]];
     const list = el('div', 'region-pick');
-    const confirm = el('button', 'pact region-confirm', t('set')); confirm.type = 'button';
+    const confirm = el('button', 'pact region-confirm', t('reg_confirm')); confirm.type = 'button';
     function paintTabs() {
       tabs.replaceChildren();
       tabsDef.forEach(([key, label]) => {
@@ -3153,9 +3156,18 @@ function openRegionSheet() {
     function paintAll() { paintTabs(); paintList(); paintConfirm(); }
     function pick(key, v) {
       regionSel[key] = v;
-      if (key === 'prov') { regionSel.city = ''; regionSel.county = ''; }
-      if (key === 'city') { regionSel.county = ''; }
-      if (key === 'prov') activeTab = 'city'; else if (key === 'city') activeTab = 'county';
+      if (key === 'prov') {
+        regionSel.city = ''; regionSel.county = '';
+        // 直辖市的城市层只有一个虚拟「市辖区」, 选完省直接进县区, 跳过城市页签。
+        const cities = Object.keys(provCities());
+        if (cities.length === 1 && cities[0] === '市辖区') {
+          regionSel.city = '市辖区';   // 仅用于取县区数据, 回显时隐藏
+          activeTab = 'county';
+        } else {
+          activeTab = 'city';
+        }
+      }
+      if (key === 'city') { regionSel.county = ''; activeTab = 'county'; }
       paintAll();
     }
     confirm.onclick = () => {
@@ -3172,6 +3184,7 @@ async function submitRegion() {
   try {
     // 后端按地名匹配: 先拿区/县名, 本地表没命中时天气网模糊搜索兜底。
     const next = await api('api/weather/city', { name: county }); take(next);
+    paintTrigger();
     if (next.weather) $('#placeName').value = next.weather.place || '';
     toast(next.found ? t('toast_city_set', { place: next.weather.place }) : t('toast_city_nf', { name: county }));
   } catch (err) { toast(t('toast_set_fail')); }
