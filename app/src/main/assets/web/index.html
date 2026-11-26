@@ -135,6 +135,9 @@
   }
   .pcard .hrow .hshow:active { background: var(--fill); box-shadow: none; }
   .pcard .hrow .hshow[disabled] { opacity: .5; }
+  /* 信号源行没有缩略图: 名字下面跟一行小字端口/设备; 已放上菜单的按钮染成红色。 */
+  .pcard .hrow .hname .sub { display: block; font-size: 13px; color: var(--secondary); margin-top: 2px; white-space: normal; overflow: visible; }
+  .pcard .hrow .hshow.danger { color: var(--danger); }
   /* 气泡里的输入行: 浅灰输入框 + 右边一颗蓝色保存按钮。 */
   .pcard .pfield { display: flex; align-items: center; gap: 8px; padding: 12px 12px 12px; }
   .pcard .pfield input {
@@ -388,6 +391,16 @@
   .field input::placeholder { color: var(--tertiary); }
   .field .link { font-weight: 600; }
   .field .link[disabled] { opacity: .4; }
+  /* 天气: 小标题和它的输入框包成一块, 两块之间留空档; 设置按钮白底, 和保存按钮同款。 */
+  .pcard .wxgroup { margin: 8px 12px 0; background: var(--card); border-radius: 10px; box-shadow: inset 0 0 0 .5px rgba(60,60,67,.10); padding: 2px 0 8px; }
+  .pcard .wxgroup .psub { padding: 10px 12px 2px; }
+  .pcard .wxgroup .field { padding: 6px 12px 0; }
+  .pcard .wxgroup .field .wsave {
+    appearance: none; border: 0; border-radius: 10px; padding: 10px 16px; flex: none;
+    font-size: 15px; font-weight: 600; color: var(--tint); background: var(--card); cursor: pointer;
+    box-shadow: inset 0 0 0 .5px rgba(60,60,67,.12), 0 1px 2px rgba(0,0,0,.06), 0 3px 8px rgba(0,0,0,.07);
+  }
+  .pcard .wxgroup .field .wsave:disabled { opacity: .4; }
   /* A <pre>, not a textarea: focusing a field under 16px makes iOS zoom and scroll the page. */
   .diag {
     display: block; height: 220px; margin: 10px 0 0; overflow: auto; -webkit-overflow-scrolling: touch;
@@ -572,9 +585,7 @@
 <section data-tab="home">
   <div id="homeBody"></div>
   <div id="inputsBox" hidden>
-    <h2 data-i18n="inputs_h"></h2>
     <div class="list" id="inputs"></div>
-    <p class="foot" data-i18n="inputs_hint"></p>
   </div>
   <input id="iconFile" type="file" accept="image/*" hidden>
 </section>
@@ -608,16 +619,20 @@
     <div class="list pcard wxlist">
       <div class="item phead"><span class="txt"><span data-i18n="weather_place"></span><span class="sub" data-i18n="weather_place_hint"></span></span></div>
       <div class="item wx"><b id="wxNow">—</b><span id="wxPlace"></span></div>
-      <div class="psub" data-i18n="wx_city_h"></div>
-      <form class="item field" id="cityForm">
-        <input id="city" type="text" data-i18n-placeholder="city_ph" enterkeyhint="done" autocomplete="off">
-        <button class="link" id="cityBtn" data-i18n="set" disabled></button>
-      </form>
-      <div class="psub" data-i18n="wx_place_h"></div>
-      <form class="item field" id="placeForm">
-        <input id="placeName" type="text" placeholder="显示名（可选）" autocomplete="off">
-        <button class="link" id="placeBtn" data-i18n="set"></button>
-      </form>
+      <div class="wxgroup">
+        <div class="psub" data-i18n="wx_city_h"></div>
+        <form class="field" id="cityForm">
+          <input id="city" type="text" data-i18n-placeholder="city_ph" enterkeyhint="done" autocomplete="off">
+          <button class="link wsave" id="cityBtn" data-i18n="set" disabled></button>
+        </form>
+      </div>
+      <div class="wxgroup">
+        <div class="psub" data-i18n="wx_place_h"></div>
+        <form class="field" id="placeForm">
+          <input id="placeName" type="text" placeholder="显示名（可选）" autocomplete="off">
+          <button class="link wsave" id="placeBtn" data-i18n="set"></button>
+        </form>
+      </div>
       <div class="prows"><div class="prow">
         <button class="pact" id="netBtn" type="button">按网络定位</button>
         <button class="pact" id="satBtn" type="button">按卫星定位</button>
@@ -693,7 +708,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1157;
+const PAGE_VER = 1158;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -766,10 +781,10 @@ const TEXTS = {
   "选中的卡片外面加一圈白色描边，离得远也看得清。",
   "每日自动更新",
   "总是使用当天的照片",
-  "每天换一张",
-  "每天自动换成下一张照片",
+  "我的照片 · 定时换",
+  "从你的照片里按设定的间隔换一张，间隔在下面选。",
   "还没有照片。用上面的按钮添加，电脑上也可以直接把照片拖进来。",
-  "再加一张照片，就可以选「每天换一张」。",
+  "再加一张照片，就可以选「我的照片 · 定时换」。",
   "电视上已更新",
   "正在发送 {n} 张…",
   "已添加 {n} 张，最后一张已设为壁纸",
@@ -911,10 +926,10 @@ const TEXTS = {
   "A white frame around the selected app, easy to see from across the room.",
   "Always Today’s",
   "Always uses today’s photo",
-  "One a Day",
-  "Switches to the next photo every day",
+  "My Photos, in Turn",
+  "Your photos in turn, the next one each day, or as often as you choose below.",
   "No photos yet. Add some with the button above, or drag them in on a computer.",
-  "Add one more photo to choose “One a Day”.",
+  "Add one more photo to choose “My Photos, in Turn”.",
   "Updated on the TV",
   "Sending {n}…",
   "Added {n}; the last one is now the wallpaper",
@@ -1444,7 +1459,7 @@ const EXTRA = {
         weather_place: "天气位置", weather_place_hint: "顶部问候行和屏保显示的就是这里的天气。",
         bili_login: "扫码登录", bili_logout: "退出登录", bili_scan: "用 B 站 App 扫码登录",
         bili_wait: "等待扫码…", bili_confirm: "已扫码，请在手机上确认", bili_expired: "二维码已失效", bili_again: "重新生成", bili_ok: "已登录", bili_longpress: "长按二维码可识别；也可以点下面按钮交给 B 站 App。", bili_open: "打开 B 站登录页", bili_copy: "复制登录链接", bili_copied: "登录链接已复制，粘贴到 B 站或浏览器打开", bili_copy_manual: "复制失败，请长按二维码识别",
-        photo_every: "换图间隔", photo_every_hint: "每隔多久换下一张照片。", photo_day: "每天", photo_hour: "每小时", photo_min: "{n} 分钟",
+        photo_every: "多久换一张", photo_every_hint: "桌面多久换到下一张照片。", photo_day: "每天", photo_hour: "每小时", photo_min: "{n} 分钟",
         g_builtin_more: "更多",
         backup_h: "备份与恢复", backup_export: "导出备份", backup_import: "导入备份",
         pin_back: "删除",
@@ -1467,7 +1482,7 @@ const EXTRA = {
         weather_place: "Weather location", weather_place_hint: "The weather in the greeting row and on the screensaver comes from here.",
         bili_login: "Sign in", bili_logout: "Sign out", bili_scan: "Scan with the Bilibili app",
         bili_wait: "Waiting for the scan…", bili_confirm: "Scanned — confirm on your phone", bili_expired: "The code has expired", bili_again: "Show a new code", bili_ok: "Signed in", bili_longpress: "Long-press the code on this phone, or scan it with another one.", bili_open: "Open the sign-in page", bili_copy: "Copy sign-in link", bili_copied: "Link copied — paste it into Bilibili or a browser", bili_copy_manual: "Copy failed — long-press the code instead",
-        photo_every: "Change every", photo_every_hint: "How often the next photo comes up.", photo_day: "Every day", photo_hour: "Every hour", photo_min: "{n} min",
+        photo_every: "Next Photo", photo_every_hint: "How often Home moves to your next photo.", photo_day: "Every day", photo_hour: "Every hour", photo_min: "{n} min",
         g_builtin_more: "More",
         backup_h: "Backup & restore", backup_export: "Export backup", backup_import: "Import backup",
         pin_back: "Delete",
@@ -1595,6 +1610,7 @@ Object.assign(EXTRA.zh, {
   sheet_addr_desc: '直播源地址, 支持B站短链接或m3u8直链。',
   live_hide: '从直播菜单隐藏',
   live_show: '在直播菜单显示',
+  hide_short: '隐藏',
 });
 Object.assign(EXTRA.en, {
   tab_other_more: 'More',
@@ -1628,6 +1644,7 @@ Object.assign(EXTRA.en, {
   sheet_addr_desc: 'Stream URL — a Bilibili short link or an m3u8 address.',
   live_hide: 'Hide from live menu',
   live_show: 'Show in live menu',
+  hide_short: 'Hide',
 });
 const I18N = {};
 for (const l of LANGS) { I18N[l] = {}; KEYS.forEach((k, i) => I18N[l][k] = TEXTS[l][i]); }
@@ -2154,8 +2171,8 @@ function renderWallpapers() {
     let photos = wp.filter(w => w.kind === 'photo');
     if (photos.length > 1) photos = [{ id: state.rotatePhotos, kind: 'photos', title: t('rotate_title'), caption: t('rotate_caption') }].concat(photos);
     row(t('g_photo'), photos, { photoAdd: true, empty: t('empty_photos'), foot: photos.length === 1 ? t('add_second') : '' });
-    // 有那张轮流播放的卡, 才问多久换一张 (和电视一致)。
-    if (wp.filter(w => w.kind === 'photo').length > 1) root.appendChild(photoEveryCard());
+    // 只有选中「我的照片 · 定时换」那张卡才问多久换一张, 别的壁纸没有下一张 (和电视端一致)。
+    if (state.selected === state.rotatePhotos) root.appendChild(photoEveryCard());
     return;
   }
 
@@ -2922,22 +2939,33 @@ function renderInputs() {
   const inputs = state.inputs || [];
   $('#inputsBox').hidden = !inputs.length || arrView !== null;
   const list = $('#inputs'); list.replaceChildren();
+  if (!inputs.length) return;
+  // 信号源: 一张气泡, 一行一颗, 右边白底按钮 —— 未放上菜单显示蓝「显示」, 已放上显示红「隐藏」, 和隐藏卡片列表同款。
+  const card = el('div', 'list pcard');
+  card.appendChild(el('div', 'ptitle', t('inputs_h')));
+  card.appendChild(el('p', 'pdesc', t('inputs_hint')));
+  const body = el('div', 'pbody'); card.appendChild(body);
   for (const s of inputs) {
-    const row = el('label', 'item');
-    const txt = el('span', 'txt', s.name || s.port);
+    const row = el('div', 'hrow');
+    row.setAttribute('role', 'button'); row.tabIndex = 0;
+    const txt = el('span', 'hname');
+    txt.appendChild(el('span', '', s.name || s.port));
     const sub = [s.name ? s.port : '', s.device].filter(Boolean).join(' · ');
     if (sub) txt.appendChild(el('span', 'sub', sub));
-    const sw = el('input', 'switch'); sw.type = 'checkbox'; sw.checked = !!s.pinned; sw.setAttribute('aria-label', s.name || s.port);
-    sw.onchange = async () => {
-      const on = sw.checked; sw.disabled = true;
+    const pinned = !!s.pinned;
+    const btn = el('span', 'hshow' + (pinned ? ' danger' : ''), pinned ? t('hide_short') : t('show_app'));
+    btn.onclick = async ev => {
+      ev.stopPropagation(); btn.disabled = true;
+      const on = !pinned;
       try {
         const next = await api('api/source/pin', { id: s.id, pinned: on ? '1' : '0' });
         if (!next.saved) throw new Error('not saved');
         take(next); toast(t(on ? 'toast_pinned' : 'toast_unpinned'));
-      } catch (e) { sw.checked = !on; sw.disabled = false; toast(t('toast_set_fail')); }
+      } catch (e) { btn.disabled = false; toast(t('toast_set_fail')); }
     };
-    row.append(txt, sw); list.appendChild(row);
+    row.append(txt, btn); body.appendChild(row);
   }
+  list.appendChild(card);
 }
 /* On/off settings: data-setting is the key the TV knows it by. */
 async function setting(sw) {
@@ -3665,7 +3693,10 @@ function render() {
 initLangSwitch();
 applyI18n();
 measureHead();
-show((location.hash || '').slice(1) || (() => { try { return localStorage.getItem('aerial-tab'); } catch (e) { return null; } })(), true);
+// 刷新/重进页面时不能直接回到「个性化」: 那一页有家长锁, 会话内的解锁标记刷新后就没了,
+// 直接恢复到 more 会绕过 PIN 校验。初始化一律先落在「应用菜单」, 进个性化仍走导航点击的密码核对。
+const startTab = (location.hash || '').slice(1) || (() => { try { return localStorage.getItem('aerial-tab'); } catch (e) { return null; } })();
+show(startTab === 'more' ? 'home' : startTab, true);
 async function refresh() { try { state = await api('api/state'); render(); loadSaver(); } catch (e) {} }
 refresh();
 loadPrefs();
