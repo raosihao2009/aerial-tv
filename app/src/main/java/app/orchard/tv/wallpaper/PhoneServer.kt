@@ -389,6 +389,7 @@ class PhoneServer private constructor(private val context: Context, private val 
                     if (installed(pkg)) { CustomIcons.clear(pkg); onMain { CustomIcons.changed() } }
                     json(state())
                 }
+                session.method == Method.GET && path == "/api/weather/regions" -> regions()
                 session.method == Method.POST && path == "/api/weather/city" -> {
                     val name = form(session)["name"].orEmpty()
                     val found = name.isNotBlank() && runBlocking(Dispatchers.Main) { Weather.choose(name) }
@@ -507,6 +508,12 @@ class PhoneServer private constructor(private val context: Context, private val 
 
     private fun page(): String = context.assets.open("web/index.html").bufferedReader().use { it.readText() }
         .replace("{{DEVICE}}", Build.MODEL.replace("_", " "))
+
+    /** 省→市→县三级行政区划表, 供手机页天气位置做联动下拉; 离线内置, 不连第三方。 */
+    private fun regions(): Response = newFixedLengthResponse(
+        Response.Status.OK, "application/json; charset=utf-8",
+        context.assets.open("web/pca.json").bufferedReader().use { it.readText() }
+    )
 
     /** 手机页「关于 Aerial」那张卡要看的东西: 版本、有没有新版、检查中、下载到哪一步。 */
     private fun updateState(): JSONObject {

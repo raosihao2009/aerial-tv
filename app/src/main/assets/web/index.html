@@ -31,6 +31,8 @@
   /* 手机页一律不画滚动条: 滚动照样能用, 主页面、抽屉、日志、横排壁纸那些条都藏起来。 */
   * { scrollbar-width: none; -ms-overflow-style: none; }
   *::-webkit-scrollbar { width: 0; height: 0; display: none; }
+  html, body { scrollbar-width: none; -ms-overflow-style: none; }
+  html::-webkit-scrollbar, body::-webkit-scrollbar { width: 0; height: 0; display: none; }
   html { -webkit-text-size-adjust: 100%; }
   body {
     margin: 0; background: var(--bg); color: var(--label);
@@ -99,6 +101,13 @@
   .pact:active { background: var(--fill); box-shadow: none; }
   .pact:disabled { opacity: .55; }
   .pact.danger { color: var(--danger); }
+  /* 「立即开始」并入类型标题行右侧: 圆角小按钮, 左边电视端同款播放三角。 */
+  .saver-start {
+    appearance: none; border: 0; border-radius: 10px; background: var(--fill); color: var(--tint);
+    display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; font-size: 14px; font-weight: 600;
+    flex: none; cursor: pointer;
+  }
+  .saver-start svg { flex: none; }
   /* 诊断正文和那排「复制 / 下载」现在都在同一张气泡里, 左右留出和按钮一致的边。 */
   .pcard .diag { margin: 0 12px 10px; }
   .pcard .row { padding: 0 12px 12px; margin-top: 0; }
@@ -242,6 +251,10 @@
   .pin-pad .pinkey:active, .pin-num .pinkey:active { background: var(--tint); color: #fff; }
   .pnum { justify-content: flex-end; gap: 8px; }
   .pnum .pref-num { width: 84px; }
+  /* 自定义时间: 页面内时分双输入, 不走系统原生时间选择器。 */
+  .time-pair { display: inline-flex; align-items: center; gap: 4px; }
+  .time-pair .tnum { width: 44px; text-align: center; }
+  .time-pair .tsep { color: var(--tint); font-variant-numeric: tabular-nums; }
   .pnum .unit { color: var(--secondary); font-size: 13px; flex: none; }
   .psld { gap: 10px; }
   /* 滑块: 轨道和蓝色进度各画一条, 圆点自己画, 位置按圆点半径收进去, 两头才对得上。 */
@@ -338,7 +351,7 @@
   .hero .cap b { font-size: 20px; font-weight: 600; }
   /* Cells start at the top: a button centres its content, so a tile without a caption sat lower than its neighbour. */
   /* 壁纸一排一排左右翻：卡片定宽, 一屏两三张, 手指横划。 */
-  .wrow { display: flex; gap: 12px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; padding: 8px 0 6px; margin: 0; }
+  .wrow { display: flex; gap: 12px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; padding: 8px 16px 6px; margin: 0 -16px; }
   .wrow::-webkit-scrollbar { display: none; }
   .wrow .wp { flex: 0 0 38vw; max-width: 180px; scroll-snap-align: start; align-self: flex-start; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px 12px; align-items: start; }
@@ -351,16 +364,17 @@
   .wp:active .pic { transform: scale(.97); }
   .wp[aria-selected="true"] .pic { box-shadow: 0 0 0 2.5px var(--bg), 0 0 0 5px var(--tint); }
   .wp .t { font-size: 14px; font-weight: 500; margin: 7px 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .wp .c { font-size: 12px; color: var(--secondary); margin: 1px 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* 当前选中壁纸的说明: 固定在轮播条下方左侧, 不跟着卡片横滑移动。 */
+  .wcap { font-size: 12px; color: var(--secondary); margin: 6px 2px 0; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .check {
-    position: absolute; top: 7px; right: 7px; width: 22px; height: 22px; border-radius: 50%;
+    position: absolute; top: 7px; left: 7px; right: auto; width: 22px; height: 22px; border-radius: 50%;
     background: var(--tint); color: #fff; display: flex; align-items: center; justify-content: center;
     box-shadow: 0 1px 3px rgba(0,0,0,.3); opacity: 0; transform: scale(.8);
     transition: opacity .15s ease, transform .2s var(--ease-out);
   }
   .wp[aria-selected="true"] .check { opacity: 1; transform: none; }
   .badge {
-    position: absolute; top: 7px; left: 7px; width: 28px; height: 28px; border-radius: 50%; border: 0; padding: 0;
+    position: absolute; top: 6px; right: 6px; left: auto; width: 22px; height: 22px; border-radius: 50%; border: 0; padding: 0;
     background: rgba(0,0,0,.5); color: #fff; display: flex; align-items: center; justify-content: center;
     -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); transition: transform .16s var(--ease-out);
   }
@@ -395,6 +409,15 @@
   .field input::placeholder { color: var(--tertiary); }
   .field .link { font-weight: 600; }
   .field .link[disabled] { opacity: .4; }
+  /* 天气城市: 省/市/县三级联动下拉, 竖排三行。 */
+  .field.region-form { flex-direction: column; align-items: stretch; gap: 8px; padding: 12px 16px 10px; }
+  .region-sel {
+    width: 100%; font: inherit; font-size: 16px; color: var(--label);
+    background: var(--fill); border: 0; outline: none; border-radius: 9px; padding: 10px 12px;
+    appearance: none; -webkit-appearance: none;
+  }
+  .region-sel:disabled { opacity: .45; }
+  .region-sel:invalid { color: var(--tertiary); }
   /* 天气: 小标题和它的输入框包成一块, 两块之间留空档; 设置按钮白底, 和保存按钮同款。 */
   .pcard .wxgroup { margin: 8px 12px 0; background: var(--card); border-radius: 10px; box-shadow: inset 0 0 0 .5px rgba(60,60,67,.10); padding: 2px 0 8px; }
   .pcard .wxgroup .psub { padding: 10px 12px 2px; }
@@ -463,8 +486,8 @@
   .sheet-wrap { position: fixed; inset: 0; z-index: 20; }
   .scrim { position: absolute; inset: 0; background: var(--scrim); opacity: 0; transition: opacity .2s ease; }
   /* Into a folder from the right; back out of it from the left, the way it went. */
-  .view.push { animation: push .26s var(--ease-out); }
-  .view.pop { animation: pop .26s var(--ease-out); }
+  .view.push, section.push, .pgroup.push { animation: push .26s var(--ease-out); }
+  .view.pop, section.pop, .pgroup.pop { animation: pop .26s var(--ease-out); }
   @keyframes push { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
   @keyframes pop { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: none; } }
   .sheet {
@@ -555,15 +578,13 @@
   }
   /* 第一行: 返回箭头 / 图标 / 大标题。分类选项卡也在 header 里, 两个吸顶就不会互相顶着抖。 */
   header .hrow { display: flex; align-items: center; gap: 10px; }
-  /* 过渡层: 所有页面通用, 内容从大标题下面滑过去时下缘渐隐。 */
+  /* 过渡层: 所有页面通用, 内容从大标题下面滑过去时下缘渐隐。高度收窄, 不再压到下面的内容。 */
   header::after {
-    content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 24px; z-index: -1;
+    content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 10px; z-index: -1;
     background: var(--bg);
-    -webkit-mask-image: linear-gradient(180deg, #000 0, #000 40%, transparent); mask-image: linear-gradient(180deg, #000 0, #000 40%, transparent);
+    -webkit-mask-image: linear-gradient(180deg, #000 0, #000 50%, transparent); mask-image: linear-gradient(180deg, #000 0, #000 50%, transparent);
     pointer-events: none;
   }
-  /* 壁纸页关掉这道白幔: 大图上沿和圆角不该被它压住。 */
-  header.veil-off::after { display: none; }
   header .ticon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: 0; flex: none; color: var(--secondary); }
   header h1 { display: block; margin: 0; }
   header .ticon[hidden] { display: none; }
@@ -629,8 +650,10 @@
       <div class="item wx"><b id="wxNow">—</b><span id="wxPlace"></span></div>
       <div class="wxgroup">
         <div class="psub" data-i18n="wx_city_h"></div>
-        <form class="field" id="cityForm">
-          <input id="city" type="text" data-i18n-placeholder="city_ph" enterkeyhint="done" autocomplete="off">
+        <form class="field region-form" id="cityForm">
+          <select id="cityProv" class="region-sel"><option value="" data-i18n="reg_prov"></option></select>
+          <select id="cityCity" class="region-sel" disabled><option value="" data-i18n="reg_city"></option></select>
+          <select id="cityCounty" class="region-sel" disabled><option value="" data-i18n="reg_county"></option></select>
           <button class="link wsave" id="cityBtn" data-i18n="set" disabled></button>
         </form>
       </div>
@@ -715,7 +738,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1160;
+const PAGE_VER = 1161;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1586,6 +1609,9 @@ const SAVER_TAB = { zh: '壁纸与屏保', en: 'Wallpaper & Screensaver', ru: '�
 const PREFS_LEAD = { zh: '个性化选项', en: 'Personalisation', ru: 'Персонализация', uk: 'Персоналізація', kk: 'Жеке параметрлер' };
 // 新文案(更多页的更新卡、隐藏卡片闸门)不塞进 KEYS/TEXTS: 那张表按语言对齐好下标, 插一行就全错位。
 Object.assign(EXTRA.zh, {
+  reg_prov: '选择省份',
+  reg_city: '选择城市',
+  reg_county: '选择区/县',
   tab_other_more: '更多',
   up_cur: '当前版本 {v}',
   up_check: '检查更新',
@@ -1620,6 +1646,9 @@ Object.assign(EXTRA.zh, {
   hide_short: '隐藏',
 });
 Object.assign(EXTRA.en, {
+  reg_prov: 'Province',
+  reg_city: 'City',
+  reg_county: 'County / District',
   tab_other_more: 'More',
   up_cur: 'Version {v}',
   up_check: 'Check for updates',
@@ -1692,7 +1721,8 @@ const ICON = {
   close: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   chev: '<svg class="chev" width="8" height="14" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg>',
   tick: '<svg class="tick" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
-  plus: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'
+  plus: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  play: '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>'
 };
 
 function toast(msg) {
@@ -1743,9 +1773,14 @@ function show(next, keepScroll) {
     if (!keepScroll) window.scrollTo({ top: 0, behavior: scrollBehavior() });
     return;
   }
+  const oldIdx = TABS.indexOf(tab), newIdx = TABS.indexOf(next);
   if (tab) scrolls[tab] = window.scrollY;
   tab = next;
   document.querySelectorAll('section[data-tab]').forEach(s => s.hidden = s.dataset.tab !== tab);
+  // 点击页签切换也播放左右滑动动画: 前进从右入, 后退从左入。
+  const dir = oldIdx < 0 || newIdx > oldIdx ? 'push' : 'pop';
+  const sec = document.querySelector(`section[data-tab="${next}"]`);
+  if (sec) { sec.classList.remove('push', 'pop'); void sec.offsetWidth; sec.classList.add(dir); }
   document.querySelectorAll('nav button').forEach(b => b.setAttribute('aria-selected', b.dataset.go === tab ? 'true' : 'false'));
   setTitle();
   if (tab === 'home') placeShelves();   // measured while the tab shows
@@ -1757,6 +1792,8 @@ function show(next, keepScroll) {
   try { localStorage.setItem('aerial-tab', tab); } catch (e) {}
   history.replaceState(null, '', '#' + tab);
 }
+/* 重播一次左右滑入动画: 点页签切换时跟着播放。 */
+function animateIn(el) { if (!el) return; el.classList.remove('push', 'pop'); void el.offsetWidth; el.classList.add('push'); }
 /* 个性化里有家长锁的东西, 设过密码就先核对一次; 同一会话核对过就不再问。 */
 let moreUnlocked = false;
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
@@ -1768,6 +1805,47 @@ document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
   show(go);
 });
 $('#homeBack').onclick = () => { arrView = null; renderArrange('back'); };
+
+/* 左右滑动切换页签: 应用菜单 / 直播菜单 / 个性化, 以及个性化里的分类。
+   横滑轮播、网格、按钮、弹层这些区域不抢手势; 水平位移明显大于竖向才算横滑。 */
+(() => {
+  const main = document.querySelector('main');
+  if (!main) return;
+  const blocked = '.wrow,.agrid,.tileGrid,.libgrid,.sheet-wrap,nav,button,a,input,select,textarea,.gtabs,.wtabs,.prow,.prows,.kcard,.atile,.libpic';
+  const prefOrder = () => ['wallpaper'].concat((prefs && prefs.groups || []).map(g => g.key)).concat(['other']);
+  let sx = 0, sy = 0, on = false;
+  main.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) { on = false; return; }
+    const t = e.touches[0]; sx = t.clientX; sy = t.clientY; on = true;
+  }, { passive: true });
+  main.addEventListener('touchend', e => {
+    if (!on) return; on = false;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - sx, dy = t.clientY - sy;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+    if (e.target.closest(blocked)) return;
+    const dir = dx < 0 ? 1 : -1;   // 左滑前进, 右滑后退
+    const idx = TABS.indexOf(tab);
+    if (tab !== 'more') {
+      const next = idx + dir;
+      if (next >= 0 && next < TABS.length) show(TABS[next]);
+      return;
+    }
+    // 个性化: 壁纸组内先切壁纸分类, 其余切个性化分类。
+    if (prefsTab === 'wallpaper') {
+      const w = WTABS.findIndex(x => x[0] === wpTab);
+      const nw = w + dir;
+      if (w >= 0 && nw >= 0 && nw < WTABS.length) { wpTab = WTABS[nw][0]; renderWallpapers(); animateIn($('#sections')); }
+      return;
+    }
+    const order = prefOrder();
+    const i = order.indexOf(prefsTab), ni = i + dir;
+    if (i >= 0 && ni >= 0 && ni < order.length) {
+      prefsTab = order[ni]; applyPrefsTab(); renderTabs();
+      animateIn(document.querySelector(`[data-tab="more"] .pgroup[data-g="${prefsTab}"]`));
+    }
+  }, { passive: true });
+})();
 
 const reducedMotion = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
 const scrollBehavior = () => reducedMotion() ? 'auto' : 'smooth';
@@ -1868,15 +1946,16 @@ function titleOf(id) {
 function card(w) {
   const b = el('button', 'wp');
   b.setAttribute('aria-selected', w.id === state.selected ? 'true' : 'false');
-  b.innerHTML = `<div class="pic"><img loading="lazy" alt=""><span class="check">${ICON.check}</span></div><div class="t"></div><div class="c"></div>`;
+  b.innerHTML = `<div class="pic"><img loading="lazy" alt=""><span class="check">${ICON.check}</span></div><div class="t"></div>`;
   b.querySelector('img').src = `${base}thumb/${encodeURIComponent(w.id)}`;
   b.querySelector('.t').textContent = w.title;
-  b.querySelector('.c').textContent = w.caption || '';
   b.onclick = async () => {
     if (w.id === state.selected) return;
     try { take(await api('api/wallpaper', { id: w.id })); toast(t('toast_wallpaper')); } catch (e) { toast(t('toast_set_fail')); }
   };
-  if (w.kind === 'video') {
+  // 轮播聚合卡(我的照片定时换 / 我的视频轮播)不是单张可删项, 不挂删除钮。
+  const aggregate = w.id === 'videos:mine' || w.id === 'photos:rotate';
+  if (w.kind === 'video' && !aggregate) {
     const d = el('button', 'badge'); d.innerHTML = ICON.close; d.setAttribute('aria-label', t('aria_delete'));
     d.onclick = e => {
       e.stopPropagation();
@@ -1976,7 +2055,7 @@ function renderLive() {
       () => pinSheet('verify', !!lk.pinArrows, () => { hiddenUnlocked = true; renderLive(); })));
     return;
   }
-  if (!hidden.length) { box.appendChild(el('p', 'foot', t('hidden_live_none'))); return; }
+  if (!hidden.length) { box.appendChild(emptyHiddenCard(t('hidden_live_h'), t('hidden_live_none'))); return; }
   box.appendChild(hiddenListCard(t('hidden_live_h'), hidden.map(s => ({
     thumb: liveThumb(s), label: s.name,
     onTap: () => liveSheet(s),
@@ -1984,6 +2063,13 @@ function renderLive() {
   })), '显示'));
 }
 
+/* 没有隐藏项时的空态气泡: 标题下面一行说明, 不再是孤零零一行脚注。 */
+function emptyHiddenCard(title, desc) {
+  const card = el('div', 'list pcard');
+  card.appendChild(el('div', 'ptitle', title));
+  card.appendChild(el('p', 'pdesc', desc));
+  return card;
+}
 /* 隐藏的卡片: 一张气泡, 标题下面一行一颗, 右边是新样式的「显示」。 */
 function hiddenListCard(title, rows, label) {
   const card = el('div', 'list pcard');
@@ -2109,7 +2195,7 @@ function liveSheet(s) {
 
     // 取消不放进气泡。
     const cxl = el('button', 'psolo', '取消'); cxl.type = 'button'; cxl.onclick = closeSheet; body.appendChild(cxl);
-  });
+  }, 'short');
 }
 
 function post(path, data, cb) {
@@ -2144,7 +2230,7 @@ function renderWpTabs() {
     b.setAttribute('role', 'tab');
     b.setAttribute('aria-checked', key === wpTab ? 'true' : 'false');
     b.appendChild(el('span', '', t(labelKey)));
-    b.onclick = () => { if (wpTab === key) return; wpTab = key; renderWallpapers(); };
+    b.onclick = () => { if (wpTab === key) return; wpTab = key; renderWallpapers(); animateIn($('#sections')); };
     bar.appendChild(b);
   }
 }
@@ -2163,6 +2249,13 @@ function renderWallpapers() {
       const strip = el('div', 'wrow');
       items.forEach(w => strip.appendChild(card(w)));
       root.appendChild(strip);
+      // 说明只显示当前选中那张的, 固定在轮播条下方左侧, 不随横滑移动。
+      const cur = items.find(w => w.id === state.selected);
+      if (cur && cur.caption) {
+        const cap = el('p', 'wcap');
+        cap.textContent = cur.caption;
+        root.appendChild(cap);
+      }
     }
     // 添加按钮放在这一排最下面, 照片和视频都一样。
     if (opts.photoAdd) root.appendChild(photoAddBtn());
@@ -2268,7 +2361,13 @@ async function setSaver(key, value) {
 function renderSaver() {
   const box = $('#saverItems'); if (!box || !saver) return;
   box.replaceChildren();
-  for (const it of saver.items || []) box.appendChild(prefCard(it, null, (k, v) => setSaver(k, v)));
+  const items = saver.items || [];
+  // 「立即开始」并入类型卡标题行, 不再单独成一张卡。
+  const start = items.find(it => it.kind === 'action' && it.key === 'saverStart') || null;
+  for (const it of items) {
+    if (start && it.key === start.key) continue;
+    box.appendChild(prefCard(it, null, (k, v) => setSaver(k, v), start));
+  }
 }
 
 let sendingVideo = '';
@@ -2387,8 +2486,20 @@ function customRow(it, changed) {
   row.appendChild(el('span', 'unit', it.clock ? t('custom_time') : t('custom')));
   let inp;
   if (it.clock) {
-    inp = el('input', 'pref-num'); inp.type = 'time'; inp.value = hhmm(parseInt(it.value, 10) || 0);
-    inp.onchange = () => changed(it.key, String(toMinutes(inp.value)));
+    // 最晚到: 页面内时/分双输入, 不用系统原生时间选择器。
+    const mins = parseInt(it.value, 10) || 0;
+    const wrap = el('span', 'time-pair');
+    const hInp = el('input', 'pref-num tnum'); hInp.type = 'number'; hInp.min = 0; hInp.max = 23; hInp.inputMode = 'numeric'; hInp.value = Math.floor(mins / 60) % 24;
+    const sep = el('span', 'tsep', ':');
+    const mInp = el('input', 'pref-num tnum'); mInp.type = 'number'; mInp.min = 0; mInp.max = 59; mInp.inputMode = 'numeric'; mInp.value = mins % 60;
+    const emit = () => {
+      const h = Math.max(0, Math.min(23, parseInt(hInp.value, 10) || 0));
+      const m = Math.max(0, Math.min(59, parseInt(mInp.value, 10) || 0));
+      changed(it.key, String(h * 60 + m));
+    };
+    hInp.onchange = emit; mInp.onchange = emit;
+    wrap.append(hInp, sep, mInp);
+    row.appendChild(wrap);
   } else {
     inp = el('input', 'pref-num'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.value = it.value;
     if (it.min !== undefined) inp.min = it.min;
@@ -2524,11 +2635,12 @@ function photoEveryCard() {
   return card;
 }
 
-function prefCard(it, after, save) {
+function prefCard(it, after, save, startAction) {
   const card = el('div', 'list pcard');
   // 一颗按钮就是一整张卡时(比如「立即开始」), 标题和按钮字样一样, 不再重复画一遍标题。
+  let head = null;
   if (!(it.kind === 'action' && it.label === it.value && !it.hint)) {
-    const head = el('div', 'item phead');
+    head = el('div', 'item phead');
     const txt = el('span', 'txt');
     txt.appendChild(el('span', '', it.label));
     if (it.hint) txt.appendChild(el('span', 'sub', it.hint));
@@ -2538,6 +2650,15 @@ function prefCard(it, after, save) {
   const changed = save ? (k, v) => save(k, v) : (k, v) => setPref(k, v, after);
 
   if (it.kind === 'seg' || it.kind === 'minutes') {
+    // 「立即开始」并入类型标题行右侧: 圆角按钮, 左侧播放三角, 不再单独成卡。
+    if (startAction && head && it.key === 'saverKind') {
+      const sb = el('button', 'saver-start');
+      sb.type = 'button';
+      sb.innerHTML = ICON.play + '<span></span>';
+      sb.querySelector('span').textContent = startAction.value || startAction.label;
+      sb.onclick = async () => { sb.disabled = true; await changed(startAction.key, '1'); sb.disabled = false; };
+      head.appendChild(sb);
+    }
     const row = el('div', 'prow');
     const lines = it.rows && it.rows.length ? it.rows : [null];
     const wrap = el('div', 'prows');
@@ -2649,9 +2770,6 @@ let prefsTab = 'wallpaper';
 let prefsPinSeen = null;
 function applyPrefsTab() {
   document.querySelectorAll('[data-tab="more"] .pgroup').forEach(g => { g.hidden = g.dataset.g !== prefsTab; });
-  // 壁纸页首屏是大图, 头部那道通用渐隐白幔会盖住图上沿和圆角, 这一页关掉它。
-  const h = document.querySelector('header');
-  if (h) h.classList.toggle('veil-off', prefsTab === 'wallpaper');
 }
 /* 其他页的三颗选项卡: 关于 Aerial / 备份与恢复 / 反馈问题, 各配一个图标。 */
 const OTHER_PANES = ['about', 'backup', 'feedback'];
@@ -2715,7 +2833,7 @@ function renderTabs() {
     b.setAttribute('aria-checked', g.key === prefsTab ? 'true' : 'false');
     b.appendChild(groupIcon(g.key));
     if (g.key === prefsTab) b.appendChild(el('span', 'glabel', g.title));
-    b.onclick = () => { if (prefsTab === g.key) return; prefsTab = g.key; applyPrefsTab(); renderTabs(); };
+    b.onclick = () => { if (prefsTab === g.key) return; prefsTab = g.key; applyPrefsTab(); renderTabs(); animateIn(document.querySelector(`[data-tab="more"] .pgroup[data-g="${g.key}"]`)); };
     bar.appendChild(b);
   }
   applyPrefsTab();
@@ -2973,7 +3091,7 @@ function renderInputs() {
       try {
         const next = await api('api/source/pin', { id: s.id, pinned: on ? '1' : '0' });
         if (!next.saved) throw new Error('not saved');
-        take(next); toast(t(on ? 'toast_shown' : 'toast_hidden'));
+        take(next);
       } catch (e) { btn.disabled = false; toast(t('toast_set_fail')); }
     };
     row.append(txt, btn); body.appendChild(row);
@@ -2990,7 +3108,34 @@ async function setting(sw) {
   } catch (e) { sw.checked = !on; toast(t('toast_set_fail')); }
   sw.disabled = false;
 }
-$('#city').oninput = () => $('#cityBtn').disabled = !$('#city').value.trim();
+/* 天气城市: 省→市→县三级联动, 数据由后端 /api/weather/regions 下发(离线内置)。 */
+let regionsData = null;
+const provSel = $('#cityProv'), citySel = $('#cityCity'), countySel = $('#cityCounty'), cityBtn = $('#cityBtn');
+function fillRegionOptions(sel, placeholder, list, val) {
+  sel.replaceChildren();
+  sel.appendChild(new Option(placeholder, ''));
+  list.forEach(v => sel.appendChild(new Option(v, v)));
+  if (val) sel.value = val;
+}
+async function loadRegions() {
+  if (regionsData) return;
+  try { const r = await fetch(base + 'api/weather/regions'); regionsData = await r.json(); fillRegionOptions(provSel, t('reg_prov'), Object.keys(regionsData)); }
+  catch (e) { regionsData = null; }
+}
+provSel.onchange = () => {
+  const cities = (regionsData && regionsData[provSel.value]) || {};
+  const keys = Object.keys(cities);
+  citySel.disabled = !provSel.value; countySel.disabled = true; cityBtn.disabled = true;
+  fillRegionOptions(citySel, t('reg_city'), keys);
+  fillRegionOptions(countySel, t('reg_county'), []);
+};
+citySel.onchange = () => {
+  const counties = (regionsData && regionsData[provSel.value] && regionsData[provSel.value][citySel.value]) || [];
+  countySel.disabled = !citySel.value; cityBtn.disabled = true;
+  fillRegionOptions(countySel, t('reg_county'), counties);
+};
+countySel.onchange = () => { cityBtn.disabled = !countySel.value; };
+loadRegions();
 $('#netBtn').onclick = async () => {
   try {
     take(await api('api/weather/auto', {}));
@@ -3025,14 +3170,15 @@ $('#placeForm').onsubmit = async e => {
 };
 $('#cityForm').onsubmit = async e => {
   e.preventDefault();
-  const name = $('#city').value.trim(); if (!name) return;
-  const btn = $('#cityBtn'); btn.disabled = true; $('#city').blur();
+  const county = countySel.value; if (!county) return;
+  const btn = cityBtn; btn.disabled = true;
   try {
-    const next = await api('api/weather/city', { name }); take(next); if (next.weather) $('#placeName').value = next.weather.place || '';
-    toast(next.found ? t('toast_city_set', { place: next.weather.place }) : t('toast_city_nf', { name }));
-    if (next.found) $('#city').value = '';
+    // 后端按地名匹配: 先拿区/县名, 本地表没命中时天气网模糊搜索兜底。
+    const next = await api('api/weather/city', { name: county }); take(next);
+    if (next.weather) $('#placeName').value = next.weather.place || '';
+    toast(next.found ? t('toast_city_set', { place: next.weather.place }) : t('toast_city_nf', { name: county }));
   } catch (err) { toast(t('toast_set_fail')); }
-  btn.disabled = !$('#city').value.trim();
+  btn.disabled = !countySel.value;
 };
 
 let iconFor = null;
@@ -3327,11 +3473,11 @@ function buildHomeView(view, L) {
      手机上刚验过密码也会被这一条挡住, 名单明明已经发下来了却看不到。
      电视端的锁只在"还没设手机侧密码、名单也没发下来"时才需要人去电视操作。 */
   if (!L.hidden.length && L.locked && L.hiddenCount) { view.appendChild(el('p', 'foot', t('hidden_locked', { n: L.hiddenCount }))); return; }
-  if (!L.hidden.length) { view.appendChild(el('p', 'foot', t('hidden_none'))); return; }
+  if (!L.hidden.length) { view.appendChild(emptyHiddenCard(t('hidden_h'), t('hidden_none'))); return; }
   view.appendChild(hiddenListCard(t('hidden_h'), L.hidden.map(e => ({
     thumb: tileImg(e), label: e.label,
     onTap: () => tileSheet(e, null, true),
-    onShow: () => lay({ op: 'unhide', key: e.key }, () => toast(t('toast_shown'))),
+    onShow: () => lay({ op: 'unhide', key: e.key }),
   })), t('show_app')));
 }
 
@@ -3483,26 +3629,26 @@ function tileSheet(e, inFolder, hidden) {
       ib.appendChild(cl);
     }
     const ibr = el('div', 'prows'); ic.appendChild(ibr);
-    ibr.appendChild(put(t('change_icon'), false, () => { iconFor = a; $('#iconFile').click(); closeSheet(); }));
     if (a.custom) ibr.appendChild(put(t('aria_reset_icon'), false, async () => {
       closeSheet();
       try { take(await api('api/icon/reset', { app: a.key })); toast(t('toast_icon_reset')); } catch (err) { toast(t('toast_set_fail')); }
     }));
 
-    /* 放在哪儿: 一张气泡 — 放进文件夹 / 从应用菜单隐藏 / 在应用菜单显示。 */
+    /* 放在哪儿: 一张气泡 — 选一张图片 / 放进文件夹 / 从应用菜单隐藏 / 在应用菜单显示。 */
     const pc = el('div', 'list pcard'); body.appendChild(pc);
     const pr = el('div', 'prows'); pr.style.paddingTop = '12px'; pc.appendChild(pr);
+    pr.appendChild(put(t('change_icon'), false, () => { iconFor = a; $('#iconFile').click(); closeSheet(); }));
     if (hidden) {
-      pr.appendChild(put(t('show_on_home'), false, () => { closeSheet(); lay({ op: 'unhide', key: e.key }, () => toast(t('toast_shown'))); }));
+      pr.appendChild(put(t('show_on_home'), false, () => { closeSheet(); lay({ op: 'unhide', key: e.key }); }));
     } else {
       pr.appendChild(put(t('to_folder'), false, () => folderChooser(e, folders)));
       if (inFolder) pr.appendChild(put(t('out_of_folder'), false, () => { closeSheet(); lay({ op: 'unfolder', key: e.key }, () => toast(t('toast_out_folder'))); }));
-      pr.appendChild(put(t('hide_app'), true, () => { closeSheet(); lay({ op: 'hide', key: e.key }, () => toast(t('toast_hidden'))); }));
+      pr.appendChild(put(t('hide_app'), true, () => { closeSheet(); lay({ op: 'hide', key: e.key }); }));
     }
 
     // 取消不放进气泡。
     const cxl = el('button', 'psolo', t('cancel')); cxl.type = 'button'; cxl.onclick = closeSheet; body.appendChild(cxl);
-  });
+  }, 'short');
 }
 /* The device on an input: its mark and colours on the tile, its name on the caption (as on the TV). */
 /*
