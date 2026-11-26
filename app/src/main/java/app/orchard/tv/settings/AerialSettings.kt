@@ -7,7 +7,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.edit
 import android.os.SystemClock
-import android.provider.Settings
 import app.orchard.tv.apps.IconLibrary
 import app.orchard.tv.guard.GuardSetup
 import app.orchard.tv.system.DeviceClass
@@ -299,9 +298,11 @@ object AerialSettings {
         screensaverClock = prefs.getBoolean("screensaver_clock", true)
         screensaverCaption = prefs.getBoolean("screensaver_caption", true)
         // Before 1.28 this was on or off; on meant whichever sounds Aerial played.
+        // 未手动选择时默认走 Aerial 自带音效: Tv 系统音效电平跟随系统/媒体音量
+        // (TCL 那一路会跟着普通音量滑块变), 自带 SoundPool 只认独立按键音量档, 与当贝一致;
+        // 想要电视原生菜单音效的, 仍可在外观与声音里手动切到 Tv。
         uiSounds = UiSounds.of(prefs.getString("ui_sounds_kind", null)) ?: when {
             !prefs.getBoolean("ui_sounds", true) -> UiSounds.Off
-            Settings.System.getInt(app.contentResolver, Settings.System.SOUND_EFFECTS_ENABLED, 1) == 1 -> UiSounds.Tv
             else -> UiSounds.Aerial
         }
         keyVolume = prefs.getInt("key_volume", 70).coerceIn(0, 100)

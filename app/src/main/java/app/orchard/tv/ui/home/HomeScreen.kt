@@ -1245,6 +1245,26 @@ fun HomeScreen(
                     onGlobalToast = { msg -> vm.showToast(msg) },
                 )
             }
+            // 静态壁纸: 直播画面还没出帧时 SurfaceView 是黑的, 先盖一层壁纸,
+            // 出帧后再淡出 —— 观感是"直播画面直接覆盖在壁纸上", 不会黑一下。
+            if (channelPreviewVisible && !Wallpapers.moves()) {
+                val still = Wallpapers.backdrop ?: Wallpapers.frosted
+                val ready by androidx.compose.animation.core.animateFloatAsState(
+                    targetValue = if (liveReadyState.value) 1f else 0f,
+                    animationSpec = androidx.compose.animation.core.tween(320),
+                    label = "previewStillCover",
+                )
+                if (still != null && ready < 0.999f) {
+                    Canvas(Modifier.fillMaxSize().diagLayer("preview-still")) {
+                        drawImage(
+                            still,
+                            dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+                            alpha = 1f - ready,
+                            filterQuality = FilterQuality.Low,
+                        )
+                    }
+                }
+            }
             // 直播加载图: 盖在壁纸和直播预览影片之上, 出帧后淡出。
             // 抽成小节点读 liveReadyState, 就绪翻转只重组这一层, 不带动整棵树。
             LiveLoadingOverlay(channelPreviewVisible, liveLoadingState)
