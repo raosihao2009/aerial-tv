@@ -88,6 +88,9 @@
   }
   .pcard .pbtn[aria-checked="true"] { background: var(--card); color: var(--tint); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.10); }
   .pcard .pbtn:disabled { opacity: .55; }
+  /* 每行个数: cols-2 一行两颗, cols-3 一行三颗; 按内容宽均分, 排不下自动换行。 */
+  .pcard .prow.cols-2 .pbtn { flex: 1 1 50%; }
+  .pcard .prow.cols-3 .pbtn { flex: 1 1 33.333%; }
   /* 不出选项、只有一颗按钮的(扫码登录、打开登录页、立即开始): 与上面那排选项同一个形状, 只占一排一颗。
      以前这些是纯文字链接, 看着不像按钮, 也不好按。 */
   .pact {
@@ -411,24 +414,29 @@
   .field input::placeholder { color: var(--tertiary); }
   .field .link { font-weight: 600; }
   .field .link[disabled] { opacity: .4; }
-  /* 天气城市: 省/市/县三级联动, 三栏同一行, 自定义下拉(不用原生 select)。 */
+  /* 天气城市: 整颗按钮点开选择弹窗(顶部省/市/县页签, 中部列表, 底部确定)。 */
   .field.region-form { flex-direction: column; align-items: stretch; gap: 8px; padding: 12px 16px 10px; }
-  .region-row { display: flex; gap: 8px; align-items: flex-start; }
-  .region-dd { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-  .region-dd-btn {
-    display: flex; align-items: center; gap: 4px; width: 100%;
-    background: var(--fill); border: 0; outline: none; border-radius: 9px; padding: 10px 10px;
-    font: inherit; font-size: 15px; color: var(--label); cursor: pointer;
+  .region-trigger {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    background: var(--fill); border: 0; outline: none; border-radius: 9px; padding: 12px 12px;
+    font: inherit; font-size: 15px; color: var(--label); cursor: pointer; text-align: left;
   }
-  .region-dd-btn:disabled { opacity: .45; }
-  .region-dd-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
-  .region-dd-btn.placeholder .region-dd-t { color: var(--tertiary); }
+  .region-trigger-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .region-trigger.placeholder .region-trigger-t { color: var(--tertiary); }
   .region-chev { flex: none; width: 14px; height: 14px; color: var(--tertiary); }
-  .region-menu { background: var(--card); border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,.18); max-height: 180px; overflow-y: auto; padding: 4px; }
-  .region-menu[hidden] { display: none; }
-  .region-menu button { display: block; width: 100%; border: 0; background: none; font: inherit; font-size: 15px; padding: 9px 10px; border-radius: 7px; text-align: left; color: var(--label); cursor: pointer; }
-  .region-menu button.on { color: var(--tint); font-weight: 600; }
-  .region-menu button:active { background: var(--fill); }
+  /* 选择弹窗: 三枚层级页签 + 可滚列表 + 底部确定。 */
+  .region-tabs { display: flex; gap: 4px; background: var(--fill); border-radius: 10px; padding: 3px; margin: 4px 0 10px; }
+  .region-tabs button {
+    flex: 1; border: 0; background: none; font: inherit; font-size: 14px; padding: 8px 4px; border-radius: 8px;
+    color: var(--secondary); cursor: pointer;
+  }
+  .region-tabs button[aria-checked="true"] { background: var(--card); color: var(--label); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .region-pick { max-height: 260px; overflow-y: auto; padding: 2px 0; }
+  .region-pick button { display: block; width: 100%; border: 0; background: none; font: inherit; font-size: 15px; padding: 10px 12px; border-radius: 8px; text-align: left; color: var(--label); cursor: pointer; }
+  .region-pick button.on { color: var(--tint); font-weight: 600; }
+  .region-pick button:active { background: var(--fill); }
+  .region-confirm { margin-top: 12px; }
+  .region-confirm:disabled { opacity: .45; }
   /* 天气: 小标题和它的输入框包成一块, 两块之间留空档; 设置按钮白底, 和保存按钮同款。 */
   .pcard .wxgroup { margin: 8px 12px 0; background: var(--card); border-radius: 10px; box-shadow: inset 0 0 0 .5px rgba(60,60,67,.10); padding: 2px 0 8px; }
   .pcard .wxgroup .psub { padding: 10px 12px 2px; }
@@ -453,10 +461,9 @@
   nav {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; height: var(--tabbar); padding-bottom: env(safe-area-inset-bottom);
     display: flex; justify-content: center; background: var(--bar-solid); box-shadow: 0 -.5px 0 var(--bar-line);
-    -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
-    /* 独立合成层: 切页签时正文跑滑入动画, 不让导航跟着被重新光栅化; 底色用实色兜底, 毛玻璃那一帧
-       没算出来也不会透, 图标和文字就不会一闪消失。 */
-    transform: translateZ(0);
+    /* 低端电视 WebView 对 backdrop-filter 支持很差, 切页签每次合成都要重算毛玻璃, 一帧内导航层
+       被重新光栅化就表现为图标文字一闪消失。底色已是实色, 不再挂滤镜; 也不加 transform 合成层,
+       避免改变 fixed 定位的包含块而触发额外重排。 */
   }
   nav button {
     flex: 1; max-width: 160px; border: 0; background: none; padding: 6px 0 0; color: var(--secondary);
@@ -589,6 +596,9 @@
      过渡层放在分类选项卡的下方。 */
   header {
     position: sticky; top: 0; z-index: 12; padding-bottom: 6px;
+    /* 背景左右铺到屏幕边: main 留了 16px 水平内边距, 标题条若只铺到内容宽, 壁纸横滑条负边距
+       探出的窄条会从标题左右两侧漏出来。这里用负边距把背景撑开, 再用内边距把内容推回原位。 */
+    margin: 0 -16px; padding-left: 16px; padding-right: 16px;
     display: block; background: var(--bg); isolation: isolate;
   }
   /* 第一行: 返回箭头 / 图标 / 大标题。分类选项卡也在 header 里, 两个吸顶就不会互相顶着抖。 */
@@ -666,21 +676,10 @@
       <div class="wxgroup">
         <div class="psub" data-i18n="wx_city_h"></div>
         <form class="field region-form" id="cityForm">
-          <div class="region-row">
-            <div class="region-dd">
-              <button type="button" class="region-dd-btn" id="cityProv"><span class="region-dd-t" data-i18n="reg_prov"></span><svg class="region-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
-              <div class="region-menu" id="cityProvMenu" hidden></div>
-            </div>
-            <div class="region-dd">
-              <button type="button" class="region-dd-btn" id="cityCity" disabled><span class="region-dd-t" data-i18n="reg_city"></span><svg class="region-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
-              <div class="region-menu" id="cityCityMenu" hidden></div>
-            </div>
-            <div class="region-dd">
-              <button type="button" class="region-dd-btn" id="cityCounty" disabled><span class="region-dd-t" data-i18n="reg_county"></span><svg class="region-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
-              <div class="region-menu" id="cityCountyMenu" hidden></div>
-            </div>
-          </div>
-          <button class="link wsave" id="cityBtn" data-i18n="set" disabled></button>
+          <button type="button" class="region-trigger" id="cityTrigger">
+            <span class="region-trigger-t" id="cityTriggerText" data-i18n="reg_pick_hint"></span>
+            <svg class="region-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
         </form>
       </div>
       <div class="wxgroup">
@@ -764,7 +763,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1162;
+const PAGE_VER = 1163;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1638,6 +1637,7 @@ Object.assign(EXTRA.zh, {
   reg_prov: '选择省份',
   reg_city: '选择城市',
   reg_county: '选择区/县',
+  reg_pick_hint: '请选择省份 / 城市 / 县区',
   tab_other_more: '更多',
   up_cur: '当前版本 {v}',
   up_check: '检查更新',
@@ -1675,6 +1675,7 @@ Object.assign(EXTRA.en, {
   reg_prov: 'Province',
   reg_city: 'City',
   reg_county: 'County / District',
+  reg_pick_hint: 'Select province / city / county',
   tab_other_more: 'More',
   up_cur: 'Version {v}',
   up_check: 'Check for updates',
@@ -2648,11 +2649,15 @@ function prefCard(it, after, save, startAction) {
       head.appendChild(sb);
     }
     const row = el('div', 'prow');
+    const opts = it.options || [];
+    // 每行最多几颗: 2 颗一行 2, 3 颗一行 3, 4 颗一行 2(两行), 5/6 颗一行 3。
+    const perRow = opts.length <= 2 ? opts.length : opts.length === 3 ? 3 : opts.length === 4 ? 2 : 3;
     const lines = it.rows && it.rows.length ? it.rows : [null];
     const wrap = el('div', 'prows');
     for (const line of lines) {
       const r = row.cloneNode(false);
-      for (const o of it.options || []) {
+      if (!it.rows) r.classList.add('cols-' + perRow);
+      for (const o of opts) {
         if (line && !line.includes(o.value)) continue;
         const btn = el('button', 'pbtn', o.label);
         btn.type = 'button';
@@ -3096,27 +3101,11 @@ async function setting(sw) {
   } catch (e) { sw.checked = !on; toast(t('toast_set_fail')); }
   sw.disabled = false;
 }
-/* 天气城市: 省→市→县三级联动, 数据由后端 /api/weather/regions 下发(离线内置)。 */
+/* 天气城市: 省→市→县三级联动。整颗按钮点开弹窗, 弹窗顶部三枚层级页签, 中部列表, 底部确定;
+   三栏都选上确定才可点。数据由后端 /api/weather/regions 下发(离线内置)。 */
 let regionsData = null;
-const provBtn = $('#cityProv'), cityPickBtn = $('#cityCity'), countyPickBtn = $('#cityCounty'), cityBtn = $('#cityBtn');
-const provMenu = $('#cityProvMenu'), cityMenu = $('#cityCityMenu'), countyMenu = $('#cityCountyMenu');
 const regionSel = { prov: '', city: '', county: '' };
-function paintRegion(btn, placeholder, value) {
-  const t = btn.querySelector('.region-dd-t');
-  t.textContent = value || placeholder;
-  btn.classList.toggle('placeholder', !value);
-}
-function closeRegionMenus(except) { [provMenu, cityMenu, countyMenu].forEach(m => { if (m !== except) m.hidden = true; }); }
-function fillRegionMenu(menu, list, value, onPick) {
-  menu.replaceChildren();
-  if (!list.length) { const e = el('button', '', '—'); e.disabled = true; menu.appendChild(e); return; }
-  list.forEach(v => {
-    const b = el('button', '', v); b.type = 'button';
-    if (v === value) b.classList.add('on');
-    b.onclick = () => onPick(v);
-    menu.appendChild(b);
-  });
-}
+const cityTrigger = $('#cityTrigger'), cityTriggerText = $('#cityTriggerText');
 async function loadRegions() {
   if (regionsData) return;
   try { const r = await fetch(base + 'api/weather/regions'); regionsData = await r.json(); }
@@ -3124,42 +3113,70 @@ async function loadRegions() {
 }
 const provCities = () => (regionsData && regionsData[regionSel.prov]) || {};
 const countyList = () => (regionsData && regionsData[regionSel.prov] && regionsData[regionSel.prov][regionSel.city]) || [];
-provBtn.onclick = () => {
-  if (!regionsData) return;
-  closeRegionMenus(provMenu);
-  provMenu.hidden = !provMenu.hidden;
-  if (!provMenu.hidden) fillRegionMenu(provMenu, Object.keys(regionsData), regionSel.prov, v => {
-    regionSel.prov = v; regionSel.city = ''; regionSel.county = '';
-    cityPickBtn.disabled = false; countyPickBtn.disabled = true; cityBtn.disabled = true;
-    paintRegion(provBtn, t('reg_prov'), v);
-    paintRegion(cityPickBtn, t('reg_city'), '');
-    paintRegion(countyPickBtn, t('reg_county'), '');
-    provMenu.hidden = true;
+function paintTrigger() {
+  const picked = [regionSel.prov, regionSel.city, regionSel.county].filter(Boolean).join(' / ');
+  cityTriggerText.textContent = picked || t('reg_pick_hint');
+  cityTrigger.classList.toggle('placeholder', !picked);
+}
+function openRegionSheet() {
+  if (!regionsData) { toast(t('toast_set_fail')); return; }
+  let activeTab = 'prov';
+  openSheet(body => {
+    const tabs = el('div', 'region-tabs');
+    const tabsDef = [['prov', t('reg_prov')], ['city', t('reg_city')], ['county', t('reg_county')]];
+    const list = el('div', 'region-pick');
+    const confirm = el('button', 'pact region-confirm', t('set')); confirm.type = 'button';
+    function paintTabs() {
+      tabs.replaceChildren();
+      tabsDef.forEach(([key, label]) => {
+        const b = el('button', '', label); b.type = 'button';
+        b.setAttribute('aria-checked', activeTab === key ? 'true' : 'false');
+        b.onclick = () => { activeTab = key; paintAll(); };
+        tabs.appendChild(b);
+      });
+    }
+    function paintList() {
+      list.replaceChildren();
+      let opts = [];
+      if (activeTab === 'prov') opts = Object.keys(regionsData || {});
+      else if (activeTab === 'city') opts = Object.keys(provCities());
+      else opts = countyList();
+      if (!opts.length) { const e = el('button', '', '—'); e.disabled = true; list.appendChild(e); return; }
+      opts.forEach(v => {
+        const b = el('button', '', v); b.type = 'button';
+        if (v === regionSel[activeTab]) b.classList.add('on');
+        b.onclick = () => pick(activeTab, v);
+        list.appendChild(b);
+      });
+    }
+    function paintConfirm() { confirm.disabled = !(regionSel.prov && regionSel.city && regionSel.county); }
+    function paintAll() { paintTabs(); paintList(); paintConfirm(); }
+    function pick(key, v) {
+      regionSel[key] = v;
+      if (key === 'prov') { regionSel.city = ''; regionSel.county = ''; }
+      if (key === 'city') { regionSel.county = ''; }
+      if (key === 'prov') activeTab = 'city'; else if (key === 'city') activeTab = 'county';
+      paintAll();
+    }
+    confirm.onclick = () => {
+      if (!(regionSel.prov && regionSel.city && regionSel.county)) return;
+      closeSheet();
+      submitRegion();
+    };
+    body.appendChild(tabs); body.appendChild(list); body.appendChild(confirm);
+    paintAll();
   });
-};
-cityPickBtn.onclick = () => {
-  if (!regionSel.prov) return;
-  closeRegionMenus(cityMenu);
-  cityMenu.hidden = !cityMenu.hidden;
-  if (!cityMenu.hidden) fillRegionMenu(cityMenu, Object.keys(provCities()), regionSel.city, v => {
-    regionSel.city = v; regionSel.county = '';
-    countyPickBtn.disabled = false; cityBtn.disabled = true;
-    paintRegion(cityPickBtn, t('reg_city'), v);
-    paintRegion(countyPickBtn, t('reg_county'), '');
-    cityMenu.hidden = true;
-  });
-};
-countyPickBtn.onclick = () => {
-  if (!regionSel.city) return;
-  closeRegionMenus(countyMenu);
-  countyMenu.hidden = !countyMenu.hidden;
-  if (!countyMenu.hidden) fillRegionMenu(countyMenu, countyList(), regionSel.county, v => {
-    regionSel.county = v; cityBtn.disabled = false;
-    paintRegion(countyPickBtn, t('reg_county'), v);
-    countyMenu.hidden = true;
-  });
-};
-document.addEventListener('click', e => { if (!e.target.closest('.region-dd')) closeRegionMenus(null); });
+}
+async function submitRegion() {
+  const county = regionSel.county; if (!county) return;
+  try {
+    // 后端按地名匹配: 先拿区/县名, 本地表没命中时天气网模糊搜索兜底。
+    const next = await api('api/weather/city', { name: county }); take(next);
+    if (next.weather) $('#placeName').value = next.weather.place || '';
+    toast(next.found ? t('toast_city_set', { place: next.weather.place }) : t('toast_city_nf', { name: county }));
+  } catch (err) { toast(t('toast_set_fail')); }
+}
+cityTrigger.onclick = () => openRegionSheet();
 loadRegions();
 $('#netBtn').onclick = async () => {
   try {
@@ -3192,18 +3209,6 @@ $('#placeForm').onsubmit = async e => {
   e.preventDefault();
   await api('api/weather/placename', { name: $('#placeName').value.trim() });
   toast('已设为 ' + $('#placeName').value.trim() || '默认');
-};
-$('#cityForm').onsubmit = async e => {
-  e.preventDefault();
-  const county = regionSel.county; if (!county) return;
-  const btn = cityBtn; btn.disabled = true;
-  try {
-    // 后端按地名匹配: 先拿区/县名, 本地表没命中时天气网模糊搜索兜底。
-    const next = await api('api/weather/city', { name: county }); take(next);
-    if (next.weather) $('#placeName').value = next.weather.place || '';
-    toast(next.found ? t('toast_city_set', { place: next.weather.place }) : t('toast_city_nf', { name: county }));
-  } catch (err) { toast(t('toast_set_fail')); }
-  btn.disabled = !regionSel.county;
 };
 
 let iconFor = null;
