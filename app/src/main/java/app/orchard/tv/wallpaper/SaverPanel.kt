@@ -64,8 +64,16 @@ object SaverPanel {
                 .put("label", s(R.string.ss_start)).put("hint", s(R.string.ss_start_hint))
                 .put("value", s(R.string.ss_start)),
         )
+        // 类型说明和电视面板同一套: 按当前类型给一句, 没有就不给。
+        val kindHint = when {
+            mode == ScreensaverMode.Videos -> s(R.string.ss_videos_hint)
+            mode == ScreensaverMode.System -> s(R.string.ss_system_hint)
+            Wallpapers.screensaverFollows -> s(R.string.ss_follow_hint)
+            AerialSettings.backStartsScreensaver -> s(R.string.ss_back_hint)
+            else -> null
+        }
         items.put(
-            item("saverKind", s(R.string.ss_kind), null, mode.key, kinds.map { it.first.key to s(it.second) }),
+            item("saverKind", s(R.string.ss_kind), kindHint, mode.key, kinds.map { it.first.key to s(it.second) }),
         )
         items.put(
             item("aerialQuality", s(R.string.ss_quality), s(R.string.ss_quality_hint),

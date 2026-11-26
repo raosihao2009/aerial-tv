@@ -2093,14 +2093,10 @@ private fun BiliCell(mirror: BiliMirror) {
     } else {
         CellAction(stringResource(R.string.st_bili_login), chevron = true) { startLogin() }
     }
-    // 标题只写到"已登录"; UID 放进下面那行小字, 免得标题太长被截成省略号。
+    // 标题恒为「B站账号」, 不带「（已登录）」括号; UID 放进下面那行小字, 免得标题太长被截成省略号。
     val currentUid = mirror.uid
     val loggedUid = currentUid?.takeIf { mirror.loggedIn && it.isNotBlank() }
-    val title = if (loggedUid != null) {
-        stringResource(R.string.st_bili_account_on)
-    } else {
-        stringResource(R.string.st_bili_account)
-    }
+    val title = stringResource(R.string.st_bili_account)
     val hint = if (loggedUid != null) {
         stringResource(R.string.st_bili_hint_uid, loggedUid)
     } else {

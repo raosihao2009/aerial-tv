@@ -12,7 +12,7 @@
     --sep: rgba(60,60,67,.18); --tint: #007aff; --fill: rgba(118,118,128,.12); --danger: #ff3b30;
     /* --fill 是半透明的, 挂在吸顶条上会透出下面的内容; 这个是它压在页面底色上合成出的实色。 */
     --fill-solid: #e4e4e9;
-    --bar: rgba(249,249,249,.82); --bar-line: rgba(0,0,0,.14); --scrim: rgba(0,0,0,.32); --sheet: #f2f2f7;
+    --bar: rgba(249,249,249,.82); --bar-solid: #f9f9f9; --bar-line: rgba(0,0,0,.14); --scrim: rgba(0,0,0,.32); --sheet: #f2f2f7;
     --ease-out: cubic-bezier(.23,1,.32,1); --ease-drawer: cubic-bezier(.32,.72,0,1);
     --tabbar: calc(50px + env(safe-area-inset-bottom));
   }
@@ -21,7 +21,7 @@
       --bg: #000; --card: #1c1c1e; --label: #fff; --secondary: rgba(235,235,245,.6); --tertiary: rgba(235,235,245,.3);
       --sep: rgba(84,84,88,.6); --tint: #0a84ff; --fill: rgba(118,118,128,.24); --danger: #ff453a;
       --fill-solid: #1c1c1f;
-      --bar: rgba(22,22,22,.82); --bar-line: rgba(255,255,255,.12); --scrim: rgba(0,0,0,.5); --sheet: #1c1c1e;
+      --bar: rgba(22,22,22,.82); --bar-solid: #161616; --bar-line: rgba(255,255,255,.12); --scrim: rgba(0,0,0,.5); --sheet: #1c1c1e;
     }
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -83,8 +83,8 @@
   .pcard .prow { display: flex; flex-wrap: wrap; gap: 8px; }
   .pcard .pbtn {
     appearance: none; border: 0; border-radius: 10px; background: var(--fill); color: var(--label);
-    flex: 1 1 0; min-width: 74px; padding: 11px 8px; font-size: 15px; text-align: center; line-height: 1.25;
-    cursor: pointer; transition: background-color .15s ease, color .15s ease;
+    flex: 1 1 0; min-width: 0; padding: 11px 6px; font-size: 14px; text-align: center; line-height: 1.25;
+    white-space: nowrap; cursor: pointer; transition: background-color .15s ease, color .15s ease;
   }
   .pcard .pbtn[aria-checked="true"] { background: var(--card); color: var(--tint); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.10); }
   .pcard .pbtn:disabled { opacity: .55; }
@@ -101,12 +101,14 @@
   .pact:active { background: var(--fill); box-shadow: none; }
   .pact:disabled { opacity: .55; }
   .pact.danger { color: var(--danger); }
-  /* 「立即开始」并入类型标题行右侧: 圆角小按钮, 左边电视端同款播放三角。 */
+  /* 「立即开始」并入类型标题行右侧: 白底圆角按钮, 尺寸/内边距与上面那排选项按钮看齐, 左边播放三角。 */
   .saver-start {
-    appearance: none; border: 0; border-radius: 10px; background: var(--fill); color: var(--tint);
-    display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; font-size: 14px; font-weight: 600;
+    appearance: none; border: 0; border-radius: 10px; background: var(--card); color: var(--tint);
+    display: inline-flex; align-items: center; gap: 6px; padding: 10px 14px; font-size: 15px; font-weight: 600;
     flex: none; cursor: pointer;
+    box-shadow: inset 0 0 0 .5px rgba(60,60,67,.10), 0 1px 2px rgba(0,0,0,.05), 0 2px 6px rgba(0,0,0,.06);
   }
+  .saver-start:active { background: var(--fill); box-shadow: none; }
   .saver-start svg { flex: none; }
   /* 诊断正文和那排「复制 / 下载」现在都在同一张气泡里, 左右留出和按钮一致的边。 */
   .pcard .diag { margin: 0 12px 10px; }
@@ -365,7 +367,7 @@
   .wp[aria-selected="true"] .pic { box-shadow: 0 0 0 2.5px var(--bg), 0 0 0 5px var(--tint); }
   .wp .t { font-size: 14px; font-weight: 500; margin: 7px 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* 当前选中壁纸的说明: 固定在轮播条下方左侧, 不跟着卡片横滑移动。 */
-  .wcap { font-size: 12px; color: var(--secondary); margin: 6px 2px 0; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wcap { font-size: 12px; color: var(--secondary); margin: 6px 2px 0; text-align: left; white-space: normal; overflow: visible; word-break: break-word; line-height: 1.45; }
   .check {
     position: absolute; top: 7px; left: 7px; right: auto; width: 22px; height: 22px; border-radius: 50%;
     background: var(--tint); color: #fff; display: flex; align-items: center; justify-content: center;
@@ -409,15 +411,24 @@
   .field input::placeholder { color: var(--tertiary); }
   .field .link { font-weight: 600; }
   .field .link[disabled] { opacity: .4; }
-  /* 天气城市: 省/市/县三级联动下拉, 竖排三行。 */
+  /* 天气城市: 省/市/县三级联动, 三栏同一行, 自定义下拉(不用原生 select)。 */
   .field.region-form { flex-direction: column; align-items: stretch; gap: 8px; padding: 12px 16px 10px; }
-  .region-sel {
-    width: 100%; font: inherit; font-size: 16px; color: var(--label);
-    background: var(--fill); border: 0; outline: none; border-radius: 9px; padding: 10px 12px;
-    appearance: none; -webkit-appearance: none;
+  .region-row { display: flex; gap: 8px; align-items: flex-start; }
+  .region-dd { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .region-dd-btn {
+    display: flex; align-items: center; gap: 4px; width: 100%;
+    background: var(--fill); border: 0; outline: none; border-radius: 9px; padding: 10px 10px;
+    font: inherit; font-size: 15px; color: var(--label); cursor: pointer;
   }
-  .region-sel:disabled { opacity: .45; }
-  .region-sel:invalid { color: var(--tertiary); }
+  .region-dd-btn:disabled { opacity: .45; }
+  .region-dd-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+  .region-dd-btn.placeholder .region-dd-t { color: var(--tertiary); }
+  .region-chev { flex: none; width: 14px; height: 14px; color: var(--tertiary); }
+  .region-menu { background: var(--card); border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,.18); max-height: 180px; overflow-y: auto; padding: 4px; }
+  .region-menu[hidden] { display: none; }
+  .region-menu button { display: block; width: 100%; border: 0; background: none; font: inherit; font-size: 15px; padding: 9px 10px; border-radius: 7px; text-align: left; color: var(--label); cursor: pointer; }
+  .region-menu button.on { color: var(--tint); font-weight: 600; }
+  .region-menu button:active { background: var(--fill); }
   /* 天气: 小标题和它的输入框包成一块, 两块之间留空档; 设置按钮白底, 和保存按钮同款。 */
   .pcard .wxgroup { margin: 8px 12px 0; background: var(--card); border-radius: 10px; box-shadow: inset 0 0 0 .5px rgba(60,60,67,.10); padding: 2px 0 8px; }
   .pcard .wxgroup .psub { padding: 10px 12px 2px; }
@@ -441,13 +452,17 @@
   /* Tab bar. */
   nav {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; height: var(--tabbar); padding-bottom: env(safe-area-inset-bottom);
-    display: flex; justify-content: center; background: var(--bar); box-shadow: 0 -.5px 0 var(--bar-line);
+    display: flex; justify-content: center; background: var(--bar-solid); box-shadow: 0 -.5px 0 var(--bar-line);
     -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+    /* 独立合成层: 切页签时正文跑滑入动画, 不让导航跟着被重新光栅化; 底色用实色兜底, 毛玻璃那一帧
+       没算出来也不会透, 图标和文字就不会一闪消失。 */
+    transform: translateZ(0);
   }
   nav button {
     flex: 1; max-width: 160px; border: 0; background: none; padding: 6px 0 0; color: var(--secondary);
     display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 10.5px; font-weight: 500; cursor: pointer;
   }
+  nav button span { white-space: nowrap; }
   nav button svg { transition: transform .16s var(--ease-out); }
   nav button:active svg { transform: scale(.88); }
   nav button[aria-selected="true"] { color: var(--tint); }
@@ -651,9 +666,20 @@
       <div class="wxgroup">
         <div class="psub" data-i18n="wx_city_h"></div>
         <form class="field region-form" id="cityForm">
-          <select id="cityProv" class="region-sel"><option value="" data-i18n="reg_prov"></option></select>
-          <select id="cityCity" class="region-sel" disabled><option value="" data-i18n="reg_city"></option></select>
-          <select id="cityCounty" class="region-sel" disabled><option value="" data-i18n="reg_county"></option></select>
+          <div class="region-row">
+            <div class="region-dd">
+              <button type="button" class="region-dd-btn" id="cityProv"><span class="region-dd-t" data-i18n="reg_prov"></span><svg class="region-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+              <div class="region-menu" id="cityProvMenu" hidden></div>
+            </div>
+            <div class="region-dd">
+              <button type="button" class="region-dd-btn" id="cityCity" disabled><span class="region-dd-t" data-i18n="reg_city"></span><svg class="region-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+              <div class="region-menu" id="cityCityMenu" hidden></div>
+            </div>
+            <div class="region-dd">
+              <button type="button" class="region-dd-btn" id="cityCounty" disabled><span class="region-dd-t" data-i18n="reg_county"></span><svg class="region-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+              <div class="region-menu" id="cityCountyMenu" hidden></div>
+            </div>
+          </div>
           <button class="link wsave" id="cityBtn" data-i18n="set" disabled></button>
         </form>
       </div>
@@ -738,7 +764,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1161;
+const PAGE_VER = 1162;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1806,47 +1832,6 @@ document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
 });
 $('#homeBack').onclick = () => { arrView = null; renderArrange('back'); };
 
-/* 左右滑动切换页签: 应用菜单 / 直播菜单 / 个性化, 以及个性化里的分类。
-   横滑轮播、网格、按钮、弹层这些区域不抢手势; 水平位移明显大于竖向才算横滑。 */
-(() => {
-  const main = document.querySelector('main');
-  if (!main) return;
-  const blocked = '.wrow,.agrid,.tileGrid,.libgrid,.sheet-wrap,nav,button,a,input,select,textarea,.gtabs,.wtabs,.prow,.prows,.kcard,.atile,.libpic';
-  const prefOrder = () => ['wallpaper'].concat((prefs && prefs.groups || []).map(g => g.key)).concat(['other']);
-  let sx = 0, sy = 0, on = false;
-  main.addEventListener('touchstart', e => {
-    if (e.touches.length !== 1) { on = false; return; }
-    const t = e.touches[0]; sx = t.clientX; sy = t.clientY; on = true;
-  }, { passive: true });
-  main.addEventListener('touchend', e => {
-    if (!on) return; on = false;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - sx, dy = t.clientY - sy;
-    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
-    if (e.target.closest(blocked)) return;
-    const dir = dx < 0 ? 1 : -1;   // 左滑前进, 右滑后退
-    const idx = TABS.indexOf(tab);
-    if (tab !== 'more') {
-      const next = idx + dir;
-      if (next >= 0 && next < TABS.length) show(TABS[next]);
-      return;
-    }
-    // 个性化: 壁纸组内先切壁纸分类, 其余切个性化分类。
-    if (prefsTab === 'wallpaper') {
-      const w = WTABS.findIndex(x => x[0] === wpTab);
-      const nw = w + dir;
-      if (w >= 0 && nw >= 0 && nw < WTABS.length) { wpTab = WTABS[nw][0]; renderWallpapers(); animateIn($('#sections')); }
-      return;
-    }
-    const order = prefOrder();
-    const i = order.indexOf(prefsTab), ni = i + dir;
-    if (i >= 0 && ni >= 0 && ni < order.length) {
-      prefsTab = order[ni]; applyPrefsTab(); renderTabs();
-      animateIn(document.querySelector(`[data-tab="more"] .pgroup[data-g="${prefsTab}"]`));
-    }
-  }, { passive: true });
-})();
-
 const reducedMotion = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
 const scrollBehavior = () => reducedMotion() ? 'auto' : 'smooth';
 
@@ -2247,8 +2232,11 @@ function renderWallpapers() {
     if (!items.length) { if (opts.empty) root.appendChild(el('p', 'empty', opts.empty)); }
     else {
       const strip = el('div', 'wrow');
-      items.forEach(w => strip.appendChild(card(w)));
+      let selEl = null;
+      items.forEach(w => { const c = card(w); if (w.id === state.selected) selEl = c; strip.appendChild(c); });
       root.appendChild(strip);
+      // 整条轮播重建后滚动条会回到最左, 把当前选中那张拉回可视位置, 免得换完壁纸像跳回首张。
+      if (selEl) requestAnimationFrame(() => selEl.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'auto' }));
       // 说明只显示当前选中那张的, 固定在轮播条下方左侧, 不随横滑移动。
       const cur = items.find(w => w.id === state.selected);
       if (cur && cur.caption) {
@@ -3110,31 +3098,68 @@ async function setting(sw) {
 }
 /* 天气城市: 省→市→县三级联动, 数据由后端 /api/weather/regions 下发(离线内置)。 */
 let regionsData = null;
-const provSel = $('#cityProv'), citySel = $('#cityCity'), countySel = $('#cityCounty'), cityBtn = $('#cityBtn');
-function fillRegionOptions(sel, placeholder, list, val) {
-  sel.replaceChildren();
-  sel.appendChild(new Option(placeholder, ''));
-  list.forEach(v => sel.appendChild(new Option(v, v)));
-  if (val) sel.value = val;
+const provBtn = $('#cityProv'), cityPickBtn = $('#cityCity'), countyPickBtn = $('#cityCounty'), cityBtn = $('#cityBtn');
+const provMenu = $('#cityProvMenu'), cityMenu = $('#cityCityMenu'), countyMenu = $('#cityCountyMenu');
+const regionSel = { prov: '', city: '', county: '' };
+function paintRegion(btn, placeholder, value) {
+  const t = btn.querySelector('.region-dd-t');
+  t.textContent = value || placeholder;
+  btn.classList.toggle('placeholder', !value);
+}
+function closeRegionMenus(except) { [provMenu, cityMenu, countyMenu].forEach(m => { if (m !== except) m.hidden = true; }); }
+function fillRegionMenu(menu, list, value, onPick) {
+  menu.replaceChildren();
+  if (!list.length) { const e = el('button', '', '—'); e.disabled = true; menu.appendChild(e); return; }
+  list.forEach(v => {
+    const b = el('button', '', v); b.type = 'button';
+    if (v === value) b.classList.add('on');
+    b.onclick = () => onPick(v);
+    menu.appendChild(b);
+  });
 }
 async function loadRegions() {
   if (regionsData) return;
-  try { const r = await fetch(base + 'api/weather/regions'); regionsData = await r.json(); fillRegionOptions(provSel, t('reg_prov'), Object.keys(regionsData)); }
+  try { const r = await fetch(base + 'api/weather/regions'); regionsData = await r.json(); }
   catch (e) { regionsData = null; }
 }
-provSel.onchange = () => {
-  const cities = (regionsData && regionsData[provSel.value]) || {};
-  const keys = Object.keys(cities);
-  citySel.disabled = !provSel.value; countySel.disabled = true; cityBtn.disabled = true;
-  fillRegionOptions(citySel, t('reg_city'), keys);
-  fillRegionOptions(countySel, t('reg_county'), []);
+const provCities = () => (regionsData && regionsData[regionSel.prov]) || {};
+const countyList = () => (regionsData && regionsData[regionSel.prov] && regionsData[regionSel.prov][regionSel.city]) || [];
+provBtn.onclick = () => {
+  if (!regionsData) return;
+  closeRegionMenus(provMenu);
+  provMenu.hidden = !provMenu.hidden;
+  if (!provMenu.hidden) fillRegionMenu(provMenu, Object.keys(regionsData), regionSel.prov, v => {
+    regionSel.prov = v; regionSel.city = ''; regionSel.county = '';
+    cityPickBtn.disabled = false; countyPickBtn.disabled = true; cityBtn.disabled = true;
+    paintRegion(provBtn, t('reg_prov'), v);
+    paintRegion(cityPickBtn, t('reg_city'), '');
+    paintRegion(countyPickBtn, t('reg_county'), '');
+    provMenu.hidden = true;
+  });
 };
-citySel.onchange = () => {
-  const counties = (regionsData && regionsData[provSel.value] && regionsData[provSel.value][citySel.value]) || [];
-  countySel.disabled = !citySel.value; cityBtn.disabled = true;
-  fillRegionOptions(countySel, t('reg_county'), counties);
+cityPickBtn.onclick = () => {
+  if (!regionSel.prov) return;
+  closeRegionMenus(cityMenu);
+  cityMenu.hidden = !cityMenu.hidden;
+  if (!cityMenu.hidden) fillRegionMenu(cityMenu, Object.keys(provCities()), regionSel.city, v => {
+    regionSel.city = v; regionSel.county = '';
+    countyPickBtn.disabled = false; cityBtn.disabled = true;
+    paintRegion(cityPickBtn, t('reg_city'), v);
+    paintRegion(countyPickBtn, t('reg_county'), '');
+    cityMenu.hidden = true;
+  });
 };
-countySel.onchange = () => { cityBtn.disabled = !countySel.value; };
+countyPickBtn.onclick = () => {
+  if (!regionSel.city) return;
+  closeRegionMenus(countyMenu);
+  countyMenu.hidden = !countyMenu.hidden;
+  if (!countyMenu.hidden) fillRegionMenu(countyMenu, countyList(), regionSel.county, v => {
+    regionSel.county = v; cityBtn.disabled = false;
+    paintRegion(countyPickBtn, t('reg_county'), v);
+    countyMenu.hidden = true;
+  });
+};
+document.addEventListener('click', e => { if (!e.target.closest('.region-dd')) closeRegionMenus(null); });
 loadRegions();
 $('#netBtn').onclick = async () => {
   try {
@@ -3170,7 +3195,7 @@ $('#placeForm').onsubmit = async e => {
 };
 $('#cityForm').onsubmit = async e => {
   e.preventDefault();
-  const county = countySel.value; if (!county) return;
+  const county = regionSel.county; if (!county) return;
   const btn = cityBtn; btn.disabled = true;
   try {
     // 后端按地名匹配: 先拿区/县名, 本地表没命中时天气网模糊搜索兜底。
@@ -3178,7 +3203,7 @@ $('#cityForm').onsubmit = async e => {
     if (next.weather) $('#placeName').value = next.weather.place || '';
     toast(next.found ? t('toast_city_set', { place: next.weather.place }) : t('toast_city_nf', { name: county }));
   } catch (err) { toast(t('toast_set_fail')); }
-  btn.disabled = !countySel.value;
+  btn.disabled = !regionSel.county;
 };
 
 let iconFor = null;
