@@ -406,7 +406,7 @@
   }
   .pcard .wxgroup .field .wsave:disabled { opacity: .4; }
   /* 显示名称分组与定位按钮之间的分隔线, 左右与卡片内边距对齐。 */
-  .pcard .wxsep { height: .5px; background: var(--sep); margin: 8px 12px 0; }
+  .pcard .wxsep { height: .5px; background: var(--sep); margin: 8px 12px 8px; }
   /* A <pre>, not a textarea: focusing a field under 16px makes iOS zoom and scroll the page. */
   .diag {
     display: block; height: 220px; margin: 10px 0 0; overflow: auto; -webkit-overflow-scrolling: touch;
@@ -562,6 +562,8 @@
     -webkit-mask-image: linear-gradient(180deg, #000 0, #000 40%, transparent); mask-image: linear-gradient(180deg, #000 0, #000 40%, transparent);
     pointer-events: none;
   }
+  /* 壁纸页关掉这道白幔: 大图上沿和圆角不该被它压住。 */
+  header.veil-off::after { display: none; }
   header .ticon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: 0; flex: none; color: var(--secondary); }
   header h1 { display: block; margin: 0; }
   header .ticon[hidden] { display: none; }
@@ -713,7 +715,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1159;
+const PAGE_VER = 1160;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -2647,6 +2649,9 @@ let prefsTab = 'wallpaper';
 let prefsPinSeen = null;
 function applyPrefsTab() {
   document.querySelectorAll('[data-tab="more"] .pgroup').forEach(g => { g.hidden = g.dataset.g !== prefsTab; });
+  // 壁纸页首屏是大图, 头部那道通用渐隐白幔会盖住图上沿和圆角, 这一页关掉它。
+  const h = document.querySelector('header');
+  if (h) h.classList.toggle('veil-off', prefsTab === 'wallpaper');
 }
 /* 其他页的三颗选项卡: 关于 Aerial / 备份与恢复 / 反馈问题, 各配一个图标。 */
 const OTHER_PANES = ['about', 'backup', 'feedback'];
