@@ -288,7 +288,9 @@ class PhoneServer private constructor(private val context: Context, private val 
                         app.orchard.tv.system.DiagLog.e("手机页设置失败: $key=$value", e)
                     }
                     app.orchard.tv.system.DiagLog.i("手机页设置: $key=$value -> saved=$ok")
-                    json(JSONObject().put("ok", ok))
+                    val resp = JSONObject().put("ok", ok).put("saved", ok)
+                    app.orchard.tv.system.DiagLog.i("手机页设置响应: $resp")
+                    json(resp)
                 }
                 session.method == Method.POST && path == "/api/focus" -> {
                     val style = FocusStyle.of(form(session)["style"])
