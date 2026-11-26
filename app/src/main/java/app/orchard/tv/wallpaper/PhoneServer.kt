@@ -279,8 +279,15 @@ class PhoneServer private constructor(private val context: Context, private val 
                 }
                 session.method == Method.POST && path == "/api/prefs" -> {
                     val f = form(session)
+                    val key = f["key"].orEmpty()
+                    val value = f["value"].orEmpty()
                     var ok = false
-                    onMain { ok = PhonePrefs.set(f["key"].orEmpty(), f["value"].orEmpty()) }
+                    try {
+                        onMain { ok = PhonePrefs.set(key, value) }
+                    } catch (e: Exception) {
+                        app.orchard.tv.system.DiagLog.e("手机页设置失败: $key=$value", e)
+                    }
+                    app.orchard.tv.system.DiagLog.i("手机页设置: $key=$value -> saved=$ok")
                     json(JSONObject().put("ok", ok))
                 }
                 session.method == Method.POST && path == "/api/focus" -> {
