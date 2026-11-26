@@ -88,9 +88,10 @@
   }
   .pcard .pbtn[aria-checked="true"] { background: var(--card); color: var(--tint); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.10); }
   .pcard .pbtn:disabled { opacity: .55; }
-  /* 每行个数: cols-2 一行两颗, cols-3 一行三颗; basis 取 0 由 flex 均分, 不用百分比 basis(加 gap 会被挤成单列)。 */
-  .pcard .prow.cols-2 .pbtn { flex: 1 1 0; }
-  .pcard .prow.cols-3 .pbtn { flex: 1 1 0; }
+  /* 每行个数: cols-2 一行两颗, cols-3 一行三颗; 用 grid 固定列数, 超出自动换行, 不会挤成一排。 */
+  .pcard .prow.cols-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .pcard .prow.cols-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .pcard .prow.cols-2 .pbtn, .pcard .prow.cols-3 .pbtn { width: 100%; }
   /* 不出选项、只有一颗按钮的(扫码登录、打开登录页、立即开始): 与上面那排选项同一个形状, 只占一排一颗。
      以前这些是纯文字链接, 看着不像按钮, 也不好按。 */
   .pact {
@@ -763,7 +764,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1164;
+const PAGE_VER = 1165;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1765,7 +1766,7 @@ async function api(path, body) {
   if (!r.ok) throw new Error(r.status);
   return r.json();
 }
-function take(next) { state = next; stateJson = ''; render(); }
+function take(next) { state = next; stateJson = ''; render(); if (typeof paintTrigger === 'function') paintTrigger(); }
 
 /* Tabs. The tab is kept in the address (#home) and on the phone, and each tab keeps its own scroll. */
 const TABS = ['home', 'live', 'more'];
@@ -1837,15 +1838,19 @@ const scrollBehavior = () => reducedMotion() ? 'auto' : 'smooth';
 /* Bottom sheet. */
 const sheet = $('#sheet');
 function openSheet(build, cls) {
-  const body = $('#sheetBody'); body.replaceChildren(); build(body);
+  const body = $('#sheetBody'); body.replaceChildren();
+  try { build(body); } catch (err) { console.error('sheet build failed:', err); toast(t('toast_set_fail')); }
   // 每个弹层重新定一次样式类, 上一个弹层的(比如儿童长辈那种矮窗口)不会带到下一个。
   sheet.querySelector('.sheet').className = 'sheet' + (cls ? ' ' + cls : '');
   clearTimeout(openSheet.timer);
   sheet.hidden = false;
+  // 弹层打开时锁住背景滚动, 避免在灰罩上滑动时带动后面的页面。
+  document.body.style.overflow = 'hidden';
   requestAnimationFrame(() => requestAnimationFrame(() => sheet.classList.add('open')));
 }
 function closeSheet() {
   sheet.classList.remove('open');
+  document.body.style.overflow = '';
   clearTimeout(openSheet.timer); openSheet.timer = setTimeout(() => sheet.hidden = true, 220);
 }
 $('#scrim').onclick = closeSheet;
@@ -2216,7 +2221,7 @@ function renderWpTabs() {
     b.setAttribute('role', 'tab');
     b.setAttribute('aria-checked', key === wpTab ? 'true' : 'false');
     b.appendChild(el('span', '', t(labelKey)));
-    b.onclick = () => { if (wpTab === key) return; wpTab = key; renderWallpapers(); animateIn($('#sections')); };
+    b.onclick = () => { if (wpTab === key) return; wpTab = key; renderWallpapers(); };
     bar.appendChild(b);
   }
 }
@@ -2826,7 +2831,7 @@ function renderTabs() {
     b.setAttribute('aria-checked', g.key === prefsTab ? 'true' : 'false');
     b.appendChild(groupIcon(g.key));
     if (g.key === prefsTab) b.appendChild(el('span', 'glabel', g.title));
-    b.onclick = () => { if (prefsTab === g.key) return; prefsTab = g.key; applyPrefsTab(); renderTabs(); animateIn(document.querySelector(`[data-tab="more"] .pgroup[data-g="${g.key}"]`)); };
+    b.onclick = () => { if (prefsTab === g.key) return; prefsTab = g.key; applyPrefsTab(); renderTabs(); };
     bar.appendChild(b);
   }
   applyPrefsTab();
@@ -3115,11 +3120,14 @@ async function loadRegions() {
 }
 const provCities = () => (regionsData && regionsData[regionSel.prov]) || {};
 const countyList = () => (regionsData && regionsData[regionSel.prov] && regionsData[regionSel.prov][regionSel.city]) || [];
+// 直辖市的城市层只有一个虚拟「市辖区」: 选完省直接进县区, 城市页签整枚隐藏。
+const isMunicipality = () => { const c = Object.keys(provCities()); return c.length === 1 && c[0] === '市辖区'; };
 function paintTrigger() {
   const parts = [regionSel.prov, regionSel.city === '市辖区' ? '' : regionSel.city, regionSel.county].filter(Boolean);
   const picked = parts.join(' ');
-  cityTriggerText.textContent = picked || t('reg_pick_hint');
-  cityTrigger.classList.toggle('placeholder', !parts.length);
+  const fallback = (state.weather && state.weather.place) || '';
+  cityTriggerText.textContent = picked || fallback || t('reg_pick_hint');
+  cityTrigger.classList.toggle('placeholder', !parts.length && !fallback);
 }
 function openRegionSheet() {
   if (!regionsData) { toast(t('toast_set_fail')); return; }
@@ -3131,7 +3139,7 @@ function openRegionSheet() {
     const confirm = el('button', 'pact region-confirm', t('reg_confirm')); confirm.type = 'button';
     function paintTabs() {
       tabs.replaceChildren();
-      tabsDef.forEach(([key, label]) => {
+      tabsDef.filter(([key]) => !(key === 'city' && isMunicipality())).forEach(([key, label]) => {
         const b = el('button', '', label); b.type = 'button';
         b.setAttribute('aria-checked', activeTab === key ? 'true' : 'false');
         b.onclick = () => { activeTab = key; paintAll(); };
@@ -3158,9 +3166,8 @@ function openRegionSheet() {
       regionSel[key] = v;
       if (key === 'prov') {
         regionSel.city = ''; regionSel.county = '';
-        // 直辖市的城市层只有一个虚拟「市辖区」, 选完省直接进县区, 跳过城市页签。
-        const cities = Object.keys(provCities());
-        if (cities.length === 1 && cities[0] === '市辖区') {
+        // 直辖市选完省直接进县区, 跳过城市页签。
+        if (isMunicipality()) {
           regionSel.city = '市辖区';   // 仅用于取县区数据, 回显时隐藏
           activeTab = 'county';
         } else {
@@ -3195,6 +3202,7 @@ $('#netBtn').onclick = async () => {
   try {
     take(await api('api/weather/auto', {}));
     if (state.weather) $('#placeName').value = state.weather.place || '';
+    paintTrigger();
     toast('定位成功: ' + ((state.weather && state.weather.place) || ''));
   } catch (e) { toast('网络定位失败，请手动输入城市'); }
 };
@@ -3210,6 +3218,7 @@ $('#satBtn').onclick = () => {
       const next = await api('api/weather/location', { lat: pos.coords.latitude, lon: pos.coords.longitude });
       take(next);
       if (next.weather) $('#placeName').value = next.weather.place || '';
+      paintTrigger();
       toast('定位成功: ' + (next.weather?.place || ''));
     } catch (e) { toast('定位失败，请手动输入城市'); }
   }, err => {
