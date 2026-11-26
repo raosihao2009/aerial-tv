@@ -67,6 +67,8 @@
   .item .chev { color: var(--tertiary); flex-shrink: 0; }
   /* 个性化设置: 一项设置一张圆角卡, 卡里选项一排一个, 当前值打勾并染成主题色。 */
   .pcard { margin-top: 10px; }
+  /* 信号源气泡是与应用菜单平级的独立容器, 自身补上间距, 避免和上方隐藏卡片气泡贴在一起。 */
+  #inputsBox { margin-top: 10px; }
   /* 吸顶标题下面那道 24px 渐隐会压住页面第一张气泡, 正文整体往下站一点。
      别再按容器名字一条条列选择器了 —— 应用菜单是 #homeBody > .view > .pcard,
      直播菜单是 #liveBody > .pcard, 个性化是 .pgroup > .pcard, 「更多」里还有 .hero,
@@ -103,8 +105,10 @@
   .pcard .row .btn { border-radius: 10px; }
   /* 气泡里的小节标题(设置城市 / 设置城市的显示名称): 只做分组, 不加分隔线。 */
   .pcard .psub { padding: 14px 16px 2px; font-size: 13px; color: var(--secondary); }
-  /* 当前版本那一行只是信息, 不加粗。 */
+  /* 当前版本在上、更新状态在下, 上下两行; 版本号本身不加粗。 */
+  .pcard .pver { display: flex; flex-direction: column; gap: 2px; padding: 8px 16px 2px; }
   .pcard .pver b { font-weight: 400; }
+  .pcard .pver .val { color: var(--secondary); }
   /* 只有说明、没有标题的一块: 顶在气泡最上面, 与选项卡名字不重复。 */
   .pcard .pnote { color: var(--secondary); font-size: 13px; line-height: 1.45; margin: 0; padding: 13px 16px 3px; }
   /* 隐藏卡: 标题、说明、按钮同在一张气泡里。 */
@@ -187,8 +191,8 @@
     flex: 0 1 40px; min-width: 0; padding: 0 6px; overflow: hidden; color: var(--secondary); font-size: 13px; cursor: pointer;
   }
   .gtabs button[aria-checked="true"] {
-    /* 选中的那一格固定按五个汉字的宽度, 两个字三个字的也留这么宽, 一排看起来才齐。 */
-    background: var(--card); color: var(--label); font-weight: 600; flex: 0 0 auto; width: calc(5em + 42px); padding: 0 8px;
+    /* 选中格贴合图标与文字, 不再按五个汉字预留固定宽度, 胶囊更紧凑。 */
+    background: var(--card); color: var(--label); font-weight: 600; flex: 0 0 auto; width: auto; min-width: 40px; padding: 0 10px;
     box-shadow: 0 1px 3px rgba(0,0,0,.12);
   }
   .gtabs button .glabel { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -401,6 +405,8 @@
     box-shadow: inset 0 0 0 .5px rgba(60,60,67,.12), 0 1px 2px rgba(0,0,0,.06), 0 3px 8px rgba(0,0,0,.07);
   }
   .pcard .wxgroup .field .wsave:disabled { opacity: .4; }
+  /* 显示名称分组与定位按钮之间的分隔线, 左右与卡片内边距对齐。 */
+  .pcard .wxsep { height: .5px; background: var(--sep); margin: 8px 12px 0; }
   /* A <pre>, not a textarea: focusing a field under 16px makes iOS zoom and scroll the page. */
   .diag {
     display: block; height: 220px; margin: 10px 0 0; overflow: auto; -webkit-overflow-scrolling: touch;
@@ -633,12 +639,11 @@
           <button class="link wsave" id="placeBtn" data-i18n="set"></button>
         </form>
       </div>
+      <div class="wxsep"></div>
       <div class="prows"><div class="prow">
         <button class="pact" id="netBtn" type="button">按网络定位</button>
         <button class="pact" id="satBtn" type="button">按卫星定位</button>
       </div></div>
-      <!-- 最后那句「显示 南昌县 的天气」原来落在气泡外面, 现在收进气泡底部 -->
-      <p class="pnote" id="wxHint"></p>
     </div>
   </div>
 
@@ -650,7 +655,7 @@
     <!-- 关于 Aerial: 版本、检查更新、下载安装, 最下面是电视待机 -->
     <div class="list pcard" id="aboutCard">
       <div class="item phead"><span class="txt"><span data-i18n="tab_other_about"></span><span class="sub" id="upHint"></span></span></div>
-      <div class="item pver"><b id="upNow">—</b><span class="val" id="upState"></span></div>
+      <div class="pver"><b id="upNow">—</b><span class="val" id="upState"></span></div>
       <div class="prows">
         <button class="pact" id="upCheck" type="button"></button>
         <button class="pact" id="upInstall" type="button" hidden></button>
@@ -708,7 +713,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1158;
+const PAGE_VER = 1159;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1580,7 +1585,7 @@ const PREFS_LEAD = { zh: '个性化选项', en: 'Personalisation', ru: 'Перс
 // 新文案(更多页的更新卡、隐藏卡片闸门)不塞进 KEYS/TEXTS: 那张表按语言对齐好下标, 插一行就全错位。
 Object.assign(EXTRA.zh, {
   tab_other_more: '更多',
-  up_cur: '当前版本 {v}（{c}）',
+  up_cur: '当前版本 {v}',
   up_check: '检查更新',
   up_checking: '检查中…',
   up_latest: '已是最新',
@@ -1614,7 +1619,7 @@ Object.assign(EXTRA.zh, {
 });
 Object.assign(EXTRA.en, {
   tab_other_more: 'More',
-  up_cur: 'Version {v} ({c})',
+  up_cur: 'Version {v}',
   up_check: 'Check for updates',
   up_checking: 'Checking…',
   up_latest: 'Up to date',
@@ -2330,10 +2335,13 @@ function renderMore() {
   $('#wxNow').textContent = w.celsius !== undefined ? `${w.celsius}° ${weatherNames[w.kind] || ''}` : '—';
   $('#wxPlace').textContent = w.place || '';
   if ($('#placeName')) $('#placeName').value = w.place || '';
-  const hint = $('#wxHint'); hint.replaceChildren();
-  if (w.chosen) {
-    hint.textContent = t('wx_chosen', { place: w.place });
-  } else hint.textContent = w.place ? t('wx_guessed', { place: w.place }) : t('wx_none');
+  const hint = $('#wxHint');
+  if (hint) {
+    hint.replaceChildren();
+    if (w.chosen) {
+      hint.textContent = t('wx_chosen', { place: w.place });
+    } else hint.textContent = w.place ? t('wx_guessed', { place: w.place }) : t('wx_none');
+  }
 }
 /* ---- 个性化设置: 服务端发来的那一份(和电视面板一一对应) ---- */
 let prefs = null, prefsJson = '', prefsTimer = 0;
@@ -2960,7 +2968,7 @@ function renderInputs() {
       try {
         const next = await api('api/source/pin', { id: s.id, pinned: on ? '1' : '0' });
         if (!next.saved) throw new Error('not saved');
-        take(next); toast(t(on ? 'toast_pinned' : 'toast_unpinned'));
+        take(next); toast(t(on ? 'toast_shown' : 'toast_hidden'));
       } catch (e) { btn.disabled = false; toast(t('toast_set_fail')); }
     };
     row.append(txt, btn); body.appendChild(row);
@@ -2979,7 +2987,11 @@ async function setting(sw) {
 }
 $('#city').oninput = () => $('#cityBtn').disabled = !$('#city').value.trim();
 $('#netBtn').onclick = async () => {
-  try { take(await api('api/weather/auto', {})); if (state.weather) $('#placeName').value = state.weather.place || ''; } catch (e) { toast('网络定位失败，请手动输入城市'); }
+  try {
+    take(await api('api/weather/auto', {}));
+    if (state.weather) $('#placeName').value = state.weather.place || '';
+    toast('定位成功: ' + ((state.weather && state.weather.place) || ''));
+  } catch (e) { toast('网络定位失败，请手动输入城市'); }
 };
 $('#satBtn').onclick = () => {
   // HTTP页面: 提示去手机App使用
