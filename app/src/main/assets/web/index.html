@@ -196,8 +196,9 @@
   .kids-entry .ptitle-line { font-size: 17px; font-weight: 600; color: var(--label); }
   .kids-entry .sub { margin-top: 3px; }
   .kids-go { width: 100%; flex: 1 1 auto; justify-content: center; display: inline-flex; align-items: center; padding: 12px 10px; }
-  /* 入口是一张展示卡, 整行不做按下染色/下沉; 只有内部按钮自己保留按压态。 */
-  .kids-entry:active { background: none; }
+  /* 入口是一张展示卡, 整行不做按下染色/下沉; 只有内部按钮自己保留按压态。
+     选择器带上 .item 提高优先级, 压过基础 button.item:active 的染色规则。 */
+  .item.kids-entry:active { background: none; }
   /* 不放进气泡的按钮(详情页的取消、解散文件夹): 白底一块, 单独一条。 */
   .psolo {
     appearance: none; border: 0; border-radius: 10px; background: var(--card); color: var(--tint);
@@ -778,7 +779,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1180;
+const PAGE_VER = 1181;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1545,6 +1546,7 @@ const EXTRA = {
         kids_back_kids: "回到儿童模式", kids_back_elders: "回到长辈模式",
         kids_start_kids: "进入儿童模式", kids_start_elders: "进入长辈模式",
         kids_turn_off: "关闭这个模式",
+        kids_action_open: "模式开关", kids_action_state: "当前模式",
         mute: "静音", unmute: "恢复声音", unit_min: "分钟", kids_open: "打开设置",
         pin_new: "设置家长密码", pin_off_title: "关闭家长密码", pin_ph: "4 位数字",
         backup_hint: "含全部设置、直播源、壁纸与照片影片；导入会覆盖本机设置并自动重启。",
@@ -1574,6 +1576,7 @@ const EXTRA = {
         kids_back_kids: "Back to Kids Mode", kids_back_elders: "Back to Elders Mode",
         kids_start_kids: "Start Kids Mode", kids_start_elders: "Start Elders Mode",
         kids_turn_off: "Turn Mode Off",
+        kids_action_open: "Mode Switch", kids_action_state: "Current Mode",
         mute: "Mute", unmute: "Sound on", unit_min: "min", kids_open: "Open settings",
         pin_new: "Set the parental PIN", pin_off_title: "Turn off the parental PIN", pin_ph: "4 digits",
         backup_hint: "Holds every setting, live source, wallpaper, photo and video. Importing replaces all settings on this TV and restarts it.",
@@ -3099,8 +3102,14 @@ function openKidsSheet() {
     scroll.appendChild(gridWrap);
     paintTabs(); paintGrid();
 
-    // 操作: 未开启一颗进入; 生效中退出 + 关闭; 挂起后回到 + 关闭。归在滚动内容区顶部, 不钉底、不单独置顶头部。
-    const actions = el('div', 'prows kids-actions');
+    // 操作卡: 和细则卡同一张气泡, 卡内标题 + 按钮排; 不再是悬浮在外的独立全宽大按钮。
+    const actionCard = el('div', 'list pcard');
+    const actionHead = el('div', 'item phead');
+    const actionTxt = el('span', 'txt');
+    actionTxt.appendChild(el('span', '', on ? t('kids_action_state') : t('kids_action_open')));
+    actionHead.appendChild(actionTxt);
+    actionCard.appendChild(actionHead);
+    const wrap = el('div', 'prows kids-actions');
     const row = el('div', 'prow');
     if (!on) {
       const enter = el('button', 'pact soft', t(k.kind === 'elders' ? 'kids_start_elders' : 'kids_start_kids'));
@@ -3108,6 +3117,7 @@ function openKidsSheet() {
       enter.onclick = async () => { enter.disabled = true; await setPref('kidsEnabled', '1', afterKidsChange); enter.disabled = false; };
       row.appendChild(enter);
     } else {
+      row.classList.add('cols-2');
       const subBtn = el('button', 'pact soft' + (suspended ? '' : ' danger'),
         suspended
           ? t(k.kind === 'elders' ? 'kids_back_elders' : 'kids_back_kids')
@@ -3120,9 +3130,10 @@ function openKidsSheet() {
       offBtn.onclick = async () => { offBtn.disabled = true; await setPref('kidsEnabled', '0', afterKidsChange); offBtn.disabled = false; };
       row.appendChild(offBtn);
     }
-    actions.appendChild(row);
-    // 操作按钮归在滚动内容区最上面, 与细则卡同属一屏列表的普通气泡行; 不钉底、也不在头部单独顶一颗全宽主按钮。
-    scroll.prepend(actions);
+    wrap.appendChild(row);
+    actionCard.appendChild(wrap);
+    // 操作卡归在滚动内容区最上面, 与细则卡同属一屏列表; 不钉底、也不在头部单独置顶。
+    scroll.prepend(actionCard);
     body.append(head, scroll);
   }, 'short kids-sheet');
 }
@@ -3276,12 +3287,11 @@ const countyList = () => (regionsData && regionsData[regionSel.prov] && regionsD
 // 直辖市的城市层只有一个虚拟「市辖区」: 选完省直接进县区, 城市页签整枚隐藏。
 const isMunicipality = () => { const c = Object.keys(provCities()); return c.length === 1 && c[0] === '市辖区'; };
 function paintTrigger() {
-  const parts = [regionSel.prov, regionSel.city === '市辖区' ? '' : regionSel.city, regionSel.county].filter(Boolean);
-  const picked = parts.join(' ');
+  // 按钮回显只认当前已保存地点(region 优先, 退到 place), 不拿弹窗里尚未确定的临时选择残留预览。
   const region = (state.weather && state.weather.region) || '';
   const fallback = (state.weather && state.weather.place) || '';
-  cityTriggerText.textContent = picked || region || fallback || t('reg_pick_hint');
-  cityTrigger.classList.toggle('placeholder', !parts.length && !region && !fallback);
+  cityTriggerText.textContent = region || fallback || t('reg_pick_hint');
+  cityTrigger.classList.toggle('placeholder', !region && !fallback);
 }
 function openRegionSheet() {
   if (!regionsData) { toast(t('toast_set_fail')); return; }
