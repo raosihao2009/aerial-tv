@@ -70,7 +70,10 @@
   /* 个性化设置: 一项设置一张圆角卡, 卡里选项一排一个, 当前值打勾并染成主题色。 */
   .pcard { margin-top: 10px; }
   /* 各分类首张卡片和壁纸大图一样贴住选项卡栏, 不额外往下站。 */
-  section[data-tab="more"] .pgroup > .pcard:first-child { margin-top: -14px; }
+  /* 各分类(个性化/应用/直播)首张卡片和壁纸大图一样贴住选项卡栏, 不额外往下站。 */
+  section[data-tab="more"] .pgroup > .pcard:first-child,
+  section[data-tab="home"] #homeBody > .view > :first-child,
+  section[data-tab="live"] #liveBody > :first-child { margin-top: -14px; }
   /* 信号源气泡是与应用菜单平级的独立容器, 自身补上间距, 避免和上方隐藏卡片气泡贴在一起。 */
   #inputsBox { margin-top: 10px; }
   /* 吸顶标题下面那道 24px 渐隐会压住页面第一张气泡, 正文整体往下站一点。
@@ -779,7 +782,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1181;
+const PAGE_VER = 1182;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1546,7 +1549,8 @@ const EXTRA = {
         kids_back_kids: "回到儿童模式", kids_back_elders: "回到长辈模式",
         kids_start_kids: "进入儿童模式", kids_start_elders: "进入长辈模式",
         kids_turn_off: "关闭这个模式",
-        kids_action_open: "模式开关", kids_action_state: "当前模式",
+        kids_action_pref: "儿童与长辈模式首选项",
+        kids_action_pref_hint: "勾选要在桌面保留的应用与直播卡片；开启后退出模式需输入家长密码。",
         mute: "静音", unmute: "恢复声音", unit_min: "分钟", kids_open: "打开设置",
         pin_new: "设置家长密码", pin_off_title: "关闭家长密码", pin_ph: "4 位数字",
         backup_hint: "含全部设置、直播源、壁纸与照片影片；导入会覆盖本机设置并自动重启。",
@@ -1576,7 +1580,8 @@ const EXTRA = {
         kids_back_kids: "Back to Kids Mode", kids_back_elders: "Back to Elders Mode",
         kids_start_kids: "Start Kids Mode", kids_start_elders: "Start Elders Mode",
         kids_turn_off: "Turn Mode Off",
-        kids_action_open: "Mode Switch", kids_action_state: "Current Mode",
+        kids_action_pref: "Kids & Elders Preferences",
+        kids_action_pref_hint: "Pick the apps and live cards kept on the home screen; leaving the mode needs the parental PIN.",
         mute: "Mute", unmute: "Sound on", unit_min: "min", kids_open: "Open settings",
         pin_new: "Set the parental PIN", pin_off_title: "Turn off the parental PIN", pin_ph: "4 digits",
         backup_hint: "Holds every setting, live source, wallpaper, photo and video. Importing replaces all settings on this TV and restarts it.",
@@ -1915,6 +1920,7 @@ function openSheet(build, cls) {
   openSheet.timer = setTimeout(() => { panel.scrollTop = 0; }, 280);
 }
 function closeSheet() {
+  if (sheet.hidden || sheet.closing) return;
   sheet.classList.remove('open');
   const prev = sheetStack.pop();
   if (prev) {
@@ -3000,6 +3006,7 @@ async function kidsLeave() {
     try {
       await api('api/kids/leave', {});
       await afterKidsChange();
+      closeSheet();
     } catch (e) { toast(t('toast_set_fail')); }
   };
   if (sessionPin) doLeave();
@@ -3012,6 +3019,7 @@ async function kidsStart() {
     const r = await api('api/kids/start', {});
     if (r && r.saved === false) throw new Error('not allowed');
     await afterKidsChange();
+    closeSheet();
   } catch (e) { toast(t('toast_set_fail')); }
 }
 
@@ -3029,7 +3037,7 @@ function paintKidsEntry(host) {
   // 右侧是一颗蓝色字的 soft 按钮, 而不是整行灰色状态文案 + 箭头; 点按钮与点整行都进弹窗。
   const go = el('button', 'pact soft kids-go', t('kids_open'));
   go.type = 'button';
-  go.onclick = openKidsSheet;
+  go.onclick = e => { e.stopPropagation(); openKidsSheet(); };
   row.append(txt, go);
   row.onclick = openKidsSheet;
   card.appendChild(row);
@@ -3040,15 +3048,17 @@ function openKidsSheet() {
   const k = prefs && prefs.kids; if (!k) return;
   const on = !!k.enabled, suspended = !!k.suspended;
   openSheet(body => {
+    const scroll = el('div', 'kids-scroll');
+    // 标题与说明随内容一起上下滚动, 不再钉在弹窗顶部。
     const head = el('div', 'kids-head');
     head.appendChild(el('h3', '', t('kids_title')));
     if (k.hint) head.appendChild(el('p', 'meta', k.hint));
-    const scroll = el('div', 'kids-scroll');
+    scroll.appendChild(head);
 
-    // 细则卡(给谁用/拦截/时长等), 未开启时整体置灰不可改。
+    // 细则卡(给谁用/拦截/时长等); 不再整体置灰锁定, 未开启也可直接查看与调整。
     for (const it of k.items || []) {
       if (it.key === 'kidsEnabled') continue;
-      try { scroll.appendChild(prefCard({ ...it, disabled: !on }, renderPrefs)); }
+      try { scroll.appendChild(prefCard({ ...it, disabled: false }, renderPrefs)); }
       catch (e) { console.error('kids 细则卡渲染失败:', it && it.key, e); }
     }
 
@@ -3082,9 +3092,6 @@ function openKidsSheet() {
         if (c.locked) {
           tile.disabled = true;
           tile.appendChild(el('span', 'klock', t('must_keep')));
-        } else if (!on) {
-          // 未开启: 网格可浏览, 但不可勾选。
-          tile.disabled = true;
         } else {
           tile.onclick = () => {
             const now = allowed.slice();
@@ -3102,11 +3109,12 @@ function openKidsSheet() {
     scroll.appendChild(gridWrap);
     paintTabs(); paintGrid();
 
-    // 操作卡: 和细则卡同一张气泡, 卡内标题 + 按钮排; 不再是悬浮在外的独立全宽大按钮。
+    // 操作卡: 与细则卡同一张气泡, 卡内标题 + 小字说明 + 按钮排。
     const actionCard = el('div', 'list pcard');
     const actionHead = el('div', 'item phead');
     const actionTxt = el('span', 'txt');
-    actionTxt.appendChild(el('span', '', on ? t('kids_action_state') : t('kids_action_open')));
+    actionTxt.appendChild(el('span', '', t('kids_action_pref')));
+    actionTxt.appendChild(el('span', 'sub', t('kids_action_pref_hint')));
     actionHead.appendChild(actionTxt);
     actionCard.appendChild(actionHead);
     const wrap = el('div', 'prows kids-actions');
@@ -3114,7 +3122,7 @@ function openKidsSheet() {
     if (!on) {
       const enter = el('button', 'pact soft', t(k.kind === 'elders' ? 'kids_start_elders' : 'kids_start_kids'));
       enter.type = 'button';
-      enter.onclick = async () => { enter.disabled = true; await setPref('kidsEnabled', '1', afterKidsChange); enter.disabled = false; };
+      enter.onclick = async () => { enter.disabled = true; const ok = await setPref('kidsEnabled', '1', afterKidsChange); if (ok) closeSheet(); enter.disabled = false; };
       row.appendChild(enter);
     } else {
       row.classList.add('cols-2');
@@ -3127,14 +3135,14 @@ function openKidsSheet() {
       row.appendChild(subBtn);
       const offBtn = el('button', 'pact soft danger', t('kids_turn_off'));
       offBtn.type = 'button';
-      offBtn.onclick = async () => { offBtn.disabled = true; await setPref('kidsEnabled', '0', afterKidsChange); offBtn.disabled = false; };
+      offBtn.onclick = async () => { offBtn.disabled = true; const ok = await setPref('kidsEnabled', '0', afterKidsChange); if (ok) closeSheet(); offBtn.disabled = false; };
       row.appendChild(offBtn);
     }
     wrap.appendChild(row);
     actionCard.appendChild(wrap);
-    // 操作卡归在滚动内容区最上面, 与细则卡同属一屏列表; 不钉底、也不在头部单独置顶。
-    scroll.prepend(actionCard);
-    body.append(head, scroll);
+    // 操作卡排在标题之后、细则卡之前, 与其余内容同属一个滚动列表; 不钉底、不吸顶。
+    scroll.insertBefore(actionCard, head.nextSibling);
+    body.appendChild(scroll);
   }, 'short kids-sheet');
 }
 
@@ -3382,7 +3390,7 @@ function openTimeSheet(mins, onPick) {
     function paintList() {
       list.replaceChildren();
       list.scrollTop = 0;
-      const opts = tab === 'hour' ? [...Array(24).keys()] : [...Array(12).keys()].map(i => i * 5);
+      const opts = tab === 'hour' ? [...Array(24).keys()] : [...Array(60).keys()];
       opts.forEach(v => {
         const cur = tab === 'hour' ? h : m;
         const b = el('button', '', String(v).padStart(2, '0')); b.type = 'button';
