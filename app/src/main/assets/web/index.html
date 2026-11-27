@@ -764,7 +764,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1169;
+const PAGE_VER = 1170;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -2515,7 +2515,7 @@ function customRow(it, changed) {
     if (it.max !== undefined) inp.max = it.max;
     inp.onchange = () => changed(it.key, String(Math.max(0, parseInt(inp.value, 10) || 0)));
   }
-  row.appendChild(inp);
+  if (!it.clock) row.appendChild(inp);
   return row;
 }
 
@@ -2950,7 +2950,10 @@ function openKids() {
     body.appendChild(el('h3', '', k.title));
     if (k.hint) body.appendChild(el('p', 'meta', k.hint));
     const refresh = () => openKids();
-    for (const it of k.items || []) body.appendChild(prefCard(it, refresh));
+    for (const it of k.items || []) {
+      try { body.appendChild(prefCard(it, refresh)); }
+      catch (e) { console.error('kids 细则卡渲染失败:', it && it.key, e); }
+    }
 
     const tabs = el('div', 'ptabs');
     [k.appsTitle, k.liveTitle].forEach((label, i) => {
