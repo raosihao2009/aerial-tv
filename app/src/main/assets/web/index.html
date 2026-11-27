@@ -190,6 +190,11 @@
   }
   .pact.soft:active { background: var(--fill); box-shadow: inset 0 0 0 .5px rgba(60,60,67,.10); }
   .pact.soft.danger { color: var(--danger); }
+  /* 守护入口: 左侧标题+说明, 右侧一颗自动宽度的蓝色字 soft 按钮, 不占整行。 */
+  .kids-entry { align-items: center; gap: 12px; }
+  .kids-entry .ptitle-line { font-size: 17px; font-weight: 600; color: var(--label); }
+  .kids-entry .sub { margin-top: 3px; }
+  .kids-go { flex: 0 0 auto; width: auto; min-width: 0; display: inline-flex; align-items: center; padding: 9px 16px; }
   /* 不放进气泡的按钮(详情页的取消、解散文件夹): 白底一块, 单独一条。 */
   .psolo {
     appearance: none; border: 0; border-radius: 10px; background: var(--card); color: var(--tint);
@@ -764,7 +769,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1176;
+const PAGE_VER = 1177;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1892,6 +1897,10 @@ function openSheet(build, cls) {
   // 元素 hidden(display:none) 时写 scrollTop 不被采纳, 必须在显示、布局完成后的帧里再置顶一次,
   // 否则上一个详情滑到底后, 打开别的卡片详情仍会落在底部。
   requestAnimationFrame(() => requestAnimationFrame(() => { panel.scrollTop = 0; sheet.classList.add('open'); }));
+  // 抽屉滑入过渡结束、图片/字体排版稳定后再兜底置顶一次: 部分内嵌 WebView 在内层内容刚撑高时
+  // 不会采纳首次写入的 scrollTop, 会把长弹窗留在底部, 看上去标题和细则卡整条不见了。
+  clearTimeout(openSheet.timer);
+  openSheet.timer = setTimeout(() => { panel.scrollTop = 0; }, 280);
 }
 function closeSheet() {
   sheet.classList.remove('open');
@@ -3000,15 +3009,16 @@ async function afterKidsChange() { await loadPrefs(); refresh(); }
 let kidsTab = 0;
 function paintKidsEntry(host) {
   const k = prefs && prefs.kids; if (!k) return;
-  const on = !!k.enabled;
   const card = el('div', 'list pcard');
   const row = el('button', 'item kids-entry'); row.type = 'button';
   const txt = el('span', 'txt');
-  txt.appendChild(el('span', '', t('kids_title')));
+  txt.appendChild(el('span', 'ptitle-line', t('kids_title')));
   if (k.hint) txt.appendChild(el('span', 'sub', k.hint));
-  const state = el('span', 'val', t(on ? (k.kind === 'elders' ? 'kids_row_elders' : 'kids_row_kids') : 'kids_row_off'));
-  row.append(txt, state);
-  row.insertAdjacentHTML('beforeend', ICON.chev);
+  // 右侧是一颗蓝色字的 soft 按钮, 而不是整行灰色状态文案 + 箭头; 点按钮与点整行都进弹窗。
+  const go = el('button', 'pact soft kids-go', t('kids_open'));
+  go.type = 'button';
+  go.onclick = openKidsSheet;
+  row.append(txt, go);
   row.onclick = openKidsSheet;
   card.appendChild(row);
   host.appendChild(card);
@@ -3082,7 +3092,7 @@ function openKidsSheet() {
     const actions = el('div', 'prows kids-actions');
     const row = el('div', 'prow');
     if (!on) {
-      const enter = el('button', 'pact', t(k.kind === 'elders' ? 'kids_start_elders' : 'kids_start_kids'));
+      const enter = el('button', 'pact soft', t(k.kind === 'elders' ? 'kids_start_elders' : 'kids_start_kids'));
       enter.type = 'button';
       enter.onclick = async () => { enter.disabled = true; await setPref('kidsEnabled', '1', afterKidsChange); enter.disabled = false; };
       row.appendChild(enter);
@@ -3357,9 +3367,10 @@ function openTimeSheet(mins, onPick) {
 }
 async function submitRegion() {
   const county = regionSel.county; if (!county) return;
+  const city = regionSel.city === '市辖区' ? '' : regionSel.city;
   try {
-    // 后端按地名匹配: 先拿区/县名, 本地表没命中时天气网模糊搜索兜底。
-    const next = await api('api/weather/city', { name: county }); take(next);
+    // 把省/市/区一起带给后端: 区/县在本地表和天气网都没独立站点时, 回退到所属地级市站点。
+    const next = await api('api/weather/city', { name: county, prov: regionSel.prov, city: city }); take(next);
     paintTrigger();
     if (next.weather) $('#placeName').value = next.weather.place || '';
     toast(next.found ? t('toast_city_set', { place: next.weather.place }) : t('toast_city_nf', { name: county }));

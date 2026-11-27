@@ -289,31 +289,37 @@ object Weather {
      * Names the place (from the phone page) and fetches its weather at once.
      * Uses weather.com.cn city search to convert name to city code.
      */
-    suspend fun choose(name: String): Boolean {
-        val userInput = name.trim()
-        if (userInput.isEmpty()) return false
+    suspend fun choose(province: String, city: String, county: String): Boolean {
+        val countyName = county.trim()
+        val cityName = city.trim()
+        val typed = countyName.ifEmpty { cityName }
+        if (typed.isEmpty()) return false
+        val display = countyName.ifEmpty { cityName }
         val hit = withContext(Dispatchers.IO) {
             // 先走本地城市表(assets/cities-cn.tsv)查到经纬度, 再用中国天气网的站点接口换成城市代码。
             // 这条链路和实时天气同一个数据源, 认得县级市与自治县(怀化市、新晃侗族自治县都查得到)。
-            val local = runCatching { Cities.find(app, userInput) }.getOrNull()
+            val local = runCatching { Cities.find(app, typed) }.getOrNull()
             val byStation = local?.let { c ->
                 runCatching {
-                    stationAt(c.lat, c.lon)?.let { (code, official) ->
-                        Triple(code, if (userInput != c.name) userInput else (official ?: c.name), c.name)
+                    stationAt(c.lat, c.lon)?.let { st ->
+                        Triple(st.code, if (typed != c.name) typed else st.name, c.name)
                     }
-                }.onFailure { Log.w(TAG, "station lookup failed for $userInput: ${it.message}", it) }.getOrNull()
+                }.onFailure { Log.w(TAG, "station lookup failed for $typed: ${it.message}", it) }.getOrNull()
             }
-            // 本地表里没有的名字, 才退回旧的模糊搜索接口。
-            byStation ?: searchByName(userInput)
+            // 本地表没有的名字, 退回天气网模糊搜索; 市辖区(西湖区、红谷滩区)天气网没有独立站点,
+            // 再回退到所属地级市站点, 避免选完区报「没有找到」。
+            byStation ?: searchByName(typed, display) ?: cityName.takeIf { it.isNotEmpty() }
+                ?.let { searchByName(it, display) }
         } ?: return false
+        val regionName = joinRegion(province, city, county)
         prefs.edit {
             putString("city_code", hit.first)
             putString("place", hit.second)
-            remove("region")
+            if (regionName != null) putString("region", regionName) else remove("region")
             putBoolean("chosen", true)
         }
         chosen = true
-        region = null
+        region = regionName
         place = prefs.getString("place_custom", null) ?: prefs.getString("place", null)
         refresh()
         return true
@@ -323,7 +329,7 @@ object Weather {
      * 旧的城市模糊搜索, 只作为本地城市表没命中时的兜底:
      * 结果里混着景点(代码以 A 结尾), 因此只接受 9 位纯数字的站点代码, 并优先名字完全一致的条目。
      */
-    private fun searchByName(userInput: String): Triple<String, String, String>? {
+    private fun searchByName(userInput: String, display: String): Triple<String, String, String>? {
         val tries = listOf(
             userInput,
             userInput.replace(Regex("(市|区|县|旗|州|盟)$"), ""),
@@ -341,7 +347,7 @@ object Weather {
                 .filter { it.size >= 3 && STATION_CODE.matches(it[0]) }
             if (stations.isEmpty()) continue
             val best = stations.firstOrNull { it[2] == n || it[2] == userInput } ?: stations.first()
-            return Triple(best[0], userInput, best[2])
+            return Triple(best[0], display, best[2])
         }
         return null
     }
@@ -358,29 +364,67 @@ object Weather {
         place = prefs.getString("place_custom", null) ?: prefs.getString("place", null)
     }
 
-    /** 经纬度 → 中国天气网站点: (areaid, 站名). Null when the service knows nothing there. */
-    private fun stationAt(lat: Double, lon: Double): Pair<String, String?>? = runCatching {
+    /** 经纬度 → 中国天气网站点: 代码 + 站名 + 省/区短名(站点接口随带)。Null when the service knows nothing there. */
+    private data class Station(val code: String, val name: String, val province: String?, val district: String?)
+    private fun stationAt(lat: Double, lon: Double): Station? = runCatching {
         val params = URLEncoder.encode("""{"method":"stationinfo","lat":$lat,"lng":$lon}""", "UTF-8")
         val text = get("https://d4.weather.com.cn/geong/v1/api?params=$params", "https://www.weather.com.cn/")
         val json = JSONObject(text)
         if (json.optString("status") != "success") return@runCatching null
         val station = json.optJSONObject("data")?.optJSONObject("station") ?: return@runCatching null
         val code = station.optString("areaid")
-        if (code.isBlank()) null else code to station.optString("namecn").takeIf { it.isNotBlank() }
+        if (code.isBlank()) null else Station(
+            code,
+            station.optString("namecn").takeIf { it.isNotBlank() } ?: code,
+            station.optString("provincecn").takeIf { it.isNotBlank() },
+            station.optString("distictcn").takeIf { it.isNotBlank() },
+        )
     }.onFailure { Log.w(TAG, "station lookup failed: ${it.message}", it) }.getOrNull()
 
+    /** 短名补全称后缀: 省/市/区县。直辖市三段同名, 拼接前去重。 */
+    private fun provinceFull(s: String): String = when {
+        s.isEmpty() -> s
+        s.endsWith("省") || s.endsWith("市") || s.endsWith("自治区") || s.endsWith("特别行政区") -> s
+        s == "内蒙古" -> "内蒙古自治区"
+        else -> s + "省"
+    }
+    private fun cityFull(s: String): String = when {
+        s.isEmpty() -> s
+        s.endsWith("市") || s.endsWith("州") || s.endsWith("盟") || s.endsWith("地区") -> s
+        else -> s + "市"
+    }
+    private fun countyFull(s: String): String = when {
+        s.isEmpty() -> s
+        s.endsWith("区") || s.endsWith("县") || s.endsWith("旗") || s.endsWith("市") -> s
+        else -> s + "区"
+    }
+    private fun joinRegion(prov: String?, city: String?, county: String?): String? {
+        val raw = listOf(prov, city, county).map { it?.trim().orEmpty() }.filter { it.isNotEmpty() }
+        // 直辖市 IP/站点返回三段同名(北京,北京,北京), 只保留一份。
+        val dedup = LinkedHashSet(raw).toList()
+        val parts = dedup.mapIndexed { i, s ->
+            when {
+                dedup.size == 1 -> cityFull(s)
+                i == 0 -> provinceFull(s)
+                i == 1 -> cityFull(s)
+                else -> countyFull(s)
+            }
+        }
+        return parts.joinToString(" ").ifBlank { null }
+    }
+
     suspend fun chooseByLocation(lat: Double, lon: Double): Boolean {
-        val hit = withContext(Dispatchers.IO) {
-            stationAt(lat, lon)?.let { (code, name) -> Triple(code, name ?: code, name ?: code) }
-        } ?: return false
+        val st = withContext(Dispatchers.IO) { stationAt(lat, lon) } ?: return false
+        val regionName = joinRegion(st.province, st.district, st.name)
         prefs.edit {
-            putString("city_code", hit.first)
-            putString("place", hit.second)
-            remove("region")
+            putString("city_code", st.code)
+            putString("place", st.name)
+            if (regionName != null) putString("region", regionName) else remove("region")
             putBoolean("chosen", true)
+            remove("place_custom")
         }
         chosen = true
-        region = null
+        region = regionName
         place = prefs.getString("place_custom", null) ?: prefs.getString("place", null)
         refresh()
         return true
@@ -429,7 +473,7 @@ object Weather {
             val city = parts?.getOrNull(1)?.takeIf { it.isNotBlank() }
             val district = parts?.getOrNull(2)?.takeIf { it.isNotBlank() }
             val placeName = district ?: city
-            val regionName = listOf(province, city, district).filter { !it.isNullOrBlank() }.joinToString(" ")
+            val regionName = joinRegion(province, city, district) ?: ""
             Triple(id, placeName, regionName)
         }.onFailure { Log.w(TAG, "IP locate failed", it) }.getOrNull()
     }

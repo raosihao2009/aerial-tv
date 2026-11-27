@@ -391,8 +391,9 @@ class PhoneServer private constructor(private val context: Context, private val 
                 }
                 session.method == Method.GET && path == "/api/weather/regions" -> regions()
                 session.method == Method.POST && path == "/api/weather/city" -> {
-                    val name = form(session)["name"].orEmpty()
-                    val found = name.isNotBlank() && runBlocking(Dispatchers.Main) { Weather.choose(name) }
+                    val f = form(session)
+                    val prov = f["prov"].orEmpty(); val city = f["city"].orEmpty(); val county = f["name"].orEmpty()
+                    val found = county.isNotBlank() && runBlocking(Dispatchers.Main) { Weather.choose(prov, city, county) }
                     json(state().put("found", found))
                 }
                 session.method == Method.POST && path == "/api/weather/auto" -> {
