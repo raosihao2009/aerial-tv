@@ -764,7 +764,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1174;
+const PAGE_VER = 1175;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1528,6 +1528,8 @@ const EXTRA = {
         kids_row_off: "已关闭·前往设置", kids_row_kids: "处于儿童模式·前往设置", kids_row_elders: "处于长辈模式·前往设置",
         kids_leave_kids: "退出儿童模式", kids_leave_elders: "退出长辈模式",
         kids_back_kids: "回到儿童模式", kids_back_elders: "回到长辈模式",
+        kids_start_kids: "进入儿童模式", kids_start_elders: "进入长辈模式",
+        kids_turn_off: "关闭这个模式",
         mute: "静音", unmute: "恢复声音", unit_min: "分钟", kids_open: "打开设置",
         pin_new: "设置家长密码", pin_off_title: "关闭家长密码", pin_ph: "4 位数字",
         backup_hint: "含全部设置、直播源、壁纸与照片影片；导入会覆盖本机设置并自动重启。",
@@ -1554,6 +1556,8 @@ const EXTRA = {
         kids_row_off: "Off · Open settings", kids_row_kids: "Kids mode · Open settings", kids_row_elders: "Elders mode · Open settings",
         kids_leave_kids: "Leave Kids Mode", kids_leave_elders: "Leave Elders Mode",
         kids_back_kids: "Back to Kids Mode", kids_back_elders: "Back to Elders Mode",
+        kids_start_kids: "Start Kids Mode", kids_start_elders: "Start Elders Mode",
+        kids_turn_off: "Turn Mode Off",
         mute: "Mute", unmute: "Sound on", unit_min: "min", kids_open: "Open settings",
         pin_new: "Set the parental PIN", pin_off_title: "Turn off the parental PIN", pin_ph: "4 digits",
         backup_hint: "Holds every setting, live source, wallpaper, photo and video. Importing replaces all settings on this TV and restarts it.",
@@ -2986,33 +2990,47 @@ async function kidsStart() {
 async function afterKidsChange() { await loadPrefs(); refresh(); }
 
 /* 儿童与长辈配置: 直接铺在「更多-家庭守护」页, 不再弹层。
-   总开关始终可操作; 未开启时其余细则卡置灰, 应用/直播网格可浏览但不可勾选。 */
+   未开启只给进入按钮; 已开启按状态互斥退出/回到, 另附彻底关闭; 细则与网格未开启时置灰/不可勾选。 */
 let kidsTab = 0;
 function paintKidsPanel(host) {
   const k = prefs && prefs.kids; if (!k) return;
   const on = !!k.enabled;
   if (k.hint) host.appendChild(el('p', 'meta', k.hint));
 
-  // 细则卡: 总开关 kidsEnabled 始终可用, 其余未开启时整体置灰。
+  // 细则卡: 总开关 kidsEnabled 不再单独成卡(进入/关闭由底部按钮承担); 其余未开启时整体置灰。
   for (const it of k.items || []) {
-    const locked = !on && it.key !== 'kidsEnabled';
+    if (it.key === 'kidsEnabled') continue;
+    const locked = !on;
     try { host.appendChild(prefCard({ ...it, disabled: locked }, renderPrefs)); }
     catch (e) { console.error('kids 细则卡渲染失败:', it && it.key, e); }
   }
 
-  // 子开关: 生效中可临时退出(需家长密码), 已挂起可回到模式(免密码)。
-  if (on) {
+  const actions = el('div', 'prows kids-actions');
+  if (!on) {
+    // 未开启: 只提供一颗「进入儿童/长辈模式」。
+    const row = el('div', 'prow');
+    const enter = el('button', 'pact', t(k.kind === 'elders' ? 'kids_start_elders' : 'kids_start_kids'));
+    enter.type = 'button';
+    enter.onclick = async () => { enter.disabled = true; await setPref('kidsEnabled', '1', afterKidsChange); enter.disabled = false; };
+    row.appendChild(enter); actions.appendChild(row);
+  } else {
+    // 已开启: 退出/回到按状态互斥(退出需家长密码, 回到免密码); 另附一颗彻底关闭「关闭这个模式」。
+    const row = el('div', 'prow');
     const suspended = !!k.suspended;
-    const wrap = el('div', 'prows');
-    const subRow = el('div', 'prow');
     const subBtn = el('button', 'pact soft' + (suspended ? '' : ' danger'),
       suspended
         ? t(k.kind === 'elders' ? 'kids_back_elders' : 'kids_back_kids')
         : t(k.kind === 'elders' ? 'kids_leave_elders' : 'kids_leave_kids'));
     subBtn.type = 'button';
     subBtn.onclick = suspended ? kidsStart : kidsLeave;
-    subRow.appendChild(subBtn); wrap.appendChild(subRow); host.appendChild(wrap);
+    row.appendChild(subBtn);
+    const offBtn = el('button', 'pact soft danger', t('kids_turn_off'));
+    offBtn.type = 'button';
+    offBtn.onclick = async () => { offBtn.disabled = true; await setPref('kidsEnabled', '0', afterKidsChange); offBtn.disabled = false; };
+    row.appendChild(offBtn);
+    actions.appendChild(row);
   }
+  host.appendChild(actions);
 
   const tabs = el('div', 'ptabs');
   [k.appsTitle, k.liveTitle].forEach((label, i) => {
