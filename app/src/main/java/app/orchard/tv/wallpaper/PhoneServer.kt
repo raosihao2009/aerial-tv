@@ -931,6 +931,7 @@ class PhoneServer private constructor(private val context: Context, private val 
         val now = System.currentTimeMillis()
         return JSONObject()
             .put("enabled", r.enabled)
+            .put("suspended", r.suspended)
             .put("active", r.active)
             .put("kind", r.kind.key)
             .put("pinSet", AerialSettings.pinSet)

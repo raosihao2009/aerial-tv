@@ -762,7 +762,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1172;
+const PAGE_VER = 1173;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1524,6 +1524,8 @@ const EXTRA = {
         custom: "自定义", custom_time: "自定义时间", must_keep: "必选",
         time_hour: "时", time_minute: "分",
         kids_row_off: "已关闭·前往设置", kids_row_kids: "处于儿童模式·前往设置", kids_row_elders: "处于长辈模式·前往设置",
+        kids_leave_kids: "退出儿童模式", kids_leave_elders: "退出长辈模式",
+        kids_back_kids: "回到儿童模式", kids_back_elders: "回到长辈模式",
         mute: "静音", unmute: "恢复声音", unit_min: "分钟", kids_open: "打开设置",
         pin_new: "设置家长密码", pin_off_title: "关闭家长密码", pin_ph: "4 位数字",
         backup_hint: "含全部设置、直播源、壁纸与照片影片；导入会覆盖本机设置并自动重启。",
@@ -1548,6 +1550,8 @@ const EXTRA = {
         custom: "Custom", custom_time: "Custom time", must_keep: "Required",
         time_hour: "Hour", time_minute: "Minute",
         kids_row_off: "Off · Open settings", kids_row_kids: "Kids mode · Open settings", kids_row_elders: "Elders mode · Open settings",
+        kids_leave_kids: "Leave Kids Mode", kids_leave_elders: "Leave Elders Mode",
+        kids_back_kids: "Back to Kids Mode", kids_back_elders: "Back to Elders Mode",
         mute: "Mute", unmute: "Sound on", unit_min: "min", kids_open: "Open settings",
         pin_new: "Set the parental PIN", pin_off_title: "Turn off the parental PIN", pin_ph: "4 digits",
         backup_hint: "Holds every setting, live source, wallpaper, photo and video. Importing replaces all settings on this TV and restarts it.",
@@ -2774,7 +2778,20 @@ function prefCard(it, after, save, startAction) {
     const btn = el('button', 'pact', label);
     btn.type = 'button';
     btn.onclick = () => openKidsGate();
-    row.appendChild(btn); wrap.appendChild(row); card.appendChild(wrap);
+    row.appendChild(btn); wrap.appendChild(row);
+    // 子开关: 不进细则弹窗, 直接在气泡上临时退出 / 回到模式(对应电视控制中心那对)。
+    if (k.enabled) {
+      const suspended = !!k.suspended;
+      const subRow = el('div', 'prow');
+      const subBtn = el('button', 'pact soft' + (suspended ? '' : ' danger'),
+        suspended
+          ? t(k.kind === 'elders' ? 'kids_back_elders' : 'kids_back_kids')
+          : t(k.kind === 'elders' ? 'kids_leave_elders' : 'kids_leave_kids'));
+      subBtn.type = 'button';
+      subBtn.onclick = suspended ? kidsStart : kidsLeave;
+      subRow.appendChild(subBtn); wrap.appendChild(subRow);
+    }
+    card.appendChild(wrap);
   }
   return card;
 }
@@ -2955,6 +2972,30 @@ window.addEventListener('resize', measureHead);
 window.addEventListener('orientationchange', measureHead);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(measureHead);
 if (window.ResizeObserver) { const h = document.querySelector('header'); if (h) new ResizeObserver(measureHead).observe(h); }
+
+/* 子开关: 临时退出模式, 需家长密码(与电视控制中心「离开」一致); 会话内验过就不再弹密码盘。 */
+async function kidsLeave() {
+  const k = (prefs && prefs.kids) || {};
+  const doLeave = async () => {
+    try {
+      await api('api/kids/leave', {});
+      await afterKidsChange();
+    } catch (e) { toast(t('toast_set_fail')); }
+  };
+  if (sessionPin) doLeave();
+  else pinSheet('verify', !!k.pinArrows, doLeave);
+}
+
+/* 子开关: 回到模式, 免密码(电视控制中心「返回」同一条 start 链路)。 */
+async function kidsStart() {
+  try {
+    const r = await api('api/kids/start', {});
+    if (r && r.saved === false) throw new Error('not allowed');
+    await afterKidsChange();
+  } catch (e) { toast(t('toast_set_fail')); }
+}
+
+async function afterKidsChange() { await loadPrefs(); refresh(); }
 
 /* 进儿童与长辈窗口前先验密码: 没设过就先设一个, 设过就核对一次。 */
 function openKidsGate() {

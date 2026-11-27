@@ -278,6 +278,7 @@ object PhonePrefs {
             .put("emptyApps", s(R.string.kids_loading))
             .put("emptyLive", s(R.string.kw_live_none))
             .put("enabled", Restricted.enabled)
+            .put("suspended", Restricted.suspended)
             .put("kind", Restricted.kind.key)
             .put("pinSet", AerialSettings.pinSet)
             .put("pinArrows", AerialSettings.pinArrows)
