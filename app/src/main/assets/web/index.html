@@ -764,7 +764,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1175;
+const PAGE_VER = 1176;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1525,6 +1525,7 @@ const EXTRA = {
         pin_arrows_hint: "依次按 4 下方向键。", pin_verify_title: "输入家长密码", pin_wrong: "密码不对，请重试。",
         custom: "自定义", custom_time: "自定义时间", must_keep: "必选",
         time_hour: "时", time_minute: "分",
+        kids_title: "儿童与长辈模式",
         kids_row_off: "已关闭·前往设置", kids_row_kids: "处于儿童模式·前往设置", kids_row_elders: "处于长辈模式·前往设置",
         kids_leave_kids: "退出儿童模式", kids_leave_elders: "退出长辈模式",
         kids_back_kids: "回到儿童模式", kids_back_elders: "回到长辈模式",
@@ -1553,6 +1554,7 @@ const EXTRA = {
         pin_arrows_hint: "Press four arrows in order.", pin_verify_title: "Enter the parental PIN", pin_wrong: "Wrong PIN — try again.",
         custom: "Custom", custom_time: "Custom time", must_keep: "Required",
         time_hour: "Hour", time_minute: "Minute",
+        kids_title: "Kids & Elders Mode",
         kids_row_off: "Off · Open settings", kids_row_kids: "Kids mode · Open settings", kids_row_elders: "Elders mode · Open settings",
         kids_leave_kids: "Leave Kids Mode", kids_leave_elders: "Leave Elders Mode",
         kids_back_kids: "Back to Kids Mode", kids_back_elders: "Back to Elders Mode",
@@ -1879,14 +1881,17 @@ function openSheet(build, cls) {
   body.replaceChildren();
   try { build(body); } catch (err) { console.error('sheet build failed:', err); toast(t('toast_set_fail')); }
   // 每个弹层重新定一次样式类, 上一个弹层的(比如儿童长辈那种矮窗口)不会带到下一个。
-  sheet.querySelector('.sheet').className = 'sheet' + (cls ? ' ' + cls : '');
+  const panel = sheet.querySelector('.sheet');
+  panel.className = 'sheet' + (cls ? ' ' + cls : '');
   // 新弹层内容从头开始, 不沿用上一次详情窗的滚动位置。
-  sheet.querySelector('.sheet').scrollTop = 0;
+  panel.scrollTop = 0;
   clearTimeout(openSheet.timer);
   sheet.hidden = false;
   // 弹层打开时锁住背景滚动, 避免在灰罩上滑动时带动后面的页面。
   document.body.style.overflow = 'hidden';
-  requestAnimationFrame(() => requestAnimationFrame(() => sheet.classList.add('open')));
+  // 元素 hidden(display:none) 时写 scrollTop 不被采纳, 必须在显示、布局完成后的帧里再置顶一次,
+  // 否则上一个详情滑到底后, 打开别的卡片详情仍会落在底部。
+  requestAnimationFrame(() => requestAnimationFrame(() => { panel.scrollTop = 0; sheet.classList.add('open'); }));
 }
 function closeSheet() {
   sheet.classList.remove('open');
@@ -2483,6 +2488,7 @@ function renderMore() {
   $('#wxNow').textContent = w.celsius !== undefined ? `${w.celsius}° ${weatherNames[w.kind] || ''}` : '—';
   $('#wxPlace').textContent = w.place || '';
   if ($('#placeName')) $('#placeName').value = w.place || '';
+  paintTrigger();
   const hint = $('#wxHint');
   if (hint) {
     hint.replaceChildren();
@@ -2893,7 +2899,7 @@ function renderPrefs() {
       if (it.kind === 'open') continue;
       host.appendChild(prefCard(it));
     }
-    if (g.key === 'family') paintKidsPanel(host);
+    if (g.key === 'family') paintKidsEntry(host);
   }
   renderTabs();
 }
@@ -2924,7 +2930,8 @@ function paintUpdate() {
   else if (d.upToDate) text = t('up_latest');
   const st = $('#upState'); if (st) st.textContent = text;
   const ck = $('#upCheck');
-  if (ck) { ck.disabled = !!d.checking || phase === 'download'; ck.textContent = d.checking ? t('up_checking') : t('up_check'); }
+  // 已有新版本时只留下载安装按钮, 不再重复显示「检查更新」。
+  if (ck) { ck.hidden = !!d.available; ck.disabled = !!d.checking || phase === 'download'; ck.textContent = d.checking ? t('up_checking') : t('up_check'); }
   const inst = $('#upInstall');
   if (inst) {
     const show = !!d.available && phase !== 'opened';
@@ -2989,89 +2996,112 @@ async function kidsStart() {
 
 async function afterKidsChange() { await loadPrefs(); refresh(); }
 
-/* 儿童与长辈配置: 直接铺在「更多-家庭守护」页, 不再弹层。
-   未开启只给进入按钮; 已开启按状态互斥退出/回到, 另附彻底关闭; 细则与网格未开启时置灰/不可勾选。 */
+/* 儿童与长辈模式: family 主页只留一条入口气泡(状态三态文案); 细则、勾选网格与操作按钮都在弹窗里。 */
 let kidsTab = 0;
-function paintKidsPanel(host) {
+function paintKidsEntry(host) {
   const k = prefs && prefs.kids; if (!k) return;
   const on = !!k.enabled;
-  if (k.hint) host.appendChild(el('p', 'meta', k.hint));
+  const card = el('div', 'list pcard');
+  const row = el('button', 'item kids-entry'); row.type = 'button';
+  const txt = el('span', 'txt');
+  txt.appendChild(el('span', '', t('kids_title')));
+  if (k.hint) txt.appendChild(el('span', 'sub', k.hint));
+  const state = el('span', 'val', t(on ? (k.kind === 'elders' ? 'kids_row_elders' : 'kids_row_kids') : 'kids_row_off'));
+  row.append(txt, state);
+  row.insertAdjacentHTML('beforeend', ICON.chev);
+  row.onclick = openKidsSheet;
+  card.appendChild(row);
+  host.appendChild(card);
+}
 
-  // 细则卡: 总开关 kidsEnabled 不再单独成卡(进入/关闭由底部按钮承担); 其余未开启时整体置灰。
-  for (const it of k.items || []) {
-    if (it.key === 'kidsEnabled') continue;
-    const locked = !on;
-    try { host.appendChild(prefCard({ ...it, disabled: locked }, renderPrefs)); }
-    catch (e) { console.error('kids 细则卡渲染失败:', it && it.key, e); }
-  }
+function openKidsSheet() {
+  const k = prefs && prefs.kids; if (!k) return;
+  const on = !!k.enabled, suspended = !!k.suspended;
+  openSheet(body => {
+    body.appendChild(el('h3', '', t('kids_title')));
+    if (k.hint) body.appendChild(el('p', 'meta', k.hint));
 
-  const actions = el('div', 'prows kids-actions');
-  if (!on) {
-    // 未开启: 只提供一颗「进入儿童/长辈模式」。
-    const row = el('div', 'prow');
-    const enter = el('button', 'pact', t(k.kind === 'elders' ? 'kids_start_elders' : 'kids_start_kids'));
-    enter.type = 'button';
-    enter.onclick = async () => { enter.disabled = true; await setPref('kidsEnabled', '1', afterKidsChange); enter.disabled = false; };
-    row.appendChild(enter); actions.appendChild(row);
-  } else {
-    // 已开启: 退出/回到按状态互斥(退出需家长密码, 回到免密码); 另附一颗彻底关闭「关闭这个模式」。
-    const row = el('div', 'prow');
-    const suspended = !!k.suspended;
-    const subBtn = el('button', 'pact soft' + (suspended ? '' : ' danger'),
-      suspended
-        ? t(k.kind === 'elders' ? 'kids_back_elders' : 'kids_back_kids')
-        : t(k.kind === 'elders' ? 'kids_leave_elders' : 'kids_leave_kids'));
-    subBtn.type = 'button';
-    subBtn.onclick = suspended ? kidsStart : kidsLeave;
-    row.appendChild(subBtn);
-    const offBtn = el('button', 'pact soft danger', t('kids_turn_off'));
-    offBtn.type = 'button';
-    offBtn.onclick = async () => { offBtn.disabled = true; await setPref('kidsEnabled', '0', afterKidsChange); offBtn.disabled = false; };
-    row.appendChild(offBtn);
-    actions.appendChild(row);
-  }
-  host.appendChild(actions);
-
-  const tabs = el('div', 'ptabs');
-  [k.appsTitle, k.liveTitle].forEach((label, i) => {
-    const b = el('button', '', label); b.type = 'button';
-    b.setAttribute('aria-checked', kidsTab === i ? 'true' : 'false');
-    b.onclick = () => { kidsTab = i; renderPrefs(); };
-    tabs.appendChild(b);
-  });
-  host.appendChild(tabs);
-  if (k.appsHint) host.appendChild(el('p', 'foot', k.appsHint));
-
-  const list = kidsTab === 0 ? (k.apps || []) : (k.live || []);
-  const allowed = k.allowed || [];
-  const inPage = allowed.filter(v => list.some(c => c.value === v));
-  if (!list.length) host.appendChild(el('p', 'meta', kidsTab === 0 ? (k.emptyApps || '') : (k.emptyLive || '')));
-  const grid = el('div', 'kgrid');
-  for (const c of list) {
-    const tile = el('button', 'kcard'); tile.type = 'button';
-    const pos = inPage.indexOf(c.value);
-    tile.setAttribute('aria-checked', pos >= 0 ? 'true' : 'false');
-    const img = el('img'); img.src = base + (c.art || ''); img.alt = ''; img.loading = 'lazy';
-    const num = el('span', 'knum', pos >= 0 ? String(pos + 1) : '');
-    const cap = el('span', 'kc', c.label || c.value);
-    tile.append(img, num, cap);
-    if (c.locked) {
-      tile.disabled = true;
-      tile.appendChild(el('span', 'klock', t('must_keep')));
-    } else if (!on) {
-      // 未开启: 网格可浏览, 但不可勾选。
-      tile.disabled = true;
-    } else {
-      tile.onclick = () => {
-        const now = allowed.slice();
-        const next = pos >= 0 ? now.filter(v => v !== c.value) : now.concat([c.value]);
-        tile.disabled = true;
-        setPref('kidsAllowed', next.join('\n'), refresh);
-      };
+    // 细则卡(给谁用/拦截/时长等), 未开启时整体置灰不可改。
+    for (const it of k.items || []) {
+      if (it.key === 'kidsEnabled') continue;
+      try { body.appendChild(prefCard({ ...it, disabled: !on }, renderPrefs)); }
+      catch (e) { console.error('kids 细则卡渲染失败:', it && it.key, e); }
     }
-    grid.appendChild(tile);
-  }
-  host.appendChild(grid);
+
+    // 应用/直播勾选网格: 页签切换只局部重画, 不重开弹窗。
+    const tabs = el('div', 'ptabs');
+    const gridWrap = el('div', '');
+    function paintTabs() {
+      tabs.replaceChildren();
+      [k.appsTitle, k.liveTitle].forEach((label, i) => {
+        const b = el('button', '', label); b.type = 'button';
+        b.setAttribute('aria-checked', kidsTab === i ? 'true' : 'false');
+        b.onclick = () => { kidsTab = i; paintGrid(); };
+        tabs.appendChild(b);
+      });
+    }
+    function paintGrid() {
+      gridWrap.replaceChildren();
+      const list = kidsTab === 0 ? (k.apps || []) : (k.live || []);
+      const allowed = k.allowed || [];
+      const inPage = allowed.filter(v => list.some(c => c.value === v));
+      if (!list.length) gridWrap.appendChild(el('p', 'meta', kidsTab === 0 ? (k.emptyApps || '') : (k.emptyLive || '')));
+      const grid = el('div', 'kgrid');
+      for (const c of list) {
+        const tile = el('button', 'kcard'); tile.type = 'button';
+        const pos = inPage.indexOf(c.value);
+        tile.setAttribute('aria-checked', pos >= 0 ? 'true' : 'false');
+        const img = el('img'); img.src = base + (c.art || ''); img.alt = ''; img.loading = 'lazy';
+        const num = el('span', 'knum', pos >= 0 ? String(pos + 1) : '');
+        const cap = el('span', 'kc', c.label || c.value);
+        tile.append(img, num, cap);
+        if (c.locked) {
+          tile.disabled = true;
+          tile.appendChild(el('span', 'klock', t('must_keep')));
+        } else if (!on) {
+          // 未开启: 网格可浏览, 但不可勾选。
+          tile.disabled = true;
+        } else {
+          tile.onclick = () => {
+            const now = allowed.slice();
+            const next = pos >= 0 ? now.filter(v => v !== c.value) : now.concat([c.value]);
+            tile.disabled = true;
+            setPref('kidsAllowed', next.join('\n'), refresh);
+          };
+        }
+        grid.appendChild(tile);
+      }
+      gridWrap.appendChild(grid);
+    }
+    body.appendChild(tabs);
+    if (k.appsHint) body.appendChild(el('p', 'foot', k.appsHint));
+    body.appendChild(gridWrap);
+    paintTabs(); paintGrid();
+
+    // 底部操作: 未开启一颗进入; 生效中退出 + 关闭; 挂起后回到 + 关闭。
+    const actions = el('div', 'prows kids-actions');
+    const row = el('div', 'prow');
+    if (!on) {
+      const enter = el('button', 'pact', t(k.kind === 'elders' ? 'kids_start_elders' : 'kids_start_kids'));
+      enter.type = 'button';
+      enter.onclick = async () => { enter.disabled = true; await setPref('kidsEnabled', '1', afterKidsChange); enter.disabled = false; };
+      row.appendChild(enter);
+    } else {
+      const subBtn = el('button', 'pact soft' + (suspended ? '' : ' danger'),
+        suspended
+          ? t(k.kind === 'elders' ? 'kids_back_elders' : 'kids_back_kids')
+          : t(k.kind === 'elders' ? 'kids_leave_elders' : 'kids_leave_kids'));
+      subBtn.type = 'button';
+      subBtn.onclick = suspended ? kidsStart : kidsLeave;
+      row.appendChild(subBtn);
+      const offBtn = el('button', 'pact soft danger', t('kids_turn_off'));
+      offBtn.type = 'button';
+      offBtn.onclick = async () => { offBtn.disabled = true; await setPref('kidsEnabled', '0', afterKidsChange); offBtn.disabled = false; };
+      row.appendChild(offBtn);
+    }
+    actions.appendChild(row);
+    body.appendChild(actions);
+  }, 'short');
 }
 
 /* 家长密码弹层: 4 位数字或 4 个方向键。create 设新的, verify 只核对, off 用现有密码关掉。 */
@@ -3225,9 +3255,10 @@ const isMunicipality = () => { const c = Object.keys(provCities()); return c.len
 function paintTrigger() {
   const parts = [regionSel.prov, regionSel.city === '市辖区' ? '' : regionSel.city, regionSel.county].filter(Boolean);
   const picked = parts.join(' ');
+  const region = (state.weather && state.weather.region) || '';
   const fallback = (state.weather && state.weather.place) || '';
-  cityTriggerText.textContent = picked || fallback || t('reg_pick_hint');
-  cityTrigger.classList.toggle('placeholder', !parts.length && !fallback);
+  cityTriggerText.textContent = picked || region || fallback || t('reg_pick_hint');
+  cityTrigger.classList.toggle('placeholder', !parts.length && !region && !fallback);
 }
 function openRegionSheet() {
   if (!regionsData) { toast(t('toast_set_fail')); return; }
@@ -3248,6 +3279,7 @@ function openRegionSheet() {
     }
     function paintList() {
       list.replaceChildren();
+      list.scrollTop = 0;   // 切换省/市/县区页签时重置到顶部, 不继承上一页签的滚动高度
       let opts = [];
       if (activeTab === 'prov') opts = Object.keys(regionsData || {});
       else if (activeTab === 'city') opts = Object.keys(provCities());
@@ -3307,6 +3339,7 @@ function openTimeSheet(mins, onPick) {
     }
     function paintList() {
       list.replaceChildren();
+      list.scrollTop = 0;
       const opts = tab === 'hour' ? [...Array(24).keys()] : [...Array(12).keys()].map(i => i * 5);
       opts.forEach(v => {
         const cur = tab === 'hour' ? h : m;

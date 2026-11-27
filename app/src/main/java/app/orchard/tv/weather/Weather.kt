@@ -63,6 +63,9 @@ object Weather {
     /** Where the weather is for, as a name to show; null until known. */
     var place by mutableStateOf<String?>(null); private set
 
+    /** 完整行政区划「省 市 区/县」拼接, 仅用于手机端城市按钮回显; 问候行/屏保仍用 [place]。 */
+    var region by mutableStateOf<String?>(null); private set
+
     /** True when the owner named the place; false while using the default. */
     var chosen by mutableStateOf(false); private set
 
@@ -79,6 +82,7 @@ object Weather {
         app = context.applicationContext
         prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         place = prefs.getString("place_custom", null) ?: prefs.getString("place", null)
+        region = prefs.getString("region", null)
         chosen = prefs.getBoolean("chosen", false)
         lastRefreshKey = dayKey()
         // 读数一直留到 SHOWN_MS: 关机一晚再开, 缓存还在一小时内的老条件会把它整行抹掉,
@@ -305,9 +309,11 @@ object Weather {
         prefs.edit {
             putString("city_code", hit.first)
             putString("place", hit.second)
+            remove("region")
             putBoolean("chosen", true)
         }
         chosen = true
+        region = null
         place = prefs.getString("place_custom", null) ?: prefs.getString("place", null)
         refresh()
         return true
@@ -370,9 +376,11 @@ object Weather {
         prefs.edit {
             putString("city_code", hit.first)
             putString("place", hit.second)
+            remove("region")
             putBoolean("chosen", true)
         }
         chosen = true
+        region = null
         place = prefs.getString("place_custom", null) ?: prefs.getString("place", null)
         refresh()
         return true
@@ -388,35 +396,41 @@ object Weather {
                     prefs.edit {
                         putString("city_code", located.first)
                         putString("place", located.second ?: located.first)
+                        putString("region", located.third)
                         putBoolean("chosen", false)
                         remove("place_custom")
                     }
                     place = located.second ?: located.first
+                    region = located.third.ifBlank { null }
                 } else {
                     prefs.edit {
                         putString("city_code", "101010100")
                         putString("place", "北京")
+                        remove("region")
                         putBoolean("chosen", false)
                         remove("place_custom")
                     }
-                    place = "北京"
+                    place = "北京"; region = null
                 }
                 refresh()
             }
         }
     }
 
-    /** Auto-locate by IP using weather.com.cn geo service. Returns (cityCode, cityName). */
-    private fun locateByIp(): Pair<String, String?>? {
+    /** Auto-locate by IP using weather.com.cn geo service. Returns (cityCode, place name, full region). */
+    private fun locateByIp(): Triple<String, String?, String>? {
         return runCatching {
             val text = get("https://wgeo.weather.com.cn/ip/", "https://www.weather.com.cn/")
             val id = Regex("var id=\"(.*?)\"").find(text)?.groupValues?.get(1) ?: return null
             val addr = Regex("var addr=\"(.*?)\"").find(text)?.groupValues?.get(1)
-            // addr format: "省,市,区" — use district if available, else city
+            // addr format: "省,市,区"
             val parts = addr?.split(",")
-            val district = parts?.getOrNull(2)?.takeIf { it.isNotBlank() }
+            val province = parts?.getOrNull(0)?.takeIf { it.isNotBlank() }
             val city = parts?.getOrNull(1)?.takeIf { it.isNotBlank() }
-            id to (district ?: city)
+            val district = parts?.getOrNull(2)?.takeIf { it.isNotBlank() }
+            val placeName = district ?: city
+            val regionName = listOf(province, city, district).filter { !it.isNullOrBlank() }.joinToString(" ")
+            Triple(id, placeName, regionName)
         }.onFailure { Log.w(TAG, "IP locate failed", it) }.getOrNull()
     }
 

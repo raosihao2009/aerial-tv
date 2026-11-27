@@ -613,6 +613,7 @@ class PhoneServer private constructor(private val context: Context, private val 
             })
             .put("weather", JSONObject().apply {
                 put("place", Weather.place ?: "")
+                put("region", Weather.region ?: "")
                 put("chosen", Weather.chosen)
                 Weather.now?.let { put("celsius", it.celsius); put("kind", it.kind.name.lowercase()); put("day", it.day) }
             })
