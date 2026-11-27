@@ -190,11 +190,12 @@
   }
   .pact.soft:active { background: var(--fill); box-shadow: inset 0 0 0 .5px rgba(60,60,67,.10); }
   .pact.soft.danger { color: var(--danger); }
-  /* 守护入口: 左侧标题+说明, 右侧一颗自动宽度的蓝色字 soft 按钮, 不占整行。 */
-  .kids-entry { align-items: center; gap: 12px; }
+  /* 守护入口: 标题+说明在上, 蓝色字 soft 按钮落到卡片下方左对齐, 不再并排压住说明文字。 */
+  .kids-entry { flex-direction: column; align-items: stretch; gap: 10px; }
+  .kids-entry .txt { flex: 1 1 auto; min-width: 0; }
   .kids-entry .ptitle-line { font-size: 17px; font-weight: 600; color: var(--label); }
   .kids-entry .sub { margin-top: 3px; }
-  .kids-go { flex: 0 0 auto; width: auto; min-width: 0; display: inline-flex; align-items: center; padding: 9px 16px; }
+  .kids-go { align-self: flex-start; flex: 0 0 auto; width: auto; min-width: 0; display: inline-flex; align-items: center; padding: 9px 16px; }
   /* 不放进气泡的按钮(详情页的取消、解散文件夹): 白底一块, 单独一条。 */
   .psolo {
     appearance: none; border: 0; border-radius: 10px; background: var(--card); color: var(--tint);
@@ -537,6 +538,12 @@
   .item .ithumb { width: 64px; aspect-ratio: 16 / 9; border-radius: 6px; object-fit: cover; margin-right: 12px; flex: none; background: var(--fill); }
   .sheet h3 { text-align: center; font-size: 17px; font-weight: 600; margin: 12px 0 2px; }
   .sheet .meta { text-align: center; font-size: 13px; color: var(--secondary); margin: 0 0 16px; }
+  /* 守护弹窗三段式: 标题说明常驻头部, 细则+网格在中间独立滚动, 操作按钮固定气泡底部。
+     不依赖外层 scrollTop 置顶 —— 老内嵌 WebView 即便不采纳滚动位置, 标题和按钮也不会消失或沉底。 */
+  .sheet.kids-sheet { display: flex; flex-direction: column; overflow: hidden; }
+  .kids-head { flex: none; }
+  .kids-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; max-height: 44vh; }
+  .kids-actions { flex: none; padding-top: 10px; }
   .sheet .list { background: var(--card); }
   @media (prefers-color-scheme: dark) { .sheet .list { background: #2c2c2e; } }
   .sheet .list + .list { margin-top: 10px; }
@@ -769,7 +776,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1177;
+const PAGE_VER = 1178;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -3028,13 +3035,15 @@ function openKidsSheet() {
   const k = prefs && prefs.kids; if (!k) return;
   const on = !!k.enabled, suspended = !!k.suspended;
   openSheet(body => {
-    body.appendChild(el('h3', '', t('kids_title')));
-    if (k.hint) body.appendChild(el('p', 'meta', k.hint));
+    const head = el('div', 'kids-head');
+    head.appendChild(el('h3', '', t('kids_title')));
+    if (k.hint) head.appendChild(el('p', 'meta', k.hint));
+    const scroll = el('div', 'kids-scroll');
 
     // 细则卡(给谁用/拦截/时长等), 未开启时整体置灰不可改。
     for (const it of k.items || []) {
       if (it.key === 'kidsEnabled') continue;
-      try { body.appendChild(prefCard({ ...it, disabled: !on }, renderPrefs)); }
+      try { scroll.appendChild(prefCard({ ...it, disabled: !on }, renderPrefs)); }
       catch (e) { console.error('kids 细则卡渲染失败:', it && it.key, e); }
     }
 
@@ -3083,9 +3092,9 @@ function openKidsSheet() {
       }
       gridWrap.appendChild(grid);
     }
-    body.appendChild(tabs);
-    if (k.appsHint) body.appendChild(el('p', 'foot', k.appsHint));
-    body.appendChild(gridWrap);
+    scroll.appendChild(tabs);
+    if (k.appsHint) scroll.appendChild(el('p', 'foot', k.appsHint));
+    scroll.appendChild(gridWrap);
     paintTabs(); paintGrid();
 
     // 底部操作: 未开启一颗进入; 生效中退出 + 关闭; 挂起后回到 + 关闭。
@@ -3110,8 +3119,8 @@ function openKidsSheet() {
       row.appendChild(offBtn);
     }
     actions.appendChild(row);
-    body.appendChild(actions);
-  }, 'short');
+    body.append(head, scroll, actions);
+  }, 'short kids-sheet');
 }
 
 /* 家长密码弹层: 4 位数字或 4 个方向键。create 设新的, verify 只核对, off 用现有密码关掉。 */
@@ -3283,13 +3292,12 @@ function openRegionSheet() {
       tabsDef.filter(([key]) => !(key === 'city' && isMunicipality())).forEach(([key, label]) => {
         const b = el('button', '', label); b.type = 'button';
         b.setAttribute('aria-checked', activeTab === key ? 'true' : 'false');
-        b.onclick = () => { activeTab = key; paintAll(); };
+        b.onclick = () => { activeTab = key; paintAll(); list.scrollTop = 0; };
         tabs.appendChild(b);
       });
     }
     function paintList() {
       list.replaceChildren();
-      list.scrollTop = 0;   // 切换省/市/县区页签时重置到顶部, 不继承上一页签的滚动高度
       let opts = [];
       if (activeTab === 'prov') opts = Object.keys(regionsData || {});
       else if (activeTab === 'city') opts = Object.keys(provCities());
@@ -3306,6 +3314,7 @@ function openRegionSheet() {
     function paintAll() { paintTabs(); paintList(); paintConfirm(); }
     function pick(key, v) {
       regionSel[key] = v;
+      const prevTab = activeTab;
       if (key === 'prov') {
         regionSel.city = ''; regionSel.county = '';
         // 直辖市选完省直接进县区, 跳过城市页签。
@@ -3318,6 +3327,8 @@ function openRegionSheet() {
       }
       if (key === 'city') { regionSel.county = ''; activeTab = 'county'; }
       paintAll();
+      // 只有切到下一级页签才回顶; 在同一级列表里选条目时保持当前滚动位置。
+      if (prevTab !== activeTab) list.scrollTop = 0;
     }
     confirm.onclick = () => {
       if (!(regionSel.prov && regionSel.city && regionSel.county)) return;
@@ -3380,10 +3391,11 @@ cityTrigger.onclick = () => openRegionSheet();
 loadRegions();
 $('#netBtn').onclick = async () => {
   try {
-    take(await api('api/weather/auto', {}));
-    if (state.weather) $('#placeName').value = state.weather.place || '';
+    const next = await api('api/weather/auto', {});
+    take(next);
+    if (next.weather) $('#placeName').value = next.weather.place || '';
     paintTrigger();
-    toast('定位成功: ' + ((state.weather && state.weather.place) || ''));
+    toast('定位成功: ' + (next.weather?.place || ''));
   } catch (e) { toast('网络定位失败，请手动输入城市'); }
 };
 $('#satBtn').onclick = () => {

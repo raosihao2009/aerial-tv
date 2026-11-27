@@ -302,7 +302,7 @@ object Weather {
             val byStation = local?.let { c ->
                 runCatching {
                     stationAt(c.lat, c.lon)?.let { st ->
-                        Triple(st.code, if (typed != c.name) typed else st.name, c.name)
+                        Triple(st.code, if (typed != c.name) typed else countyFull(st.name), c.name)
                     }
                 }.onFailure { Log.w(TAG, "station lookup failed for $typed: ${it.message}", it) }.getOrNull()
             }
@@ -418,7 +418,7 @@ object Weather {
         val regionName = joinRegion(st.province, st.district, st.name)
         prefs.edit {
             putString("city_code", st.code)
-            putString("place", st.name)
+            putString("place", countyFull(st.name))
             if (regionName != null) putString("region", regionName) else remove("region")
             putBoolean("chosen", true)
             remove("place_custom")
@@ -430,34 +430,33 @@ object Weather {
         return true
     }
 
-    /** Back to default location. */
-    fun useNetworkLocation() {
+    /** Back to default location. 挂起函数: 调用方(手机端 /auto 接口)阻塞等定位写完状态再返回,
+     *  避免接口先一步把定位前的旧城市回给前端, 造成提示与下拉显示旧地名。 */
+    suspend fun useNetworkLocation() {
         chosen = false
-        scope.launch(Dispatchers.IO) {
-            val located = locateByIp()
-            withContext(Dispatchers.Main) {
-                if (located != null) {
-                    prefs.edit {
-                        putString("city_code", located.first)
-                        putString("place", located.second ?: located.first)
-                        putString("region", located.third)
-                        putBoolean("chosen", false)
-                        remove("place_custom")
-                    }
-                    place = located.second ?: located.first
-                    region = located.third.ifBlank { null }
-                } else {
-                    prefs.edit {
-                        putString("city_code", "101010100")
-                        putString("place", "北京")
-                        remove("region")
-                        putBoolean("chosen", false)
-                        remove("place_custom")
-                    }
-                    place = "北京"; region = null
+        val located = withContext(Dispatchers.IO) { locateByIp() }
+        withContext(Dispatchers.Main) {
+            if (located != null) {
+                prefs.edit {
+                    putString("city_code", located.first)
+                    putString("place", located.second ?: located.first)
+                    putString("region", located.third)
+                    putBoolean("chosen", false)
+                    remove("place_custom")
                 }
-                refresh()
+                place = located.second ?: located.first
+                region = located.third.ifBlank { null }
+            } else {
+                prefs.edit {
+                    putString("city_code", "101010100")
+                    putString("place", "北京")
+                    remove("region")
+                    putBoolean("chosen", false)
+                    remove("place_custom")
+                }
+                place = "北京"; region = null
             }
+            refresh()
         }
     }
 
@@ -472,7 +471,11 @@ object Weather {
             val province = parts?.getOrNull(0)?.takeIf { it.isNotBlank() }
             val city = parts?.getOrNull(1)?.takeIf { it.isNotBlank() }
             val district = parts?.getOrNull(2)?.takeIf { it.isNotBlank() }
-            val placeName = district ?: city
+            // 显示名同样补齐后缀: 区县短名补「区/县」, 退到市级时补「市」, 避免只显示「西湖」。
+            val placeName = when {
+                !district.isNullOrBlank() -> countyFull(district)
+                else -> cityFull(city ?: "")
+            }
             val regionName = joinRegion(province, city, district) ?: ""
             Triple(id, placeName, regionName)
         }.onFailure { Log.w(TAG, "IP locate failed", it) }.getOrNull()

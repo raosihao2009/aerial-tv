@@ -397,7 +397,7 @@ class PhoneServer private constructor(private val context: Context, private val 
                     json(state().put("found", found))
                 }
                 session.method == Method.POST && path == "/api/weather/auto" -> {
-                    onMain { Weather.useNetworkLocation() }
+                    runBlocking(Dispatchers.Main) { Weather.useNetworkLocation() }
                     json(state())
                 }
                 session.method == Method.POST && path == "/api/weather/placename" -> {
