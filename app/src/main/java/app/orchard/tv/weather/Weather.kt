@@ -269,9 +269,18 @@ object Weather {
             }
         }
 
-        // Save city name from response
+        // 未手动选择(自动/IP 定位)时, 实况回包的 cityname 常是不带后缀的短名(如「西湖」),
+        // 直接覆盖会把「西湖区」刷成「西湖」; 这里以已保存的完整区划末段为准补齐后缀,
+        // 区划也缺失时才退回到实况短名并按市级补「市」。
         if (cityName.isNotBlank() && !prefs.getBoolean("chosen", false)) {
-            prefs.edit { putString("place", cityName) }
+            val parts = prefs.getString("region", null).orEmpty().split(" ").filter { it.isNotBlank() }
+            val placeName = when {
+                parts.size >= 3 -> parts.last()
+                parts.size == 2 -> cityFull(parts.last())
+                parts.size == 1 -> cityFull(parts.first())
+                else -> cityFull(cityName)
+            }
+            prefs.edit { putString("place", placeName) }
         }
 
         val aligned = alignToToday(forecast, todayKey())

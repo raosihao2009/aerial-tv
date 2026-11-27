@@ -196,6 +196,8 @@
   .kids-entry .ptitle-line { font-size: 17px; font-weight: 600; color: var(--label); }
   .kids-entry .sub { margin-top: 3px; }
   .kids-go { width: 100%; flex: 1 1 auto; justify-content: center; display: inline-flex; align-items: center; padding: 12px 10px; }
+  /* 入口是一张展示卡, 整行不做按下染色/下沉; 只有内部按钮自己保留按压态。 */
+  .kids-entry:active { background: none; }
   /* 不放进气泡的按钮(详情页的取消、解散文件夹): 白底一块, 单独一条。 */
   .psolo {
     appearance: none; border: 0; border-radius: 10px; background: var(--card); color: var(--tint);
@@ -542,7 +544,7 @@
      操作按钮不沉到底部, 避免被气泡底边截断。老 WebView 不依赖外层 scrollTop 置顶。 */
   .sheet.kids-sheet { display: flex; flex-direction: column; overflow: hidden; }
   .kids-head { flex: none; }
-  .kids-head .kids-actions { margin-top: 14px; }
+  .kids-scroll .kids-actions { margin-bottom: 10px; }
   .kids-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; max-height: 44vh; }
   .sheet .list { background: var(--card); }
   @media (prefers-color-scheme: dark) { .sheet .list { background: #2c2c2e; } }
@@ -776,7 +778,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1179;
+const PAGE_VER = 1180;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -3097,7 +3099,7 @@ function openKidsSheet() {
     scroll.appendChild(gridWrap);
     paintTabs(); paintGrid();
 
-    // 头部操作: 未开启一颗进入; 生效中退出 + 关闭; 挂起后回到 + 关闭。跟标题说明同属头部, 不沉底。
+    // 操作: 未开启一颗进入; 生效中退出 + 关闭; 挂起后回到 + 关闭。归在滚动内容区顶部, 不钉底、不单独置顶头部。
     const actions = el('div', 'prows kids-actions');
     const row = el('div', 'prow');
     if (!on) {
@@ -3119,7 +3121,8 @@ function openKidsSheet() {
       row.appendChild(offBtn);
     }
     actions.appendChild(row);
-    head.appendChild(actions);
+    // 操作按钮归在滚动内容区最上面, 与细则卡同属一屏列表的普通气泡行; 不钉底、也不在头部单独顶一颗全宽主按钮。
+    scroll.prepend(actions);
     body.append(head, scroll);
   }, 'short kids-sheet');
 }
@@ -3282,6 +3285,13 @@ function paintTrigger() {
 }
 function openRegionSheet() {
   if (!regionsData) { toast(t('toast_set_fail')); return; }
+  // 每次打开都以当前已保存地点回填选中项, 不沿用上一次弹窗里点过但没确定的临时残留。
+  const savedParts = ((state.weather && state.weather.region) || '').split(/\s+/).filter(Boolean);
+  regionSel.prov = savedParts[0] || '';
+  regionSel.city = savedParts[1] || '';
+  regionSel.county = savedParts[2] || '';
+  // 直辖市城市层只有虚拟「市辖区」: 回拿到的城市段其实是区名, 校正后才能取到县区列表。
+  if (isMunicipality()) regionSel.city = '市辖区';
   let activeTab = 'prov';
   openSheet(body => {
     const tabs = el('div', 'region-tabs');
