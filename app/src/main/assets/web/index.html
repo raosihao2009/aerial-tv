@@ -69,6 +69,8 @@
   .item .chev { color: var(--tertiary); flex-shrink: 0; }
   /* 个性化设置: 一项设置一张圆角卡, 卡里选项一排一个, 当前值打勾并染成主题色。 */
   .pcard { margin-top: 10px; }
+  /* 各分类首张卡片和壁纸大图一样贴住选项卡栏, 不额外往下站。 */
+  section[data-tab="more"] .pgroup > .pcard:first-child { margin-top: -14px; }
   /* 信号源气泡是与应用菜单平级的独立容器, 自身补上间距, 避免和上方隐藏卡片气泡贴在一起。 */
   #inputsBox { margin-top: 10px; }
   /* 吸顶标题下面那道 24px 渐隐会压住页面第一张气泡, 正文整体往下站一点。
@@ -760,7 +762,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1171;
+const PAGE_VER = 1172;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1861,11 +1863,15 @@ const sheet = $('#sheet');
 const sheetStack = [];
 function openSheet(build, cls) {
   const body = $('#sheetBody');
-  if (!sheet.hidden) sheetStack.push({ nodes: [...body.childNodes], cls: sheet.querySelector('.sheet').className });
+  // 仅在确有上层弹层显示时才压栈; 刚关闭旧层紧接着开新层(串行切换)不压, 否则旧层会被误存后又弹回来。
+  if (!sheet.hidden && !sheet.closing) sheetStack.push({ nodes: [...body.childNodes], cls: sheet.querySelector('.sheet').className });
+  sheet.closing = false;
   body.replaceChildren();
   try { build(body); } catch (err) { console.error('sheet build failed:', err); toast(t('toast_set_fail')); }
   // 每个弹层重新定一次样式类, 上一个弹层的(比如儿童长辈那种矮窗口)不会带到下一个。
   sheet.querySelector('.sheet').className = 'sheet' + (cls ? ' ' + cls : '');
+  // 新弹层内容从头开始, 不沿用上一次详情窗的滚动位置。
+  sheet.querySelector('.sheet').scrollTop = 0;
   clearTimeout(openSheet.timer);
   sheet.hidden = false;
   // 弹层打开时锁住背景滚动, 避免在灰罩上滑动时带动后面的页面。
@@ -1881,10 +1887,12 @@ function closeSheet() {
     body.replaceChildren();
     prev.nodes.forEach(n => body.appendChild(n));
     sheet.querySelector('.sheet').className = prev.cls;
+    sheet.closing = false;
     document.body.style.overflow = 'hidden';
     requestAnimationFrame(() => requestAnimationFrame(() => sheet.classList.add('open')));
     return;
   }
+  sheet.closing = true;
   document.body.style.overflow = '';
   clearTimeout(openSheet.timer); openSheet.timer = setTimeout(() => sheet.hidden = true, 220);
 }
