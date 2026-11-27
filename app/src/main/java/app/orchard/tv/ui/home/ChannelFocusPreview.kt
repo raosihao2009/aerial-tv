@@ -670,6 +670,8 @@ fun ChannelFocusPreview(
 
         // 加载遮罩：始终显示加载图, 直到新流就绪
         st.loading = true
+        // 新流起播期先置未就绪: 心跳兜底这段时间不判死, 交给起流超时与首帧观察, 避免起播慢被抢重载。
+        st.ready = false
         // 首起播(冷启动/回到预览卡第一次, 还没有旧 player)与运行中切换分开计时:
         // 冷启动要和壁纸影片、图标网格、状态轮询抢资源, 解码器也没热, 出帧天然慢; 用同一个
         // 15s 窗口容易把"起播慢"误判成坏源。首起播放宽到 25s, 切换仍保持 15s。
@@ -955,6 +957,8 @@ fun ChannelFocusPreview(
         if (ready) {
             firstRunBadAttempts = 0
             lastErrorIsBadHttp = false
+            // 新流就绪: 放开心跳兜底判死。此前未就绪期由起流超时/首帧观察兜底, 心跳不抢重载。
+            st.ready = true
             DiagLog.i(
                 "直播预览: 就绪 id=${source.id} 耗时=${System.currentTimeMillis() - waitStart}ms " +
                     "state=${exo.playbackState}",
@@ -1093,7 +1097,7 @@ fun ChannelFocusPreview(
             if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) continue
             val p = player ?: continue
             if (playingSourceId != s.id) continue
-            if (reloadBusy.get() || recovering.get() || stallBusy.get() || netWaitBusy.get() || st.loading) continue
+            if (reloadBusy.get() || recovering.get() || stallBusy.get() || netWaitBusy.get() || !st.ready) continue
             if (!BootVeil.revealed) continue
             // 签名临近到期: 主动重拉换新签名地址, 不等服务端 403 断流; 续签进行中跳过本轮。
             if (renewBusy.get()) continue

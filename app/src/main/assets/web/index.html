@@ -190,12 +190,12 @@
   }
   .pact.soft:active { background: var(--fill); box-shadow: inset 0 0 0 .5px rgba(60,60,67,.10); }
   .pact.soft.danger { color: var(--danger); }
-  /* 守护入口: 标题+说明在上, 蓝色字 soft 按钮落到卡片下方左对齐, 不再并排压住说明文字。 */
+  /* 守护入口: 标题+说明在上, 按钮整行全宽铺到卡片下方(单按钮不再只包内容宽度)。 */
   .kids-entry { flex-direction: column; align-items: stretch; gap: 10px; }
   .kids-entry .txt { flex: 1 1 auto; min-width: 0; }
   .kids-entry .ptitle-line { font-size: 17px; font-weight: 600; color: var(--label); }
   .kids-entry .sub { margin-top: 3px; }
-  .kids-go { align-self: flex-start; flex: 0 0 auto; width: auto; min-width: 0; display: inline-flex; align-items: center; padding: 9px 16px; }
+  .kids-go { width: 100%; flex: 1 1 auto; justify-content: center; display: inline-flex; align-items: center; padding: 12px 10px; }
   /* 不放进气泡的按钮(详情页的取消、解散文件夹): 白底一块, 单独一条。 */
   .psolo {
     appearance: none; border: 0; border-radius: 10px; background: var(--card); color: var(--tint);
@@ -538,12 +538,12 @@
   .item .ithumb { width: 64px; aspect-ratio: 16 / 9; border-radius: 6px; object-fit: cover; margin-right: 12px; flex: none; background: var(--fill); }
   .sheet h3 { text-align: center; font-size: 17px; font-weight: 600; margin: 12px 0 2px; }
   .sheet .meta { text-align: center; font-size: 13px; color: var(--secondary); margin: 0 0 16px; }
-  /* 守护弹窗三段式: 标题说明常驻头部, 细则+网格在中间独立滚动, 操作按钮固定气泡底部。
-     不依赖外层 scrollTop 置顶 —— 老内嵌 WebView 即便不采纳滚动位置, 标题和按钮也不会消失或沉底。 */
+  /* 守护弹窗: 头部一组(标题+说明+操作按钮)钉在最上面, 给谁用/其他卡片/网格在中间独立滚动;
+     操作按钮不沉到底部, 避免被气泡底边截断。老 WebView 不依赖外层 scrollTop 置顶。 */
   .sheet.kids-sheet { display: flex; flex-direction: column; overflow: hidden; }
   .kids-head { flex: none; }
+  .kids-head .kids-actions { margin-top: 14px; }
   .kids-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; max-height: 44vh; }
-  .kids-actions { flex: none; padding-top: 10px; }
   .sheet .list { background: var(--card); }
   @media (prefers-color-scheme: dark) { .sheet .list { background: #2c2c2e; } }
   .sheet .list + .list { margin-top: 10px; }
@@ -776,7 +776,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1178;
+const PAGE_VER = 1179;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1966,8 +1966,8 @@ function confirmSheet(message, okLabel, danger) {
   const touch = e => [...e.changedTouches].find(t => t.identifier === id);
   panel.addEventListener('touchstart', e => {
     if (id !== null || e.touches.length !== 1 || panel.scrollTop > 0) return;
-    // 可滚动列表(地区选择等)内部自己滚, 不接管下拉关闭, 否则上滑/下拉都会被当成关闭手势。
-    if (e.target.closest('.region-pick')) return;
+    // 可滚动列表(地区选择、守护细则网格)内部自己滚, 不接管下拉关闭, 否则上滑/下拉都会被当成关闭手势。
+    if (e.target.closest('.region-pick') || e.target.closest('.kids-scroll')) return;
     const t = e.touches[0];
     id = t.identifier; x0 = t.clientX; y0 = t.clientY; t0 = performance.now(); dy = 0; dragging = false;
   }, { passive: true });
@@ -3097,7 +3097,7 @@ function openKidsSheet() {
     scroll.appendChild(gridWrap);
     paintTabs(); paintGrid();
 
-    // 底部操作: 未开启一颗进入; 生效中退出 + 关闭; 挂起后回到 + 关闭。
+    // 头部操作: 未开启一颗进入; 生效中退出 + 关闭; 挂起后回到 + 关闭。跟标题说明同属头部, 不沉底。
     const actions = el('div', 'prows kids-actions');
     const row = el('div', 'prow');
     if (!on) {
@@ -3119,7 +3119,8 @@ function openKidsSheet() {
       row.appendChild(offBtn);
     }
     actions.appendChild(row);
-    body.append(head, scroll, actions);
+    head.appendChild(actions);
+    body.append(head, scroll);
   }, 'short kids-sheet');
 }
 

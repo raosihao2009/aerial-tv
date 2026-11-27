@@ -26,6 +26,14 @@ class PreviewState {
     /** 切源加载遮罩可见性。 */
     var loading: Boolean by mutableStateOf(false)
 
+    /**
+     * 当前流是否已就绪(出过帧/缓冲够)。未就绪期心跳兜底不判死, 交给起流超时与首帧观察;
+     * 已就绪后即便挂着疑似卡住遮罩([loading]=true), 心跳也要照常探测静默挂死 —— 否则看门狗
+     * 没凑满卡死阈值、遮罩又一直不收, 最后一条独立兜底链路会被遮罩挡死, 画面永久冻住。
+     */
+    @Volatile
+    var ready: Boolean = false
+
     /** 底部提示条文案，null 表示不显示。 */
     var toastMessage: String? by mutableStateOf(null)
 }
