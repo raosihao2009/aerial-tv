@@ -90,6 +90,8 @@
   }
   .pcard .pbtn[aria-checked="true"] { background: var(--card); color: var(--tint); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.10); }
   .pcard .pbtn:disabled { opacity: .55; }
+  /* 守护未开启时, 除总开关外的细则卡整体置灰, 里面选项与自定义输入都不可操作。 */
+  .pcard.locked { opacity: .55; }
   /* 每行个数: cols-2 一行两颗, cols-3 一行三颗; 用 grid 固定列数, 超出自动换行, 不会挤成一排。 */
   .pcard .prow.cols-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .pcard .prow.cols-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -762,7 +764,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1173;
+const PAGE_VER = 1174;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -2533,12 +2535,14 @@ function customRow(it, changed) {
     const trigger = el('button', 'region-trigger'); trigger.type = 'button';
     const text = el('span', 'region-trigger-t', hhmm(mins));
     trigger.appendChild(text);
+    trigger.disabled = !!it.disabled;
     trigger.onclick = () => openTimeSheet(mins, pick => { text.textContent = hhmm(pick); changed(it.key, String(pick)); });
     row.appendChild(trigger);
   } else {
     inp = el('input', 'pref-num'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.value = it.value;
     if (it.min !== undefined) inp.min = it.min;
     if (it.max !== undefined) inp.max = it.max;
+    inp.disabled = !!it.disabled;
     inp.onchange = () => changed(it.key, String(Math.max(0, parseInt(inp.value, 10) || 0)));
   }
   if (!it.clock) row.appendChild(inp);
@@ -2672,6 +2676,7 @@ function photoEveryCard() {
 
 function prefCard(it, after, save, startAction) {
   const card = el('div', 'list pcard');
+  if (it.disabled) card.classList.add('locked');
   // 一颗按钮就是一整张卡时(比如「立即开始」), 标题和按钮字样一样, 不再重复画一遍标题。
   let head = null;
   if (!(it.kind === 'action' && it.label === it.value && !it.hint)) {
@@ -2707,9 +2712,11 @@ function prefCard(it, after, save, startAction) {
         if (line && !line.includes(o.value)) continue;
         const btn = el('button', 'pbtn', o.label);
         btn.type = 'button';
+        btn.disabled = !!it.disabled;
         const on = o.value === it.value;
         btn.setAttribute('aria-checked', on ? 'true' : 'false');
         btn.onclick = () => {
+          if (it.disabled) return;
           if (it.key === 'pin') return pinPick(o.value === '1');
           if (on) return;
           btn.disabled = true; changed(it.key, o.value);
@@ -2768,30 +2775,6 @@ function prefCard(it, after, save, startAction) {
     card.appendChild(row);
   } else if (it.kind === 'bili') {
     biliCard(card);
-  } else if (it.kind === 'open') {
-    // 与「按网络定位」那两颗同一款按钮, 不再是一条带箭头的列表行。
-    const k = (prefs && prefs.kids) || {};
-    const label = !k.enabled ? t('kids_row_off')
-      : (k.kind === 'elders' ? t('kids_row_elders') : t('kids_row_kids'));
-    const wrap = el('div', 'prows');
-    const row = el('div', 'prow');
-    const btn = el('button', 'pact', label);
-    btn.type = 'button';
-    btn.onclick = () => openKidsGate();
-    row.appendChild(btn); wrap.appendChild(row);
-    // 子开关: 不进细则弹窗, 直接在气泡上临时退出 / 回到模式(对应电视控制中心那对)。
-    if (k.enabled) {
-      const suspended = !!k.suspended;
-      const subRow = el('div', 'prow');
-      const subBtn = el('button', 'pact soft' + (suspended ? '' : ' danger'),
-        suspended
-          ? t(k.kind === 'elders' ? 'kids_back_elders' : 'kids_back_kids')
-          : t(k.kind === 'elders' ? 'kids_leave_elders' : 'kids_leave_kids'));
-      subBtn.type = 'button';
-      subBtn.onclick = suspended ? kidsStart : kidsLeave;
-      subRow.appendChild(subBtn); wrap.appendChild(subRow);
-    }
-    card.appendChild(wrap);
   }
   return card;
 }
@@ -2901,7 +2884,12 @@ function renderPrefs() {
     const host = $(PREFS_HOST[g.key]);
     if (!host || !g.items) continue;
     // 分类名字都在选项卡上, 正文不再重复标题。
-    for (const it of g.items) host.appendChild(prefCard(it));
+    for (const it of g.items) {
+      // 守护入口不再是「打开设置」气泡: 细则与勾选网格直接铺在本页。
+      if (it.kind === 'open') continue;
+      host.appendChild(prefCard(it));
+    }
+    if (g.key === 'family') paintKidsPanel(host);
   }
   renderTabs();
 }
@@ -2997,65 +2985,75 @@ async function kidsStart() {
 
 async function afterKidsChange() { await loadPrefs(); refresh(); }
 
-/* 进儿童与长辈窗口前先验密码: 没设过就先设一个, 设过就核对一次。 */
-function openKidsGate() {
-  const k = (prefs && prefs.kids) || {};
-  if (!k.pinSet) { pinSheet('create', false, () => openKids()); return; }
-  pinSheet('verify', !!k.pinArrows, () => openKids());
-}
-
-/* 儿童与长辈窗口: 上面是细则, 下面是两页卡片(应用 / 直播), 每页带封面与勾选编号。
-   细则一多就把整屏盖满了, 用户口径是这个窗口不必那么高: 矮一档, 里面自己滚。 */
+/* 儿童与长辈配置: 直接铺在「更多-家庭守护」页, 不再弹层。
+   总开关始终可操作; 未开启时其余细则卡置灰, 应用/直播网格可浏览但不可勾选。 */
 let kidsTab = 0;
-function openKids() {
-  openSheet(body => {
-    const k = prefs && prefs.kids; if (!k) return;
-    body.appendChild(el('h3', '', k.title));
-    if (k.hint) body.appendChild(el('p', 'meta', k.hint));
-    const refresh = () => openKids();
-    for (const it of k.items || []) {
-      try { body.appendChild(prefCard(it, refresh)); }
-      catch (e) { console.error('kids 细则卡渲染失败:', it && it.key, e); }
-    }
+function paintKidsPanel(host) {
+  const k = prefs && prefs.kids; if (!k) return;
+  const on = !!k.enabled;
+  if (k.hint) host.appendChild(el('p', 'meta', k.hint));
 
-    const tabs = el('div', 'ptabs');
-    [k.appsTitle, k.liveTitle].forEach((label, i) => {
-      const b = el('button', '', label); b.type = 'button';
-      b.setAttribute('aria-checked', kidsTab === i ? 'true' : 'false');
-      b.onclick = () => { kidsTab = i; refresh(); };
-      tabs.appendChild(b);
-    });
-    body.appendChild(tabs);
-    if (k.appsHint) body.appendChild(el('p', 'foot', k.appsHint));
+  // 细则卡: 总开关 kidsEnabled 始终可用, 其余未开启时整体置灰。
+  for (const it of k.items || []) {
+    const locked = !on && it.key !== 'kidsEnabled';
+    try { host.appendChild(prefCard({ ...it, disabled: locked }, renderPrefs)); }
+    catch (e) { console.error('kids 细则卡渲染失败:', it && it.key, e); }
+  }
 
-    const list = kidsTab === 0 ? (k.apps || []) : (k.live || []);
-    const allowed = k.allowed || [];
-    const inPage = allowed.filter(v => list.some(c => c.value === v));
-    if (!list.length) body.appendChild(el('p', 'meta', kidsTab === 0 ? (k.emptyApps || '') : (k.emptyLive || '')));
-    const grid = el('div', 'kgrid');
-    for (const c of list) {
-      const tile = el('button', 'kcard'); tile.type = 'button';
-      const pos = inPage.indexOf(c.value);
-      tile.setAttribute('aria-checked', pos >= 0 ? 'true' : 'false');
-      const img = el('img'); img.src = base + (c.art || ''); img.alt = ''; img.loading = 'lazy';
-      const num = el('span', 'knum', pos >= 0 ? String(pos + 1) : '');
-      const cap = el('span', 'kc', c.label || c.value);
-      tile.append(img, num, cap);
-      if (c.locked) {
+  // 子开关: 生效中可临时退出(需家长密码), 已挂起可回到模式(免密码)。
+  if (on) {
+    const suspended = !!k.suspended;
+    const wrap = el('div', 'prows');
+    const subRow = el('div', 'prow');
+    const subBtn = el('button', 'pact soft' + (suspended ? '' : ' danger'),
+      suspended
+        ? t(k.kind === 'elders' ? 'kids_back_elders' : 'kids_back_kids')
+        : t(k.kind === 'elders' ? 'kids_leave_elders' : 'kids_leave_kids'));
+    subBtn.type = 'button';
+    subBtn.onclick = suspended ? kidsStart : kidsLeave;
+    subRow.appendChild(subBtn); wrap.appendChild(subRow); host.appendChild(wrap);
+  }
+
+  const tabs = el('div', 'ptabs');
+  [k.appsTitle, k.liveTitle].forEach((label, i) => {
+    const b = el('button', '', label); b.type = 'button';
+    b.setAttribute('aria-checked', kidsTab === i ? 'true' : 'false');
+    b.onclick = () => { kidsTab = i; renderPrefs(); };
+    tabs.appendChild(b);
+  });
+  host.appendChild(tabs);
+  if (k.appsHint) host.appendChild(el('p', 'foot', k.appsHint));
+
+  const list = kidsTab === 0 ? (k.apps || []) : (k.live || []);
+  const allowed = k.allowed || [];
+  const inPage = allowed.filter(v => list.some(c => c.value === v));
+  if (!list.length) host.appendChild(el('p', 'meta', kidsTab === 0 ? (k.emptyApps || '') : (k.emptyLive || '')));
+  const grid = el('div', 'kgrid');
+  for (const c of list) {
+    const tile = el('button', 'kcard'); tile.type = 'button';
+    const pos = inPage.indexOf(c.value);
+    tile.setAttribute('aria-checked', pos >= 0 ? 'true' : 'false');
+    const img = el('img'); img.src = base + (c.art || ''); img.alt = ''; img.loading = 'lazy';
+    const num = el('span', 'knum', pos >= 0 ? String(pos + 1) : '');
+    const cap = el('span', 'kc', c.label || c.value);
+    tile.append(img, num, cap);
+    if (c.locked) {
+      tile.disabled = true;
+      tile.appendChild(el('span', 'klock', t('must_keep')));
+    } else if (!on) {
+      // 未开启: 网格可浏览, 但不可勾选。
+      tile.disabled = true;
+    } else {
+      tile.onclick = () => {
+        const now = allowed.slice();
+        const next = pos >= 0 ? now.filter(v => v !== c.value) : now.concat([c.value]);
         tile.disabled = true;
-        tile.appendChild(el('span', 'klock', t('must_keep')));
-      } else {
-        tile.onclick = () => {
-          const now = allowed.slice();
-          const next = pos >= 0 ? now.filter(v => v !== c.value) : now.concat([c.value]);
-          tile.disabled = true;
-          setPref('kidsAllowed', next.join('\n'), refresh);
-        };
-      }
-      grid.appendChild(tile);
+        setPref('kidsAllowed', next.join('\n'), refresh);
+      };
     }
-    body.appendChild(grid);
-  }, 'short');
+    grid.appendChild(tile);
+  }
+  host.appendChild(grid);
 }
 
 /* 家长密码弹层: 4 位数字或 4 个方向键。create 设新的, verify 只核对, off 用现有密码关掉。 */
