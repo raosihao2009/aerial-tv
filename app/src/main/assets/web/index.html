@@ -257,10 +257,6 @@
   .pin-pad .pinkey:active, .pin-num .pinkey:active { background: var(--tint); color: #fff; }
   .pnum { justify-content: flex-end; gap: 8px; }
   .pnum .pref-num { width: 84px; }
-  /* 自定义时间: 页面内时分双输入, 不走系统原生时间选择器。 */
-  .time-pair { display: inline-flex; align-items: center; gap: 4px; }
-  .time-pair .tnum { width: 44px; text-align: center; }
-  .time-pair .tsep { color: var(--tint); font-variant-numeric: tabular-nums; }
   .pnum .unit { color: var(--secondary); font-size: 13px; flex: none; }
   .psld { gap: 10px; }
   /* 滑块: 轨道和蓝色进度各画一条, 圆点自己画, 位置按圆点半径收进去, 两头才对得上。 */
@@ -764,7 +760,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1170;
+const PAGE_VER = 1171;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -777,6 +773,8 @@ const pageVerCheck = (r) => {
 const $ = s => document.querySelector(s);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 let state = null, stateJson = '';
+/* 本次会话已核对通过的家长密码: 守护开启后, 后端闸门要求每次改动都带这个头。 */
+let sessionPin = '';
 
 // The language: ?lang=ru in the address, else the one picked under More (kept on the phone), else the
 // first of the phone's preferred languages that has a table, else English. Keys are in KEYS, one array of texts per language.
@@ -1522,6 +1520,7 @@ const EXTRA = {
         pin_digits: "4 位数字", pin_arrows: "4 个方向键", pin_digits_hint: "输入 4 位数字。",
         pin_arrows_hint: "依次按 4 下方向键。", pin_verify_title: "输入家长密码", pin_wrong: "密码不对，请重试。",
         custom: "自定义", custom_time: "自定义时间", must_keep: "必选",
+        time_hour: "时", time_minute: "分",
         kids_row_off: "已关闭·前往设置", kids_row_kids: "处于儿童模式·前往设置", kids_row_elders: "处于长辈模式·前往设置",
         mute: "静音", unmute: "恢复声音", unit_min: "分钟", kids_open: "打开设置",
         pin_new: "设置家长密码", pin_off_title: "关闭家长密码", pin_ph: "4 位数字",
@@ -1545,6 +1544,7 @@ const EXTRA = {
         pin_digits: "4 digits", pin_arrows: "4 arrow keys", pin_digits_hint: "Type the 4 digits.",
         pin_arrows_hint: "Press four arrows in order.", pin_verify_title: "Enter the parental PIN", pin_wrong: "Wrong PIN — try again.",
         custom: "Custom", custom_time: "Custom time", must_keep: "Required",
+        time_hour: "Hour", time_minute: "Minute",
         kids_row_off: "Off · Open settings", kids_row_kids: "Kids mode · Open settings", kids_row_elders: "Elders mode · Open settings",
         mute: "Mute", unmute: "Sound on", unit_min: "min", kids_open: "Open settings",
         pin_new: "Set the parental PIN", pin_off_title: "Turn off the parental PIN", pin_ph: "4 digits",
@@ -1762,6 +1762,8 @@ function toast(msg) {
 
 async function api(path, body) {
   const opts = body ? { method: 'POST', body: new URLSearchParams(body) } : {};
+  // 守护开启后闸门校验家长密码头; 本次会话核对通过过就一直带上。
+  if (body && sessionPin) opts.headers = { 'X-Aerial-Pin': sessionPin };
   const r = await fetch(base + path, opts);
   if (!r.ok) throw new Error(r.status);
   return r.json();
@@ -1771,14 +1773,16 @@ async function api(path, body) {
 async function kidsVerifyPin(pin) {
   try {
     const r = await api('api/kids/unlock', { pin: pin });
-    return !!(r && r.pinRight === true);
+    if (r && r.pinRight === true) { sessionPin = pin; return true; }
+    return false;
   } catch (e) { return false; }
 }
 /* 设新密码(set) / 用现有密码关掉(off): 走 prefs 的 pin 分支, 独立按 ok 字段判定。 */
 async function kidsSavePin(action, pin) {
   try {
     const r = await api('api/prefs', { key: 'pin', value: action + ':' + pin });
-    return !!(r && r.ok === true);
+    if (r && r.ok === true) { sessionPin = action === 'off' ? '' : pin; return true; }
+    return false;
   } catch (e) { return false; }
 }
 function take(next) { state = next; stateJson = ''; render(); if (typeof paintTrigger === 'function') paintTrigger(); }
@@ -1852,8 +1856,13 @@ const scrollBehavior = () => reducedMotion() ? 'auto' : 'smooth';
 
 /* Bottom sheet. */
 const sheet = $('#sheet');
+/* 弹层节点栈: 第二层弹层(如最晚时间选择)叠在守护窗口之上时, 保存上一层真实节点与事件,
+   第二层关闭后原样恢复, 而不是清掉上一层。 */
+const sheetStack = [];
 function openSheet(build, cls) {
-  const body = $('#sheetBody'); body.replaceChildren();
+  const body = $('#sheetBody');
+  if (!sheet.hidden) sheetStack.push({ nodes: [...body.childNodes], cls: sheet.querySelector('.sheet').className });
+  body.replaceChildren();
   try { build(body); } catch (err) { console.error('sheet build failed:', err); toast(t('toast_set_fail')); }
   // 每个弹层重新定一次样式类, 上一个弹层的(比如儿童长辈那种矮窗口)不会带到下一个。
   sheet.querySelector('.sheet').className = 'sheet' + (cls ? ' ' + cls : '');
@@ -1865,6 +1874,17 @@ function openSheet(build, cls) {
 }
 function closeSheet() {
   sheet.classList.remove('open');
+  const prev = sheetStack.pop();
+  if (prev) {
+    // 恢复上一层: 节点引用与绑在上面的事件都还在。
+    const body = $('#sheetBody');
+    body.replaceChildren();
+    prev.nodes.forEach(n => body.appendChild(n));
+    sheet.querySelector('.sheet').className = prev.cls;
+    document.body.style.overflow = 'hidden';
+    requestAnimationFrame(() => requestAnimationFrame(() => sheet.classList.add('open')));
+    return;
+  }
   document.body.style.overflow = '';
   clearTimeout(openSheet.timer); openSheet.timer = setTimeout(() => sheet.hidden = true, 220);
 }
@@ -2474,6 +2494,7 @@ async function loadPrefs() {
 async function setPref(key, value, after, quiet) {
   try {
     const r = await api('api/prefs', { key: key, value: value });
+    if (r && r.kidsLocked) { if (!quiet) toast(t('backup_locked')); await loadPrefs(); if (after) after(); return false; }
     if (!r.ok) throw new Error('not saved');
     await loadPrefs();
     if (after) after();
@@ -2495,20 +2516,13 @@ function customRow(it, changed) {
   row.appendChild(el('span', 'unit', it.clock ? t('custom_time') : t('custom')));
   let inp;
   if (it.clock) {
-    // 最晚到: 页面内时/分双输入, 不用系统原生时间选择器。
+    // 最晚到: 点触发按钮弹出时/分选择层(与天气地区选择同一套弹层), 不用系统原生时间选择器。
     const mins = parseInt(it.value, 10) || 0;
-    const wrap = el('span', 'time-pair');
-    const hInp = el('input', 'pref-num tnum'); hInp.type = 'number'; hInp.min = 0; hInp.max = 23; hInp.inputMode = 'numeric'; hInp.value = Math.floor(mins / 60) % 24;
-    const sep = el('span', 'tsep', ':');
-    const mInp = el('input', 'pref-num tnum'); mInp.type = 'number'; mInp.min = 0; mInp.max = 59; mInp.inputMode = 'numeric'; mInp.value = mins % 60;
-    const emit = () => {
-      const h = Math.max(0, Math.min(23, parseInt(hInp.value, 10) || 0));
-      const m = Math.max(0, Math.min(59, parseInt(mInp.value, 10) || 0));
-      changed(it.key, String(h * 60 + m));
-    };
-    hInp.onchange = emit; mInp.onchange = emit;
-    wrap.append(hInp, sep, mInp);
-    row.appendChild(wrap);
+    const trigger = el('button', 'region-trigger'); trigger.type = 'button';
+    const text = el('span', 'region-trigger-t', hhmm(mins));
+    trigger.appendChild(text);
+    trigger.onclick = () => openTimeSheet(mins, pick => { text.textContent = hhmm(pick); changed(it.key, String(pick)); });
+    row.appendChild(trigger);
   } else {
     inp = el('input', 'pref-num'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.value = it.value;
     if (it.min !== undefined) inp.min = it.min;
@@ -3203,6 +3217,42 @@ function openRegionSheet() {
       closeSheet();
       submitRegion();
     };
+    body.appendChild(tabs); body.appendChild(list); body.appendChild(confirm);
+    paintAll();
+  });
+}
+
+/* 最晚到时间选择: 与天气地区选择同一套弹层(时/分页签 + 滚动列表 + 确定), 不使用原生时间选择器。 */
+function openTimeSheet(mins, onPick) {
+  let h = Math.floor(mins / 60) % 24, m = mins % 60;
+  let tab = 'hour';
+  openSheet(body => {
+    const tabs = el('div', 'region-tabs');
+    const list = el('div', 'region-pick');
+    const confirm = el('button', 'pact region-confirm', t('reg_confirm')); confirm.type = 'button';
+    const tabsDef = [['hour', t('time_hour')], ['minute', t('time_minute')]];
+    function paintTabs() {
+      tabs.replaceChildren();
+      tabsDef.forEach(([key, label]) => {
+        const b = el('button', '', label); b.type = 'button';
+        b.setAttribute('aria-checked', tab === key ? 'true' : 'false');
+        b.onclick = () => { tab = key; paintAll(); };
+        tabs.appendChild(b);
+      });
+    }
+    function paintList() {
+      list.replaceChildren();
+      const opts = tab === 'hour' ? [...Array(24).keys()] : [...Array(12).keys()].map(i => i * 5);
+      opts.forEach(v => {
+        const cur = tab === 'hour' ? h : m;
+        const b = el('button', '', String(v).padStart(2, '0')); b.type = 'button';
+        if (v === cur) b.classList.add('on');
+        b.onclick = () => { if (tab === 'hour') h = v; else m = v; paintAll(); };
+        list.appendChild(b);
+      });
+    }
+    confirm.onclick = () => { closeSheet(); onPick(h * 60 + m); };
+    function paintAll() { paintTabs(); paintList(); }
     body.appendChild(tabs); body.appendChild(list); body.appendChild(confirm);
     paintAll();
   });
