@@ -141,7 +141,7 @@ fun KidsSetupSheet(visible: Boolean, candidates: List<AppEntry>, onStart: () -> 
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
             // 迷你窗口和面板里那颗是同一块玻璃, 位置对准入口按钮。
             androidx.compose.runtime.CompositionLocalProvider(LocalMenuWindow provides menuWindow) {
-                Row(
+                Column(
                     Modifier
                         .width(912.dp)
                         .height(500.dp)
@@ -149,9 +149,18 @@ fun KidsSetupSheet(visible: Boolean, candidates: List<AppEntry>, onStart: () -> 
                         .liquidGlass(28.dp)
                         .padding(start = 28.dp, end = 20.dp, top = 24.dp, bottom = 16.dp),
                 ) {
-                    SetupSettings(candidates.isNotEmpty(), onStart, leftFirst, Modifier.width(480.dp).fillMaxHeight())
-                    Spacer(Modifier.width(24.dp))
-                    AllowedApps(candidates, Modifier.weight(1f).fillMaxHeight(), leftFirst)
+                    // 大标题和说明横跨整窗左右贯通, 不局限在左侧选项列。
+                    BasicText(stringResource(R.string.kids_title), style = Type.LargeTitle)
+                    BasicText(
+                        stringResource(R.string.kids_hint),
+                        style = Type.Callout,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
+                    )
+                    Row(Modifier.weight(1f).fillMaxWidth()) {
+                        SetupSettings(candidates.isNotEmpty(), onStart, leftFirst, Modifier.width(480.dp).fillMaxHeight())
+                        Spacer(Modifier.width(24.dp))
+                        AllowedApps(candidates, Modifier.weight(1f).fillMaxHeight(), leftFirst)
+                    }
                 }
             }
             MenuWindowLayer(menuWindow)
@@ -173,13 +182,6 @@ private fun SetupSettings(hasApps: Boolean, onStart: () -> Unit, first: FocusReq
     val rules = Restricted.rules
     val guard = HomeGuardService.isRunning
     Column(modifier) {
-        // 大标题和说明钉在左上角(用户口径): 左边选项一多就要往下滚, 它们不能被一起滚出去。
-        BasicText(stringResource(R.string.kids_title), style = Type.LargeTitle)
-        BasicText(
-            stringResource(R.string.kids_hint),
-            style = Type.Callout,
-            modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
-        )
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
         Group {
             Box(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {

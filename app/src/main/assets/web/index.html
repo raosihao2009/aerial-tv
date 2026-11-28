@@ -252,6 +252,9 @@
   .wtabs button[aria-checked="true"] { background: var(--card); color: var(--tint); font-weight: 600; }
   .wtabs button span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .wxlist { margin-top: 10px; }
+  /* 天气位置气泡: 不画相邻条目分隔线, 也不画定位按钮上方那条通栏分隔线。 */
+  .wxlist .item + .item::before { display: none; }
+  .wxlist .wxsep { display: none; }
   .pcard .popen { color: var(--tint); justify-content: center; }
   .pcard .popen .txt { flex: 0 1 auto; font-weight: 600; text-align: center; }
   .pcard .popen .chev { margin-left: 6px; }
@@ -560,6 +563,7 @@
      表头条铺不透背景盖住从下方滚过的卡片; 顶部内边距/外边距全部并入背景盒, 不留透明缝,
      避免吸顶后卡片从条带上方漏出。胶囊本身仍走基础样式, 不改外形和底色。下缘同款渐隐过渡层。 */
   .sheet.kids-sheet { max-height: calc(100% - 24vh); padding-top: 0; }
+  .sheet.kids-sheet .grab { margin-top: 8px; }
   .kids-scroll .kids-head { padding-top: 8px; }
   .kids-scroll .ptabs-wrap {
     position: sticky; top: 0; z-index: 10;
@@ -817,7 +821,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1201;
+const PAGE_VER = 1202;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -3193,7 +3197,12 @@ function openKidsSheetBody() {
       [k.appsTitle, k.liveTitle].forEach((label, i) => {
         const b = el('button', '', label); b.type = 'button';
         b.setAttribute('aria-checked', kidsTab === i ? 'true' : 'false');
-        b.onclick = () => { kidsTab = i; paintTabs(); paintGrid(); };
+        b.onclick = () => {
+          const panel = sheet.querySelector('.sheet');
+          const y = panel ? panel.scrollTop : 0;
+          kidsTab = i; paintTabs(); paintGrid();
+          requestAnimationFrame(() => { if (panel) panel.scrollTop = y; });
+        };
         tabs.appendChild(b);
       });
     }
@@ -3287,7 +3296,13 @@ function openKidsSheetBody() {
   }
   openSheet(build, 'kids-sheet');
   // 操作保存后原地重建弹窗内容, 不经过 openSheet 压栈, 避免关闭时弹回旧快照层。
-  window.__kidsRebuild = () => { const body = $('#sheetBody'); body.replaceChildren(); build(body); };
+  // 重建会把整段列表节点换掉, 滚动位置被浏览器钳回 0; 记下原位置, 布局完成后恢复。
+  window.__kidsRebuild = () => {
+    const panel = sheet.querySelector('.sheet');
+    const y = panel ? panel.scrollTop : 0;
+    const body = $('#sheetBody'); body.replaceChildren(); build(body);
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (panel) panel.scrollTop = y; }));
+  };
 }
 
 /* 家长密码弹层: 4 位数字或 4 个方向键。create 设新的, verify 只核对, off 用现有密码关掉。 */

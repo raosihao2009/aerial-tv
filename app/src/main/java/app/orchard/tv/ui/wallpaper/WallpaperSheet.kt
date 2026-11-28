@@ -49,7 +49,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -944,12 +944,6 @@ private fun WallpaperCategoryBar(category: String, onChange: (String) -> Unit) {
 private fun WallpaperRows(takeFocus: Boolean, category: String) {
     val items = Wallpapers.items
     val selected = Wallpapers.selectedId
-    val first = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
-        if (!takeFocus) return@LaunchedEffect
-        withFrameNanos { }
-        runCatching { first.requestFocus() }
-    }
     val dailyTitle = stringResource(R.string.wp_daily_latest)
     val rotateTitle = stringResource(R.string.wp_photos_rotate)
     val videosTitle = stringResource(R.string.wp_videos_rotate)
@@ -980,6 +974,18 @@ private fun WallpaperRows(takeFocus: Boolean, category: String) {
             // The inputs' pictures last: a choice for a home with a set-top box, not the usual one.
             addAll(items.filter { it.kind == WallpaperKind.Source })
         }.filter { catOf(it.kind) == category }
+    }
+
+    // 默认焦点: 本页签有已选壁纸就落在已选那张; 没有已选则落第二张(不足两张落第一张)。
+    val targetIndex = remember(list, selected) {
+        val i = list.indexOfFirst { it.id == selected }
+        if (i >= 0) i else if (list.size > 1) 1 else 0
+    }
+    val reqs = remember(list.size) { List(list.size) { FocusRequester() } }
+    LaunchedEffect(category, takeFocus) {
+        if (!takeFocus) return@LaunchedEffect
+        withFrameNanos { }
+        runCatching { reqs[targetIndex].requestFocus() }
     }
 
     var note by remember { mutableStateOf<String?>(null) }
@@ -1028,9 +1034,9 @@ private fun WallpaperRows(takeFocus: Boolean, category: String) {
         horizontalArrangement = Arrangement.spacedBy(18.dp),
         contentPadding = PaddingValues(start = 14.dp, end = 24.dp, top = 6.dp, bottom = 4.dp),
     ) {
-        items(list, key = { it.id }) { wp ->
+        itemsIndexed(list, key = { _, wp -> wp.id }) { index, wp ->
             val hint = wallpaperNote(wp)
-            WallpaperCard(wp, if (wp === list.first()) first else null, onFocused = { focusedId = wp.id; note = hint })
+            WallpaperCard(wp, reqs[index], onFocused = { focusedId = wp.id; note = hint })
         }
     }
     Box(Modifier.height(42.dp).padding(start = 4.dp, top = 8.dp)) {
