@@ -148,13 +148,21 @@ fun KidsSetupSheet(visible: Boolean, candidates: List<AppEntry>, onStart: () -> 
                         .consumeTaps()
                         .liquidGlass(28.dp)
                         .padding(start = 28.dp, end = 20.dp, top = 24.dp, bottom = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    // 大标题和说明横跨整窗左右贯通, 不局限在左侧选项列。
-                    BasicText(stringResource(R.string.kids_title), style = Type.LargeTitle)
+                    // 标题行: 笑脸图标 + 标题, 整行居中; 说明句同样居中贯通。
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        GlyphIcon(Glyph.Kids, Palette.Label, 18.dp)
+                        BasicText(stringResource(R.string.kids_title), style = Type.LargeTitle)
+                    }
                     BasicText(
                         stringResource(R.string.kids_hint),
-                        style = Type.Callout,
-                        modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
+                        style = Type.Callout.copy(textAlign = TextAlign.Center),
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 10.dp),
                     )
                     Row(Modifier.weight(1f).fillMaxWidth()) {
                         SetupSettings(candidates.isNotEmpty(), onStart, leftFirst, Modifier.width(480.dp).fillMaxHeight())
@@ -193,7 +201,6 @@ private fun SetupSettings(hasApps: Boolean, onStart: () -> Unit, first: FocusReq
                         ChipButton(
                             stringResource(if (kids) R.string.kids_start_kids else R.string.kids_start_elders),
                             false,
-                            icon = Glyph.Kids,
                             onClick = { if (Restricted.allowed.isNotEmpty()) onStart() },
                             onFocus = onFocus, blockLeft = true, autoEdges = false,
                         )
@@ -315,7 +322,8 @@ private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier, leftTarg
     // 一个"切换式"分段键: 左右键切页, 高亮始终绑在当前页, 不是两颗各自独立的按钮。
     var tab by remember { mutableStateOf(0) }
     Column(modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // 页签整体下移到面板顶部大圆角弧结束的直边处, 不压在圆角弧面上。
+        Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Pressable(
                 onClick = { tab = 1 - tab },
                 focusedScale = 1.03f,

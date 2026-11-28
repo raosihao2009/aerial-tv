@@ -427,13 +427,14 @@ private fun WallpaperSection(takeFocus: Boolean) {
     var category by remember {
         mutableStateOf(catOf(items.firstOrNull { it.id == selected }?.kind ?: WallpaperKind.Photo))
     }
-    // 标题行: 分类名「壁纸与屏保」后面紧跟壁纸分类分签(我的照片/动态/每日精选/更多), 不推到最右。
+    // 标题行: 分类名「壁纸与屏保」在左, 分类分签(我的照片/动态/每日精选/更多)推到最右。
     Row(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         CategoryTitle(Glyph.Photo, R.string.wp_wallpaper_saver)
+        Spacer(Modifier.weight(1f))
         WallpaperCategoryBar(category) { category = it }
     }
     WallpaperRows(takeFocus, category)
@@ -976,21 +977,20 @@ private fun WallpaperRows(takeFocus: Boolean, category: String) {
         }.filter { catOf(it.kind) == category }
     }
 
-    // 默认焦点: 本页签有已选壁纸就落在已选那张; 没有已选则落第二张(不足两张落第一张)。
+    // 预落: 不主动抢占焦点, 只把目标项滚动到可视位置; 焦点等用户按方向键再落。
     val targetIndex = remember(list, selected) {
         val i = list.indexOfFirst { it.id == selected }
         if (i >= 0) i else if (list.size > 1) 1 else 0
     }
-    val reqs = remember(list.size) { List(list.size) { FocusRequester() } }
+    val scroll = rememberLazyListState()
     LaunchedEffect(category, takeFocus) {
         if (!takeFocus) return@LaunchedEffect
         withFrameNanos { }
-        runCatching { reqs[targetIndex].requestFocus() }
+        runCatching { scroll.scrollToItem(targetIndex) }
     }
 
     var note by remember { mutableStateOf<String?>(null) }
     var focusedId by remember { mutableStateOf<String?>(null) }
-    val scroll = rememberLazyListState()
     // A row clips to its bounds, and the focused card grows by 8%: room on the left for that,
     // with the row moved back by as much so the cards still line up with the titles.
     LazyRow(
@@ -1034,9 +1034,9 @@ private fun WallpaperRows(takeFocus: Boolean, category: String) {
         horizontalArrangement = Arrangement.spacedBy(18.dp),
         contentPadding = PaddingValues(start = 14.dp, end = 24.dp, top = 6.dp, bottom = 4.dp),
     ) {
-        itemsIndexed(list, key = { _, wp -> wp.id }) { index, wp ->
+        itemsIndexed(list, key = { _, wp -> wp.id }) { _, wp ->
             val hint = wallpaperNote(wp)
-            WallpaperCard(wp, reqs[index], onFocused = { focusedId = wp.id; note = hint })
+            WallpaperCard(wp, null, onFocused = { focusedId = wp.id; note = hint })
         }
     }
     Box(Modifier.height(42.dp).padding(start = 4.dp, top = 8.dp)) {
