@@ -556,19 +556,15 @@
   .item .ithumb { width: 64px; aspect-ratio: 16 / 9; border-radius: 6px; object-fit: cover; margin-right: 12px; flex: none; background: var(--fill); }
   .sheet h3 { text-align: center; font-size: 17px; font-weight: 600; margin: 12px 0 2px; }
   .sheet .meta { text-align: center; font-size: 13px; color: var(--secondary); margin: 0 0 16px; }
-  /* 守护弹窗: 与卡片详情弹窗同一套流式布局, 外层 .sheet 自身滚动; 页签随内容一起滚,
-     滚到顶部时吸顶(sticky), 不做全局钉死。整条胶囊(含底部背景)用实色填充, 吸顶时盖住下方滚过的卡片,
-     不再局部透明穿透; 选中项仍是里面那颗白色胶囊。只作用于守护弹窗, 密码弹窗复用的分段键不变。 */
+  /* 守护弹窗: 外层 .sheet 自身滚动; 页签随内容一起滚, 滚到顶部由外层垫条吸顶(sticky)。
+     垫条是垫在胶囊下面的独立一层不透明背景, 用来盖住下方滚过的卡片; 胶囊本身仍走基础样式, 不改它的外形和底色。 */
   .sheet.kids-sheet { max-height: calc(100% - 24vh); }
-  .kids-scroll .ptabs {
+  .kids-scroll .ptabs-wrap {
     position: sticky; top: 0; z-index: 10;
-    background: #ffffff; background-color: #ffffff;
-    border-radius: 10px;
-    margin: 0 0 10px; padding: 10px 3px 6px;
+    background: var(--sheet); background-color: var(--sheet);
+    margin: 12px -16px 10px; padding: 12px 16px 12px;
   }
-  @media (prefers-color-scheme: dark) {
-    .kids-scroll .ptabs { background: #2c2c2e; background-color: #2c2c2e; }
-  }
+  .kids-scroll .ptabs { margin: 0; }
   .kids-scroll .kcard { position: relative; z-index: 0; }
   .kids-scroll .kids-actions { margin-bottom: 10px; }
   /* 时间选择微型窗口: 收窄宽度、限高, 整体紧凑不占满整屏抽屉。 */
@@ -812,7 +808,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1197;
+const PAGE_VER = 1198;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -3180,6 +3176,7 @@ function openKidsSheetBody() {
     }
 
     // 应用/直播勾选网格: 页签切换只局部重画, 不重开弹窗。
+    const tabsWrap = el('div', 'ptabs-wrap');
     const tabs = el('div', 'ptabs');
     const gridWrap = el('div', '');
     function paintTabs() {
@@ -3224,8 +3221,9 @@ function openKidsSheetBody() {
       }
       gridWrap.appendChild(grid);
     }
-    // 页签随内容一起滚, 滚到顶部时吸顶(sticky); 提示句留在滚动列表里随内容一起滚。
-    scroll.appendChild(tabs);
+    // 页签随内容一起滚, 滚到顶部由外层垫条吸顶(sticky); 提示句留在滚动列表里随内容一起滚。
+    tabsWrap.appendChild(tabs);
+    scroll.appendChild(tabsWrap);
     if (k.appsHint) scroll.appendChild(el('p', 'foot', k.appsHint));
     scroll.appendChild(gridWrap);
     paintTabs(); paintGrid();
