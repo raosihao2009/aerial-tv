@@ -196,12 +196,12 @@
   }
   .pact.soft:active { background: var(--fill); box-shadow: inset 0 0 0 .5px rgba(60,60,67,.10); }
   .pact.soft.danger { color: var(--danger); }
-  /* 守护入口: 标题说明在左, 操作按钮排在右侧。 */
-  .kids-entry { align-items: center; gap: 10px; }
+  /* 守护入口: 标题说明在上, 操作按钮排在下面一行(双按钮左右并排), 不跟标题挤在右侧。 */
+  .kids-entry { flex-direction: column; align-items: stretch; gap: 10px; }
   .kids-entry .txt { flex: 1 1 auto; min-width: 0; }
   .kids-entry .ptitle-line { font-size: 17px; font-weight: 400; color: var(--label); }
   .kids-entry .sub { margin-top: 3px; }
-  .kids-entry-actions { display: flex; gap: 8px; flex: none; margin-left: auto; }
+  .kids-entry-actions { display: flex; gap: 8px; flex: none; }
   .kids-go { flex: 1 1 auto; justify-content: center; display: inline-flex; align-items: center; padding: 12px 10px; }
   /* 入口是一张展示卡, 整行不做按下染色/下沉; 只有内部按钮自己保留按压态。
      选择器带上 .item 提高优先级, 压过基础 button.item:active 的染色规则。 */
@@ -557,9 +557,9 @@
   .sheet h3 { text-align: center; font-size: 17px; font-weight: 600; margin: 12px 0 2px; }
   .sheet .meta { text-align: center; font-size: 13px; color: var(--secondary); margin: 0 0 16px; }
   /* 守护弹窗: 与卡片详情弹窗同一套流式布局, 外层 .sheet 自身滚动; 页签随内容一起滚,
-     滚到顶部时吸顶(sticky), 不做全局钉死。 */
+     滚到顶部时吸顶(sticky), 不做全局钉死。吸顶时整条不透明白底, 盖住下方滚过的卡片。 */
   .sheet.kids-sheet { max-height: calc(100% - 24vh); }
-  .ptabs { position: sticky; top: 0; z-index: 3; background: var(--card); border-radius: 10px; }
+  .ptabs { position: sticky; top: 0; z-index: 3; background: var(--card) !important; background-color: var(--card) !important; border-radius: 10px; }
   .kids-scroll .kids-actions { margin-bottom: 10px; }
   /* 时间选择微型窗口: 收窄宽度、限高, 整体紧凑不占满整屏抽屉。 */
   .sheet.mini-sheet { max-width: 320px; max-height: 58vh; }
@@ -802,7 +802,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1192;
+const PAGE_VER = 1193;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -3143,9 +3143,8 @@ function paintKidsEntry(host) {
 function openKidsSheet() {
   const k0 = prefs && prefs.kids;
   const openBody = () => openKidsSheetBody();
-  // 打开守护配置弹窗前先过家长密码: 已设密码先核对, 没设先两遍设新密码; 中途取消则不打开配置。
-  if (k0 && k0.pinSet) pinSheet('verify', !!k0.pinArrows, openBody);
-  else if (k0) pinSheet('create', false, openBody);
+  // 打开守护配置不验密; 仅在还没设家长密码时先两遍设新密码, 中途取消则不打开配置。
+  if (k0 && !k0.pinSet) pinSheet('create', false, openBody);
   else openBody();
 }
 function openKidsSheetBody() {
