@@ -467,6 +467,7 @@ object PhonePrefs {
                 Restricted.chooseEnabled(on)
                 if (on) Restricted.start()
                 KidsWatch.poke()
+                app.orchard.tv.HomeViewModel.notifyRestrictedChanged()
                 DiagLog.i("守护: enabled=$on active=${Restricted.active} suspended=${Restricted.suspended} kind=${Restricted.kind.key} allowed=${Restricted.allowed.size}")
                 true
             }
@@ -500,6 +501,7 @@ object PhonePrefs {
                 if (list.isEmpty()) false else {
                     // 必选卡片补齐、该撤的预览卡片撤掉, 都在 ModeRules 里, 与电视设置页一致。
                     ModeRules.apply(list, candidates)
+                    app.orchard.tv.HomeViewModel.notifyRestrictedChanged()
                     DiagLog.i("守护: 允许卡片=${Restricted.allowed.size}")
                     true
                 }

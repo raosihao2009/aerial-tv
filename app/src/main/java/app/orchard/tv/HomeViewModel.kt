@@ -125,6 +125,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     companion object {
         @Volatile var instance: HomeViewModel? = null
         fun notifyLiveSourcesChanged() { instance?.reloadLiveSources() }
+        fun notifyRestrictedChanged() { instance?.refreshRestricted() }
     }
 
     init {
@@ -630,6 +631,9 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
      * send no broadcast Aerial hears: it listens only while started. Catch up when Home comes back
      * (issue #55). Before Android 8 there is no change counter; the reload is cheap, tiles are cached.
      */
+    /** 守护模式状态被手机端或其他链路改动后, 强制按受限规则重排桌面, 避免状态监听漏触发导致桌面不切。 */
+    fun refreshRestricted() { if (loaded) { arrange(); prepareFaces() } }
+
     fun reloadIfPackagesChanged() {
         if (!loaded) return
         if (Build.VERSION.SDK_INT >= 26 && context.packageManager.getChangedPackages(packagesSeen) == null) return

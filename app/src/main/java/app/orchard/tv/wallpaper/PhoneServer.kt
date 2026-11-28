@@ -98,12 +98,12 @@ class PhoneServer private constructor(private val context: Context, private val 
                 }
                 session.method == Method.POST && path == "/api/kids/config" -> kidsConfig(form(session))
                 session.method == Method.POST && path == "/api/kids/leave" -> {
-                    onMain { Restricted.suspend(); KidsWatch.poke() }
+                    onMain { Restricted.suspend(); KidsWatch.poke(); app.orchard.tv.HomeViewModel.notifyRestrictedChanged() }
                     json(state().put("saved", true))
                 }
                 session.method == Method.POST && path == "/api/kids/start" -> {
                     val can = Restricted.enabled && Restricted.allowed.isNotEmpty()
-                    if (can) onMain { Restricted.start(); KidsWatch.poke() }
+                    if (can) onMain { Restricted.start(); KidsWatch.poke(); app.orchard.tv.HomeViewModel.notifyRestrictedChanged() }
                     json(state().put("saved", can))
                 }
                 path == "/api/state" -> json(state())
@@ -993,6 +993,7 @@ class PhoneServer private constructor(private val context: Context, private val 
                 if (on) Restricted.start()
             }
             KidsWatch.poke()
+            app.orchard.tv.HomeViewModel.notifyRestrictedChanged()
         }
         return json(state().put("saved", true))
     }
