@@ -62,6 +62,8 @@ import java.security.SecureRandom
  */
 class PhoneServer private constructor(private val context: Context, private val token: String, port: Int = PORT) : NanoHTTPD(port) {
     @Volatile var isSecure = false
+    // 内置直播图标解码压缩后的字节缓存: 固定资源, 只在首次解码压缩一次, 之后直出字节, 免得每次进直播网格都重复解码。
+    private val liveIconCache = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
     // 上一次报上来的手机页版本: 同版本只记一条, 免得每 1.5 秒的轮询都把日志刷满。
     @Volatile private var lastPageVersion = -1
     var httpsError: String? = null
@@ -861,6 +863,12 @@ class PhoneServer private constructor(private val context: Context, private val 
         }
         val resId = context.resources.getIdentifier(resName, "drawable", context.packageName)
         if (resId == 0) return text(Response.Status.NOT_FOUND, "")
+        // 命中内存缓存就直出, 不再重复解码压缩。
+        liveIconCache[id]?.let { bytes ->
+            return newFixedLengthResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(bytes), bytes.size.toLong()).apply {
+                addHeader("Cache-Control", "public, max-age=86400")
+            }
+        }
         val opts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
         android.graphics.BitmapFactory.decodeResource(context.resources, resId, opts)
         opts.inSampleSize = (opts.outWidth / 480).coerceAtLeast(1)
@@ -869,6 +877,7 @@ class PhoneServer private constructor(private val context: Context, private val 
         val out = ByteArrayOutputStream()
         bmp.compress(Bitmap.CompressFormat.JPEG, 80, out)
         val bytes = out.toByteArray()
+        liveIconCache[id] = bytes
         return newFixedLengthResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(bytes), bytes.size.toLong()).apply {
             addHeader("Cache-Control", "public, max-age=86400")
         }
