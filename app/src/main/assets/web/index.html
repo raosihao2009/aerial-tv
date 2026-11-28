@@ -556,13 +556,12 @@
   .item .ithumb { width: 64px; aspect-ratio: 16 / 9; border-radius: 6px; object-fit: cover; margin-right: 12px; flex: none; background: var(--fill); }
   .sheet h3 { text-align: center; font-size: 17px; font-weight: 600; margin: 12px 0 2px; }
   .sheet .meta { text-align: center; font-size: 13px; color: var(--secondary); margin: 0 0 16px; }
-  /* 守护弹窗: 弹窗本体不再整体滚动, 内部三段: 配置区(可滚) / 固定页签条 / 网格区(可滚)。
-     页签固定在网格上方, 不随网格滚动, 也不再靠填充背景遮挡滚上来的卡片; 固定条下缘加与 header 同款渐隐过渡层。 */
-  .sheet.kids-sheet { max-height: calc(100% - 24vh); overflow: hidden; display: flex; flex-direction: column; }
-  .kids-scroll { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-  .kids-config { overflow-y: auto; overscroll-behavior: contain; flex: none; max-height: 34vh; }
+  /* 守护弹窗: 配置卡与网格在同一滚动流里上下滚; 页签作为固定表头 sticky 钉在弹窗顶部。
+     表头条铺不透背景盖住从下方滚过的卡片; 胶囊本身仍走基础样式, 不改外形和底色。下缘同款渐隐过渡层。 */
+  .sheet.kids-sheet { max-height: calc(100% - 24vh); }
   .kids-scroll .ptabs-wrap {
-    position: relative; flex: none; z-index: 10;
+    position: sticky; top: 0; z-index: 10;
+    background: var(--sheet); background-color: var(--sheet);
     margin: 6px -16px 5px; padding: 2px 16px 6px;
   }
   .kids-scroll .ptabs-wrap::after {
@@ -572,7 +571,6 @@
     pointer-events: none;
   }
   .kids-scroll .ptabs { margin: 0; }
-  .kids-grid-wrap { overflow-y: auto; flex: 1; min-height: 0; overscroll-behavior: contain; }
   .kids-scroll .kcard { position: relative; z-index: 0; }
   .kids-scroll .kids-actions { margin-bottom: 10px; }
   /* 时间选择微型窗口: 收窄宽度、限高, 整体紧凑不占满整屏抽屉。 */
@@ -816,7 +814,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1199;
+const PAGE_VER = 1200;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -3170,25 +3168,23 @@ function openKidsSheetBody() {
     const k = prefs && prefs.kids; if (!k) return;
     const on = !!k.enabled, suspended = !!k.suspended;
     const scroll = el('div', 'kids-scroll');
-    // 上方配置区(标题/操作卡/细则卡)独立成段, 内部可滚; 与下方固定页签、网格区分开。
-    const config = el('div', 'kids-config');
-    // 标题与说明随配置区一起上下滚动, 不钉在弹窗顶部。
+    // 标题与说明随整个列表一起上下滚动, 不钉在弹窗顶部。
     const head = el('div', 'kids-head');
     head.appendChild(el('h3', '', t('kids_title')));
     if (k.hint) head.appendChild(el('p', 'meta', k.hint));
-    config.appendChild(head);
+    scroll.appendChild(head);
 
     // 细则卡(给谁用/拦截/时长等); 不再整体置灰锁定, 未开启也可直接查看与调整。
     for (const it of k.items || []) {
       if (it.key === 'kidsEnabled') continue;
-      try { config.appendChild(prefCard({ ...it, disabled: false }, afterKidsChange)); }
+      try { scroll.appendChild(prefCard({ ...it, disabled: false }, afterKidsChange)); }
       catch (e) { console.error('kids 细则卡渲染失败:', it && it.key, e); }
     }
 
     // 应用/直播勾选网格: 页签切换只局部重画, 不重开弹窗。
     const tabsWrap = el('div', 'ptabs-wrap');
     const tabs = el('div', 'ptabs');
-    const gridWrap = el('div', 'kids-grid-wrap');
+    const gridWrap = el('div', '');
     function paintTabs() {
       tabs.replaceChildren();
       [k.appsTitle, k.liveTitle].forEach((label, i) => {
@@ -3231,9 +3227,8 @@ function openKidsSheetBody() {
       }
       gridWrap.appendChild(grid);
     }
-    // 固定页签条夹在配置区与网格区之间, 不随网格滚动; 提示句随网格一起滚。
+    // 页签作为固定表头钉在弹窗顶部(sticky); 配置卡与网格在同一滚动流里上下滚动, 提示句随网格一起滚。
     tabsWrap.appendChild(tabs);
-    scroll.appendChild(config);
     scroll.appendChild(tabsWrap);
     if (k.appsHint) gridWrap.appendChild(el('p', 'foot', k.appsHint));
     scroll.appendChild(gridWrap);
@@ -3274,7 +3269,8 @@ function openKidsSheetBody() {
     wrap.appendChild(row);
     actionCard.appendChild(wrap);
     // 操作卡排在标题之后、细则卡之前, 同属上方配置区; 不钉底、不吸顶。
-    config.insertBefore(actionCard, head.nextSibling);
+    // 操作卡排在标题之后、细则卡之前, 同属一个滚动列表; 不钉底、不吸顶。
+    scroll.insertBefore(actionCard, head.nextSibling);
     body.appendChild(scroll);
   }
   openSheet(build, 'kids-sheet');
