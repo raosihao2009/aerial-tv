@@ -861,7 +861,25 @@ private fun WallpaperRows(takeFocus: Boolean) {
     val dailyTitle = stringResource(R.string.wp_daily_latest)
     val rotateTitle = stringResource(R.string.wp_photos_rotate)
     val videosTitle = stringResource(R.string.wp_videos_rotate)
-    val list = remember(items, selected, dailyTitle, rotateTitle, videosTitle) {
+
+    // 四类分类, 与手机端壁纸 Tab 对齐: 我的照片 / 动态 / 每日一图 / 内置更多。
+    val categories = listOf(
+        "photos" to R.string.wp_cat_photo,
+        "live" to R.string.wp_cat_live,
+        "daily" to R.string.wp_cat_daily,
+        "more" to R.string.wp_cat_more,
+    )
+    fun catOf(kind: WallpaperKind) = when (kind) {
+        WallpaperKind.Photo -> "photos"
+        WallpaperKind.Live, WallpaperKind.Video -> "live"
+        WallpaperKind.Daily -> "daily"
+        else -> "more"
+    }
+    var category by remember {
+        mutableStateOf(catOf(items.firstOrNull { it.id == selected }?.kind ?: WallpaperKind.Photo))
+    }
+
+    val list = remember(items, selected, dailyTitle, rotateTitle, videosTitle, category) {
         buildList {
             addAll(items.filter { it.kind == WallpaperKind.Live })
             // Each video on its own, and with two or more one card that plays them in turn (#762).
@@ -878,8 +896,28 @@ private fun WallpaperRows(takeFocus: Boolean) {
             addAll(items.filter { it.kind == WallpaperKind.Auto })
             // The inputs' pictures last: a choice for a home with a set-top box, not the usual one.
             addAll(items.filter { it.kind == WallpaperKind.Source })
+        }.filter { catOf(it.kind) == category }
+    }
+
+    // 分类选项卡: 四颗一排, 左右键只在卡内走, 选中白底染字。
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(bottom = 8.dp)) {
+        val reqs = remember(categories.size) { List(categories.size) { FocusRequester() } }
+        categories.forEachIndexed { i, (key, label) ->
+            ChipButton(
+                stringResource(label),
+                on = category == key,
+                focusRequester = reqs.getOrNull(i),
+                leftTarget = reqs.getOrNull(i - 1),
+                rightTarget = reqs.getOrNull(i + 1),
+                blockLeft = i == 0,
+                blockRight = i == categories.lastIndex,
+                autoEdges = false,
+                onClick = { category = key },
+                onFocus = { _, _ -> },
+            )
         }
     }
+
     var note by remember { mutableStateOf<String?>(null) }
     // A row clips to its bounds, and the focused card grows by 8%: room on the left for that,
     // with the row moved back by as much so the cards still line up with the titles.
@@ -1250,14 +1288,31 @@ private fun HiddenCell(
 ) {
     Cell(label, hint, modifier) { onFocus ->
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            entries.forEach { entry -> HiddenChip(entry, onFocus) }
+            // 每颗入口显式指向左右邻居, 格内双向都能走; 首尾之外才封, 避免第二颗回不到第一颗。
+            val reqs = remember(entries.size) { List(entries.size) { FocusRequester() } }
+            entries.forEachIndexed { i, entry ->
+                HiddenChip(
+                    entry, onFocus,
+                    leftTarget = reqs.getOrNull(i - 1),
+                    rightTarget = reqs.getOrNull(i + 1),
+                    blockLeft = i == 0,
+                    blockRight = i == entries.lastIndex,
+                )
+            }
         }
     }
 }
 
 /** 一颗入口按钮: 它开自己那个窗口, 按键也归它管, 三角对准的就是它自己。 */
 @Composable
-private fun HiddenChip(entry: HiddenEntry, onFocus: (Any, Boolean) -> Unit) {
+private fun HiddenChip(
+    entry: HiddenEntry,
+    onFocus: (Any, Boolean) -> Unit,
+    leftTarget: FocusRequester? = null,
+    rightTarget: FocusRequester? = null,
+    blockLeft: Boolean = false,
+    blockRight: Boolean = false,
+) {
     val window = entry.window
     var chipTop by remember { mutableStateOf(0f) }
     var chipCenterX by remember { mutableStateOf(0f) }
@@ -1278,6 +1333,8 @@ private fun HiddenChip(entry: HiddenEntry, onFocus: (Any, Boolean) -> Unit) {
             on = false, chevron = true, check = false,
             onClick = { window?.show(chipCenterX, chipTop, entry.onPick) },
             onFocus = onFocus,
+            leftTarget = leftTarget, rightTarget = rightTarget,
+            blockLeft = blockLeft, blockRight = blockRight, autoEdges = false,
             onKey = { e ->
                 if (window == null || !window.open) {
                     false

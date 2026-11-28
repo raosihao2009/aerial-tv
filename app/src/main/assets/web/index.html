@@ -222,8 +222,9 @@
     flex: 0 1 40px; min-width: 0; padding: 0 6px; overflow: hidden; color: var(--secondary); font-size: 13px; cursor: pointer;
   }
   .gtabs button[aria-checked="true"] {
-    /* 选中格贴合图标与文字, 不再按五个汉字预留固定宽度, 胶囊更紧凑。 */
-    background: var(--card); color: var(--label); font-weight: 600; flex: 0 0 auto; width: auto; min-width: 40px; padding: 0 10px;
+    /* 选中格固定为五个汉字宽, 不随文案长短伸缩, 各 tab 高亮宽度一致。 */
+    background: var(--card); color: var(--label); font-weight: 600;
+    flex: 0 0 5em; width: 5em; min-width: 5em; padding: 0 8px;
     box-shadow: 0 1px 3px rgba(0,0,0,.12);
   }
   .gtabs button .glabel { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -553,9 +554,12 @@
   .kids-head { flex: none; }
   .kids-scroll .kids-actions { margin-bottom: 10px; }
   .kids-scroll { overscroll-behavior: contain; }
-  /* 时间选择微型窗口: 收窄宽度、限高, 列表更紧凑, 不占满整屏抽屉。 */
+  /* 时间选择微型窗口: 收窄宽度、限高, 整体紧凑不占满整屏抽屉。 */
   .sheet.mini-sheet { max-width: 320px; max-height: 58vh; }
   .sheet.mini-sheet .region-pick { max-height: 170px; }
+  .time-input-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 16px 0; }
+  .time-input-row .pref-num { width: 72px; text-align: center; background: var(--fill); border-radius: 10px; padding: 12px 0; font-size: 18px; }
+  .time-colon { font-size: 18px; font-weight: 600; color: var(--label); }
   .sheet .list { background: var(--card); }
   @media (prefers-color-scheme: dark) { .sheet .list { background: #2c2c2e; } }
   .sheet .list + .list { margin-top: 10px; }
@@ -788,7 +792,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1186;
+const PAGE_VER = 1187;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1946,6 +1950,16 @@ function closeSheet() {
 }
 $('#scrim').onclick = closeSheet;
 
+/* 系统返回键 / 浏览器返回: 先关闭最上层弹窗, 再退回布局视图; 都没有再交还给浏览器默认后退。
+   同时挂到 window.__aerialBack, 供内嵌 WebView 外壳在 onBackPressed 里主动调用。 */
+function aerialBack() {
+  if (!sheet.hidden) { closeSheet(); return true; }
+  if (arrView !== null) { arrView = null; renderArrange('back'); return true; }
+  return false;
+}
+window.__aerialBack = aerialBack;
+window.addEventListener('popstate', () => { aerialBack(); });
+
 // Replace the browser's native confirm() with a sheet styled like the rest of the page.
 function confirmSheet(message, okLabel, danger) {
   return new Promise(resolve => {
@@ -2000,6 +2014,11 @@ function confirmSheet(message, okLabel, danger) {
       if (d < 0 || Math.abs(t.clientX - x0) > Math.abs(d)) { id = null; return; }
       if (d < 8) return;
       dragging = true; panel.style.transition = 'none';
+    }
+    // 拖动过程中若内容已离开顶部(内部在滚), 立刻交还滚动, 不拦截、不跟随, 保证内容能上下滑。
+    if (scrollTopOf(e.target) > 0) {
+      id = null; dragging = false;
+      panel.style.transition = ''; panel.style.transform = ''; return;
     }
     e.preventDefault();
     dy = Math.max(0, d - 8);
@@ -3054,6 +3073,14 @@ function paintKidsEntry(host) {
 }
 
 function openKidsSheet() {
+  const k0 = prefs && prefs.kids;
+  const openBody = () => openKidsSheetBody();
+  // 打开守护配置弹窗前先过家长密码: 已设密码先核对, 没设先两遍设新密码; 中途取消则不打开配置。
+  if (k0 && k0.pinSet) pinSheet('verify', !!k0.pinArrows, openBody);
+  else if (k0) pinSheet('create', false, openBody);
+  else openBody();
+}
+function openKidsSheetBody() {
   function build(body) {
     const k = prefs && prefs.kids; if (!k) return;
     const on = !!k.enabled, suspended = !!k.suspended;
@@ -3134,10 +3161,7 @@ function openKidsSheet() {
       enter.type = 'button';
       enter.onclick = () => {
         enter.disabled = true;
-        const proceed = async () => { await setPref('kidsEnabled', '1', afterKidsChange); enter.disabled = false; };
-        // 进入模式要先验家长密码; 还没设密码时先弹两遍设置新密码, 存好再进入。
-        if (k.pinSet) pinSheet('verify', !!k.pinArrows, proceed);
-        else pinSheet('create', false, proceed);
+        (async () => { await setPref('kidsEnabled', '1', afterKidsChange); enter.disabled = false; })();
       };
       row.appendChild(enter);
     } else {
@@ -3170,35 +3194,20 @@ function pinSheet(mode, arrowsDefault, done) {
   let arrows = !!arrowsDefault;
   let typed = '';
   let first = null;   // create 要输两遍: 第一遍存这里, 第二遍核对(和电视面板一样)
-  const reopen = () => pinSheet(mode, arrows, done);
   openSheet(body => {
     const titleEl = el('h3', '', '');
     const metaEl = el('p', 'meta', '');
+    const dots = el('div', 'pin-dots');
     const paintTitle = () => {
       titleEl.textContent = mode === 'off' ? t('pin_off_title')
         : mode === 'verify' ? t('pin_verify_title')
         : (first === null ? t('pin_new') : t('pin_confirm'));
       metaEl.textContent = arrows ? t('pin_arrows_hint') : t('pin_digits_hint');
     };
-    paintTitle();
-    body.append(titleEl, metaEl);
-    if (mode === 'create') {
-      const tabs = el('div', 'ptabs');
-      [t('pin_digits'), t('pin_arrows')].forEach((label, i) => {
-        const b = el('button', '', label); b.type = 'button';
-        b.setAttribute('aria-checked', (!arrows) === (i === 0) ? 'true' : 'false');
-        b.onclick = () => { if (arrows !== (i === 1)) { arrows = i === 1; typed = ''; reopen(); } };
-        tabs.appendChild(b);
-      });
-      body.appendChild(tabs);
-    }
-    const dots = el('div', 'pin-dots');
     const paintDots = () => {
       dots.replaceChildren();
       for (let i = 0; i < 4; i++) dots.appendChild(el('span', 'pin-dot' + (i < typed.length ? ' on' : '')));
     };
-    paintDots();
-    body.appendChild(dots);
     const submit = async () => {
       if (typed.length !== 4) return;
       if (mode === 'create') {
@@ -3232,21 +3241,39 @@ function pinSheet(mode, arrowsDefault, done) {
       b.onclick = onClick;
       return b;
     };
-    if (arrows) {
-      const pad = el('div', 'pin-pad');
-      pad.append(el('span'), key('↑', () => enter('U'), 'u'), el('span'));
-      pad.append(key('←', () => enter('L'), 'l'), el('span'), key('→', () => enter('R'), 'r'));
-      pad.append(el('span'), key('↓', () => enter('D'), 'd'), el('span'));
-      body.appendChild(pad);
-    } else {
-      const pad = el('div', 'pin-num');
-      for (const n of ['1', '2', '3', '4', '5', '6', '7', '8', '9']) pad.appendChild(key(n, () => enter(n)));
-      // 下排只有 0: 左右各留空格, 0 落在中间那一列
-      pad.appendChild(el('span'));
-      pad.appendChild(key('0', () => enter('0'), 'zero'));
-      pad.appendChild(el('span'));
-      body.appendChild(pad);
-    }
+    // 数字/方向键切换只在当前弹层内重画, 不再重开一层 sheet(否则反复点会叠多个弹窗)。
+    const renderAll = () => {
+      body.replaceChildren();
+      paintTitle();
+      body.append(titleEl, metaEl);
+      if (mode === 'create') {
+        const tabs = el('div', 'ptabs');
+        [t('pin_digits'), t('pin_arrows')].forEach((label, i) => {
+          const b = el('button', '', label); b.type = 'button';
+          b.setAttribute('aria-checked', (!arrows) === (i === 0) ? 'true' : 'false');
+          b.onclick = () => { if (arrows !== (i === 1)) { arrows = i === 1; typed = ''; renderAll(); } };
+          tabs.appendChild(b);
+        });
+        body.appendChild(tabs);
+      }
+      body.appendChild(dots); paintDots();
+      if (arrows) {
+        const pad = el('div', 'pin-pad');
+        pad.append(el('span'), key('↑', () => enter('U'), 'u'), el('span'));
+        pad.append(key('←', () => enter('L'), 'l'), el('span'), key('→', () => enter('R'), 'r'));
+        pad.append(el('span'), key('↓', () => enter('D'), 'd'), el('span'));
+        body.appendChild(pad);
+      } else {
+        const pad = el('div', 'pin-num');
+        for (const n of ['1', '2', '3', '4', '5', '6', '7', '8', '9']) pad.appendChild(key(n, () => enter(n)));
+        // 下排只有 0: 左右各留空格, 0 落在中间那一列
+        pad.appendChild(el('span'));
+        pad.appendChild(key('0', () => enter('0'), 'zero'));
+        pad.appendChild(el('span'));
+        body.appendChild(pad);
+      }
+    };
+    renderAll();
   });
 }
 
@@ -3391,37 +3418,20 @@ function openRegionSheet() {
 /* 最晚到时间选择: 与天气地区选择同一套弹层(时/分页签 + 滚动列表 + 确定), 不使用原生时间选择器。 */
 function openTimeSheet(mins, onPick) {
   let h = Math.floor(mins / 60) % 24, m = mins % 60;
-  let tab = 'hour';
   openSheet(body => {
-    const tabs = el('div', 'region-tabs');
-    const list = el('div', 'region-pick');
+    const wrap = el('div', 'time-input-row');
+    const hIn = el('input', 'pref-num'); hIn.type = 'number'; hIn.inputMode = 'numeric'; hIn.min = 0; hIn.max = 23; hIn.value = String(h).padStart(2, '0');
+    const colon = el('span', 'time-colon', ':');
+    const mIn = el('input', 'pref-num'); mIn.type = 'number'; mIn.inputMode = 'numeric'; mIn.min = 0; mIn.max = 59; mIn.value = String(m).padStart(2, '0');
+    wrap.append(hIn, colon, mIn);
     const confirm = el('button', 'pact region-confirm', t('reg_confirm')); confirm.type = 'button';
-    const tabsDef = [['hour', t('time_hour')], ['minute', t('time_minute')]];
-    function paintTabs() {
-      tabs.replaceChildren();
-      tabsDef.forEach(([key, label]) => {
-        const b = el('button', '', label); b.type = 'button';
-        b.setAttribute('aria-checked', tab === key ? 'true' : 'false');
-        b.onclick = () => { tab = key; paintAll(); };
-        tabs.appendChild(b);
-      });
-    }
-    function paintList() {
-      list.replaceChildren();
-      list.scrollTop = 0;
-      const opts = tab === 'hour' ? [...Array(24).keys()] : [...Array(60).keys()];
-      opts.forEach(v => {
-        const cur = tab === 'hour' ? h : m;
-        const b = el('button', '', String(v).padStart(2, '0')); b.type = 'button';
-        if (v === cur) b.classList.add('on');
-        b.onclick = () => { if (tab === 'hour') h = v; else m = v; paintAll(); };
-        list.appendChild(b);
-      });
-    }
-    confirm.onclick = () => { closeSheet(); onPick(h * 60 + m); };
-    function paintAll() { paintTabs(); paintList(); }
-    body.appendChild(tabs); body.appendChild(list); body.appendChild(confirm);
-    paintAll();
+    confirm.onclick = () => {
+      const nh = parseInt(hIn.value, 10), nm = parseInt(mIn.value, 10);
+      if (isNaN(nh) || nh < 0 || nh > 23 || isNaN(nm) || nm < 0 || nm > 59) { toast(t('toast_set_fail')); return; }
+      closeSheet(); onPick(nh * 60 + nm);
+    };
+    body.appendChild(wrap);
+    body.appendChild(confirm);
   }, 'mini-sheet');
 }
 async function submitRegion() {
