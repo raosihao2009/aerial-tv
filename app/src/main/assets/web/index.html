@@ -222,9 +222,9 @@
     flex: 0 1 40px; min-width: 0; padding: 0 6px; overflow: hidden; color: var(--secondary); font-size: 13px; cursor: pointer;
   }
   .gtabs button[aria-checked="true"] {
-    /* 选中格固定为五个汉字宽, 不随文案长短伸缩, 各 tab 高亮宽度一致。 */
+    /* 选中格固定宽度, 各 tab 高亮宽度一致; 宽度要同时放下图标与最多四字标签, 避免文字被截成省略号。 */
     background: var(--card); color: var(--label); font-weight: 600;
-    flex: 0 0 5em; width: 5em; min-width: 5em; padding: 0 8px;
+    flex: 0 0 7.4em; width: 7.4em; min-width: 7.4em; padding: 0 8px;
     box-shadow: 0 1px 3px rgba(0,0,0,.12);
   }
   .gtabs button .glabel { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -792,7 +792,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1187;
+const PAGE_VER = 1188;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1995,14 +1995,15 @@ function confirmSheet(message, okLabel, danger) {
   const panel = sheet.querySelector('.sheet');
   let id = null, x0 = 0, y0 = 0, t0 = 0, dy = 0, dragging = false;
   const touch = e => [...e.changedTouches].find(t => t.identifier === id);
-  // 可滚动容器在自己顶部才允许下拉关闭: 守护细则网格在 .kids-scroll 里, 要量它自己的滚动位置,
-  // 不能只看外层 panel.scrollTop(内部滚动时外层恒为 0)。
-  const scrollTopOf = target => { const sc = target.closest('.kids-scroll'); return sc ? sc.scrollTop : panel.scrollTop; };
+  // 真正的滚动容器是弹窗本身(.sheet, overflow-y:auto); .kids-scroll 只是普通包裹层, 自己不滚。
+  // 之前误去量 kids-scroll.scrollTop(恒为 0), 会把"内容正在内部向上滚"误判成"还在顶部",
+  // 于是上滑内容被下拉手势接管、上下滑动卡住。这里统一读弹窗自身的滚动位置。
+  const scrollTop = () => panel.scrollTop;
   panel.addEventListener('touchstart', e => {
     if (id !== null || e.touches.length !== 1) return;
-    // 地区选择列表内部自己滚, 不接管下拉关闭, 否则上滑/下拉都会被当成关闭手势。
-    if (e.target.closest('.region-pick')) return;
-    if (scrollTopOf(e.target) > 0) return;
+    // 地区选择列表 / 图库网格内部自己滚, 不接管下拉关闭, 否则上滑/下拉都会被当成关闭手势。
+    if (e.target.closest('.region-pick, .libgrid')) return;
+    if (scrollTop() > 0) return;
     const t = e.touches[0];
     id = t.identifier; x0 = t.clientX; y0 = t.clientY; t0 = performance.now(); dy = 0; dragging = false;
   }, { passive: true });
@@ -2010,13 +2011,13 @@ function confirmSheet(message, okLabel, danger) {
     const t = touch(e); if (!t) return;
     const d = t.clientY - y0;
     if (!dragging) {
-      // A sideways or upward move is not a pull: let it scroll or tap as usual.
+      // 上滑或横移: 不是下拉, 让它滚动或点按, 不拦截。
       if (d < 0 || Math.abs(t.clientX - x0) > Math.abs(d)) { id = null; return; }
       if (d < 8) return;
       dragging = true; panel.style.transition = 'none';
     }
-    // 拖动过程中若内容已离开顶部(内部在滚), 立刻交还滚动, 不拦截、不跟随, 保证内容能上下滑。
-    if (scrollTopOf(e.target) > 0) {
+    // 拖动过程中内容已离开顶部(内部在滚), 立刻交还滚动, 不拦截、不跟随, 保证内容能上下滑。
+    if (scrollTop() > 0) {
       id = null; dragging = false;
       panel.style.transition = ''; panel.style.transform = ''; return;
     }
@@ -2934,7 +2935,7 @@ function renderTabs() {
     b.setAttribute('aria-checked', g.key === prefsTab ? 'true' : 'false');
     b.appendChild(groupIcon(g.key));
     if (g.key === prefsTab) b.appendChild(el('span', 'glabel', g.title));
-    b.onclick = () => { if (prefsTab === g.key) return; prefsTab = g.key; applyPrefsTab(); renderTabs(); };
+    b.onclick = () => { if (prefsTab === g.key) return; prefsTab = g.key; applyPrefsTab(); renderTabs(); window.scrollTo(0, 0); };
     bar.appendChild(b);
   }
   applyPrefsTab();

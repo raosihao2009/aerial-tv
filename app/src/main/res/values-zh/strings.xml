@@ -80,8 +80,8 @@
     <string name="wp_daily_latest">每日一图</string>
     <string name="wp_cat_photo">我的照片</string>
     <string name="wp_cat_live">动态</string>
-    <string name="wp_cat_daily">每日一图</string>
-    <string name="wp_cat_more">内置更多</string>
+    <string name="wp_cat_daily">每日精选</string>
+    <string name="wp_cat_more">更多</string>
     <string name="wp_live">动态航拍。在主屏幕第一排（双排时前两排）一直播放，再往下进入其余卡片时停在当前画面并留作壁纸，下次从这一帧接着播。</string>
     <string name="wp_photos_rotate">我的照片 · 定时换</string>
     <string name="wp_daily_note">必应每日一图，每天自动换成当天的。</string>

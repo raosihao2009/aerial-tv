@@ -50,6 +50,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -887,7 +888,8 @@ private fun WallpaperRows(takeFocus: Boolean) {
             if (videos.size > 1 || selected == Wallpapers.VIDEOS) add(Wallpaper(Wallpapers.VIDEOS, WallpaperKind.Video, videosTitle))
             addAll(videos)
             if (items.any { it.kind == WallpaperKind.Daily }) add(Wallpaper(Wallpapers.LATEST_DAILY, WallpaperKind.Daily, dailyTitle))
-            addAll(items.filter { it.kind == WallpaperKind.Daily && it.id == selected })
+            // 每日精选要列出全部历史每日一图, 不只留最新一张和当前选中那张。
+            addAll(items.filter { it.kind == WallpaperKind.Daily })
             val photos = items.filter { it.kind == WallpaperKind.Photo }
             // With two or more, one card takes turns through all of them, one a day (#27).
             if (photos.size > 1) add(Wallpaper(Wallpapers.ROTATE_PHOTOS, WallpaperKind.Photo, rotateTitle))
@@ -899,29 +901,75 @@ private fun WallpaperRows(takeFocus: Boolean) {
         }.filter { catOf(it.kind) == category }
     }
 
-    // 分类选项卡: 四颗一排, 左右键只在卡内走, 选中白底染字。
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(bottom = 8.dp)) {
-        val reqs = remember(categories.size) { List(categories.size) { FocusRequester() } }
-        categories.forEachIndexed { i, (key, label) ->
-            ChipButton(
-                stringResource(label),
-                on = category == key,
-                focusRequester = reqs.getOrNull(i),
-                leftTarget = reqs.getOrNull(i - 1),
-                rightTarget = reqs.getOrNull(i + 1),
-                blockLeft = i == 0,
-                blockRight = i == categories.lastIndex,
-                autoEdges = false,
-                onClick = { category = key },
-                onFocus = { _, _ -> },
-            )
+    // 分类选项卡: 仿守护弹窗的应用/直播分段条——外层灰底圆角胶囊, 选中段白底染字, 左右键在段内切换。
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
+        Pressable(
+            onClick = {},
+            focusedScale = 1.03f,
+            onKey = { e ->
+                if (e.type != KeyEventType.KeyDown) return@Pressable false
+                when (e.nativeKeyEvent.keyCode) {
+                    NativeKeyEvent.KEYCODE_DPAD_LEFT -> {
+                        val i = categories.indexOfFirst { it.first == category }
+                        if (i > 0) { category = categories[i - 1].first; Sounds.focusMoved() }
+                        true
+                    }
+                    NativeKeyEvent.KEYCODE_DPAD_RIGHT -> {
+                        val i = categories.indexOfFirst { it.first == category }
+                        if (i < categories.lastIndex) { category = categories[i + 1].first; Sounds.focusMoved() }
+                        true
+                    }
+                    else -> false
+                }
+            },
+        ) { st ->
+            Row(
+                Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Palette.Fill)
+                    .height(32.dp)
+                    .padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                categories.forEach { (key, label) ->
+                    val active = category == key
+                    Row(
+                        Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(
+                                when {
+                                    active && st.focused -> Palette.Focus
+                                    active -> Palette.FillStrong
+                                    else -> Color.Transparent
+                                },
+                            )
+                            .height(24.dp)
+                            .padding(horizontal = 13.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        BasicText(
+                            stringResource(label),
+                            style = Type.Callout.copy(
+                                color = when {
+                                    active && st.focused -> Palette.OnFocus
+                                    active -> Palette.Label
+                                    st.focused -> Palette.Label
+                                    else -> Palette.SecondaryLabel
+                                },
+                            ),
+                        )
+                    }
+                }
+            }
         }
     }
 
     var note by remember { mutableStateOf<String?>(null) }
+    val scroll = rememberLazyListState()
     // A row clips to its bounds, and the focused card grows by 8%: room on the left for that,
     // with the row moved back by as much so the cards still line up with the titles.
     LazyRow(
+        state = scroll,
         modifier = Modifier
             .offset(x = (-10).dp)
             // 画到自己的离屏层里, 才能用 DstIn 做左右两端的淡入淡出(不做层的话会连外面的壁纸一起擦掉)。
@@ -934,20 +982,28 @@ private fun WallpaperRows(takeFocus: Boolean) {
                     this@drawWithContent.drawContent()
                 }
                 // 左右各留一段渐隐: 卡片滚到边上时慢慢化掉, 而不是被硬切。
+                // 已贴到首张时不画左侧过渡层, 已贴到最后一张时不画右侧过渡层。
                 val fade = 26.dp.toPx()
                 val w = size.width.coerceAtLeast(1f)
                 if (w > fade * 2) {
-                    drawRect(
-                        brush = Brush.horizontalGradient(
-                            0f to Color.Transparent,
-                            (fade / w) to Color.Black,
-                            (1f - fade / w) to Color.Black,
-                            1f to Color.Transparent,
-                        ),
-                        topLeft = Offset(0f, -focusRoom),
-                        size = Size(w, size.height + focusRoom * 2),
-                        blendMode = BlendMode.DstIn,
-                    )
+                    val atStart = scroll.firstVisibleItemIndex == 0
+                    val atEnd = scroll.layoutInfo.visibleItemsInfo.lastOrNull()?.index == list.lastIndex
+                    if (!atStart) {
+                        drawRect(
+                            brush = Brush.horizontalGradient(0f to Color.Transparent, (fade / w) to Color.Black),
+                            topLeft = Offset(0f, -focusRoom),
+                            size = Size(fade, size.height + focusRoom * 2),
+                            blendMode = BlendMode.DstIn,
+                        )
+                    }
+                    if (!atEnd) {
+                        drawRect(
+                            brush = Brush.horizontalGradient((1f - fade / w) to Color.Black, 1f to Color.Transparent),
+                            topLeft = Offset(w - fade, -focusRoom),
+                            size = Size(fade, size.height + focusRoom * 2),
+                            blendMode = BlendMode.DstIn,
+                        )
+                    }
                 }
             },
         horizontalArrangement = Arrangement.spacedBy(18.dp),

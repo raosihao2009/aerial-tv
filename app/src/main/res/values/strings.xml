@@ -82,7 +82,7 @@
     <string name="wp_cat_photo">Photos</string>
     <string name="wp_cat_live">Moving</string>
     <string name="wp_cat_daily">Daily</string>
-    <string name="wp_cat_more">Built-in</string>
+    <string name="wp_cat_more">More</string>
     <string name="wp_live">Moving aerial films. They play while Home is on the top row (either row in two rows) and stop on the frame showing when you go further down to the apps, which stays as the picture; the next film picks up from there.</string>
     <string name="wp_photos_rotate">My Photos, in Turn</string>
     <string name="wp_daily_note">Bing\'s photo of the day, changing to the new one every day.</string>
