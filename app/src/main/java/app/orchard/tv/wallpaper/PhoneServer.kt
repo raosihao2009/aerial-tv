@@ -281,6 +281,8 @@ class PhoneServer private constructor(private val context: Context, private val 
                     val f = form(session)
                     var ok = false
                     onMain { ok = PhonePrefs.set(f["key"].orEmpty(), f["value"].orEmpty()) }
+                    val pk = f["key"].orEmpty()
+                    if (pk.startsWith("kids")) app.orchard.tv.system.DiagLog.i("手机页守护: $pk=${f["value"].orEmpty()} -> saved=$ok")
                     json(JSONObject().put("ok", ok))
                 }
                 session.method == Method.POST && path == "/api/focus" -> {

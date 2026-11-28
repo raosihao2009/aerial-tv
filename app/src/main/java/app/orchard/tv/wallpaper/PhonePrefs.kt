@@ -19,6 +19,8 @@ import app.orchard.tv.settings.UiSounds
 import app.orchard.tv.system.HomeStatus
 import app.orchard.tv.system.Sounds
 import app.orchard.tv.system.SystemProbe
+import app.orchard.tv.system.DiagLog
+import app.orchard.tv.guard.KidsWatch
 import app.orchard.tv.update.Updates
 import org.json.JSONArray
 import org.json.JSONObject
@@ -459,11 +461,14 @@ object PhonePrefs {
                 }
             }
             "kidsEnabled" -> {
-                if (on && Restricted.allowed.isEmpty()) false else {
-                    Restricted.chooseEnabled(on)
-                    if (on) Restricted.start()
-                    true
-                }
+                // 首次进来还没勾卡片时, 先按规矩补齐必选卡片, 否则闸门会把开启拦下,
+                // 表现为手机端点进入、电视桌面纹丝不动(电视端本地入口并不校验空列表)。
+                if (on && Restricted.allowed.isEmpty()) ModeRules.apply(emptyList())
+                Restricted.chooseEnabled(on)
+                if (on) Restricted.start()
+                KidsWatch.poke()
+                DiagLog.i("守护: enabled=$on active=${Restricted.active} suspended=${Restricted.suspended} kind=${Restricted.kind.key} allowed=${Restricted.allowed.size}")
+                true
             }
             "kidsKind" -> {
                 if (RestrictedKind.entries.none { it.key == value }) return false
@@ -495,6 +500,7 @@ object PhonePrefs {
                 if (list.isEmpty()) false else {
                     // 必选卡片补齐、该撤的预览卡片撤掉, 都在 ModeRules 里, 与电视设置页一致。
                     ModeRules.apply(list, candidates)
+                    DiagLog.i("守护: 允许卡片=${Restricted.allowed.size}")
                     true
                 }
             }

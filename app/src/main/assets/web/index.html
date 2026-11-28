@@ -319,7 +319,8 @@
     background: rgba(0,0,0,.55); color: #fff; font-size: 10px; line-height: 14px;
   }
   .kcard[aria-checked="true"] .kpic img { opacity: 1; }
-  .kcard[aria-checked="true"] { outline: 2px solid var(--tint); outline-offset: -2px; border-radius: 8px; }
+  /* 选中描边只落在封面盒上, 不把下方标题文字也圈进框里。 */
+  .kcard[aria-checked="true"] .kpic { outline: 2px solid var(--tint); outline-offset: -2px; border-radius: 8px; }
   .knum {
     position: absolute; top: 4px; left: 4px; min-width: 18px; height: 18px; border-radius: 9px; padding: 0 4px;
     background: var(--tint); color: #fff; font-size: 11px; line-height: 18px; text-align: center; font-weight: 600;
@@ -546,7 +547,9 @@
   .sheet .meta { text-align: center; font-size: 13px; color: var(--secondary); margin: 0 0 16px; }
   /* 守护弹窗: 头部一组(标题+说明+操作按钮)钉在最上面, 给谁用/其他卡片/网格在中间独立滚动;
      操作按钮不沉到底部, 避免被气泡底边截断。老 WebView 不依赖外层 scrollTop 置顶。 */
-  /* 守护弹窗: 与卡片详情弹窗同一套流式布局, 内容自适应高度, 外层 .sheet 自身滚动。 */
+  /* 守护弹窗: 与卡片详情弹窗同一套流式布局, 内容自适应高度, 外层 .sheet 自身滚动。
+     内容比详情窗多(细则+网格), 封顶比通用弹窗矮一档, 不贴满全屏; 超出由外层滚动。 */
+  .sheet.kids-sheet { max-height: calc(100% - 24vh); }
   .kids-head { flex: none; }
   .kids-scroll .kids-actions { margin-bottom: 10px; }
   .kids-scroll { overscroll-behavior: contain; }
@@ -782,7 +785,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1184;
+const PAGE_VER = 1185;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -3057,7 +3060,7 @@ function openKidsSheet() {
     // 细则卡(给谁用/拦截/时长等); 不再整体置灰锁定, 未开启也可直接查看与调整。
     for (const it of k.items || []) {
       if (it.key === 'kidsEnabled') continue;
-      try { scroll.appendChild(prefCard({ ...it, disabled: false }, renderPrefs)); }
+      try { scroll.appendChild(prefCard({ ...it, disabled: false }, afterKidsChange)); }
       catch (e) { console.error('kids 细则卡渲染失败:', it && it.key, e); }
     }
 
@@ -3097,7 +3100,7 @@ function openKidsSheet() {
             const now = allowed.slice();
             const next = pos >= 0 ? now.filter(v => v !== c.value) : now.concat([c.value]);
             tile.disabled = true;
-            setPref('kidsAllowed', next.join('\n'), refresh);
+            setPref('kidsAllowed', next.join('\n'), afterKidsChange);
           };
         }
         grid.appendChild(tile);
