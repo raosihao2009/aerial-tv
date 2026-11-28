@@ -196,12 +196,13 @@
   }
   .pact.soft:active { background: var(--fill); box-shadow: inset 0 0 0 .5px rgba(60,60,67,.10); }
   .pact.soft.danger { color: var(--danger); }
-  /* 守护入口: 标题+说明在上, 按钮整行全宽铺到卡片下方(单按钮不再只包内容宽度)。 */
-  .kids-entry { flex-direction: column; align-items: stretch; gap: 10px; }
+  /* 守护入口: 标题说明在左, 操作按钮排在右侧。 */
+  .kids-entry { align-items: center; gap: 10px; }
   .kids-entry .txt { flex: 1 1 auto; min-width: 0; }
   .kids-entry .ptitle-line { font-size: 17px; font-weight: 400; color: var(--label); }
   .kids-entry .sub { margin-top: 3px; }
-  .kids-go { width: 100%; flex: 1 1 auto; justify-content: center; display: inline-flex; align-items: center; padding: 12px 10px; }
+  .kids-entry-actions { display: flex; gap: 8px; flex: none; margin-left: auto; }
+  .kids-go { flex: 1 1 auto; justify-content: center; display: inline-flex; align-items: center; padding: 12px 10px; }
   /* 入口是一张展示卡, 整行不做按下染色/下沉; 只有内部按钮自己保留按压态。
      选择器带上 .item 提高优先级, 压过基础 button.item:active 的染色规则。 */
   .item.kids-entry:active { background: none; }
@@ -232,6 +233,9 @@
   }
   .gtabs button .glabel { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .gtabs svg { width: 18px; height: 18px; flex: none; }
+  /* 模式中只留家庭守护一颗: 高亮占满整条宽度。 */
+  .gtabs.solo button { flex: 1 1 auto; width: 100%; }
+  .gtabs.solo button[aria-checked="true"] { flex: 1 1 auto; width: 100%; }
   /* 其他页的三颗选项卡: 都带图标和名字, 平分一行; 选中的那颗白底染一个字色。 */
   #otabs { margin: 22px 0 6px; }
   .otabs button, .otabs button[aria-checked="true"] {
@@ -552,14 +556,10 @@
   .item .ithumb { width: 64px; aspect-ratio: 16 / 9; border-radius: 6px; object-fit: cover; margin-right: 12px; flex: none; background: var(--fill); }
   .sheet h3 { text-align: center; font-size: 17px; font-weight: 600; margin: 12px 0 2px; }
   .sheet .meta { text-align: center; font-size: 13px; color: var(--secondary); margin: 0 0 16px; }
-  /* 守护弹窗: 头部一组(标题+说明+操作按钮)钉在最上面, 给谁用/其他卡片/网格在中间独立滚动;
-     操作按钮不沉到底部, 避免被气泡底边截断。老 WebView 不依赖外层 scrollTop 置顶。 */
-  /* 守护弹窗: 与卡片详情弹窗同一套流式布局, 内容自适应高度, 外层 .sheet 自身滚动。
-     内容比详情窗多(细则+网格), 封顶比通用弹窗矮一档, 不贴满全屏; 超出由外层滚动。 */
-  .sheet.kids-sheet { max-height: calc(100% - 24vh); display: flex; flex-direction: column; overflow: hidden; }
-  .sheet.kids-sheet #sheetBody { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
-  .kids-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-  .kids-head { flex: none; }
+  /* 守护弹窗: 与卡片详情弹窗同一套流式布局, 外层 .sheet 自身滚动; 页签随内容一起滚,
+     滚到顶部时吸顶(sticky), 不做全局钉死。 */
+  .sheet.kids-sheet { max-height: calc(100% - 24vh); }
+  .ptabs { position: sticky; top: 0; z-index: 3; background: var(--card); border-radius: 10px; }
   .kids-scroll .kids-actions { margin-bottom: 10px; }
   /* 时间选择微型窗口: 收窄宽度、限高, 整体紧凑不占满整屏抽屉。 */
   .sheet.mini-sheet { max-width: 320px; max-height: 58vh; }
@@ -802,7 +802,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1191;
+const PAGE_VER = 1192;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -1874,6 +1874,14 @@ function setTitle() {
   const bar = $('#gtabs'); if (bar) bar.hidden = tab !== 'more';
   measureHead();
 }
+/* 模式中: 底部只留「个性化」, 隐藏应用/直播; 并把默认页落到个性化(该页免验密码)。 */
+function applyNavMode() {
+  const { active } = kidsMode();
+  document.querySelectorAll('nav button').forEach(b => {
+    b.hidden = active && b.dataset.go !== 'more';
+  });
+  if (active && tab !== 'more') show('more');
+}
 function show(next, keepScroll) {
   next = OLD_TABS[next] || next;
   if (!TABS.includes(next)) next = 'home';
@@ -1903,7 +1911,8 @@ function animateIn(el) { if (!el) return; el.classList.remove('push', 'pop'); vo
 let moreUnlocked = false;
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
   const go = b.dataset.go;
-  if (go === 'more' && !moreUnlocked) {
+  // 进入守护模式后个性化页免验密码; 其余情形仍先核对家长密码。
+  if (go === 'more' && !moreUnlocked && !kidsMode().active) {
     const k = (prefs && prefs.kids) || {};
     if (k.pinSet) { pinSheet('verify', !!k.pinArrows, () => { moreUnlocked = true; show('more'); }); return; }
   }
@@ -2120,12 +2129,13 @@ function renderLive() {
   grid.onselectstart = e => e.preventDefault();
   grid.addEventListener('contextmenu', e => e.preventDefault());
   const selectedId = state.selectedLiveId || 'preset_0';
+  visible.forEach(s => warmIcon(`${base}live-icon/${encodeURIComponent(s.id)}?v=${Date.now()}`));
   visible.forEach(s => {
     const tile = el('div', 'atile'); tile.dataset.key = s.id; tile.setAttribute('role', 'button'); tile.tabIndex = 0;
     tile.setAttribute('aria-label', s.name);
     const pic = el('div', 'tpic');
     {
-      const img = el('img'); img.alt = ''; img.draggable = false; img.loading = 'lazy';
+      const img = el('img'); img.alt = ''; img.draggable = false;
       img.src = `${base}live-icon/${encodeURIComponent(s.id)}?v=${Date.now()}`;
       img.onerror = () => { pic.style.background='linear-gradient(135deg,#667eea,#764ba2)'; pic.style.display='grid'; pic.style.placeItems='center'; pic.style.color='#fff'; pic.innerHTML='<svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>'; img.remove(); };
       pic.appendChild(img);
@@ -2582,6 +2592,7 @@ async function loadPrefs() {
     // 家长密码开没开决定「隐藏的卡片」要不要先验密码: 一变就重画主屏那一段。
     const pinNow = !!((prefs.kids || {}).pinSet);
     renderPrefs();
+    applyNavMode();
     // state 还没到的时候不能重画主屏: 首次进页面这两件事是并发的。
     if (pinNow !== prefsPinSeen) { prefsPinSeen = pinNow; if (state) { renderArrange(false); renderLive(); } }
   } catch (e) {}
@@ -2949,7 +2960,12 @@ function renderTabs() {
   const all = [{ key: 'wallpaper', title: SAVER_TAB[LANG] || SAVER_TAB.en }]
     .concat((prefs && prefs.groups) || [])
     .concat([{ key: 'other', title: t('tab_other_more') }]);
-  for (const g of all) {
+  // 进入儿童/长辈模式后: 分类只留「家庭守护」一颗, 其余五个全部隐藏, 高亮占满整条宽度。
+  const { active } = kidsMode();
+  const list = active ? all.filter(g => g.key === 'family') : all;
+  if (active && prefsTab !== 'family') prefsTab = 'family';
+  bar.classList.toggle('solo', active);
+  for (const g of list) {
     if (!GROUP_ICONS[g.key] && g.key !== 'other') continue;
     const b = el('button', ''); b.type = 'button';
     b.setAttribute('role', 'tab');
@@ -2972,10 +2988,13 @@ function renderPrefs() {
     const host = $(PREFS_HOST[g.key]);
     if (!host || !g.items) continue;
     // 分类名字都在选项卡上, 正文不再重复标题。
+    const { active } = kidsMode();
     for (const it of g.items) {
       // 守护入口不再是「打开设置」气泡: 细则与勾选网格直接铺在本页。
       if (it.kind === 'open') continue;
-      host.appendChild(prefCard(it));
+      // 模式中家庭密码项整体置灰, 不可改动。
+      const disabled = active && it.key === 'pin';
+      host.appendChild(prefCard({ ...it, disabled }, null, null));
     }
     if (g.key === 'family') paintKidsEntry(host);
   }
@@ -3074,22 +3093,49 @@ async function kidsStart() {
 
 async function afterKidsChange() { await loadPrefs(); refresh(); if (!sheet.hidden && window.__kidsRebuild) window.__kidsRebuild(); }
 
-/* 儿童与长辈模式: family 主页只留一条入口气泡(状态三态文案); 细则、勾选网格与操作按钮都在弹窗里。 */
+/* 守护三态: off 未配置 / suspended 挂起(验密后暂时退出, 可回到模式) / active 正在模式中。 */
+function kidsMode() {
+  const k = (prefs && prefs.kids) || {};
+  return { k, on: !!k.enabled, suspended: !!k.suspended, active: !!k.enabled && !k.suspended };
+}
+
+/* 儿童与长辈模式: family 主页只留一条入口气泡; 细则、勾选网格与操作按钮都在弹窗里。 */
 let kidsTab = 0;
 function paintKidsEntry(host) {
-  const k = prefs && prefs.kids; if (!k) return;
+  const m = kidsMode(); const k = m.k; if (!k) return;
   const card = el('div', 'list pcard');
-  const row = el('button', 'item kids-entry'); row.type = 'button';
+  const row = el('div', 'item kids-entry');
   const txt = el('span', 'txt');
   txt.appendChild(el('span', 'ptitle-line', t('kids_title')));
   if (k.hint) txt.appendChild(el('span', 'sub', k.hint));
-  // 右侧是一颗蓝色字的 soft 按钮; 文案随三态: 已关闭 / 处于长辈模式 / 处于儿童模式, 均为前往设置。
-  const rowKey = !k.enabled ? 'kids_row_off' : (k.kind === 'elders' ? 'kids_row_elders' : 'kids_row_kids');
-  const go = el('button', 'pact soft kids-go', t(rowKey));
-  go.type = 'button';
-  go.onclick = e => { e.stopPropagation(); openKidsSheet(); };
-  row.append(txt, go);
-  row.onclick = openKidsSheet;
+  row.appendChild(txt);
+
+  const actions = el('div', 'kids-entry-actions');
+  if (!m.on) {
+    // 未配置: 蓝色「已关闭·前往设置」。
+    const go = el('button', 'pact soft kids-go', t('kids_row_off'));
+    go.type = 'button';
+    go.onclick = () => openKidsSheet();
+    actions.appendChild(go);
+  } else if (m.active) {
+    // 正在模式中: 红色「退出儿童/长辈模式」, 验密通过后退出模式。
+    const leave = el('button', 'pact soft danger kids-go',
+      t(k.kind === 'elders' ? 'kids_leave_elders' : 'kids_leave_kids'));
+    leave.type = 'button';
+    leave.onclick = () => kidsLeave();
+    actions.appendChild(leave);
+  } else {
+    // 挂起: 左「回到模式」(蓝, 免密), 右「前往设置」(蓝)。
+    const back = el('button', 'pact soft kids-go',
+      t(k.kind === 'elders' ? 'kids_back_elders' : 'kids_back_kids'));
+    back.type = 'button';
+    back.onclick = () => kidsStart();
+    const go = el('button', 'pact soft kids-go', t('kids_open'));
+    go.type = 'button';
+    go.onclick = () => openKidsSheet();
+    actions.append(back, go);
+  }
+  row.appendChild(actions);
   card.appendChild(row);
   host.appendChild(card);
 }
@@ -3165,8 +3211,8 @@ function openKidsSheetBody() {
       }
       gridWrap.appendChild(grid);
     }
-    // 页签钉在弹窗顶部(不随网格滚); 提示句留在滚动列表里随内容一起滚。
-    body.appendChild(tabs);
+    // 页签随内容一起滚, 滚到顶部时吸顶(sticky); 提示句留在滚动列表里随内容一起滚。
+    scroll.appendChild(tabs);
     if (k.appsHint) scroll.appendChild(el('p', 'foot', k.appsHint));
     scroll.appendChild(gridWrap);
     paintTabs(); paintGrid();
@@ -3742,6 +3788,11 @@ let arrDragging = false;       // while a tile is held, nothing re-renders under
 let arrPending = false;        // a state that arrived mid-drag, rendered on drop
 function tileImg(e) { const i = el('img', 'thumb'); i.alt = ''; i.src = `${base}tile/${encodeURIComponent(e.key)}?v=${e.stamp}`; return i; }
 
+/* 预热图标缓存: Image 对象必须留在引用里, 否则低端 WebView 可能在请求完成前回收对象、中断下载;
+   缓存命中后 DOM 里的 <img> 直接走内存缓存, 整排并行出现, 不一张张先后冒。 */
+const iconWarm = [];
+function warmIcon(url) { const p = new Image(); p.src = url; iconWarm.push(p); }
+
 async function lay(params, done) {
   try {
     const next = await api('api/layout', params);
@@ -3847,7 +3898,7 @@ function tileGrid(entries, shelf) {
   const grid = el('div', 'agrid');
   grid.style.setProperty('--cols', homeCols());
   // 先把这一排所有图标 URL 一次性预取进缓存, 渲染时浏览器并行从缓存取, 不再一张张先后冒出来。
-  for (const e of entries) { const p = new Image(); p.src = `${base}tile/${encodeURIComponent(e.key)}?v=${e.stamp}`; }
+  for (const e of entries) warmIcon(`${base}tile/${encodeURIComponent(e.key)}?v=${e.stamp}`);
   if (shelf && entries.length) grid.appendChild(el('div', 'shelf'));
   for (const e of entries) {
     const tile = el('div', 'atile'); tile.dataset.key = e.key; tile.setAttribute('role', 'button'); tile.tabIndex = 0;
@@ -3998,7 +4049,7 @@ async function libraryChooser(a) {
   const apps = (lib.apps || []).slice().sort((x, y) => (y.app === a.key) - (x.app === a.key));
   for (const app of apps) for (const pic of app.choices) {
     const b = el('button', 'libpic'); b.setAttribute('aria-label', app.app);
-    const img = el('img'); img.alt = ''; img.loading = 'lazy'; img.src = lib.base + pic.p;
+    const img = el('img'); img.alt = ''; img.src = lib.base + pic.p;
     img.onerror = () => b.remove();
     b.appendChild(img);
     b.onclick = async () => {

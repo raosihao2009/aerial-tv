@@ -745,7 +745,8 @@ class PhoneServer private constructor(private val context: Context, private val 
         bmp.recycle()
         val bytes = out.toByteArray()
         return newFixedLengthResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(bytes), bytes.size.toLong()).apply {
-            addHeader("Cache-Control", "no-store")
+            // 短缓存: 图标是同一渲染结果, 预热/二次渲染命中缓存; 自定义图标更换后 URL 带新 stamp 自动破缓存。
+            addHeader("Cache-Control", "max-age=300")
         }
     }
 
@@ -758,7 +759,7 @@ class PhoneServer private constructor(private val context: Context, private val 
         bmp.recycle()
         val bytes = out.toByteArray()
         return newFixedLengthResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(bytes), bytes.size.toLong()).apply {
-            addHeader("Cache-Control", "no-cache")
+            addHeader("Cache-Control", "max-age=300")
         }
     }
 

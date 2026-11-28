@@ -165,6 +165,10 @@ private fun SetupSettings(hasApps: Boolean, onStart: () -> Unit, first: FocusReq
         withFrameNanos { }
         runCatching { first.requestFocus() }
     }
+    // 关掉模式后那颗关闭按钮随重组消失, 焦点所有者一并丢掉: 主动把焦点还给面板首项, 免得整页失焦。
+    LaunchedEffect(Restricted.enabled) {
+        if (!Restricted.enabled) runCatching { first.requestFocus() }
+    }
     val kids = Restricted.kind == RestrictedKind.Kids
     val rules = Restricted.rules
     val guard = HomeGuardService.isRunning
