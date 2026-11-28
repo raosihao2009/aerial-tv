@@ -27,7 +27,7 @@
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   /* 滑到顶/底继续拖时, 浏览器默认会做一段回弹(带下拉刷新), 安卓 WebView 还会把整页拉伸。
      这里两层一起关: CSS 这层管浏览器和 WebView 的页面侧, 遥控器里另外把 View 的 overscroll 也关了。 */
-  html, body { overscroll-behavior: none; overscroll-behavior-y: none; }
+  html, body { overscroll-behavior: none; overscroll-behavior-y: none; height: 100%; overflow: hidden; }
   /* 手机页一律不画滚动条: 滚动照样能用, 主页面、抽屉、日志、横排壁纸那些条都藏起来。 */
   * { scrollbar-width: none; -ms-overflow-style: none; }
   *::-webkit-scrollbar { width: 0; height: 0; display: none; }
@@ -42,7 +42,9 @@
   /* A display rule would otherwise show what is hidden. */
   [hidden] { display: none !important; }
 
-  main { max-width: 720px; margin: 0 auto; padding: env(safe-area-inset-top) 16px calc(var(--tabbar) + 32px); }
+  /* 主界面自己当滚动容器(和弹窗 .sheet 同款内部滚动), 视口不再滚动: 这样右侧那条视口滚动条
+     就不会出现, 弹窗/日志框那种内部滚动条本来就藏着。 */
+  main { max-width: 720px; margin: 0 auto; height: 100vh; height: 100dvh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: env(safe-area-inset-top) 16px calc(var(--tabbar) + 32px); }
   header { padding: 28px 4px 4px; }
   header h1 { display: block; vertical-align: middle; font-size: 34px; font-weight: 700; letter-spacing: -.02em; margin: 0; }
   header p { margin: 2px 0 0; color: var(--secondary); font-size: 15px; }
@@ -273,9 +275,12 @@
     transition: background-color .12s ease, color .12s ease;
   }
   .pin-pad .pinkey:active, .pin-num .pinkey:active { background: var(--tint); color: #fff; }
-  .pnum { justify-content: flex-end; gap: 8px; }
-  .pnum .pref-num { width: 84px; }
-  .pnum .unit { color: var(--secondary); font-size: 13px; flex: none; }
+  .pnum { justify-content: flex-start; gap: 8px; }
+  .pnum .unit { color: var(--secondary); font-size: 13px; flex: none; white-space: nowrap; }
+  /* 自定义分钟数字: 与最晚到时间同款灰色圆角矩形, 居中显示。 */
+  .pnum .min-num { width: 64px; text-align: center; background: var(--fill); border-radius: 10px; padding: 10px 0; font-size: 16px; }
+  /* 自定义行(工作日/周末/休息/最晚到)不画按下置灰反馈。 */
+  .item.pnum:active { background: none; }
   .psld { gap: 10px; }
   /* 滑块: 轨道和蓝色进度各画一条, 圆点自己画, 位置按圆点半径收进去, 两头才对得上。 */
   .psld .rg { position: relative; flex: 1; min-width: 0; height: 30px; }
@@ -796,7 +801,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1189;
+const PAGE_VER = 1190;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -808,6 +813,10 @@ const pageVerCheck = (r) => {
 };
 const $ = s => document.querySelector(s);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+/* 主界面滚动容器(同弹窗内部滚动): 视口不滚, 滚动位置都挂在 main 上, 避免再出现视口滚动条。 */
+const scrollerEl = () => document.querySelector('main');
+const scrollY = () => scrollerEl() ? scrollerEl().scrollTop : 0;
+const setScrollY = y => { const m = scrollerEl(); if (m) m.scrollTop = Math.max(0, y); };
 let state = null, stateJson = '';
 /* 本次会话已核对通过的家长密码: 守护开启后, 后端闸门要求每次改动都带这个头。 */
 let sessionPin = '';
@@ -1555,7 +1564,7 @@ const EXTRA = {
         pin_back: "删除",
         pin_digits: "4 位数字", pin_arrows: "4 个方向键", pin_digits_hint: "输入 4 位数字。",
         pin_arrows_hint: "依次按 4 下方向键。", pin_verify_title: "输入家长密码", pin_wrong: "密码不对，请重试。",
-        custom: "自定义", custom_time: "自定义时间", must_keep: "必选",
+        custom: "自定义", custom_min: "自定义分钟", custom_time: "自定义时间", must_keep: "必选",
         time_hour: "时", time_minute: "分",
         kids_title: "儿童与长辈模式",
         kids_row_off: "已关闭·前往设置", kids_row_kids: "处于儿童模式·前往设置", kids_row_elders: "处于长辈模式·前往设置",
@@ -1586,7 +1595,7 @@ const EXTRA = {
         pin_back: "Delete",
         pin_digits: "4 digits", pin_arrows: "4 arrow keys", pin_digits_hint: "Type the 4 digits.",
         pin_arrows_hint: "Press four arrows in order.", pin_verify_title: "Enter the parental PIN", pin_wrong: "Wrong PIN — try again.",
-        custom: "Custom", custom_time: "Custom time", must_keep: "Required",
+        custom: "Custom", custom_min: "Custom minutes", custom_time: "Custom time", must_keep: "Required",
         time_hour: "Hour", time_minute: "Minute",
         kids_title: "Kids & Elders Mode",
         kids_row_off: "Off · Open settings", kids_row_kids: "Kids mode · Open settings", kids_row_elders: "Elders mode · Open settings",
@@ -1617,7 +1626,7 @@ const EXTRA = {
         pin_back: "Удалить",
         pin_digits: "4 цифры", pin_arrows: "4 стрелки", pin_digits_hint: "Введите 4 цифры.",
         pin_arrows_hint: "Нажмите четыре стрелки по порядку.", pin_verify_title: "Введите родительский PIN", pin_wrong: "PIN неверный — попробуйте снова.",
-        custom: "Вручную", custom_time: "Своё время", must_keep: "Обязательно",
+        custom: "Вручную", custom_min: "Свои минуты", custom_time: "Своё время", must_keep: "Обязательно",
         kids_row_off: "Выключено · Настройки", kids_row_kids: "Детский режим · Настройки", kids_row_elders: "Режим для старших · Настройки",
         mute: "Без звука", unmute: "Включить звук", unit_min: "мин", kids_open: "Открыть настройки",
         pin_new: "Задать родительский PIN", pin_off_title: "Отключить родительский PIN", pin_ph: "4 цифры",
@@ -1638,7 +1647,7 @@ const EXTRA = {
         pin_back: "Видалити",
         pin_digits: "4 цифри", pin_arrows: "4 стрілки", pin_digits_hint: "Введіть 4 цифри.",
         pin_arrows_hint: "Натисніть чотири стрілки по черзі.", pin_verify_title: "Введіть батьківський PIN", pin_wrong: "PIN неправильний — спробуйте ще раз.",
-        custom: "Вручну", custom_time: "Свій час", must_keep: "Обов’язково",
+        custom: "Вручну", custom_min: "Свої хвилини", custom_time: "Свій час", must_keep: "Обов’язково",
         kids_row_off: "Вимкнено · Налаштування", kids_row_kids: "Дитячий режим · Налаштування", kids_row_elders: "Режим для старших · Налаштування",
         mute: "Без звуку", unmute: "Увімкнути звук", unit_min: "хв", kids_open: "Відкрити налаштування",
         pin_new: "Задати батьківський PIN", pin_off_title: "Вимкнути батьківський PIN", pin_ph: "4 цифры",
@@ -1659,7 +1668,7 @@ const EXTRA = {
         pin_back: "Жою",
         pin_digits: "4 сан", pin_arrows: "4 бағыттағы перне", pin_digits_hint: "4 санды енгізіңіз.",
         pin_arrows_hint: "Төрт бағыт пернесін ретімен басыңыз.", pin_verify_title: "Ата-ана PIN-ін енгізіңіз", pin_wrong: "PIN дұрыс емес — қайталап көріңіз.",
-        custom: "Өзіңіз", custom_time: "Өз уақыты", must_keep: "Міндетті",
+        custom: "Өзіңіз", custom_min: "Өзіңіз минут", custom_time: "Өз уақыты", must_keep: "Міндетті",
         kids_row_off: "Өшірулі · Параметрлер", kids_row_kids: "Балалар режимі · Параметрлер", kids_row_elders: "Қариялар режимі · Параметрлер",
         mute: "Дыбысты өшіру", unmute: "Дыбысты қосу", unit_min: "мин", kids_open: "Параметрлерді ашу",
         power_off: "Күту режимі", power_off_confirm: "Теледидарды күту режиміне ауыстыру керек пе?", power_off_done: "Күту режимінде", power_off_fail: "Күту режиміне ауыстыру мүмкін болмады",
@@ -1869,10 +1878,10 @@ function show(next, keepScroll) {
   if (!TABS.includes(next)) next = 'home';
   if (tab === next) {
     if (tab === 'home' && arrView !== null) { arrView = null; renderArrange('back'); return; }
-    if (!keepScroll) window.scrollTo({ top: 0, behavior: scrollBehavior() });
+    if (!keepScroll) setScrollY(0);
     return;
   }
-  if (tab) scrolls[tab] = window.scrollY;
+  if (tab) scrolls[tab] = scrollY();
   tab = next;
   document.querySelectorAll('section[data-tab]').forEach(s => s.hidden = s.dataset.tab !== tab);
   // 切页签不再播放左右滑入动画: 低端电视 WebView 上动画期间整页重绘, 会把底部导航带得一闪一闪。
@@ -1883,7 +1892,7 @@ function show(next, keepScroll) {
   if (prefsTimer) { clearInterval(prefsTimer); prefsTimer = 0; }
   // 这一页要跟着电视走: 电视面板上改了, 手机上三秒内就该看到。
   if (tab === 'more') { loadPrefs(); wireUpdate(); prefsTimer = setInterval(loadPrefs, 3000); }
-  window.scrollTo(0, scrolls[tab] || 0);
+  setScrollY(scrolls[tab] || 0);
   try { localStorage.setItem('aerial-tab', tab); } catch (e) {}
   history.replaceState(null, '', '#' + tab);
 }
@@ -2598,7 +2607,7 @@ const toMinutes = v => { const p = String(v || '').split(':'); return Math.max(0
 /* 「自定义」那一行: 分钟数直接填, 最晚到那个时间是 HH:MM。 */
 function customRow(it, changed) {
   const row = el('div', 'item pnum');
-  row.appendChild(el('span', 'unit', it.clock ? t('custom_time') : t('custom')));
+  row.appendChild(el('span', 'unit', it.clock ? t('custom_time') : t('custom_min')));
   let inp;
   if (it.clock) {
     // 最晚到: 时/分两个输入框直接填在这张卡里, 不再弹出选择层。
@@ -2617,7 +2626,7 @@ function customRow(it, changed) {
     wrap.append(hIn, colon, mIn);
     row.appendChild(wrap);
   } else {
-    inp = el('input', 'pref-num'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.value = it.value;
+    inp = el('input', 'pref-num min-num'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.value = it.value;
     if (it.min !== undefined) inp.min = it.min;
     if (it.max !== undefined) inp.max = it.max;
     inp.disabled = !!it.disabled;
@@ -2946,7 +2955,7 @@ function renderTabs() {
     b.setAttribute('aria-checked', g.key === prefsTab ? 'true' : 'false');
     b.appendChild(groupIcon(g.key));
     if (g.key === prefsTab) b.appendChild(el('span', 'glabel', g.title));
-    b.onclick = () => { if (prefsTab === g.key) return; prefsTab = g.key; applyPrefsTab(); renderTabs(); window.scrollTo(0, 0); };
+    b.onclick = () => { if (prefsTab === g.key) return; prefsTab = g.key; applyPrefsTab(); renderTabs(); setScrollY(0); };
     bar.appendChild(b);
   }
   applyPrefsTab();
@@ -3667,7 +3676,7 @@ $('#diagBtn').onclick = async () => {
     // Bring the Copy button out from under the tab bar.
     // (Safari ignores scroll-margin in scrollIntoView, so measured by hand.)
     const over = $('#diagActions').getBoundingClientRect().bottom - (innerHeight - $('nav').offsetHeight - 16);
-    if (over > 0) window.scrollBy({ top: over, behavior: scrollBehavior() });
+    if (over > 0) setScrollY(scrollY() + over);
   } catch (e) { toast(t('toast_diag_fail')); b.textContent = t('diag_show'); }
   b.disabled = false;
 };
@@ -3686,7 +3695,7 @@ $('#diagDownload').onclick = () => {
 };
 /* 把一段文字塞进剪贴板: 页面在局域网 http 上, navigator.clipboard 用不了, 只能靠一个屏幕外的输入框。 */
 function copyText(text) {
-  const x = window.scrollX, y = window.scrollY;
+  const y = scrollY();
   const tmp = document.createElement('textarea');
   tmp.value = text; tmp.setAttribute('aria-hidden', 'true');
   tmp.style.cssText = 'position:fixed;top:0;left:-9999px;width:1px;height:1px;opacity:0;font-size:16px';
@@ -3696,12 +3705,12 @@ function copyText(text) {
     tmp.focus({ preventScroll: true }); tmp.select(); tmp.setSelectionRange(0, tmp.value.length);
     ok = document.execCommand('copy');
   } catch (e) {}
-  tmp.remove(); window.scrollTo(x, y);
+  tmp.remove(); setScrollY(y);
   return ok;
 }
 
 function copyDiag() {
-  const text = $('#diag').textContent, x = window.scrollX, y = window.scrollY;
+  const text = $('#diag').textContent, y = scrollY();
   const tmp = document.createElement('textarea');
   tmp.value = text; tmp.setAttribute('aria-hidden', 'true');
   tmp.style.cssText = 'position:fixed;top:0;left:-9999px;width:1px;height:1px;opacity:0;font-size:16px';
@@ -3711,7 +3720,7 @@ function copyDiag() {
     tmp.focus({ preventScroll: true }); tmp.select(); tmp.setSelectionRange(0, text.length);
     ok = document.execCommand('copy');
   } catch (e) {}
-  tmp.remove(); window.scrollTo(x, y);
+  tmp.remove(); setScrollY(y);
   if (!ok) {
     // Select the text in the box so the system's Copy is one tap away.
     const sel = window.getSelection(); sel.removeAllRanges();
@@ -3755,7 +3764,7 @@ function renderArrange(push) {
   $('#inputsBox').hidden = !(state.inputs || []).length || !!folderTile;
   if (tab) setTitle();
   placeShelves();
-  if (push) window.scrollTo(0, 0);
+  if (push) setScrollY(0);
 }
 
 let hiddenUnlocked = false;
@@ -4101,7 +4110,7 @@ function sortableGrid(grid, keys, onMove, onTap) {
       const bar = document.querySelector('nav').getBoundingClientRect();
       const top = 0, bottom = bar.top > innerHeight / 2 ? bar.top : innerHeight, zone = 70;
       const v = y < top + zone ? -(top + zone - y) / 4 : y > bottom - zone ? (y - (bottom - zone)) / 4 : 0;
-      if (v) { window.scrollBy(0, Math.max(-16, Math.min(16, v))); place(); }
+      if (v) { const m = scrollerEl(); if (m) m.scrollTop += Math.max(-16, Math.min(16, v)); place(); }
       raf = requestAnimationFrame(edge);
     };
     const finish = () => {

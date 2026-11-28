@@ -417,7 +417,27 @@ private fun CategoryTitle(glyph: Glyph, label: Int) {
 /** 壁纸: 卡片 + 只在这类壁纸下才问的两个问题。 */
 @Composable
 private fun WallpaperSection(takeFocus: Boolean) {
-    WallpaperRows(takeFocus)
+    val items = Wallpapers.items
+    val selected = Wallpapers.selectedId
+    fun catOf(kind: WallpaperKind) = when (kind) {
+        WallpaperKind.Photo -> "photos"
+        WallpaperKind.Live, WallpaperKind.Video -> "live"
+        WallpaperKind.Daily -> "daily"
+        else -> "more"
+    }
+    var category by remember {
+        mutableStateOf(catOf(items.firstOrNull { it.id == selected }?.kind ?: WallpaperKind.Photo))
+    }
+    // 标题行: 左边分类名「壁纸与屏保」, 右边紧跟壁纸分类分签(我的照片/动态/每日精选/更多)。
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        CategoryTitle(Glyph.Photo, R.string.wp_wallpaper_saver)
+        WallpaperCategoryBar(category) { category = it }
+    }
+    WallpaperRows(takeFocus, category)
     // Only for the owner's videos: whether keys stop them. The aerial films always move.
     if (Wallpapers.isVideo()) {
         Row2({
@@ -849,8 +869,80 @@ private fun FamilySection(onPin: (on: Boolean) -> Unit, onKids: () -> Unit) {
     Spacer(Modifier.height(12.dp))
 }
 
+/** 壁纸四类分类, 与手机端壁纸 Tab 对齐: 我的照片 / 动态 / 每日一图 / 内置更多。 */
+private val wallpaperCategories = listOf(
+    "photos" to R.string.wp_cat_photo,
+    "live" to R.string.wp_cat_live,
+    "daily" to R.string.wp_cat_daily,
+    "more" to R.string.wp_cat_more,
+)
+
+/** 壁纸分类分签: 仿守护弹窗的应用/直播分段条——外层灰底圆角胶囊, 选中段白底染字, 左右键在段内切换。 */
 @Composable
-private fun WallpaperRows(takeFocus: Boolean) {
+private fun WallpaperCategoryBar(category: String, onChange: (String) -> Unit) {
+    Pressable(
+        onClick = {},
+        focusedScale = 1.03f,
+        onKey = { e ->
+            if (e.type != KeyEventType.KeyDown) return@Pressable false
+            when (e.nativeKeyEvent.keyCode) {
+                NativeKeyEvent.KEYCODE_DPAD_LEFT -> {
+                    val i = wallpaperCategories.indexOfFirst { it.first == category }
+                    if (i > 0) { onChange(wallpaperCategories[i - 1].first); Sounds.focusMoved() }
+                    true
+                }
+                NativeKeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    val i = wallpaperCategories.indexOfFirst { it.first == category }
+                    if (i < wallpaperCategories.lastIndex) { onChange(wallpaperCategories[i + 1].first); Sounds.focusMoved() }
+                    true
+                }
+                else -> false
+            }
+        },
+    ) { st ->
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(50))
+                .background(Palette.Fill)
+                .height(32.dp)
+                .padding(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            wallpaperCategories.forEach { (key, label) ->
+                val active = category == key
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(
+                            when {
+                                active && st.focused -> Palette.Focus
+                                active -> Palette.FillStrong
+                                else -> Color.Transparent
+                            },
+                        )
+                        .height(24.dp)
+                        .padding(horizontal = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    BasicText(
+                        stringResource(label),
+                        style = Type.Callout.copy(
+                            color = when {
+                                active && st.focused -> Palette.OnFocus
+                                active -> Palette.Label
+                                st.focused -> Palette.Label
+                                else -> Palette.SecondaryLabel
+                            },
+                        ),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WallpaperRows(takeFocus: Boolean, category: String) {
     val items = Wallpapers.items
     val selected = Wallpapers.selectedId
     val first = remember { FocusRequester() }
@@ -863,21 +955,11 @@ private fun WallpaperRows(takeFocus: Boolean) {
     val rotateTitle = stringResource(R.string.wp_photos_rotate)
     val videosTitle = stringResource(R.string.wp_videos_rotate)
 
-    // 四类分类, 与手机端壁纸 Tab 对齐: 我的照片 / 动态 / 每日一图 / 内置更多。
-    val categories = listOf(
-        "photos" to R.string.wp_cat_photo,
-        "live" to R.string.wp_cat_live,
-        "daily" to R.string.wp_cat_daily,
-        "more" to R.string.wp_cat_more,
-    )
     fun catOf(kind: WallpaperKind) = when (kind) {
         WallpaperKind.Photo -> "photos"
         WallpaperKind.Live, WallpaperKind.Video -> "live"
         WallpaperKind.Daily -> "daily"
         else -> "more"
-    }
-    var category by remember {
-        mutableStateOf(catOf(items.firstOrNull { it.id == selected }?.kind ?: WallpaperKind.Photo))
     }
 
     val list = remember(items, selected, dailyTitle, rotateTitle, videosTitle, category) {
@@ -899,69 +981,6 @@ private fun WallpaperRows(takeFocus: Boolean) {
             // The inputs' pictures last: a choice for a home with a set-top box, not the usual one.
             addAll(items.filter { it.kind == WallpaperKind.Source })
         }.filter { catOf(it.kind) == category }
-    }
-
-    // 分类选项卡: 仿守护弹窗的应用/直播分段条——外层灰底圆角胶囊, 选中段白底染字, 左右键在段内切换。
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
-        Pressable(
-            onClick = {},
-            focusedScale = 1.03f,
-            onKey = { e ->
-                if (e.type != KeyEventType.KeyDown) return@Pressable false
-                when (e.nativeKeyEvent.keyCode) {
-                    NativeKeyEvent.KEYCODE_DPAD_LEFT -> {
-                        val i = categories.indexOfFirst { it.first == category }
-                        if (i > 0) { category = categories[i - 1].first; Sounds.focusMoved() }
-                        true
-                    }
-                    NativeKeyEvent.KEYCODE_DPAD_RIGHT -> {
-                        val i = categories.indexOfFirst { it.first == category }
-                        if (i < categories.lastIndex) { category = categories[i + 1].first; Sounds.focusMoved() }
-                        true
-                    }
-                    else -> false
-                }
-            },
-        ) { st ->
-            Row(
-                Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(Palette.Fill)
-                    .height(32.dp)
-                    .padding(4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                categories.forEach { (key, label) ->
-                    val active = category == key
-                    Row(
-                        Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(
-                                when {
-                                    active && st.focused -> Palette.Focus
-                                    active -> Palette.FillStrong
-                                    else -> Color.Transparent
-                                },
-                            )
-                            .height(24.dp)
-                            .padding(horizontal = 13.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        BasicText(
-                            stringResource(label),
-                            style = Type.Callout.copy(
-                                color = when {
-                                    active && st.focused -> Palette.OnFocus
-                                    active -> Palette.Label
-                                    st.focused -> Palette.Label
-                                    else -> Palette.SecondaryLabel
-                                },
-                            ),
-                        )
-                    }
-                }
-            }
-        }
     }
 
     var note by remember { mutableStateOf<String?>(null) }
@@ -1349,6 +1368,7 @@ private fun HiddenCell(
             entries.forEachIndexed { i, entry ->
                 HiddenChip(
                     entry, onFocus,
+                    focusRequester = reqs.getOrNull(i),
                     leftTarget = reqs.getOrNull(i - 1),
                     rightTarget = reqs.getOrNull(i + 1),
                     blockLeft = i == 0,
@@ -1364,6 +1384,7 @@ private fun HiddenCell(
 private fun HiddenChip(
     entry: HiddenEntry,
     onFocus: (Any, Boolean) -> Unit,
+    focusRequester: FocusRequester? = null,
     leftTarget: FocusRequester? = null,
     rightTarget: FocusRequester? = null,
     blockLeft: Boolean = false,
@@ -1387,6 +1408,7 @@ private fun HiddenChip(
         ChipButton(
             entry.chipText,
             on = false, chevron = true, check = false,
+            focusRequester = focusRequester,
             onClick = { window?.show(chipCenterX, chipTop, entry.onPick) },
             onFocus = onFocus,
             leftTarget = leftTarget, rightTarget = rightTarget,
