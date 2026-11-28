@@ -546,10 +546,10 @@
   .sheet .meta { text-align: center; font-size: 13px; color: var(--secondary); margin: 0 0 16px; }
   /* 守护弹窗: 头部一组(标题+说明+操作按钮)钉在最上面, 给谁用/其他卡片/网格在中间独立滚动;
      操作按钮不沉到底部, 避免被气泡底边截断。老 WebView 不依赖外层 scrollTop 置顶。 */
-  .sheet.kids-sheet { display: flex; flex-direction: column; overflow: hidden; }
+  /* 守护弹窗: 与卡片详情弹窗同一套流式布局, 内容自适应高度, 外层 .sheet 自身滚动。 */
   .kids-head { flex: none; }
   .kids-scroll .kids-actions { margin-bottom: 10px; }
-  .kids-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .kids-scroll { overscroll-behavior: contain; }
   .sheet .list { background: var(--card); }
   @media (prefers-color-scheme: dark) { .sheet .list { background: #2c2c2e; } }
   .sheet .list + .list { margin-top: 10px; }
@@ -782,7 +782,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1183;
+const PAGE_VER = 1184;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -3006,7 +3006,6 @@ async function kidsLeave() {
     try {
       await api('api/kids/leave', {});
       await afterKidsChange();
-      closeSheet();
     } catch (e) { toast(t('toast_set_fail')); }
   };
   if (sessionPin) doLeave();
@@ -3019,11 +3018,10 @@ async function kidsStart() {
     const r = await api('api/kids/start', {});
     if (r && r.saved === false) throw new Error('not allowed');
     await afterKidsChange();
-    closeSheet();
   } catch (e) { toast(t('toast_set_fail')); }
 }
 
-async function afterKidsChange() { await loadPrefs(); refresh(); }
+async function afterKidsChange() { await loadPrefs(); refresh(); if (!sheet.hidden && window.__kidsRebuild) window.__kidsRebuild(); }
 
 /* 儿童与长辈模式: family 主页只留一条入口气泡(状态三态文案); 细则、勾选网格与操作按钮都在弹窗里。 */
 let kidsTab = 0;
@@ -3046,9 +3044,9 @@ function paintKidsEntry(host) {
 }
 
 function openKidsSheet() {
-  const k = prefs && prefs.kids; if (!k) return;
-  const on = !!k.enabled, suspended = !!k.suspended;
-  openSheet(body => {
+  function build(body) {
+    const k = prefs && prefs.kids; if (!k) return;
+    const on = !!k.enabled, suspended = !!k.suspended;
     const scroll = el('div', 'kids-scroll');
     // 标题与说明随内容一起上下滚动, 不再钉在弹窗顶部。
     const head = el('div', 'kids-head');
@@ -3124,7 +3122,7 @@ function openKidsSheet() {
     if (!on) {
       const enter = el('button', 'pact soft', t(k.kind === 'elders' ? 'kids_start_elders' : 'kids_start_kids'));
       enter.type = 'button';
-      enter.onclick = async () => { enter.disabled = true; const ok = await setPref('kidsEnabled', '1', afterKidsChange); if (ok) closeSheet(); enter.disabled = false; };
+      enter.onclick = async () => { enter.disabled = true; await setPref('kidsEnabled', '1', afterKidsChange); enter.disabled = false; };
       row.appendChild(enter);
     } else {
       row.classList.add('cols-2');
@@ -3137,7 +3135,7 @@ function openKidsSheet() {
       row.appendChild(subBtn);
       const offBtn = el('button', 'pact soft danger', t('kids_turn_off'));
       offBtn.type = 'button';
-      offBtn.onclick = async () => { offBtn.disabled = true; const ok = await setPref('kidsEnabled', '0', afterKidsChange); if (ok) closeSheet(); offBtn.disabled = false; };
+      offBtn.onclick = async () => { offBtn.disabled = true; await setPref('kidsEnabled', '0', afterKidsChange); offBtn.disabled = false; };
       row.appendChild(offBtn);
     }
     wrap.appendChild(row);
@@ -3145,7 +3143,10 @@ function openKidsSheet() {
     // 操作卡排在标题之后、细则卡之前, 与其余内容同属一个滚动列表; 不钉底、不吸顶。
     scroll.insertBefore(actionCard, head.nextSibling);
     body.appendChild(scroll);
-  }, 'kids-sheet');
+  }
+  openSheet(build, 'kids-sheet');
+  // 操作保存后原地重建弹窗内容, 不经过 openSheet 压栈, 避免关闭时弹回旧快照层。
+  window.__kidsRebuild = () => { const body = $('#sheetBody'); body.replaceChildren(); build(body); };
 }
 
 /* 家长密码弹层: 4 位数字或 4 个方向键。create 设新的, verify 只核对, off 用现有密码关掉。 */
