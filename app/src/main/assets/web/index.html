@@ -557,19 +557,22 @@
   .sheet h3 { text-align: center; font-size: 17px; font-weight: 600; margin: 12px 0 2px; }
   .sheet .meta { text-align: center; font-size: 13px; color: var(--secondary); margin: 0 0 16px; }
   /* 守护弹窗: 配置卡与网格在同一滚动流里上下滚; 页签作为固定表头 sticky 钉在弹窗顶部。
-     表头条铺不透背景盖住从下方滚过的卡片; 胶囊本身仍走基础样式, 不改外形和底色。下缘同款渐隐过渡层。 */
-  .sheet.kids-sheet { max-height: calc(100% - 24vh); }
+     表头条铺不透背景盖住从下方滚过的卡片; 顶部内边距/外边距全部并入背景盒, 不留透明缝,
+     避免吸顶后卡片从条带上方漏出。胶囊本身仍走基础样式, 不改外形和底色。下缘同款渐隐过渡层。 */
+  .sheet.kids-sheet { max-height: calc(100% - 24vh); padding-top: 0; }
+  .kids-scroll .kids-head { padding-top: 8px; }
   .kids-scroll .ptabs-wrap {
     position: sticky; top: 0; z-index: 10;
     background: var(--sheet); background-color: var(--sheet);
-    margin: 6px -16px 5px; padding: 2px 16px 6px;
+    margin: 0 -16px; padding: 10px 16px 11px;
   }
   .kids-scroll .ptabs-wrap::after {
-    content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 10px;
+    content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 4px;
     background: var(--sheet);
-    -webkit-mask-image: linear-gradient(180deg, #000 0, #000 50%, transparent); mask-image: linear-gradient(180deg, #000 0, #000 50%, transparent);
-    pointer-events: none;
+    -webkit-mask-image: linear-gradient(180deg, #000 0, #000 30%, transparent); mask-image: linear-gradient(180deg, #000 0, #000 30%, transparent);
+    pointer-events: none; display: none;
   }
+  .kids-scroll .ptabs-wrap.pinned::after { display: block; }
   .kids-scroll .ptabs { margin: 0; }
   .kids-scroll .kcard { position: relative; z-index: 0; }
   .kids-scroll .kids-actions { margin-bottom: 10px; }
@@ -814,7 +817,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1200;
+const PAGE_VER = 1201;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -3268,9 +3271,18 @@ function openKidsSheetBody() {
     }
     wrap.appendChild(row);
     actionCard.appendChild(wrap);
-    // 操作卡排在标题之后、细则卡之前, 同属上方配置区; 不钉底、不吸顶。
     // 操作卡排在标题之后、细则卡之前, 同属一个滚动列表; 不钉底、不吸顶。
     scroll.insertBefore(actionCard, head.nextSibling);
+    // 吸顶状态: 页签贴到弹窗顶部后才显示下缘过渡层, 未滚动时过渡层不压首行卡片。
+    const panel = sheet.querySelector('.sheet');
+    const syncPin = () => {
+      const pr = panel.getBoundingClientRect(), wr = tabsWrap.getBoundingClientRect();
+      tabsWrap.classList.toggle('pinned', wr.top <= pr.top + 1);
+    };
+    if (panel.__kidsPin) panel.removeEventListener('scroll', panel.__kidsPin);
+    panel.addEventListener('scroll', syncPin);
+    panel.__kidsPin = syncPin;
+    syncPin();
     body.appendChild(scroll);
   }
   openSheet(build, 'kids-sheet');
