@@ -278,7 +278,7 @@
   .pnum { justify-content: flex-start; gap: 8px; }
   .pnum .unit { color: var(--secondary); font-size: 13px; flex: none; white-space: nowrap; }
   /* 自定义分钟数字: 与最晚到时间同款灰色圆角矩形, 居中显示。 */
-  .pnum .min-num { width: 64px; text-align: center; background: var(--fill); border-radius: 10px; padding: 10px 0; font-size: 16px; }
+  .pnum .min-num { width: 64px; margin-left: auto; text-align: center; background: var(--fill); border-radius: 10px; padding: 10px 0; font-size: 16px; }
   /* 自定义行(工作日/周末/休息/最晚到)不画按下置灰反馈。 */
   .item.pnum:active { background: none; }
   .psld { gap: 10px; }
@@ -329,7 +329,7 @@
   /* 选中描边只落在封面盒上, 不把下方标题文字也圈进框里。 */
   .kcard[aria-checked="true"] .kpic { outline: 2px solid var(--tint); outline-offset: -2px; border-radius: 8px; }
   .knum {
-    position: absolute; top: 4px; left: 4px; min-width: 18px; height: 18px; border-radius: 9px; padding: 0 4px;
+    position: absolute; top: 4px; right: 4px; min-width: 18px; height: 18px; border-radius: 9px; padding: 0 4px;
     background: var(--tint); color: #fff; font-size: 11px; line-height: 18px; text-align: center; font-weight: 600;
   }
   .knum:empty { display: none; }
@@ -556,10 +556,11 @@
      操作按钮不沉到底部, 避免被气泡底边截断。老 WebView 不依赖外层 scrollTop 置顶。 */
   /* 守护弹窗: 与卡片详情弹窗同一套流式布局, 内容自适应高度, 外层 .sheet 自身滚动。
      内容比详情窗多(细则+网格), 封顶比通用弹窗矮一档, 不贴满全屏; 超出由外层滚动。 */
-  .sheet.kids-sheet { max-height: calc(100% - 24vh); }
+  .sheet.kids-sheet { max-height: calc(100% - 24vh); display: flex; flex-direction: column; overflow: hidden; }
+  .sheet.kids-sheet #sheetBody { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .kids-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   .kids-head { flex: none; }
   .kids-scroll .kids-actions { margin-bottom: 10px; }
-  .kids-scroll { overscroll-behavior: contain; }
   /* 时间选择微型窗口: 收窄宽度、限高, 整体紧凑不占满整屏抽屉。 */
   .sheet.mini-sheet { max-width: 320px; max-height: 58vh; }
   .sheet.mini-sheet .region-pick { max-height: 170px; }
@@ -801,7 +802,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1190;
+const PAGE_VER = 1191;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -3137,19 +3138,21 @@ function openKidsSheetBody() {
       const allowed = k.allowed || [];
       const inPage = allowed.filter(v => list.some(c => c.value === v));
       if (!list.length) gridWrap.appendChild(el('p', 'meta', kidsTab === 0 ? (k.emptyApps || '') : (k.emptyLive || '')));
+      // 一次性预取这一组封面, 渲染时并行出现, 不逐个冒出来。
+      for (const c of list) { const p = new Image(); p.src = base + (c.art || ''); }
       const grid = el('div', 'kgrid');
       for (const c of list) {
         const tile = el('button', 'kcard'); tile.type = 'button';
         const pos = inPage.indexOf(c.value);
         tile.setAttribute('aria-checked', pos >= 0 ? 'true' : 'false');
-        const img = el('img'); img.src = base + (c.art || ''); img.alt = ''; img.loading = 'lazy';
+        const img = el('img'); img.src = base + (c.art || ''); img.alt = '';
         const pic = el('div', 'kpic'); pic.appendChild(img);
         const num = el('span', 'knum', pos >= 0 ? String(pos + 1) : '');
-        const cap = el('span', 'kc', c.label || c.value);
+        const capLabel = c.locked ? (c.label || c.value) + ' · ' + t('must_keep') : (c.label || c.value);
+        const cap = el('span', 'kc', capLabel);
         tile.append(pic, num, cap);
         if (c.locked) {
           tile.disabled = true;
-          tile.appendChild(el('span', 'klock', t('must_keep')));
         } else {
           tile.onclick = () => {
             const now = allowed.slice();
@@ -3162,7 +3165,8 @@ function openKidsSheetBody() {
       }
       gridWrap.appendChild(grid);
     }
-    scroll.appendChild(tabs);
+    // 页签钉在弹窗顶部(不随网格滚); 提示句留在滚动列表里随内容一起滚。
+    body.appendChild(tabs);
     if (k.appsHint) scroll.appendChild(el('p', 'foot', k.appsHint));
     scroll.appendChild(gridWrap);
     paintTabs(); paintGrid();
@@ -3736,7 +3740,7 @@ function copyDiag() {
 let arrView = null;            // null = Home, else the open folder's id
 let arrDragging = false;       // while a tile is held, nothing re-renders under it
 let arrPending = false;        // a state that arrived mid-drag, rendered on drop
-function tileImg(e) { const i = el('img', 'thumb'); i.alt = ''; i.loading = 'lazy'; i.src = `${base}tile/${encodeURIComponent(e.key)}?v=${e.stamp}`; return i; }
+function tileImg(e) { const i = el('img', 'thumb'); i.alt = ''; i.src = `${base}tile/${encodeURIComponent(e.key)}?v=${e.stamp}`; return i; }
 
 async function lay(params, done) {
   try {
@@ -3842,11 +3846,13 @@ function buildFolderView(view, folder, apps) {
 function tileGrid(entries, shelf) {
   const grid = el('div', 'agrid');
   grid.style.setProperty('--cols', homeCols());
+  // 先把这一排所有图标 URL 一次性预取进缓存, 渲染时浏览器并行从缓存取, 不再一张张先后冒出来。
+  for (const e of entries) { const p = new Image(); p.src = `${base}tile/${encodeURIComponent(e.key)}?v=${e.stamp}`; }
   if (shelf && entries.length) grid.appendChild(el('div', 'shelf'));
   for (const e of entries) {
     const tile = el('div', 'atile'); tile.dataset.key = e.key; tile.setAttribute('role', 'button'); tile.tabIndex = 0;
     tile.setAttribute('aria-label', e.label);
-    const pic = el('div', 'tpic'); const img = el('img'); img.alt = ''; img.draggable = false; img.loading = 'lazy';
+    const pic = el('div', 'tpic'); const img = el('img'); img.alt = ''; img.draggable = false;
     img.src = `${base}tile/${encodeURIComponent(e.key)}?v=${e.stamp}`; pic.appendChild(img);
     tile.append(pic, el('span', 'n', e.label));
     grid.appendChild(tile);
@@ -3908,59 +3914,60 @@ function tileSheet(e, inFolder, hidden) {
       } catch (err) { toast(t('toast_rename_fail')); }
     };
 
-    /* 卡片图标: 一张气泡 — 上面是图标来源, 下面是「选一张图片 / 恢复默认图标」。 */
-    const ic = el('div', 'list pcard'); body.appendChild(ic);
-    const ib = el('div', 'pbody'); ic.appendChild(ib);
-    if (a.source) {
-      const cur = (state.devices || []).find(d => d.key === a.device);
-      const b = el('button', 'item');
-      b.append(el('span', 'txt', t('source_device')), el('span', 'val', cur ? cur.label : t('source_plain')));
-      b.insertAdjacentHTML('beforeend', ICON.chev);
-      b.onclick = () => deviceChooser(a, e);
-      ib.appendChild(b);
-    }
-    // 图标库里有这个应用的图: 每一张按来源命名, 另有应用自带的图、或从这里手机发过去的图。
-    if (!a.source && a.library) {
-      const lib = `${base}library/${encodeURIComponent(a.key)}`;
-      const from = by => (by && (by[LANG] || by.name)) || '';
-      const library = (a.choices && a.choices.length ? a.choices : [{ id: '', on: a.icon === 'library' }]).map(c => ({
-        pick: 'library', choice: c.id, from: c.from || '', on: c.on, label: t('icon_library'), by: from(c.by),
-        src: c.id ? `${lib}?c=${encodeURIComponent(c.id)}&v=${a.stamp}` : `${lib}?v=${a.stamp}`,
-      }));
-      const choices = [...library,
-        { pick: 'own', on: a.icon === 'own', label: t('icon_own'), src: `${base}tile/${encodeURIComponent(a.key)}?art=own&v=${a.stamp}` },
-      ];
-      if (a.custom) choices.push({ pick: 'custom', on: true, label: t('icon_custom'), src: `${base}tile/${encodeURIComponent(a.key)}?v=${a.stamp}` });
-      const cl = el('div', ''); cl.setAttribute('role', 'radiogroup'); cl.setAttribute('aria-label', t('icon_h'));
-      for (const c of choices) {
-        const b = el('button', 'item'); b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', String(c.on));
-        const img2 = el('img', 'ithumb'); img2.alt = ''; img2.src = c.src;
-        b.append(img2, el('span', 'txt', c.label));
-        if (c.by) b.append(el('span', 'val', c.by));
-        b.insertAdjacentHTML('beforeend', ICON.tick);
-        if (c.pick !== 'custom') b.onclick = async () => {
-          closeSheet();
-          if (c.on) return;
-          try {
-            const next = await api('api/icon/pick', { app: a.key, pick: c.pick, choice: c.choice || '', from: c.from || '' });
-            if (!next.saved) throw new Error('not saved');
-            take(next); toast(t('toast_icon_picked'));
-          } catch (err) { toast(t('toast_set_fail')); }
-        };
-        cl.appendChild(b);
+    /* 卡片图标: 一张气泡 — 上面是图标来源; 没有任何可选项时整张气泡不画, 避免留下空气泡。 */
+    if (a.source || (!a.source && a.library) || a.custom) {
+      const ic = el('div', 'list pcard'); body.appendChild(ic);
+      const ib = el('div', 'pbody'); ic.appendChild(ib);
+      if (a.source) {
+        const cur = (state.devices || []).find(d => d.key === a.device);
+        const b = el('button', 'item');
+        b.append(el('span', 'txt', t('source_device')), el('span', 'val', cur ? cur.label : t('source_plain')));
+        b.insertAdjacentHTML('beforeend', ICON.chev);
+        b.onclick = () => deviceChooser(a, e);
+        ib.appendChild(b);
       }
-      ib.appendChild(cl);
+      // 图标库里有这个应用的图: 每一张按来源命名, 另有应用自带的图、或从这里手机发过去的图。
+      if (!a.source && a.library) {
+        const lib = `${base}library/${encodeURIComponent(a.key)}`;
+        const from = by => (by && (by[LANG] || by.name)) || '';
+        const library = (a.choices && a.choices.length ? a.choices : [{ id: '', on: a.icon === 'library' }]).map(c => ({
+          pick: 'library', choice: c.id, from: c.from || '', on: c.on, label: t('icon_library'), by: from(c.by),
+          src: c.id ? `${lib}?c=${encodeURIComponent(c.id)}&v=${a.stamp}` : `${lib}?v=${a.stamp}`,
+        }));
+        const choices = [...library,
+          { pick: 'own', on: a.icon === 'own', label: t('icon_own'), src: `${base}tile/${encodeURIComponent(a.key)}?art=own&v=${a.stamp}` },
+        ];
+        if (a.custom) choices.push({ pick: 'custom', on: true, label: t('icon_custom'), src: `${base}tile/${encodeURIComponent(a.key)}?v=${a.stamp}` });
+        const cl = el('div', ''); cl.setAttribute('role', 'radiogroup'); cl.setAttribute('aria-label', t('icon_h'));
+        for (const c of choices) {
+          const b = el('button', 'item'); b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', String(c.on));
+          const img2 = el('img', 'ithumb'); img2.alt = ''; img2.src = c.src;
+          b.append(img2, el('span', 'txt', c.label));
+          if (c.by) b.append(el('span', 'val', c.by));
+          b.insertAdjacentHTML('beforeend', ICON.tick);
+          if (c.pick !== 'custom') b.onclick = async () => {
+            closeSheet();
+            if (c.on) return;
+            try {
+              const next = await api('api/icon/pick', { app: a.key, pick: c.pick, choice: c.choice || '', from: c.from || '' });
+              if (!next.saved) throw new Error('not saved');
+              take(next); toast(t('toast_icon_picked'));
+            } catch (err) { toast(t('toast_set_fail')); }
+          };
+          cl.appendChild(b);
+        }
+        ib.appendChild(cl);
+      }
     }
-    const ibr = el('div', 'prows'); ic.appendChild(ibr);
-    if (a.custom) ibr.appendChild(put(t('aria_reset_icon'), false, async () => {
-      closeSheet();
-      try { take(await api('api/icon/reset', { app: a.key })); toast(t('toast_icon_reset')); } catch (err) { toast(t('toast_set_fail')); }
-    }));
 
-    /* 放在哪儿: 一张气泡 — 选一张图片 / 放进文件夹 / 从应用菜单隐藏 / 在应用菜单显示。 */
+    /* 放在哪儿: 一张气泡 — 选一张图片 / 恢复默认图标 / 放进文件夹 / 从应用菜单隐藏 / 在应用菜单显示。 */
     const pc = el('div', 'list pcard'); body.appendChild(pc);
     const pr = el('div', 'prows'); pr.style.paddingTop = '12px'; pc.appendChild(pr);
     pr.appendChild(put(t('change_icon'), false, () => { iconFor = a; $('#iconFile').click(); closeSheet(); }));
+    if (a.custom) pr.appendChild(put(t('aria_reset_icon'), false, async () => {
+      closeSheet();
+      try { take(await api('api/icon/reset', { app: a.key })); toast(t('toast_icon_reset')); } catch (err) { toast(t('toast_set_fail')); }
+    }));
     if (hidden) {
       pr.appendChild(put(t('show_on_home'), false, () => { closeSheet(); lay({ op: 'unhide', key: e.key }); }));
     } else {

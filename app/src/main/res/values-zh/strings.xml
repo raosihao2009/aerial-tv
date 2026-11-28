@@ -301,6 +301,8 @@
     <string name="kids_pick_first">先在右边选至少一个卡片。</string>
     <string name="kids_loading">卡片还在加载。</string>
     <string name="kids_turn_off">关闭这个模式</string>
+    <string name="kids_action_pref">模式首选项</string>
+    <string name="kids_action_pref_hint">勾选要在桌面保留的应用与直播卡片；开启后退出模式需输入家长密码。</string>
         <string name="kids_live">显示的直播卡片· %d 个</string>
     <string name="kids_apps">显示的应用卡片· %d 个</string>
     <string name="kids_apps_hint">桌面按选择的顺序显示。以后新增的卡片不会自动加进来。</string>

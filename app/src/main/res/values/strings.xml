@@ -315,6 +315,8 @@
     <string name="kids_pick_first">Pick at least one app on the right first.</string>
     <string name="kids_loading">The apps are still loading.</string>
     <string name="kids_turn_off">Turn Mode Off</string>
+    <string name="kids_action_pref">Mode Preferences</string>
+    <string name="kids_action_pref_hint">Pick the apps and live cards kept on the home screen; leaving the mode needs the parental PIN.</string>
         <string name="kids_live">Shown Live Cards · %d</string>
     <string name="kids_apps">Shown App Cards · %d</string>
     <string name="kids_apps_hint">Home shows them in the order picked. Cards added later are not added.</string>

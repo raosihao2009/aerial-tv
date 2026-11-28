@@ -327,8 +327,7 @@ fun WallpaperSheet(
             // 焦点切换。分类图标保留, 是为了在这一长页里一眼认出走到哪一组。
             Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(leftScroll).latestBringIntoView(leftScroll, pinScroll)) {
                 Spacer(Modifier.height(14.dp))
-                // 壁纸与屏保合成一组(用户口径): 一个分类标题, 壁纸在上面, 屏保的选项紧接在下面。
-                CategoryTitle(Glyph.Photo, R.string.wp_wallpaper_saver)
+                // 壁纸与屏保合成一组(用户口径): 标题 + 分类分签都在 WallpaperSection 里。
                 WallpaperSection(takeFocus)
                 Spacer(Modifier.height(18.dp))
                 ScreensaverSection(onStartScreensaver)
@@ -428,11 +427,11 @@ private fun WallpaperSection(takeFocus: Boolean) {
     var category by remember {
         mutableStateOf(catOf(items.firstOrNull { it.id == selected }?.kind ?: WallpaperKind.Photo))
     }
-    // 标题行: 左边分类名「壁纸与屏保」, 右边紧跟壁纸分类分签(我的照片/动态/每日精选/更多)。
+    // 标题行: 分类名「壁纸与屏保」后面紧跟壁纸分类分签(我的照片/动态/每日精选/更多), 不推到最右。
     Row(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         CategoryTitle(Glyph.Photo, R.string.wp_wallpaper_saver)
         WallpaperCategoryBar(category) { category = it }
@@ -984,6 +983,7 @@ private fun WallpaperRows(takeFocus: Boolean, category: String) {
     }
 
     var note by remember { mutableStateOf<String?>(null) }
+    var focusedId by remember { mutableStateOf<String?>(null) }
     val scroll = rememberLazyListState()
     // A row clips to its bounds, and the focused card grows by 8%: room on the left for that,
     // with the row moved back by as much so the cards still line up with the titles.
@@ -1000,13 +1000,13 @@ private fun WallpaperRows(takeFocus: Boolean, category: String) {
                 clipRect(top = -focusRoom, bottom = size.height + focusRoom) {
                     this@drawWithContent.drawContent()
                 }
-                // 左右各留一段渐隐: 卡片滚到边上时慢慢化掉, 而不是被硬切。
-                // 已贴到首张时不画左侧过渡层, 已贴到最后一张时不画右侧过渡层。
+                // 左右各留一段渐隐: 严格按当前焦点判断——焦点在首张时不画左侧过渡,
+                // 焦点在末张时不画右侧过渡, 其余位置两侧都画。
                 val fade = 26.dp.toPx()
                 val w = size.width.coerceAtLeast(1f)
                 if (w > fade * 2) {
-                    val atStart = scroll.firstVisibleItemIndex == 0
-                    val atEnd = scroll.layoutInfo.visibleItemsInfo.lastOrNull()?.index == list.lastIndex
+                    val atStart = list.firstOrNull()?.id == focusedId
+                    val atEnd = list.lastOrNull()?.id == focusedId
                     if (!atStart) {
                         drawRect(
                             brush = Brush.horizontalGradient(0f to Color.Transparent, (fade / w) to Color.Black),
@@ -1030,7 +1030,7 @@ private fun WallpaperRows(takeFocus: Boolean, category: String) {
     ) {
         items(list, key = { it.id }) { wp ->
             val hint = wallpaperNote(wp)
-            WallpaperCard(wp, if (wp === list.first()) first else null, onFocused = { note = hint })
+            WallpaperCard(wp, if (wp === list.first()) first else null, onFocused = { focusedId = wp.id; note = hint })
         }
     }
     Box(Modifier.height(42.dp).padding(start = 4.dp, top = 8.dp)) {

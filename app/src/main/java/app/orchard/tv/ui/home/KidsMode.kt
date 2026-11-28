@@ -180,6 +180,27 @@ private fun SetupSettings(hasApps: Boolean, onStart: () -> Unit, first: FocusReq
         Group {
             Box(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 Cell(
+                    R.string.kids_action_pref,
+                    stringResource(R.string.kids_action_pref_hint),
+                ) { onFocus ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ChipButton(
+                            stringResource(if (kids) R.string.kids_start_kids else R.string.kids_start_elders),
+                            false,
+                            icon = Glyph.Kids,
+                            onClick = { if (Restricted.allowed.isNotEmpty()) onStart() },
+                            onFocus = onFocus, blockLeft = true, autoEdges = false,
+                        )
+                        if (Restricted.enabled) {
+                            ChipButton(stringResource(R.string.kids_turn_off), false, onClick = {
+                                Restricted.chooseEnabled(false); KidsWatch.poke()
+                            }, onFocus = onFocus, autoEdges = false)
+                        }
+                    }
+                }
+            }
+            Box(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Cell(
                     R.string.kids_kind,
                     stringResource(if (kids) R.string.kids_kind_kids_hint else R.string.kids_kind_elders_hint),
                 ) { onFocus ->
@@ -248,26 +269,14 @@ private fun SetupSettings(hasApps: Boolean, onStart: () -> Unit, first: FocusReq
                 )
             }
         }
-        Spacer(Modifier.height(10.dp))
-        val start = stringResource(if (kids) R.string.kids_start_kids else R.string.kids_start_elders)
-        val startFocus = remember { FocusRequester() }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            WideButton(start, Glyph.Kids, focusRequester = startFocus, onClick = { if (Restricted.allowed.isNotEmpty()) onStart() })
-            Spacer(Modifier.width(14.dp))
-            if (Restricted.allowed.isEmpty()) {
-                BasicText(
-                    stringResource(if (hasApps) R.string.kids_pick_first else R.string.kids_loading),
-                    style = Type.Caption.copy(color = Palette.Orange), maxLines = 2,
-                )
-            } else if (Restricted.enabled) {
-                WideButton(stringResource(R.string.kids_turn_off), null, onClick = {
-                    Restricted.chooseEnabled(false); KidsWatch.poke()
-                    // 这颗按钮一按就消失(模式已关), 焦点要落回「进入」按钮, 不能凭空丢掉。
-                    startFocus.requestFocus()
-                })
-            }
+        // 还没选任何卡片时的提示, 留在滚动列表末尾。
+        if (Restricted.allowed.isEmpty()) {
+            BasicText(
+                stringResource(if (hasApps) R.string.kids_pick_first else R.string.kids_loading),
+                style = Type.Caption.copy(color = Palette.Orange), maxLines = 2,
+                modifier = Modifier.padding(top = 6.dp, start = 4.dp),
+            )
         }
-        Spacer(Modifier.height(12.dp))
         }
     }
 }
@@ -298,7 +307,7 @@ private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier, leftTarg
     val appsOnly = candidates.filterNot { it.key.startsWith(LIVE_KEY_PREFIX) }
     val locks = modeLocks(candidates)
     // 一个"切换式"分段键: 左右键切页, 高亮始终绑在当前页, 不是两颗各自独立的按钮。
-    var tab by remember { mutableStateOf(if (live.isEmpty()) 1 else 0) }
+    var tab by remember { mutableStateOf(0) }
     Column(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Pressable(
@@ -327,7 +336,7 @@ private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier, leftTarg
                         .padding(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    listOf(R.string.kw_tab_live, R.string.kw_tab_apps).forEachIndexed { index, label ->
+                    listOf(R.string.kw_tab_apps, R.string.kw_tab_live).forEachIndexed { index, label ->
                         val active = tab == index
                         Row(
                             Modifier
@@ -360,21 +369,14 @@ private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier, leftTarg
             }
             Spacer(Modifier.width(10.dp))
             BasicText(
-                if (tab == 0) stringResource(R.string.kids_live, live.count { it.key in allowed })
-                else stringResource(R.string.kids_apps, appsOnly.count { it.key in allowed }),
+                if (tab == 0) stringResource(R.string.kids_apps, appsOnly.count { it.key in allowed })
+                else stringResource(R.string.kids_live, live.count { it.key in allowed }),
                 style = Type.Caption.copy(color = Palette.SecondaryLabel),
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
         }
-        // 两页用同一句说明(用户口径): 桌面按选择的顺序显示, 以后新增的卡片不会自动加进来。
-        BasicText(
-            stringResource(R.string.kids_apps_hint),
-            style = Type.Caption.copy(color = Palette.SecondaryLabel),
-            maxLines = 2, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 4.dp),
-        )
-        val items = if (tab == 0) live else appsOnly
+        val items = if (tab == 0) appsOnly else live
         // 编号只看本组里的勾选顺序: 直播卡片和应用卡片各自从 1 开始, 不串号。
         val allowedInGroup = allowed.filter { k -> items.any { it.key == k } }
         // 两页都是一排三张(用户口径)。用固定三列的网格, 宽度由网格自己分, 不会叠在一起,
@@ -386,10 +388,19 @@ private fun AllowedApps(candidates: List<AppEntry>, modifier: Modifier, leftTarg
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // 说明句跟在网格内容里一起滚, 不再钉在页签下方固定置顶。
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                BasicText(
+                    stringResource(R.string.kids_apps_hint),
+                    style = Type.Caption.copy(color = Palette.SecondaryLabel),
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
+            }
             if (items.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     BasicText(
-                        stringResource(if (tab == 0) R.string.kw_live_none else R.string.kids_loading),
+                        stringResource(if (tab == 0) R.string.kids_loading else R.string.kw_live_none),
                         style = Type.Caption.copy(color = Palette.SecondaryLabel),
                         modifier = Modifier.padding(top = 6.dp),
                     )
