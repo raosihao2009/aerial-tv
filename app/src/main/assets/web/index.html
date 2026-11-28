@@ -557,9 +557,14 @@
   .sheet h3 { text-align: center; font-size: 17px; font-weight: 600; margin: 12px 0 2px; }
   .sheet .meta { text-align: center; font-size: 13px; color: var(--secondary); margin: 0 0 16px; }
   /* 守护弹窗: 与卡片详情弹窗同一套流式布局, 外层 .sheet 自身滚动; 页签随内容一起滚,
-     滚到顶部时吸顶(sticky), 不做全局钉死。背景沿用基础胶囊样式, 不再强行铺白底遮挡。 */
+     滚到顶部时吸顶(sticky), 不做全局钉死。整条胶囊(含底部背景)用实色填充, 吸顶时盖住下方滚过的卡片,
+     不再局部透明穿透; 选中项仍是里面那颗白色胶囊。只作用于守护弹窗, 密码弹窗复用的分段键不变。 */
   .sheet.kids-sheet { max-height: calc(100% - 24vh); }
-  .kids-scroll .ptabs { position: sticky; top: 0; z-index: 3; }
+  .kids-scroll .ptabs {
+    position: sticky; top: 0; z-index: 3;
+    background: var(--fill-solid); background-color: var(--fill-solid);
+    margin: 0; padding: 6px 3px;
+  }
   .kids-scroll .kids-actions { margin-bottom: 10px; }
   /* 时间选择微型窗口: 收窄宽度、限高, 整体紧凑不占满整屏抽屉。 */
   .sheet.mini-sheet { max-width: 320px; max-height: 58vh; }
@@ -802,7 +807,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1195;
+const PAGE_VER = 1196;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
