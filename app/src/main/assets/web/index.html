@@ -72,6 +72,7 @@
   /* 各分类首张卡片和壁纸大图一样贴住选项卡栏, 不额外往下站。 */
   /* 各分类(个性化/应用/直播)首张卡片和壁纸大图一样贴住选项卡栏, 不额外往下站。 */
   section[data-tab="more"] .pgroup > .pcard:first-child,
+  section[data-tab="more"] .pgroup > :first-child > .pcard:first-child,
   section[data-tab="home"] #homeBody > .view > :first-child,
   section[data-tab="live"] #liveBody > :first-child { margin-top: -14px; }
   /* 信号源气泡是与应用菜单平级的独立容器, 自身补上间距, 避免和上方隐藏卡片气泡贴在一起。 */
@@ -222,9 +223,9 @@
     flex: 0 1 40px; min-width: 0; padding: 0 6px; overflow: hidden; color: var(--secondary); font-size: 13px; cursor: pointer;
   }
   .gtabs button[aria-checked="true"] {
-    /* 选中格固定宽度, 各 tab 高亮宽度一致; 宽度要同时放下图标与最多四字标签, 避免文字被截成省略号。 */
+    /* 选中格宽度以最长标签「壁纸与屏保」五字完整显示为基准, 图标+五字+内边距都放得下, 不截省略号。 */
     background: var(--card); color: var(--label); font-weight: 600;
-    flex: 0 0 7.4em; width: 7.4em; min-width: 7.4em; padding: 0 8px;
+    flex: 0 0 8.4em; width: 8.4em; min-width: 8.4em; padding: 0 8px;
     box-shadow: 0 1px 3px rgba(0,0,0,.12);
   }
   .gtabs button .glabel { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -560,6 +561,9 @@
   .time-input-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 16px 0; }
   .time-input-row .pref-num { width: 72px; text-align: center; background: var(--fill); border-radius: 10px; padding: 12px 0; font-size: 18px; }
   .time-colon { font-size: 18px; font-weight: 600; color: var(--label); }
+  /* 最晚到时间: 时/分输入框直接内联在卡片行里, 不另弹选择层。 */
+  .time-inline { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  .time-inline .pref-num { width: 56px; text-align: center; background: var(--fill); border-radius: 10px; padding: 10px 0; font-size: 16px; }
   .sheet .list { background: var(--card); }
   @media (prefers-color-scheme: dark) { .sheet .list { background: #2c2c2e; } }
   .sheet .list + .list { margin-top: 10px; }
@@ -792,7 +796,7 @@
 const base = location.pathname.replace(/\/?$/, '/');
 /* 这一版页面的版本号, 与电视的 versionCode 对齐。手机开着的是上一版 index.html 时, 它跑的还是旧代码
    (旧代码的毛病不是电视端能改的), 所以电视一换版本, 页面就自己重载一次, 换成本机这一份。 */
-const PAGE_VER = 1188;
+const PAGE_VER = 1189;
 const pageVerCheck = (r) => {
   if (!r || !r.ver || String(r.ver) === String(PAGE_VER)) return;
   try {
@@ -2597,14 +2601,21 @@ function customRow(it, changed) {
   row.appendChild(el('span', 'unit', it.clock ? t('custom_time') : t('custom')));
   let inp;
   if (it.clock) {
-    // 最晚到: 点触发按钮弹出时/分选择层(与天气地区选择同一套弹层), 不用系统原生时间选择器。
+    // 最晚到: 时/分两个输入框直接填在这张卡里, 不再弹出选择层。
     const mins = parseInt(it.value, 10) || 0;
-    const trigger = el('button', 'region-trigger'); trigger.type = 'button';
-    const text = el('span', 'region-trigger-t', hhmm(mins));
-    trigger.appendChild(text);
-    trigger.disabled = !!it.disabled;
-    trigger.onclick = () => openTimeSheet(mins, pick => { text.textContent = hhmm(pick); changed(it.key, String(pick)); });
-    row.appendChild(trigger);
+    const h = Math.floor(mins / 60) % 24, m = mins % 60;
+    const wrap = el('div', 'time-inline');
+    const hIn = el('input', 'pref-num'); hIn.type = 'number'; hIn.inputMode = 'numeric'; hIn.min = 0; hIn.max = 23; hIn.value = String(h).padStart(2, '0');
+    const colon = el('span', 'time-colon', ':');
+    const mIn = el('input', 'pref-num'); mIn.type = 'number'; mIn.inputMode = 'numeric'; mIn.min = 0; mIn.max = 59; mIn.value = String(m).padStart(2, '0');
+    const commit = () => {
+      const nh = parseInt(hIn.value, 10), nm = parseInt(mIn.value, 10);
+      if (isNaN(nh) || nh < 0 || nh > 23 || isNaN(nm) || nm < 0 || nm > 59) { toast(t('toast_set_fail')); return; }
+      changed(it.key, String(nh * 60 + nm));
+    };
+    hIn.onchange = commit; mIn.onchange = commit;
+    wrap.append(hIn, colon, mIn);
+    row.appendChild(wrap);
   } else {
     inp = el('input', 'pref-num'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.value = it.value;
     if (it.min !== undefined) inp.min = it.min;
